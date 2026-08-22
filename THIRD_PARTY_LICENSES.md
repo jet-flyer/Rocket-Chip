@@ -3,7 +3,7 @@
 This file lists all third-party components used by RocketChip, their licenses,
 and attribution. All licenses listed are compatible with GPLv3.
 
-Last updated: 2026-02-22
+Last updated: 2026-08-22
 
 ---
 
@@ -52,6 +52,35 @@ The Pico SDK includes bundled dependencies under their own licenses:
 - **URL:** https://github.com/stephendpmurphy/icm20948
 - **License file:** `lib/icm20948/LICENSE`
 
+### Embedded Template Library (ETL)
+
+- **Location:** `EXTERNAL/etl-20.47.1/`
+- **Version:** 20.47.1
+- **License:** MIT
+- **Copyright:** (c) 2021 John Wellbelove
+- **URL:** https://github.com/ETLCPP/etl
+- **License text:** `EXTERNAL/etl-20.47.1/etl/version.h` (this vendor tree has no standalone LICENSE file)
+- **Usage:** `rc_log` formatter backend (`etl::to_string`). Header-only; compiled into the target firmware.
+
+### QP/C Real-Time Event Framework (subset)
+
+- **Location:** `lib/qep/`
+- **Version:** 8.1.3 (vendored 2026-03-15)
+- **License:** GPL-3.0-or-later OR LicenseRef-QL-commercial
+- **Copyright:** (c) 2005 Quantum Leaps, LLC
+- **URL:** https://github.com/QuantumLeaps/qpc
+- **License file:** `lib/qep/LICENSE.txt`
+- **Usage:** QEP hierarchical state machine plus the QF/QV subset listed in `CMakeLists.txt`. Dual-licensed upstream; RocketChip uses the GPL-3.0-or-later term (same family as this project). Commercial closed-source use of QP/C requires a Quantum Leaps license: https://www.state-machine.com/licensing
+
+### MAVLink C headers
+
+- **Location:** `lib/mavlink/`
+- **Version:** MAVLink 2.0 generated headers (`MAVLINK_BUILD_DATE` Thu Mar 05 2026)
+- **License:** MIT (message-definition XML and generated C headers)
+- **URL:** https://github.com/mavlink/c_library_v2
+- **Docs:** https://mavlink.io/en/ (License: MIT for XML + generated C; the *mavgen* toolchain itself is LGPLv3 and is not vendored here)
+- **Usage:** Vehicle/GCS telemetry (IVP-61). Header-only.
+
 ---
 
 ## Build-Time Dependencies (not shipped in binary)
@@ -68,16 +97,17 @@ The Pico SDK includes bundled dependencies under their own licenses:
 
 ## Derived Data
 
-### WMM Magnetic Declination Table
+### WMM Magnetic Field Tables
 
-- **File:** `src/fusion/wmm_declination.cpp`
-- **Source:** ArduPilot `AP_Declination/tables.cpp`
-- **License:** GPL-3.0-or-later (ArduPilot)
-- **Copyright:** ArduPilot Dev Team
-- **URL:** https://github.com/ArduPilot/ardupilot
-- **Description:** 19x37 grid of magnetic declination values (IGRF13 epoch,
-  auto-generated from IGRF coefficients by ArduPilot's `generate/generate.py`).
-  The lookup function (`wmm_get_declination`) is an original implementation.
+- **Files:** `src/fusion/wmm_tables.h`, `src/fusion/wmm_tables.cpp`
+- **Generator:** `scripts/generate_wmm_table.py` from `lib/wmm/WMM.COF`
+- **Source:** NOAA/NCEI World Magnetic Model 2025 coefficients (public domain)
+- **URL:** https://www.ncei.noaa.gov/products/world-magnetic-model
+- **Epoch:** 2025.0, evaluated at 2027.5, valid 2025–2030
+- **Description:** 19×37 grids of declination, inclination, and total intensity
+  at 10° resolution. Interpolation (`wmm_get_field`, `wmm_get_declination`,
+  `wmm_get_earth_field_ned`) is original RocketChip code (GPL-3.0-or-later).
+  This replaced the earlier ArduPilot IGRF13 `wmm_declination.cpp` table.
 
 ---
 
@@ -132,5 +162,8 @@ are listed for attribution and academic citation, not license obligation.
 | ruuvi.dps310.c | MIT | Yes (permissive) |
 | lwGPS | MIT | Yes (permissive) |
 | ICM-20948 driver | MIT | Yes (permissive) |
+| ETL 20.47.1 | MIT | Yes (permissive) |
+| QP/C 8.1.3 | GPL-3.0-or-later OR QL-commercial | Yes (GPL term) |
+| MAVLink C headers | MIT | Yes (permissive) |
+| NOAA WMM2025 coefficients | Public domain | Yes |
 | Google Test | BSD-3-Clause | Yes (permissive, test-only) |
-| ArduPilot (WMM table) | GPL-3.0-or-later | Yes (same license family) |

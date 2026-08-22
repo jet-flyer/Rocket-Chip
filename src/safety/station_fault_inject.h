@@ -12,7 +12,7 @@
 // (ROCKETCHIP_JOB_STATION=1).
 //
 // Callable via GDB `call fault_force_station_*()` from debug probe.
-// See safety/test_mode.h for the gate; docs/FAULT_INJECTION.md for
+// See safety/inject_arm_gate.h for the gate; docs/FAULT_INJECTION.md for
 // per-scenario usage.
 #ifndef ROCKETCHIP_SAFETY_STATION_FAULT_INJECT_H
 #define ROCKETCHIP_SAFETY_STATION_FAULT_INJECT_H

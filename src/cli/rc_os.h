@@ -99,20 +99,6 @@ extern bool rc_os_imu_available;
 extern bool rc_os_baro_available;
 
 // ============================================================================
-// Accel Read Callback (set by main, used by 6-pos cal)
-// ============================================================================
-
-/**
- * @brief Callback to read one accelerometer sample for 6-pos calibration.
- *
- * Set this in main.cpp after IMU initialization.
- * Should block until a fresh sample is available (~10ms at 100Hz).
- * @return true on success
- */
-typedef bool (*rc_os_read_accel_fn)(float* ax, float* ay, float* az, float* temp_c);
-extern rc_os_read_accel_fn rc_os_read_accel;
-
-// ============================================================================
 // I2C Bus Scan Guard (set by main)
 // ============================================================================
 
@@ -135,33 +121,11 @@ extern bool rc_os_i2c_scan_allowed;
  */
 extern std::atomic<bool> rc_os_mag_cal_active;
 
-// ============================================================================
-// Mag Read Callback (set by main, used by mag cal)
-// ============================================================================
-
-/**
- * @brief Callback to read one magnetometer sample for compass calibration.
- *
- * Reads from seqlock (Core 1 keeps running). Returns false on seqlock
- * failure or mag not valid.
- * @return true on success
- */
-typedef bool (*rc_os_read_mag_fn)(float* mx, float* my, float* mz);
-extern rc_os_read_mag_fn rc_os_read_mag;
-
-/**
- * @brief Reset mag read staleness counter.
- *
- * Call before starting a new mag cal so the staleness gate doesn't
- * inherit a counter from a previous calibration run.
- */
-typedef void (*rc_os_reset_mag_staleness_fn)(void);
-extern rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness;
-
-// R-17/R-18 (2026-05-07 audit): the rc_os_cal_pre_hook /
-// rc_os_cal_post_hook function-pointer table was removed (dead code —
-// pointers assigned at main.cpp but never invoked anywhere). The
-// I2C-pause primitive moved to src/safety/core1_i2c_pause.{h,cpp};
-// cal_post_hook() is now called directly from ao_rcos.cpp.
+// P10-9: rc_os_read_accel / rc_os_read_mag / rc_os_reset_mag_staleness
+// function-pointer table removed. Accel 6-pos samples come from Core 1;
+// mag cal calls cal_read_mag() / cal_reset_mag_staleness() directly
+// from ao_rcos.cpp. R-17/R-18 already removed rc_os_cal_pre_hook /
+// rc_os_cal_post_hook the same way (I2C-pause in core1_i2c_pause;
+// cal_post_hook() called directly from ao_rcos.cpp).
 
 #endif // ROCKETCHIP_RC_OS_H

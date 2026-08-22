@@ -60,21 +60,6 @@ bool rc_os_baro_available = false;
 bool rc_os_i2c_scan_allowed = true;
 std::atomic<bool> rc_os_mag_cal_active{false};
 
-// Accel read callback for 6-pos calibration (set by main.cpp)
-rc_os_read_accel_fn rc_os_read_accel = nullptr;
-// R-17/R-18 (2026-05-07 audit): the rc_os_cal_pre_hook /
-// rc_os_cal_post_hook function-pointer table was removed — both pointers
-// were assigned at main.cpp:315 but never invoked anywhere. The actual
-// cal_post_hook (Core 1 calibration-reload signal) is now called
-// directly from ao_rcos.cpp; the I2C-pause mechanism the pre-hook used
-// to wrap is now in src/safety/core1_i2c_pause.{h,cpp} (R-17).
-
-// Mag read callback for compass calibration (set by main.cpp)
-rc_os_read_mag_fn rc_os_read_mag = nullptr;
-
-// Mag staleness reset callback (set by main.cpp)
-rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness = nullptr;
-
 
 
 // ESKF live mode state moved to src/dev/dev_cli.cpp (bench-only)

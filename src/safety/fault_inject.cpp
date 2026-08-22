@@ -13,7 +13,7 @@
 // See docs/FAULT_INJECTION.md for usage.
 
 #include "safety/fault_inject.h"
-#include "safety/test_mode.h"
+#include "safety/inject_arm_gate.h"
 #include "rocketchip/linker_symbols.h"  // __StackBottom (linker-defined)
 #include "rocketchip/config.h"
 #include "rocketchip/ao_signals.h"
@@ -47,7 +47,7 @@ static bool fi_test_mode_gate(const char* name) {
     if (rc::test_mode_active()) { return true; }
     rc::rc_log("[FAULT] %s gated — arm test mode via probe "
            "(write kTestModeMagic to rc::g_test_mode_arm_magic + reset; "
-           "see safety/test_mode.h)\n", name);
+           "see safety/inject_arm_gate.h)\n", name);
     return false;
 }
 

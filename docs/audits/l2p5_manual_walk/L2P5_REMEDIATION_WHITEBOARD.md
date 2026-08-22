@@ -56,6 +56,37 @@ the *action* here until the action is done, then erase.**
 
 ## Rows
 
+### R-6 — Thin-file / hopeful-future nameplates (seeded WN-035)
+
+**Surfaced:** 2026-08-21 · WN-035 (`notify_backend.h`) — not a public-vs-private
+question. A file touched by 1–2 same-folder TUs does not earn *separateness*;
+stale banners and “this already exists” asserts hide there.
+
+**What:** Speculative plugin slot from IVP-115 (AP_Notify-shaped backends,
+vtable refused). Two decls, one caller (`ao_notify` tick), LED `.cpp` real,
+audio `.cpp` a stub (WN-228 — do not couple). Fold decls into
+`src/notify/notify_resolver.h` (already the notify module header) and delete
+`include/rocketchip/notify_backend.h`. Functions stay.
+
+**Pattern (cite from later earn-rent WNs):** If a file is only a nameplate for
+symbols that already have a home next door, or a “just in case / someday”
+slot with no second live consumer, fold the nameplate. Do not keep a file so
+a future OLED/audio/capability can pretend it already has an interface.
+False “this exists” is worse than an honest missing file. Same family:
+WN-032 (`job_capabilities.h`), job packs (WN-034), audio stub TU (WN-228).
+
+**`notify_resolver.h` is not a test-only file.** `resolve_led_pattern` is
+what the LED backend runs on the tick; `decode_health_faults` is what
+AO_Notify uses. Host tests include that header to hit those *same*
+functions without QP/hardware. Tests as a second consumer of production
+code are the point. A header that exists *only* so tests compile, with no
+firmware caller, would be the bad case — not this one.
+
+**Disposition target:** This row stays as the pattern citation. Erase when
+L2-P5 disposition closes (pattern should be in the log close-out / Plan-3
+if still needed). WN-035 code fold is the first application.
+**Blocking?** No
+
 ### R-1 — Parked `SensorSnapshot` (prod header removed)
 
 **Surfaced:** 2026-08-20 · DF-001 / WN-045; owner: out of prod, not destroyed

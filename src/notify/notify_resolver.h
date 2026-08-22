@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Notification Priority Resolver — Internal Header (Stage 14, IVP-115)
+// Notify module — internal header
 //
-// Pure function mapping NotifyState to a single resolved LED pattern code.
-// No hardware dependencies, no QP symbols — testable directly from host.
+// Production API for the notify implementation TUs and AO_Notify:
+//   - resolve_led_pattern: LED priority resolver (Fault > Cal > Flight >
+//     Radio > Sensor > Idle). Called from notify_backend_led_update on
+//     the 33 Hz tick. Not a test double.
+//   - decode_health_faults: used by AO_Notify to map health bytes to
+//     FaultIntent.
+//   - notify_backend_*_update: LED and audio backends. One production
+//     caller (AO_Notify tick). Decls live here so they are not a
+//     one-off public header (WN-035).
 //
-// Iterates categories in priority order (Fault > Cal > Flight > Radio >
-// Sensor > Idle) and returns the rc::led::k* pattern code for the first
-// non-kNone category. Idle fallback returns kSensorNoGps (blue blink).
-//
-// This is an internal header used by notify_backend_led.cpp and by
-// tests/test_notify.cpp. Not part of the public notify_backend.h API.
+// Host tests include this same header to call those production functions
+// without QP or hardware. The functions exist for firmware; tests are
+// a second consumer, not the reason the code exists.
 //============================================================================
 #ifndef ROCKETCHIP_NOTIFY_RESOLVER_H
 #define ROCKETCHIP_NOTIFY_RESOLVER_H
@@ -27,11 +31,14 @@ namespace notify {
 // its corresponding rc::led::k* pattern code.
 uint8_t resolve_led_pattern(const NotifyState& state);
 
+void notify_backend_led_update(const NotifyState& state);
+void notify_backend_audio_update(const NotifyState& state);
+
 // Decode a HealthStatusEvt primary + secondary byte pair into the
 // highest-priority FaultIntent. Ascending FaultIntent values = ascending
 // priority. Returns FaultIntent::kNone if no faults are active.
 //
-// Inline so both AO_Notify and host tests can use it without pulling QP.
+// Inline so AO_Notify and host tests share one definition without QP.
 inline FaultIntent decode_health_faults(uint8_t primary, uint8_t secondary) {
     FaultIntent max_fault = FaultIntent::kNone;
 

@@ -25,29 +25,8 @@ namespace rc {
 extern void flight_director_test_set_time(FlightDirector* me, uint32_t ms);
 }
 
-// ============================================================================
-// Test helpers — record callback invocations
-// ============================================================================
-static uint8_t s_last_led_value = 0;
-static int s_led_call_count = 0;
-static rc::PyroChannel s_last_pyro_channel = rc::PyroChannel::kDrogue;
-static int s_pyro_call_count = 0;
-
-static void stub_set_led(uint8_t val) {
-    s_last_led_value = val;
-    ++s_led_call_count;
-}
-
-static void stub_log_pyro(rc::PyroChannel ch) {
-    s_last_pyro_channel = ch;
-    ++s_pyro_call_count;
-}
-
 static void reset_stubs() {
-    s_last_led_value = 0;
-    s_led_call_count = 0;
-    s_last_pyro_channel = rc::PyroChannel::kDrogue;
-    s_pyro_call_count = 0;
+    rc::fd_effect_host_reset();
 }
 
 // ============================================================================
@@ -67,8 +46,6 @@ protected:
         ctx_.now_ms = 1000;
         ctx_.from_phase = rc::FlightPhase::kIdle;
         ctx_.to_phase = rc::FlightPhase::kArmed;
-        ctx_.set_led = stub_set_led;
-        ctx_.log_pyro = stub_log_pyro;
     }
 };
 
@@ -79,8 +56,8 @@ protected:
 TEST_F(ActionExecutorTest, SetLedCallsCallback) {
     rc::ActionEntry action{rc::ActionType::kSetLed, rc::kLedPhaseArmed};
     rc::action_execute(action, &ctx_);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseArmed);
-    EXPECT_EQ(s_led_call_count, 1);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseArmed);
+    EXPECT_EQ(rc::fd_effect_host_led_calls(), 1);
 }
 
 TEST_F(ActionExecutorTest, MarkEventSetsArmedTimestamp) {
@@ -151,30 +128,30 @@ TEST_F(ActionExecutorTest, FirePyroCallsCallback) {
     rc::ActionEntry action{rc::ActionType::kFirePyro,
                             static_cast<uint8_t>(rc::PyroChannel::kDrogue)};
     rc::action_execute(action, &ctx_);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kDrogue);
-    EXPECT_EQ(s_pyro_call_count, 1);
+    EXPECT_EQ(rc::fd_effect_host_last_pyro(), rc::PyroChannel::kDrogue);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
 }
 
 TEST_F(ActionExecutorTest, FirePyroMainChannel) {
     rc::ActionEntry action{rc::ActionType::kFirePyro,
                             static_cast<uint8_t>(rc::PyroChannel::kMain)};
     rc::action_execute(action, &ctx_);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kMain);
-    EXPECT_EQ(s_pyro_call_count, 1);
+    EXPECT_EQ(rc::fd_effect_host_last_pyro(), rc::PyroChannel::kMain);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
 }
 
 TEST_F(ActionExecutorTest, SetBeaconCallsLedCallback) {
     rc::ActionEntry action{rc::ActionType::kSetBeacon, rc::kLedPhaseBeacon};
     rc::action_execute(action, &ctx_);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseBeacon);
-    EXPECT_EQ(s_led_call_count, 1);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseBeacon);
+    EXPECT_EQ(rc::fd_effect_host_led_calls(), 1);
 }
 
 TEST_F(ActionExecutorTest, ReportStateNoSideEffects) {
     rc::ActionEntry action{rc::ActionType::kReportState, 0};
     rc::action_execute(action, &ctx_);
-    EXPECT_EQ(s_led_call_count, 0);
-    EXPECT_EQ(s_pyro_call_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_led_calls(), 0);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
 }
 
 // ============================================================================
@@ -188,28 +165,15 @@ TEST_F(ActionExecutorTest, ExecuteListRunsAllActions) {
     };
     ctx_.now_ms = 3000;
     rc::action_execute_list(actions, 2, &ctx_);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseBoost);
-    EXPECT_EQ(s_led_call_count, 1);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseBoost);
+    EXPECT_EQ(rc::fd_effect_host_led_calls(), 1);
     EXPECT_EQ(markers_.launch_ms, 3000u);
 }
 
 TEST_F(ActionExecutorTest, EmptyListNoCrash) {
     rc::action_execute_list(nullptr, 0, &ctx_);
-    EXPECT_EQ(s_led_call_count, 0);
-    EXPECT_EQ(s_pyro_call_count, 0);
-}
-
-TEST_F(ActionExecutorTest, NullCallbacksNoCrash) {
-    ctx_.set_led = nullptr;
-    ctx_.log_pyro = nullptr;
-    rc::ActionEntry actions[] = {
-        {rc::ActionType::kSetLed, rc::kLedPhaseArmed},
-        {rc::ActionType::kFirePyro, static_cast<uint8_t>(rc::PyroChannel::kDrogue)},
-    };
-    rc::action_execute_list(actions, 2, &ctx_);
-    // Should not crash — null checks prevent calling
-    EXPECT_EQ(s_led_call_count, 0);
-    EXPECT_EQ(s_pyro_call_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_led_calls(), 0);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
 }
 
 // ============================================================================
@@ -311,8 +275,6 @@ protected:
     void SetUp() override {
         reset_stubs();
         rc::flight_director_ctor(&fd_, &rc::kDefaultRocketProfile);
-        fd_.set_led_cb = stub_set_led;
-        fd_.log_pyro_cb = stub_log_pyro;
         rc::flight_director_init(&fd_);
     }
 
@@ -328,7 +290,7 @@ protected:
 TEST_F(ActionIntegrationTest, ArmSetsLedToArmed) {
     reset_stubs();
     dispatch(rc::SIG_ARM);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseArmed);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseArmed);
 }
 
 TEST_F(ActionIntegrationTest, HappyPathFiresDrogueAndMainPyro) {
@@ -338,15 +300,15 @@ TEST_F(ActionIntegrationTest, HappyPathFiresDrogueAndMainPyro) {
 
     reset_stubs();
     dispatch(rc::SIG_APOGEE);  // COAST → DESCENT: fires drogue pyro
-    EXPECT_EQ(s_pyro_call_count, 1);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kDrogue);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseDrogueDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+    EXPECT_EQ(rc::fd_effect_host_last_pyro(), rc::PyroChannel::kDrogue);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseDrogueDescent);
 
     reset_stubs();
     dispatch(rc::SIG_MAIN_DEPLOY);  // DROGUE → MAIN: fires main pyro
-    EXPECT_EQ(s_pyro_call_count, 1);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kMain);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseMainDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+    EXPECT_EQ(rc::fd_effect_host_last_pyro(), rc::PyroChannel::kMain);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseMainDescent);
 }
 
 TEST_F(ActionIntegrationTest, AbortFromBoostNoPyro) {
@@ -356,8 +318,8 @@ TEST_F(ActionIntegrationTest, AbortFromBoostNoPyro) {
 
     reset_stubs();
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_pyro_call_count, 0);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseAbort);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseAbort);
 }
 
 TEST_F(ActionIntegrationTest, AbortFromCoastNoPyro) {
@@ -368,7 +330,7 @@ TEST_F(ActionIntegrationTest, AbortFromCoastNoPyro) {
 
     reset_stubs();
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_pyro_call_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
 }
 
 TEST_F(ActionIntegrationTest, AbortFromArmedNoPyro) {
@@ -376,8 +338,8 @@ TEST_F(ActionIntegrationTest, AbortFromArmedNoPyro) {
 
     reset_stubs();
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_pyro_call_count, 0);
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseAbort);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseAbort);
 }
 
 TEST_F(ActionIntegrationTest, LandedSetsBeaconLed) {
@@ -391,7 +353,7 @@ TEST_F(ActionIntegrationTest, LandedSetsBeaconLed) {
     dispatch(rc::SIG_LANDING);
     // Landed entry sets both kLedPhaseLanded and kLedPhaseBeacon
     // Last LED value should be the beacon (SET_BEACON comes after SET_LED)
-    EXPECT_EQ(s_last_led_value, rc::kLedPhaseBeacon);
+    EXPECT_EQ(rc::fd_effect_host_last_led(), rc::kLedPhaseBeacon);
     EXPECT_EQ(fd_.state.markers.landing_ms, fd_.tick_ms);
 }
 
@@ -406,8 +368,8 @@ TEST_F(ActionIntegrationTest, CoastTimeoutFiresDroguePyro) {
     tick(fd_.state.phase_entry_ms + timeout + 1);
     // Should have transitioned to DROGUE_DESCENT and fired drogue pyro
     EXPECT_EQ(rc::flight_director_phase(&fd_), rc::FlightPhase::kDrogueDescent);
-    EXPECT_EQ(s_pyro_call_count, 1);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kDrogue);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+    EXPECT_EQ(rc::fd_effect_host_last_pyro(), rc::PyroChannel::kDrogue);
 }
 
 TEST_F(ActionIntegrationTest, MarkersSetByEntryActions) {

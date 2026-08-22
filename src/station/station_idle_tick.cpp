@@ -5,11 +5,10 @@
 //
 // Stage 16C IVP-141: wires station GPS polling into qv_idle_bridge() by
 // reusing the existing vehicle GPS path unchanged. No new GPS code:
-//   - g_gpsFnUpdate / g_gpsFnGetData function pointers are populated for
-//     both roles at boot (vehicle: init_sensors(); station Fruit Jam:
-//     ultra-early in init_early_hw() per the GPS-fix commit 21d4eb1).
-//     Whichever transport was bound (UART on Feather/Pico 2, I2C PA1010D
-//     on Fruit Jam) is the same transport station uses here.
+//   - g_gpsTransport is set at boot (vehicle: init_sensors(); station
+//     Fruit Jam: ultra-early in init_early_hw() per GPS-fix 21d4eb1).
+//     UART on Feather/Pico 2, I2C PA1010D on Fruit Jam. core1_read_gps()
+//     switches on that enum and calls the driver by name.
 //   - core1_read_gps() is the shared reader, promoted from file-static
 //     so both the vehicle Core 1 loop and this station idle-bridge tick
 //     call the same body.
@@ -79,10 +78,10 @@ void station_idle_tick() {
     }
     g_lastTickUs = now_us;
 
-    // Shared helper: drives g_gpsFnUpdate/g_gpsFnGetData, applies the
-    // I2C SDA settling delay when the bound transport is I2C, runs the
-    // hold-on-valid pattern for burst-then-silent NMEA cadence, and
-    // updates the best-fix diagnostic.
+    // Shared helper: polls the bound GPS driver, applies the I2C SDA
+    // settling delay when transport is I2C, runs the hold-on-valid
+    // pattern for burst-then-silent NMEA cadence, and updates the
+    // best-fix diagnostic.
     core1_read_gps(&g_localData, &g_lastGpsReadUs);
 
     // MCU temp at ~1 Hz (every 10th GPS tick at 10 Hz).

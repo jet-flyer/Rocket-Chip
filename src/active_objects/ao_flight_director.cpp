@@ -16,7 +16,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/go_nogo_checks.h"
-#include "safety/test_mode.h"          // R-25-exec: phase-accessor registration + IDLE-exit clearing
+#include "safety/inject_arm_gate.h"    // R-25-exec: phase cell + IDLE-exit clearing
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
@@ -46,7 +46,7 @@ struct FdAo {
     QActive super;
     QTimeEvt tick_timer;            // 100Hz (every 1 tick at 100Hz base)
     rc::FlightDirector director;    // Flight Director QHsm
-    bool initialized;               // true after ctor + init + callback wiring
+    bool initialized;               // true after ctor + init
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
     // health_tick_count removed — health monitor is now AO_HealthMonitor (IVP-105)
     bool pio_drogue_reported;       // PIO backup drogue fire already published
@@ -173,99 +173,77 @@ static QState fd_ao_running(FdAo * const me, QEvt const * const e) {
 
 QActive * const AO_FlightDirector = &g_fdAo.super;
 
-// Pyro fired callback — extracted to keep AO_FlightDirector_start under
-// the function-size limit.
-static void fd_on_pyro_fired(rc::PyroChannel ch) {
-    rc::rc_log("[FD] PYRO FIRED: %s (primary)\n",
-               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
-    if (ch == rc::PyroChannel::kDrogue) {
+namespace rc {
+
+void fd_effect_set_led(uint8_t led_value) {
+    // Phase LED routing lives in AO_Notify; this path is beacon-only (IVP-116).
+    if (led_value == kLedPhaseBeacon) {
+        static QEvt g_beaconEvt;
+        g_beaconEvt.sig = SIG_BEACON_ACTIVE;
+        QActive_publish_(&g_beaconEvt, &g_fdAo.super, g_fdAo.super.prio);
+    }
+}
+
+void fd_effect_log_pyro(PyroChannel ch) {
+    rc_log("[FD] PYRO FIRED: %s (primary)\n",
+           ch == PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+    if (ch == PyroChannel::kDrogue) {
         g_fdAo.director.state.drogue_fired = true;
-        AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
-        rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
+        AO_Logger_log_event(LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
+        pio_backup_timer_cancel(BackupTimerId::kDrogue);
     } else {
         g_fdAo.director.state.main_fired = true;
-        AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
-        rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
+        AO_Logger_log_event(LogEventId::kPyroFiredMain, 0, 0, 0, 0);
+        pio_backup_timer_cancel(BackupTimerId::kMain);
     }
-    // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
-    static rc::PyroFiredEvt g_pyroEvt;
-    g_pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
+    static PyroFiredEvt g_pyroEvt;
+    g_pyroEvt.super.sig = SIG_PYRO_FIRED;
     g_pyroEvt.channel = static_cast<uint8_t>(ch);
-    g_pyroEvt.source = 0;  // Primary (FD-commanded)
-    QActive_publish_(&g_pyroEvt.super,
-                     &g_fdAo.super, g_fdAo.super.prio);
+    g_pyroEvt.source = 0;
+    QActive_publish_(&g_pyroEvt.super, &g_fdAo.super, g_fdAo.super.prio);
 }
 
-// R-25-exec: register phase accessor for test_mode_evaluate's three-
-// condition AND gate (condition (b): current phase == kIdle). Lambda
-// calls flight_director_phase() against the module-local director
-// instance. Extracted from AO_FlightDirector_start to keep that
-// function under JSF AV Rule 1 line-count limit.
-static void fd_register_test_mode_accessor() {
-    rc::test_mode_register_phase_accessor([]() {
-        return rc::flight_director_phase(&g_fdAo.director);
-    });
+void fd_effect_phase_change(FlightPhase phase, uint32_t ts_ms) {
+    test_mode_note_phase(phase);
+    if (phase != FlightPhase::kIdle) {
+        test_mode_clear_on_idle_exit();
+    }
+    static PhaseChangeEvt g_evt;
+    g_evt.super.sig = SIG_PHASE_CHANGE;
+    g_evt.phase = static_cast<uint8_t>(phase);
+    g_evt.timestamp_ms = ts_ms;
+    QActive_publish_(&g_evt.super, &g_fdAo.super, g_fdAo.super.prio);
 }
 
-// Wire up FlightDirector C-style callbacks (HSM is C; AO is C++).
-// Extracted from AO_FlightDirector_start to keep that function under
-// JSF AV Rule 1 line-count limit.
-//
-// Callback responsibilities:
-//   set_led_cb       — beacon one-shot (IVP-116 — phase LED routing
-//                      lives in AO_Notify; this hook is beacon only).
-//   phase_change_cb  — publish SIG_PHASE_CHANGE + R-25-exec council
-//                      amendment #2 (clear test_mode on IDLE-exit).
-//   log_pyro_cb      — pyro fired logger.
-//   beacon_cb        — IVP-121 distress beacon on MAIN_DESCENT timeout.
-static void fd_wire_callbacks(rc::FlightDirector* director) {
-    director->set_led_cb = [](uint8_t val) {
-        if (val == rc::kLedPhaseBeacon) {
-            static QEvt g_beaconEvt;
-            g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
-            QActive_publish_(&g_beaconEvt,
-                             &g_fdAo.super, g_fdAo.super.prio);
-        }
-    };
-    director->phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
-        if (phase != rc::FlightPhase::kIdle) {
-            rc::test_mode_clear_on_idle_exit();
-        }
-        static rc::PhaseChangeEvt g_evt;
-        g_evt.super.sig = rc::SIG_PHASE_CHANGE;
-        g_evt.phase = static_cast<uint8_t>(phase);
-        g_evt.timestamp_ms = ts_ms;
-        QActive_publish_(&g_evt.super,
-                         &g_fdAo.super, g_fdAo.super.prio);
-    };
-    director->log_pyro_cb = fd_on_pyro_fired;
-    director->beacon_cb = []() {
-        static QEvt g_beaconEvt;
-        g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
-        QActive_publish_(&g_beaconEvt,
-                         &g_fdAo.super, g_fdAo.super.prio);
-        rc::rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
-    };
-    director->reset_subsystems_cb = []() {
-        eskf_runner_request_reinit();
-    };
+void fd_effect_beacon() {
+    static QEvt g_beaconEvt;
+    g_beaconEvt.sig = SIG_BEACON_ACTIVE;
+    QActive_publish_(&g_beaconEvt, &g_fdAo.super, g_fdAo.super.prio);
+    rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
+}
+
+void fd_effect_reset_subsystems() {
+    ::eskf_runner_request_reinit();
+}
+
+} // namespace rc
+
+// R-25-exec: publish current phase for inject_arm_gate condition (b).
+static void fd_note_inject_arm_phase() {
+    rc::test_mode_note_phase(rc::flight_director_phase(&g_fdAo.director));
 }
 
 void AO_FlightDirector_start(uint8_t prio) {
     FdAo* me = &g_fdAo;
 
-    // --- Initialize FlightDirector QHsm + wire callbacks ---
     rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
-    fd_wire_callbacks(&me->director);
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
 
-    // R-25-exec: register phase accessor for test_mode_evaluate's
-    // three-condition AND gate. See fd_register_test_mode_accessor.
-    fd_register_test_mode_accessor();
+    fd_note_inject_arm_phase();
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&fd_ao_initial));

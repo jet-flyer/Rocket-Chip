@@ -66,9 +66,7 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
     }
     flight_phase_observable_set(phase);
 
-    if (me->phase_change_cb) {
-        me->phase_change_cb(phase, me->tick_ms);
-    }
+    fd_effect_phase_change(phase, me->tick_ms);
 }
 
 static void log_transition(const FlightDirector* me,
@@ -88,8 +86,6 @@ static ActionContext make_action_ctx(FlightDirector* me,
     ctx.now_ms = me->tick_ms;
     ctx.from_phase = from;
     ctx.to_phase = to;
-    ctx.set_led = me->set_led_cb;
-    ctx.log_pyro = me->log_pyro_cb;
     return ctx;
 }
 
@@ -199,11 +195,6 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->profile = profile;
     me->tick_ms = 0;
     me->guards_enabled = false;
-    me->set_led_cb = nullptr;
-    me->log_pyro_cb = nullptr;
-    me->phase_change_cb = nullptr;
-    me->beacon_cb = nullptr;
-    me->reset_subsystems_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile
@@ -285,9 +276,7 @@ static bool handle_main_descent_landing(FlightDirector* me,
     if (me->profile->descent_max_duration_ms > 0 &&
         elapsed >= me->profile->descent_max_duration_ms) {
         rc::rc_log("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
-        if (me->beacon_cb) {
-            me->beacon_cb();
-        }
+        fd_effect_beacon();
         flight_director_dispatch_signal(me, SIG_LANDING);
         return true;
     }
@@ -356,9 +345,7 @@ static QState state_idle(FlightDirector * const me, QEvt const * const e) {
                 // force ESKF/Mahony re-init so re-ARM can succeed. Without
                 // this, the ESKF stays UNHEALTHY across RESET (and pad-
                 // abort auto-IDLE timeout), silently blocking re-ARM.
-                if (me->reset_subsystems_cb) {
-                    me->reset_subsystems_cb();
-                }
+                fd_effect_reset_subsystems();
             }
             return Q_HANDLED();
         }
@@ -638,9 +625,7 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
                 // in ABORT (landing time determined in post-processing).
                 if (me->state.markers.landing_ms == 0) {
                     me->state.markers.landing_ms = me->tick_ms;
-                    if (me->set_led_cb) {
-                        me->set_led_cb(kLedPhaseBeacon);
-                    }
+                    fd_effect_set_led(kLedPhaseBeacon);
                     rc::rc_log("[FD] ABORT timeout (in-flight) — beacon active\n");
                 }
             }
@@ -681,6 +666,44 @@ void flight_director_test_reset_launch_abort() {
 #ifdef ROCKETCHIP_HOST_TEST
 void flight_director_test_set_time(FlightDirector* me, uint32_t ms) {
     me->tick_ms = ms;
+}
+
+static uint8_t g_hostLastLed = 0;
+static int g_hostLedCalls = 0;
+static PyroChannel g_hostLastPyro = PyroChannel::kDrogue;
+static int g_hostPyroCalls = 0;
+static int g_hostResetCalls = 0;
+
+void fd_effect_host_reset() {
+    g_hostLastLed = 0;
+    g_hostLedCalls = 0;
+    g_hostLastPyro = PyroChannel::kDrogue;
+    g_hostPyroCalls = 0;
+    g_hostResetCalls = 0;
+}
+
+uint8_t fd_effect_host_last_led() { return g_hostLastLed; }
+int fd_effect_host_led_calls() { return g_hostLedCalls; }
+PyroChannel fd_effect_host_last_pyro() { return g_hostLastPyro; }
+int fd_effect_host_pyro_calls() { return g_hostPyroCalls; }
+int fd_effect_host_reset_calls() { return g_hostResetCalls; }
+
+void fd_effect_set_led(uint8_t led_value) {
+    g_hostLastLed = led_value;
+    ++g_hostLedCalls;
+}
+
+void fd_effect_log_pyro(PyroChannel channel) {
+    g_hostLastPyro = channel;
+    ++g_hostPyroCalls;
+}
+
+void fd_effect_phase_change(FlightPhase /*phase*/, uint32_t /*timestamp_ms*/) {}
+
+void fd_effect_beacon() {}
+
+void fd_effect_reset_subsystems() {
+    ++g_hostResetCalls;
 }
 #endif
 

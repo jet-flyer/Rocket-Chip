@@ -27,7 +27,7 @@
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
 #include "safety/core1_i2c_pause.h"
-#include "safety/test_mode.h"  // R-25-exec step 11: magic-observed -> kMenu
+#include "safety/inject_arm_gate.h"  // R-25-exec step 11: magic-observed -> kMenu
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"
@@ -616,9 +616,7 @@ static void cal_ui_mag_process_sample(RcosAo* me,
 static void cal_ui_begin_mag_collection(RcosAo* me) {
     rc::rc_log("Collecting...\n");
     calibration_reset_mag_cal();
-    if (rc_os_reset_mag_staleness != nullptr) {
-        rc_os_reset_mag_staleness();
-    }
+    cal_reset_mag_staleness();
     rc_os_mag_cal_active.store(true, std::memory_order_release);
     cal_neo(kCalNeoMag);
     me->mag_last_printed_count = 0;
@@ -664,7 +662,7 @@ static void cal_ui_handle_mag_collecting(RcosAo* me) {
     float mx = 0.0F;
     float my = 0.0F;
     float mz = 0.0F;
-    if (rc_os_read_mag != nullptr && rc_os_read_mag(&mx, &my, &mz)) {
+    if (cal_read_mag(&mx, &my, &mz)) {
         cal_ui_mag_process_sample(me, mx, my, mz);
     }
 }
@@ -826,8 +824,8 @@ static void cal_ui_wizard_start_6pos(RcosAo* me) {
 // Start wizard step: compass
 static void cal_ui_wizard_start_mag(RcosAo* me) {
     rc::rc_log("\n--- Step 4/4: Compass Calibration ---\n");
-    if (rc_os_read_mag == nullptr) {
-        rc::rc_log("  SKIPPED (mag read callback not set)\n");
+    if (!rc_os_imu_available) {
+        rc::rc_log("  SKIPPED (IMU not available)\n");
         me->wizard_skipped++;
         return;
     }
@@ -1174,8 +1172,8 @@ void AO_RCOS_start_cal_6pos() {
 }
 
 void AO_RCOS_start_cal_mag() {
-    if (rc_os_read_mag == nullptr) {
-        rc::rc_log("\nERROR: Mag read callback not set\n");
+    if (!rc_os_imu_available) {
+        rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
     if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {

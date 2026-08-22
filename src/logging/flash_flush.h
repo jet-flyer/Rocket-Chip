@@ -67,13 +67,12 @@ bool flight_table_erase_flash();
 /**
  * @brief Erase all flight log data sectors (kFlashLogStart–kFlashLogEnd)
  * @param table           Flight table state (used to determine how many sectors to erase)
- * @param kick_watchdog  Callback to kick watchdog between sectors (may be nullptr)
  * @return true on success
  *
  * Only erases sectors that have been used (based on next_free_sector).
- * Watchdog MUST be kicked between sectors.
+ * Feeds the PIO watchdog between sectors.
  */
-bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)());
+bool flight_log_erase_all(const FlightTableState* table);
 
 // ============================================================================
 // Ring → Flash flush
@@ -86,14 +85,13 @@ bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)()
  * @param metadata       Flight metadata (UTC anchor etc.)
  * @param summary        Flight summary (max alt, speed, etc.)
  * @param log_rate_hz    Logging rate (25 or 50)
- * @param kick_watchdog  Callback to kick watchdog between sectors
  * @return FlushResult status
  *
  * Sequence:
  * 1. Snapshot stored frame count
  * 2. Check flash capacity
  * 3. xip_cache_clean_all() (council req. #1)
- * 4. Per sector: read frames → 4KB buffer → erase → program → kick watchdog
+ * 4. Per sector: read frames → 4KB buffer → erase → program → feed PIO watchdog
  * 5. Build FlightLogEntry → flight_table_add_entry() → flight_table_save()
  * 6. ring_reset()
  */
@@ -101,8 +99,7 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
                                 FlightTableState* table,
                                 const FlightMetadata* metadata,
                                 const FlightSummary* summary,
-                                uint8_t log_rate_hz,
-                                void (*kick_watchdog)());
+                                uint8_t log_rate_hz);
 
 } // namespace rc
 

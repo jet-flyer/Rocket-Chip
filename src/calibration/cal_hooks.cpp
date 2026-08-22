@@ -9,14 +9,11 @@
 #include "cal_hooks.h"
 #include "rocketchip/shared_state.h"
 #include "rocketchip/rc_log.h"
-#include "drivers/icm20948.h"
-#include "pico/stdlib.h"
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-static constexpr uint32_t kCalReadDelayMs = 10;           // ~100Hz accel sampling
 static constexpr uint32_t kMagDiagPrintModulus = 200;      // Print every N mag failures
 // kCore1PauseAckMaxMs moved to src/safety/core1_i2c_pause.cpp during R-17/R-18.
 
@@ -29,27 +26,6 @@ static uint32_t g_magDiagSeqlockFail = 0;
 static uint32_t g_magDiagNotValid = 0;
 static uint32_t g_magDiagStale = 0;
 static uint32_t g_magDiagLastSeenCount = 0;
-
-// ============================================================================
-// Accel Read Callback (for 6-pos calibration via CLI)
-// ============================================================================
-
-bool cal_read_accel(float* ax, float* ay, float* az, float* temp_c) {
-    sleep_ms(kCalReadDelayMs);
-    // Use full icm20948_read() instead of icm20948_read_accel() — the accel-only
-    // read (6 bytes from ACCEL_XOUT_H) does NOT read through TEMP_OUT_L, so the
-    // data-ready flag is never cleared. After ~200 reads the output registers
-    // stop updating (all zeros). The full 14-byte read clears data-ready.
-    icm20948_data_t data;
-    if (!icm20948_read(&g_imu, &data) || !data.accel_valid) {
-        return false;
-    }
-    *ax = data.accel.x;
-    *ay = data.accel.y;
-    *az = data.accel.z;
-    *temp_c = data.temperature_c;
-    return true;
-}
 
 // ============================================================================
 // Mag Read Callback (for compass calibration via CLI)

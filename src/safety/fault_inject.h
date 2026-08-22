@@ -11,7 +11,7 @@
 //
 // Called via GDB `call fault_force_*()` from debug probe.
 // Probe-only arming + state==kIdle + boot-time-window AND gate.
-// See safety/test_mode.h for the gate; docs/FAULT_INJECTION.md for
+// See safety/inject_arm_gate.h for the gate; docs/FAULT_INJECTION.md for
 // per-scenario usage.
 #ifndef ROCKETCHIP_SAFETY_FAULT_INJECT_H
 #define ROCKETCHIP_SAFETY_FAULT_INJECT_H

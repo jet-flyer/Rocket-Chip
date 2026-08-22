@@ -35,6 +35,7 @@ protected:
     rc::FlightDirector fd_;
 
     void SetUp() override {
+        rc::fd_effect_host_reset();
         rc::flight_director_ctor(&fd_, &rc::kDefaultRocketProfile);
         rc::flight_director_init(&fd_);
     }
@@ -270,89 +271,71 @@ TEST_F(FlightDirectorTest, ResetFromAbort) {
 
 // ============================================================================
 // RESET-to-IDLE subsystem reset contract (council 2026-05-20).
-// On every non-startup entry to IDLE, the FD must invoke reset_subsystems_cb
+// On every non-startup entry to IDLE, the FD must invoke fd_effect_reset_subsystems
 // so ESKF/Mahony can be force-reinit'd before the operator's next ARM.
 // Without this, ESKF stays UNHEALTHY across RESET and Go/No-Go blocks ARM.
 // ============================================================================
 
 TEST_F(FlightDirectorTest, StartupEntryDoesNotInvokeResetSubsystems) {
-    // Fresh-boot transition_count == 1; reset cb must NOT fire.
-    int call_count = 0;
-    fd_.reset_subsystems_cb = nullptr;
-    // Re-construct + init to simulate fresh boot
+    // Fresh-boot transition_count == 1; reset effect must NOT fire.
+    rc::fd_effect_host_reset();
     rc::flight_director_ctor(&fd_, &rc::kDefaultRocketProfile);
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
     rc::flight_director_init(&fd_);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 0);
-    (void)call_count;  // silence unused-var
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 0);
 }
 
 TEST_F(FlightDirectorTest, ResetFromAbortInvokesResetSubsystems) {
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
-
     dispatch(rc::SIG_ARM);
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_count, 0) << "no subsystem reset during in-flight transitions";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 0)
+        << "no subsystem reset during in-flight transitions";
 
     dispatch(rc::SIG_RESET);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 1) << "RESET-to-IDLE must trigger subsystem reset";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 1)
+        << "RESET-to-IDLE must trigger subsystem reset";
 }
 
 TEST_F(FlightDirectorTest, ResetFromLandedInvokesResetSubsystems) {
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
-
     dispatch(rc::SIG_ARM);
     dispatch(rc::SIG_LAUNCH);
     dispatch(rc::SIG_BURNOUT);
     dispatch(rc::SIG_APOGEE);
     dispatch(rc::SIG_MAIN_DEPLOY);
     dispatch(rc::SIG_LANDING);
-    EXPECT_EQ(s_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 0);
 
     dispatch(rc::SIG_RESET);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 1) << "RESET-from-LANDED must trigger subsystem reset";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 1)
+        << "RESET-from-LANDED must trigger subsystem reset";
 }
 
 TEST_F(FlightDirectorTest, DisarmFromArmedInvokesResetSubsystems) {
     // DISARM is the "operator changes their mind on pad" path. ESKF should
     // get a fresh re-init opportunity so a subsequent re-ARM works.
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
-
     dispatch(rc::SIG_ARM);
-    EXPECT_EQ(s_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 0);
 
     dispatch(rc::SIG_DISARM);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 1) << "DISARM-to-IDLE must trigger subsystem reset";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 1)
+        << "DISARM-to-IDLE must trigger subsystem reset";
 }
 
 TEST_F(FlightDirectorTest, ArmedTimeoutInvokesResetSubsystems) {
     // The auto-DISARM path (Amendment #5) also lands in state_idle.
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
-
     set_time(0);
     dispatch(rc::SIG_ARM);
     EXPECT_EQ(phase(), rc::FlightPhase::kArmed);
 
-    // Step past armed_timeout_ms
     uint32_t timeout = rc::kDefaultRocketProfile.armed_timeout_ms + 1U;
     set_time(timeout);
     tick(timeout);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 1) << "armed timeout auto-DISARM must trigger subsystem reset";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 1)
+        << "armed timeout auto-DISARM must trigger subsystem reset";
 }
 
 TEST_F(FlightDirectorTest, PadAbortAutoIdleInvokesResetSubsystems) {
@@ -361,22 +344,18 @@ TEST_F(FlightDirectorTest, PadAbortAutoIdleInvokesResetSubsystems) {
     // case the council flagged: without the subsystem reset, ESKF stays
     // UNHEALTHY across this transition, blocking re-ARM with no operator
     // input that triggered it.
-    static int s_count;
-    s_count = 0;
-    fd_.reset_subsystems_cb = []() { s_count++; };
-
     set_time(0);
     dispatch(rc::SIG_ARM);
     dispatch(rc::SIG_ABORT);
     EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
-    EXPECT_EQ(s_count, 0);
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 0);
 
-    // Step past abort_timeout_ms with launch_ms == 0 → pad abort path
     uint32_t timeout = rc::kDefaultRocketProfile.abort_timeout_ms + 1U;
     set_time(timeout);
     tick(timeout);
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
-    EXPECT_EQ(s_count, 1) << "pad-abort auto-IDLE must trigger subsystem reset";
+    EXPECT_EQ(rc::fd_effect_host_reset_calls(), 1)
+        << "pad-abort auto-IDLE must trigger subsystem reset";
 }
 
 TEST_F(FlightDirectorTest, NoDirectAbortToArmed) {

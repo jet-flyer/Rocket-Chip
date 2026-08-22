@@ -10,7 +10,7 @@
 
 #include "ao_health_monitor.h"
 #include "safety/health_monitor.h"
-#include "safety/test_mode.h"          // R-25-exec runtime gate
+#include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "rocketchip/ao_signals.h"
 
 // ============================================================================

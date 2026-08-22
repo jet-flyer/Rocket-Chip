@@ -28,9 +28,6 @@ bool g_psramFlashSafePassed = false;
 bool g_calStorageInitialized = false;
 
 gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
-bool (*g_gpsFnUpdate)() = nullptr;
-bool (*g_gpsFnGetData)(gps_data_t*) = nullptr;
-bool (*g_gpsFnHasFix)() = nullptr;
 
 icm20948_t g_imu{};
 

@@ -7,11 +7,17 @@
  * Based on SparkFun sparkfun-pico and AudioMorphology/PSRAM (MIT license).
  * Both derived from Arduino-Pico (earlephilhower).
  *
- * Sequence: detect via SPI ID read → enable QPI mode → configure QMI M1
- * timing/format → enable XIP writable for M1.
+ * Sequence: detect via SPI ID read → compute M1 timing (XIP still up) →
+ * enable QPI mode → program QMI M1 timing/format → enable XIP writable
+ * for M1.
  *
- * All init functions run from SRAM (__no_inline_not_in_flash_func) because
- * they manipulate QMI registers that control XIP flash execution.
+ * QMI direct-mode windows run from SRAM (__no_inline_not_in_flash_func).
+ * Datasheet 12.14.5: with DIRECT_CSR.EN set, the AHB XIP window is
+ * disconnected; a fetch generates a bus fault. pico-sdk qmi.h same
+ * contract. Arduino-Pico discussion 3431: calling clock_get_hz() from
+ * RAM-resident PSRAM init after enabling direct mode is intermittent
+ * (works only if that flash line is still in the XIP cache). Compute
+ * timing, including clock_get_hz and any libgcc helpers, before EN.
  *
  */
 
@@ -72,10 +78,9 @@ static constexpr uint32_t kQpiReadDummyCycles = 6U;
 // Frequency threshold for rxdelay adjustment (100 MHz)
 static constexpr uint32_t kRxDelayThresholdHz = 100000000U;
 
-static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
-    // Assign GPIO to XIP CS1 function
-    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
-
+// SRAM, MMIO only. Caller must have already set CS1 and must not invoke
+// this while XIP is required — EN disconnects the flash window.
+static size_t __no_inline_not_in_flash_func(psram_detect)() {
     uint32_t intr_stash = save_and_disable_interrupts();
 
     // Enter direct mode with slow clock for detection
@@ -143,7 +148,11 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
 // Source: APS6404L-3SQR datasheet, SparkFun/AudioMorphology implementations.
 static constexpr uint32_t kMaxPsramFreq = 133000000U;
 
-static uint32_t __no_inline_not_in_flash_func(psram_calc_timing)() {
+// Community rule (Arduino-Pico discussion 3431, now in their master
+// psram.cpp): read clk_sys before QMI direct mode. Flash access is
+// unavailable while DIRECT_CSR.EN is set. The 64-bit timing math also
+// lives in .text, so the whole word is computed here, not after EN.
+static uint32_t psram_calc_timing() {
     const uint32_t clock_hz = clock_get_hz(clk_sys);
 
     uint32_t divisor = (clock_hz + kMaxPsramFreq - 1) / kMaxPsramFreq;
@@ -177,8 +186,9 @@ static uint32_t __no_inline_not_in_flash_func(psram_calc_timing)() {
 // QMI M1 configuration for APS6404L QSPI mode
 // ============================================================================
 
-static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
-    // Enable direct mode with auto-CS for QPI enable command
+static void __no_inline_not_in_flash_func(psram_configure_qmi)(uint32_t timing) {
+    // Enable direct mode with auto-CS for QPI enable command.
+    // Direct mode claims QMI — no flash fetches until direct_csr is cleared.
     qmi_hw->direct_csr = kQpiClkDiv << QMI_DIRECT_CSR_CLKDIV_LSB |
                           QMI_DIRECT_CSR_EN_BITS |
                           QMI_DIRECT_CSR_AUTO_CS1N_BITS;
@@ -188,8 +198,7 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
     qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | kCmdEnterQpi;
     while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
 
-    // Set timing register
-    qmi_hw->m[1].timing = psram_calc_timing();
+    qmi_hw->m[1].timing = timing;
 
     // Read format: QPI with 6 dummy cycles (Fast Read Quad I/O 0xEB)
     qmi_hw->m[1].rfmt =
@@ -224,12 +233,17 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
 // ============================================================================
 
 size_t __no_inline_not_in_flash_func(psram_init)(uint32_t cs_pin) {
-    g_psramSize = psram_detect(cs_pin);
+    // Flash-legal work first: CS1 mux and M1 timing (clock_get_hz + 64-bit
+    // div live in .text). Direct-mode windows below must not fetch flash.
+    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
+
+    g_psramSize = psram_detect();
     if (g_psramSize == 0) {
         return 0;
     }
 
-    psram_configure_qmi();
+    const uint32_t timing = psram_calc_timing();
+    psram_configure_qmi(timing);
     return g_psramSize;
 }
 

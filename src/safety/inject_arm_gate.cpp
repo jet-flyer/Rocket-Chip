@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// test_mode — runtime gate for test/fault-injection affordances in the
-// flight binary. See test_mode.h for full design rationale + council
-// decision provenance.
+// inject_arm_gate — probe-armed inject/debug gate for the flight binary.
+// See inject_arm_gate.h.
 
-#include "safety/test_mode.h"
+#include "safety/inject_arm_gate.h"
 #include "flight_director/flight_state.h"
 
 #ifdef ROCKETCHIP_HOST_TEST
@@ -45,13 +44,13 @@ volatile bool g_test_mode_enabled = false;
 // the cleared SRAM.
 static volatile bool g_magicObservedAtBoot = false;
 
-// Storage for the phase accessor registered by AO_FlightDirector_start.
-// Typedef is in the public header so callers can name the pointer type.
-// Until registered, test_mode_evaluate() refuses to arm — fail-safe.
-static FlightPhaseAccessor g_phaseAccessor = nullptr;
+// Last phase published by FD (or host tests). Unknown until first note.
+static bool g_phaseKnown = false;
+static FlightPhase g_notedPhase = FlightPhase::kIdle;
 
-void test_mode_register_phase_accessor(FlightPhaseAccessor fn) {
-    g_phaseAccessor = fn;
+void test_mode_note_phase(FlightPhase phase) {
+    g_notedPhase = phase;
+    g_phaseKnown = true;
 }
 
 bool test_mode_magic_observed_at_boot() {
@@ -73,6 +72,7 @@ void test_mode_init() {
         g_magicObservedAtBoot = false;
     }
     g_test_mode_enabled = false;
+    g_phaseKnown = false;
 }
 
 void test_mode_evaluate() {
@@ -83,14 +83,13 @@ void test_mode_evaluate() {
         return;
     }
 
-    // Condition (b): current phase must be kIdle. Without the
-    // accessor wired in (early boot, before FD init), refuse to
-    // arm — fail-safe direction.
-    if (g_phaseAccessor == nullptr) {
+    // Condition (b): current phase must be kIdle. Without a published
+    // phase (early boot, before FD init), refuse to arm — fail-safe.
+    if (!g_phaseKnown) {
         g_test_mode_enabled = false;
         return;
     }
-    if (g_phaseAccessor() != FlightPhase::kIdle) {
+    if (g_notedPhase != FlightPhase::kIdle) {
         g_test_mode_enabled = false;
         return;
     }

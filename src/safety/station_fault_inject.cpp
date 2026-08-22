@@ -16,7 +16,7 @@
 // guarded by the runtime test_mode gate.
 
 #include "safety/station_fault_inject.h"
-#include "safety/test_mode.h"
+#include "safety/inject_arm_gate.h"
 #include "rocketchip/rc_log.h"
 
 #ifdef ROCKETCHIP_JOB_STATION
@@ -35,7 +35,7 @@ static bool fis_test_mode_gate(const char* name) {
     if (rc::test_mode_active()) { return true; }
     rc::rc_log("[FAULT] %s gated — arm test mode via probe "
            "(write kTestModeMagic to rc::g_test_mode_arm_magic + reset; "
-           "see safety/test_mode.h)\n", name);
+           "see safety/inject_arm_gate.h)\n", name);
     return false;
 }
 

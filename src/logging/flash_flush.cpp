@@ -14,7 +14,7 @@
 #include "pico/flash.h"
 #include "hardware/flash.h"
 #include "hardware/xip_cache.h"
-#include "hardware/watchdog.h"
+#include "safety/pio_watchdog.h"
 
 #include <string.h>
 
@@ -201,7 +201,7 @@ bool flight_table_erase_flash() {
     return safe_flash_erase(kFlightTableSectorB, FLASH_SECTOR_SIZE);
 }
 
-bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)()) {
+bool flight_log_erase_all(const FlightTableState* table) {
     // Only erase sectors that have been used (0 to next_free_sector)
     uint32_t first_sector = kFlightLogStart / kFlashSectorSize;
     uint32_t used_end = (table != nullptr) ?
@@ -213,9 +213,7 @@ bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)()
         if (!safe_flash_erase(offset, FLASH_SECTOR_SIZE)) {
             return false;
         }
-        if (kick_watchdog != nullptr) {
-            kick_watchdog();
-        }
+        pio_watchdog_feed();
     }
     return true;
 }
@@ -228,8 +226,7 @@ bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)()
 // If header is non-null, it is written at the start of the first sector.
 static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
                                  uint32_t start_sector, uint32_t sectors_needed,
-                                 const FlightLogHeader* header,
-                                 void (*kick_watchdog)()) {
+                                 const FlightLogHeader* header) {
     static uint8_t g_sectorBuf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
     uint32_t frame_idx = 0;
     uint32_t frame_size = rb->frame_size;
@@ -259,9 +256,7 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
         if (!safe_flash_write(flash_offset, g_sectorBuf, FLASH_SECTOR_SIZE)) {
             return FlushResult::kWriteError;
         }
-        if (kick_watchdog != nullptr) {
-            kick_watchdog();
-        }
+        pio_watchdog_feed();
     }
     return FlushResult::kOk;
 }
@@ -308,8 +303,7 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
                                 FlightTableState* table,
                                 const FlightMetadata* metadata,
                                 const FlightSummary* summary,
-                                uint8_t log_rate_hz,
-                                void (*kick_watchdog)()) {
+                                uint8_t log_rate_hz) {
     if (rb == nullptr || !rb->initialized || table == nullptr || !table->loaded) {
         return FlushResult::kNotInitialized;
     }
@@ -349,7 +343,7 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
     xip_cache_clean_all();
 
     FlushResult result = flush_sectors(rb, stored, start_sector, sectors_needed,
-                                       &header, kick_watchdog);
+                                       &header);
     if (result != FlushResult::kOk) {
         return result;
     }

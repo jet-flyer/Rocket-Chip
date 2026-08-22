@@ -21,6 +21,7 @@
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
+#include "active_objects/ao_logger.h"
 extern "C" {
 #include "qp_port.h"
 }
@@ -106,9 +107,6 @@ static uint32_t g_eskfBenchFullMin = UINT32_MAX;
 static uint32_t g_eskfBenchFullMax = 0;
 static uint32_t g_eskfBenchFullSum = 0;
 static uint32_t g_eskfBenchFullCount = 0;
-
-// Event logging callback (injected by main.cpp)
-static EskfEventLogFn g_logEventFn = nullptr;
 
 // ============================================================================
 // NED Coordinate Helpers
@@ -499,16 +497,15 @@ static void eskf_tick_phase_and_confidence() {
     bool was_confident = g_confidence.confident;
     rc::confidence_gate_evaluate(&g_confidence, ci);
 
-    // Log confidence transitions via injected callback
-    if (g_logEventFn != nullptr) {
-        // LogEventId::kConfidenceLost = 5, kConfidenceRecovered = 6
-        // Use raw uint8_t to avoid including pcm_frame.h
+#ifndef ROCKETCHIP_HOST_TEST
+    if (AO_Logger_is_initialized()) {
         if (was_confident && !g_confidence.confident) {
-            g_logEventFn(5, 0, 0, 0, 0);  // kConfidenceLost
+            AO_Logger_log_event(rc::LogEventId::kConfidenceLost);
         } else if (!was_confident && g_confidence.confident) {
-            g_logEventFn(6, 0, 0, 0, 0);  // kConfidenceRecovered
+            AO_Logger_log_event(rc::LogEventId::kConfidenceRecovered);
         }
     }
+#endif
 }
 
 // One fused cycle (predict → updates → phase/conf → bench → publish).
@@ -595,10 +592,8 @@ void eskf_runner_tick() {
 // Public API
 // ============================================================================
 
-void eskf_runner_init(const rc::MissionProfile* profile,
-                      EskfEventLogFn log_fn) {
+void eskf_runner_init(const rc::MissionProfile* profile) {
     g_profile = profile;
-    g_logEventFn = log_fn;
 }
 
 const rc::ESKF* eskf_runner_get_eskf() {

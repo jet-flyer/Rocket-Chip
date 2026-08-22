@@ -494,8 +494,8 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-035 | REMEDIATE | labeled | pending Phase 3 — `notify_backend.h` own header? (earn-rent, not a ptr rewrite) |
-| WN-052 | DEFER | labeled | QP/C vs QP/C++ eval — `ao_signals.h` deep redesign |
+| WN-035 | REMEDIATE | closed | Folded decls into `notify_resolver.h`; deleted `include/rocketchip/notify_backend.h`. Functions stay. Pattern: rem WB R-6. |
+| WN-052 | DEFER | labeled | Original claim: `ao_signals.h` catalog/event shapes wait on QP/QF. Home: main WB **QP/C vs QP/C++ eval**. FD/`action_executor` callbacks are riders (C HSM), not this WN. |
 
 **WB 18-site split (rides this bucket):** GPS `g_gpsFn*` + `kick_watchdog` ×3 + typedef’d `FlightPhaseAccessor` / `EskfEventLogFn` / `rc_os_read_*` → **REMEDIATE** with Phase 3 P10-9 (do not wait on QP). FD 5 action callbacks + `action_executor` `set_led`/`log_pyro` → **DEFER** with WN-052.
 **DEFER safety (WN-052 + FD/action_executor):** Live callbacks stay; QP eval owns templates vs C HSM. Not a mute of GPS/watchdog sites.

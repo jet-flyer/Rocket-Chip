@@ -31,7 +31,6 @@
 #include "calibration/calibration_storage.h"
 #include "logging/radio_config_storage.h"  // Stage T IVP-T5.5
 #include "calibration/calibration_manager.h"
-#include "calibration/cal_hooks.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
@@ -39,7 +38,7 @@
 #include "safety/pio_backup_timer.h"
 #include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
-#include "safety/test_mode.h"          // R-25-exec runtime gate
+#include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
 #include "diag/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
@@ -100,16 +99,10 @@ namespace {
 
 void bind_gps_uart_backend() {
     g_gpsTransport = GPS_TRANSPORT_UART;
-    g_gpsFnUpdate  = gps_uart_update;
-    g_gpsFnGetData = gps_uart_get_data;
-    g_gpsFnHasFix  = gps_uart_has_fix;
 }
 
 void bind_gps_i2c_backend() {
     g_gpsTransport = GPS_TRANSPORT_I2C;
-    g_gpsFnUpdate  = gps_pa1010d_update;
-    g_gpsFnGetData = gps_pa1010d_get_data;
-    g_gpsFnHasFix  = gps_pa1010d_has_fix;
 }
 
 }  // namespace
@@ -314,14 +307,6 @@ static void init_rc_os_hooks() {
     rc_os_init();
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
-    rc_os_read_accel = cal_read_accel;
-    rc_os_read_mag = cal_read_mag;
-    rc_os_reset_mag_staleness = cal_reset_mag_staleness;
-    // R-17/R-18 (2026-05-07 audit): rc_os_cal_pre_hook /
-    // rc_os_cal_post_hook function-pointer table removed (dead — was
-    // assigned here but never invoked anywhere). The I2C-pause primitive
-    // moved to src/safety/core1_i2c_pause.{h,cpp}; cal_post_hook() is now
-    // called directly from ao_rcos.cpp cal_save_to_flash().
 }
 
 // Initialize PIO safety systems on PIO2
@@ -397,10 +382,7 @@ static void init_application() {
 
     init_baro_auto_zero();
 
-    eskf_runner_init(&rc::kDefaultRocketProfile,
-                     [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
-                         AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
-                     });
+    eskf_runner_init(&rc::kDefaultRocketProfile);
 
     init_pio_safety();
 }
