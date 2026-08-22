@@ -3,8 +3,13 @@
 //============================================================================
 // Flash Layout — portable addresses derived from PICO_FLASH_SIZE_BYTES
 //
-// All flash regions are anchored from the TOP of flash downward, so the
-// layout adapts to any flash size (8MB Feather, 4MB Tiny2350, etc.).
+// Regions are anchored from the TOP of flash downward so the layout
+// follows whatever size the board header provides. That is "some flash,"
+// not a Feather-era 8 MB product map (WN-063).
+// Host tests use 8 MB only as a compile default when no board header is
+// present — a test default, not a SKU contract.
+// kFlashFirmwareReserve (512 KB) is firmware-image policy, independent
+// of total flash size.
 //
 // Layout (offsets from flash base, top-down):
 //   [FLASH_SIZE - 8KB ]  Calibration storage (dual-sector, 8KB)

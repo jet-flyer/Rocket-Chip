@@ -47,4 +47,12 @@ enum class DeviceRole : uint8_t {
     #include "job_vehicle.h"
 #endif
 
+namespace job {
+
+inline constexpr const char* kJobRoleName =
+    (kRole == DeviceRole::kStation) ? "station" :
+    (kRole == DeviceRole::kRelay)   ? "relay"   : "vehicle";
+
+} // namespace job
+
 #endif // ROCKETCHIP_JOB_H

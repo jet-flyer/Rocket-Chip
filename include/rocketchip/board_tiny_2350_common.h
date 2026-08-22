@@ -53,6 +53,10 @@ inline constexpr uint     kNeoPixelPin     = 23;
 inline constexpr uint8_t  kNeoPixelCount   = 1;
 inline constexpr uint8_t  kNeoPixelGpioBase = 0;
 
+// --- Pyro / PIO backup (bench GPIO; unverified on this pack) ---
+inline constexpr uint8_t kPyroDroguePin    = 12;
+inline constexpr uint8_t kPyroMainPin      = 13;
+
 // --- Onboard LED ---
 // TODO(Tiny_2350): verify active-high/low and pin.
 inline constexpr uint8_t kLedPin           = 25;
@@ -82,6 +86,9 @@ inline constexpr uint8_t kUartGpsRxPin     = 1;
 inline constexpr bool    kDvmAvailable       = false;
 inline constexpr bool    kSdCardAvailable    = false;
 inline constexpr bool    kI2cStemmaAvailable = false;  // external breakout needed
+
+// Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
+inline constexpr bool    kImuZUpNed          = true;
 
 // --- PSRAM CS (only valid on Plus variant) ---
 // TODO(Tiny_2350+): confirm PSRAM CS pin from Pimoroni schematic.

@@ -52,6 +52,10 @@ inline constexpr uint     kNeoPixelPin     = 0;
 inline constexpr uint8_t  kNeoPixelCount   = 0;
 inline constexpr uint8_t  kNeoPixelGpioBase = 0;
 
+// --- Pyro / PIO backup (bench GPIO; unverified on this pack) ---
+inline constexpr uint8_t kPyroDroguePin    = 12;
+inline constexpr uint8_t kPyroMainPin      = 13;
+
 // --- Onboard LED ---
 inline constexpr uint8_t kLedPin           = 25;  // Pico 2 onboard LED
 inline constexpr bool    kLedActiveHigh    = true;
@@ -77,6 +81,9 @@ inline constexpr bool    kPsramAvailable       = false;  // no onboard PSRAM
 inline constexpr bool    kDvmAvailable         = false;  // no DVI
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = false;  // external breakout needed
+
+// Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
+inline constexpr bool    kImuZUpNed            = true;
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Raspberry Pi Pico 2";

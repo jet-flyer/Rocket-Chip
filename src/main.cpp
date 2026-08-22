@@ -114,10 +114,8 @@ void bind_gps_i2c_backend() {
 
 // Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
 static void init_gps() {
-    // UART first (FeatherWing on GPIO0/1), I2C fallback.
-    // UART GPS has no I2C bus contention (LL Entry 24), preferred
-    // for production. [M3] UART GPS unavailable on Fruit Jam (GPIO
-    // 0/1 = Boot button + USB Host D+).
+    // UART GPS when the pack exposes it (board::kUartGpsAvailable).
+    // I2C fallback otherwise. UART has no I2C bus contention (LL 24).
     if (board::kUartGpsAvailable) {
         g_gpsInitAttempted = true;
         if (gps_uart_init()) {
@@ -225,7 +223,7 @@ static void init_early_hw() {
     gpio_init(board::kLedPin);
     gpio_set_dir(board::kLedPin, true);
 
-    // Fruit Jam: GPIO 22 gates ESP32-C6 + DAC. Must precede any I2C scan.
+    // Pack may release a shared peripheral RESET before I2C (no-op on Feather).
     board::board_release_peripheral_reset();
 
     init_gps_early();
@@ -266,7 +264,7 @@ static void init_hardware() {
     // flash_safe_test also uses flash_safe_execute() which needs
     // multicore_lockout — safe only after Core 1 is launched. So:
     // init + self-test before Core 1, flash-safe test deferred to after.
-    g_psramSize = rc::psram_init(rocketchip::pins::kPsramCs);
+    g_psramSize = rc::psram_init(board::kPsramCsPin);
     if (g_psramSize > 0) {
         g_psramSelfTestPassed = rc::psram_self_test(g_psramSize);
     }
@@ -317,12 +315,10 @@ static void init_pio_safety() {
     }
     // Backup deployment timers (drogue=GPIO12, main=GPIO13)
     // Bench test pins — not connected to pyro hardware yet
-    static constexpr uint8_t kPioDroguePin = 12;
-    static constexpr uint8_t kPioMainPin = 13;
-    if (!rc::pio_backup_timer_init(kPioDroguePin, kPioMainPin)) {
+    if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
-    rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
+    rc::pyro_edge_logger_init(board::kPyroDroguePin, board::kPyroMainPin);
 }
 
 // Vehicle: signal Core 1 to start sensor phase + wait for lockout.

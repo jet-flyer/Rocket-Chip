@@ -671,7 +671,7 @@ static void print_psram_status() {
         }
     } else {
         rc::rc_log("[----] PSRAM: not detected (GPIO %d)\n",
-               rocketchip::pins::kPsramCs);
+               board::kPsramCsPin);
     }
 }
 
@@ -765,8 +765,8 @@ void cli_print_hw_status() {
 
     if (AO_Radio_get_state()->initialized) {
         rc::rc_log("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
-               rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
-               rocketchip::pins::kRadioIrq);
+               board::kRadioCsPin, board::kRadioRstPin,
+               board::kRadioIrqPin);
         if constexpr (kRadioModeRx) {
             auto mode = AO_RCOS_get_output_mode();
             const char* mode_name = (mode == StationOutputMode::kAnsi) ? "ANSI dashboard" :

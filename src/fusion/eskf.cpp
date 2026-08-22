@@ -40,6 +40,7 @@ namespace {
 
 // Minimum innovation variance guard — rejects degenerate S in measurement updates.
 // Below this threshold, 1/S would amplify noise catastrophically.
+// Numerical floor, not a SKU constant (WN-138).
 constexpr float kMinInnovationVariance = 1e-12F;
 
 // Combined position + velocity block span in error state [3..8]
@@ -57,7 +58,9 @@ constexpr float kPGrowthBaselineEpsilon = 1e-6F;
 // |norm(q) - 1| > this indicates numerical drift or corruption.
 constexpr float kQuatNormTolerance = 1e-3F;
 
-// Max plausible gyro bias: 10 dps = 0.175 rad/s (ICM-20948 ±5°/s ZRO spec).
+// Max plausible gyro bias: 10 dps = 0.175 rad/s.
+// Sourced from ICM-20948 ±5°/s ZRO (DS-000189); prototype IMU, not a
+// portable ESKF contract (WN-138).
 constexpr float kMaxGyroBias = 0.175F;
 
 } // anonymous namespace

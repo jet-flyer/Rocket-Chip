@@ -624,7 +624,8 @@ static void store_6pos_results(const float* params) {
     // 3 offdiag parameters sit in the Jacobian null space when only axis-aligned
     // data is available. ArduPilot solves 9 params but discards offdiag at runtime.
     // We solve only the 6 that the data constrains. Cross-axis coupling from the
-    // ICM-20948 is ±2% (DS-000189 Table 2) — negligible for our use case.
+    // ICM-20948 is ±2% (DS-000189 Table 2) — current IMU, not a
+    // portable cal-API contract (WN-156).
     g_calibration.accel.offdiag = cal_vec3_t{0.0F, 0.0F, 0.0F};
     g_calibration.accel.status = CAL_STATUS_ACCEL_6POS;
 
@@ -904,11 +905,16 @@ static void calc_jacobian_mag(const float sample[3], const float params[kMagElli
     jacob[kParamOffdiagYZ] = -((sz*b + sy*c) / len);
 }
 
-// Fisher-Yates shuffle using RP2350 hardware TRNG, then truncate to 2/3
+// Uniform uint32 for Fisher-Yates. RP2350 TRNG is the target source;
+// the shuffle itself is not TRNG-specific (WN-162).
+static uint32_t cal_uniform_u32() {
+    return get_rand_32();
+}
+
+// Fisher-Yates shuffle, then truncate to 2/3
 static uint16_t mag_thin_samples(uint16_t count) {
-    // Shuffle using get_rand_32() from pico/rand.h
     for (uint16_t i = count - 1; i > 0; i--) {
-        uint32_t r = get_rand_32() % (i + 1);
+        uint32_t r = cal_uniform_u32() % (i + 1);
         if (r != i) {
             float tmp[3];
             memcpy(tmp, g_magSamples[i], sizeof(tmp));

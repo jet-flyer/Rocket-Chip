@@ -39,6 +39,10 @@ inline constexpr uint     kNeoPixelPin     = 21;
 inline constexpr uint8_t  kNeoPixelCount   = 1;
 inline constexpr uint8_t  kNeoPixelGpioBase = 0;   // Default PIO gpiobase
 
+// --- Pyro / PIO backup (bench pins on this pack) ---
+inline constexpr uint8_t kPyroDroguePin    = 12;
+inline constexpr uint8_t kPyroMainPin      = 13;
+
 // --- Onboard LED ---
 inline constexpr uint8_t kLedPin           = 7;
 inline constexpr bool    kLedActiveHigh    = true;
@@ -75,6 +79,11 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
 inline constexpr bool    kDvmAvailable         = false;  // HSTX not wired
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
+
+// ICM-20948 breakout is Z-up; ESKF is NED (Z-down). Sensor feed negates Z
+// when this is true so a second mount cannot inherit the convention silently
+// (WN-124). Not a full board_rotation matrix.
+inline constexpr bool    kImuZUpNed            = true;
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Feather RP2350 HSTX";

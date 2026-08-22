@@ -21,9 +21,10 @@
 // -------------------------------------------------------------------
 
 #include "rocketchip/version.h"
+#include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
 #include "drivers/rfm95w.h"
-#include "rocketchip/config.h"  // rocketchip::pins::kRadioCs
+#include "rocketchip/board.h"
 #include "hardware/gpio.h"
 #include "rocketchip/rc_log.h"
 #include <stdint.h>
@@ -36,19 +37,19 @@ void diag_stats_t0_preconditions() {
     rc::rc_log("[Identity]\n");
     rc::rc_log("  fw_version=%s\n", kFirmwareVersion);
     rc::rc_log("  build_config=%s\n", kBuildConfig);
-    rc::rc_log("  job_role=%s\n", kJobRole);
-    rc::rc_log("  board=%s\n", kBoardName);
+    rc::rc_log("  job_role=%s\n", job::kJobRoleName);
+    rc::rc_log("  board=%s\n", board::kBoardName);
     rc::rc_log("  git=%s build_tag=%s\n", kGitHash, kBuildIterationTag);
 
     // Radio direct readback — catches original Frankenstein bug directly.
     uint8_t radio_version = rfm95w_read_version(
-        rocketchip::pins::kRadioCs);
+        board::kRadioCsPin);
     rc::rc_log("[Radio]\n");
     rc::rc_log("  RegVersion=0x%02x (expect 0x12)\n",
            (unsigned)radio_version);
 
     // Passive IRQ wiring evidence (NASA/JPL)
-    int irq_pin = rocketchip::pins::kRadioIrq;
+    int irq_pin = board::kRadioIrqPin;
     int irq_pin_state = gpio_get(irq_pin) ? 1 : 0;
     rc::rc_log("  radio_irq_pin=%d state=%d\n", irq_pin, irq_pin_state);
     const volatile uint32_t* ispr =

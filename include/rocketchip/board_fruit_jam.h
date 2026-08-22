@@ -76,6 +76,10 @@ inline void board_release_peripheral_reset() {
     sleep_ms(50);  // minimal stabilization before I2C devices see bus
 }
 
+// --- Pyro / PIO backup (same bench GPIO as Feather until a FJ harness exists) ---
+inline constexpr uint8_t kPyroDroguePin    = 12;
+inline constexpr uint8_t kPyroMainPin      = 13;
+
 // --- PSRAM ---
 // GPIO 47 — RP2350B standard PSRAM CS (from Adafruit schematic).
 // RP2350B standard PSRAM CS. psram_init(47) must detect 8MB.
@@ -97,6 +101,9 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB
 inline constexpr bool    kDvmAvailable         = true;   // HSTX DVI output
 inline constexpr bool    kSdCardAvailable      = true;   // SPI0 SD slot
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C0
+
+// Same ICM-20948 Z-up breakout convention as Feather (WN-124).
+inline constexpr bool    kImuZUpNed            = true;
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Fruit Jam";

@@ -112,19 +112,20 @@ static uint32_t g_eskfBenchFullCount = 0;
 // NED Coordinate Helpers
 // ============================================================================
 
-// INTERIM: Adafruit ICM-20948 breakout has sensor Z-up convention.
-// ESKF expects NED (Z-down). Negate Z for accel, gyro, and mag at
-// the ESKF feed boundary. Proper fix: set board_rotation matrix with
-// Z-negate (needs level cal redo and council review for axis mapping).
-// X->X, Y->Y, Z->-Z preserves right-handedness for rotation about Z.
+// ICM-20948 breakout is Z-up; ESKF is NED (Z-down). Convention is
+// board::kImuZUpNed so a second mount cannot inherit the negate silently
+// (WN-124). Full board_rotation matrix is later work.
+static float ned_z(float sensor_z) {
+    return board::kImuZUpNed ? -sensor_z : sensor_z;
+}
 static rc::Vec3 sensor_to_ned_accel(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.accel_x, snap.accel_y, -snap.accel_z);
+    return rc::Vec3(snap.accel_x, snap.accel_y, ned_z(snap.accel_z));
 }
 static rc::Vec3 sensor_to_ned_gyro(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.gyro_x, snap.gyro_y, -snap.gyro_z);
+    return rc::Vec3(snap.gyro_x, snap.gyro_y, ned_z(snap.gyro_z));
 }
 static rc::Vec3 sensor_to_ned_mag(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.mag_x, snap.mag_y, -snap.mag_z);
+    return rc::Vec3(snap.mag_x, snap.mag_y, ned_z(snap.mag_z));
 }
 
 // ============================================================================
@@ -304,7 +305,7 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
     g_mag3dEnabled = true;
 }
 
-// Mag measurement update (~10Hz from AK09916 via seqlock)
+// Mag measurement update on a new seqlock sample (not a part-rate SSOT).
 static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     if (!snap.mag_valid) { return; }
 
@@ -322,7 +323,8 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
         save_wmm_position(lat, lon);
     }
 
-    // Try to enable 3-axis mag if not already
+    // 3-axis is opt-in (mag cal + WMM). Mag-less / no-WMM stays heading-only
+    // or skips — it must not look like 3-axis is running (WN-127).
     try_enable_mag_3axis(snap);
 
     if (g_mag3dEnabled) {

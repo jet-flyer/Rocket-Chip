@@ -18,7 +18,8 @@
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
 #include "ao_rf_manager.h"       // AO_RfManager_next_tx_window_us (Batch B IVP-T14)
 #include "rocketchip/ao_signals.h"
-#include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
+#include "rocketchip/board.h"
+#include "rocketchip/config.h"
 #include "rocketchip/radio_config.h"
 #include "rocketchip/rc_log.h"  // R-5 Unit F.5: STAGE_T diagnostics use rc::rc_log
 #include "logging/radio_config_storage.h"  // T5.5 sub persist: boot read + debounced write
@@ -32,8 +33,6 @@
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #endif
-
-// Pin configuration (rocketchip::pins::kRadioCs/Rst/Irq)
 
 // ============================================================================
 // Internal signal (private to this AO)
@@ -538,9 +537,9 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
 
     // Initialize radio hardware (owned by this AO)
     if (g_spiOk && rfm95w_init(&s.radio,
-            rocketchip::pins::kRadioCs,
-            rocketchip::pins::kRadioRst,
-            rocketchip::pins::kRadioIrq)) {
+            board::kRadioCsPin,
+            board::kRadioRstPin,
+            board::kRadioIrqPin)) {
         s.initialized = true;
 
         // Apply RadioConfig from Mission Profile (IVP-64 / T5.5 prereq #1)

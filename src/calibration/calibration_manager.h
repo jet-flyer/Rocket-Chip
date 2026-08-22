@@ -9,6 +9,9 @@
  * - Accelerometer level calibration (device flat)
  * - Barometer ground reference
  * - 6-position accel calibration (IVP-17)
+ *
+ * Public API is SI units and named thresholds. Part/SKU notes stay in
+ * the .cpp (WN-156).
  */
 
 #ifndef ROCKETCHIP_CALIBRATION_MANAGER_H

@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file config.h
- * @brief RocketChip build configuration and pin definitions
+ * @brief RocketChip build configuration (pins live in board::)
  *
  * Per CODING_STANDARDS.md:
  * - Constants use k prefix: kSampleRate, kMaxRetries
@@ -78,40 +78,10 @@ using job::kRadioModeRx;
 using job::kDefaultMavlinkOutput;
 
 // ============================================================================
-// Pin Definitions (from HARDWARE.md)
+// I2C Addresses (from HARDWARE.md)
 // ============================================================================
 
 namespace rocketchip {
-namespace pins {
-
-// Board-abstracted pins — delegated to board:: namespace (see board.h)
-constexpr uint8_t kLedRed       = board::kLedPin;
-constexpr uint8_t kNeoPixel     = board::kNeoPixelPin;
-constexpr uint8_t kPsramCs      = board::kPsramCsPin;
-
-// I2C (STEMMA QT / Qwiic)
-constexpr uint8_t kI2cSda       = board::kI2cSdaPin;
-constexpr uint8_t kI2cScl       = board::kI2cSclPin;
-
-// UART GPS
-constexpr uint8_t kUart0Tx      = board::kUartGpsTxPin;
-constexpr uint8_t kUart0Rx      = board::kUartGpsRxPin;
-
-// SPI (radio bus)
-constexpr uint8_t kSpiMiso      = board::kSpiMisoPin;
-constexpr uint8_t kSpiSck       = board::kSpiSckPin;
-constexpr uint8_t kSpiMosi      = board::kSpiMosiPin;
-
-// Radio (RFM95W)
-constexpr uint8_t kRadioCs      = board::kRadioCsPin;
-constexpr uint8_t kRadioRst     = board::kRadioRstPin;
-constexpr uint8_t kRadioIrq     = board::kRadioIrqPin;
-
-} // namespace pins
-
-// ============================================================================
-// I2C Addresses (from HARDWARE.md)
-// ============================================================================
 
 namespace i2c {
 

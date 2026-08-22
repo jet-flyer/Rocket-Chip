@@ -37,8 +37,13 @@
     // (Stage 16C IVP-143).
     #include "board_pico2.h"
 #else
-    // Default to Feather RP2350 HSTX — the original flight board
+    // Fail-closed: unknown PICO_BOARD must not silently inherit Feather pins
+    // (WN-020). Host tests are not a board — they compile Feather constants.
+#ifdef ROCKETCHIP_HOST_TEST
     #include "board_feather_rp2350.h"
+#else
+#error "Unsupported PICO_BOARD. Add a board_*.h pack and selector clause; do not default to Feather HSTX."
+#endif
 #endif
 
 #endif // ROCKETCHIP_BOARD_H
