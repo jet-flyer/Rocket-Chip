@@ -64,7 +64,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 2 = 327/327 labeled**). **FIRST next sitting:** Phase 3 P10-9. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX landed on `main` 2026-08-22**). **FIRST next sitting:** Phase 3 sitting 4 — HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`) then HW leakage. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -75,26 +75,13 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-1, R-3, R-4, R-5). R-2 erased (header landed).
 
-**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT code closed (`75a80b5`).
+**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT (`75a80b5`); P10-9 18-site remediates + SPDX WN-004 merged to `main` (`2026-08-22-001`).
 
-**Next:** Phase 3 P10-9 — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed. Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
+**Next:** Phase 3 sitting 4 — HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`) then HW-leakage WNs. Doxygen inventory/policy is sitting 5. Skip RF sitting (WN-100 DEFER). Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 
 **Concerns:** Probe residual power (E2) if the board looks dead after SWD. R-3 Core 0 `icm20948_read` vs Core 1 still open (WN-002 not fully closed).
-
----
-
-## P10-9 live function pointers (OPEN) (landed from walk WB W-1, 2026-08-17)
-
-**This is a disposition item.** It should have been **one project-wide WN** (same later decision: unlogged P10-9 sites). It was not filed: triage says Property C is Det-by-reference via the deviation log, and the log reads “all resolved 2026-05-13,” so the walk procedure would PASS without looking. `lm_solver` was explicitly not re-opened. Findings stay frozen — this row is the working list.
-
-**Do not treat the empty deviation log as evidence of absence.** FP-1 (templates in `lm_solver`) really was fixed. These 18 declaration sites (7 files) are still live (spot-checked 2026-08-17):
-
-- Typedef’d: `safety/test_mode.h` `FlightPhaseAccessor`; `fusion/eskf_runner.h` `EskfEventLogFn`; `cli/rc_os.h` `rc_os_read_accel_fn` / `rc_os_read_mag_fn` / `rc_os_reset_mag_staleness_fn`
-- Raw: `shared_state` GPS hooks `g_gpsFnUpdate`/`g_gpsFnGetData`/`g_gpsFnHasFix`; `flight_director.h` 5 FD action callbacks; `action_executor.h` `set_led`/`log_pyro`; `logging/flash_flush.*` `void (*kick_watchdog)()` ×3
-
-**When disposing:** accept (sign-off), fix (templates / other), or defer. FD + `action_executor` callbacks may wait on the existing **QP/C vs QP/C++** eval (they exist because the HSM is C). GPS hooks and `kick_watchdog` do **not** wait on QP. If P10-9 is accepted rather than banned, JSF-176 un-moots on the 13 raw decls — a second, separate question. Sweep was `src/`+`include/` regex only.
 
 ---
 
