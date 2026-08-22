@@ -28,13 +28,11 @@
 #elif defined(ADAFRUIT_FEATHER_RP2350)
     #include "board_feather_rp2350.h"
 #elif defined(PIMORONI_TINY2350)
-    // Pimoroni Tiny 2350+ — scaffolding, gated by TINY_2350_BRINGUP_OK
-    // (Stage 16C IVP-143). Base Tiny 2350 variant (board_tiny_2350.h)
-    // deferred until Plus variant completes hardware bring-up.
+    // WIP / unsupported until TINY_2350_BRINGUP_OK. Plus pack only;
+    // no board_tiny_2350.h.
     #include "board_tiny_2350_plus.h"
 #elif defined(RASPBERRYPI_PICO2)
-    // Raspberry Pi Pico 2 — scaffolding, gated by PICO2_BRINGUP_OK
-    // (Stage 16C IVP-143).
+    // WIP / unsupported until PICO2_BRINGUP_OK.
     #include "board_pico2.h"
 #else
     // Fail-closed: unknown PICO_BOARD must not silently inherit Feather pins

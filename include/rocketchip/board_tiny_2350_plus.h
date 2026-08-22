@@ -8,11 +8,8 @@
  * shared with the base Tiny 2350; variant overrides are explicit
  * below.
  *
- * Stage 16C IVP-143 scaffolding. The pin map inherited from
- * board_tiny_2350_common.h is datasheet-sourced and has NOT been
- * verified on hardware. Bring-up is gated behind the
- * TINY_2350_BRINGUP_OK define — a future bring-up IVP must define
- * that symbol after verifying each pin physically.
+ * WIP / unsupported until TINY_2350_BRINGUP_OK (WN-027/028).
+ * Pin map in board_tiny_2350_common.h is unverified.
  */
 
 #ifndef ROCKETCHIP_BOARD_TINY_2350_PLUS_H
@@ -21,7 +18,7 @@
 #include "board_tiny_2350_common.h"
 
 #ifndef TINY_2350_BRINGUP_OK
-#error "Tiny_2350 pin map not yet verified on hardware. Define TINY_2350_BRINGUP_OK after hardware bring-up."
+#error "Tiny 2350+ is WIP/unsupported. Define TINY_2350_BRINGUP_OK only after a documented pin-map allowlist."
 #endif
 
 namespace board {

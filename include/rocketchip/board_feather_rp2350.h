@@ -4,10 +4,11 @@
  * @file board_feather_rp2350.h
  * @brief Board constants for Adafruit Feather RP2350 HSTX (#6130)
  *
- * RP2350A, 8MB flash, 8MB PSRAM (APS6404L, GPIO 8 CS).
- * I2C1 on STEMMA QT, SPI0, UART0 for GPS.
- *
- * See docs/hardware/BOARD_COMPARISON.md for full pin comparison.
+ * Onboard: RP2350A, 8 MB flash, 8 MB PSRAM (APS6404L CS GPIO 8),
+ * STEMMA QT I2C1, WS2812 GPIO 21, LED GPIO 7.
+ * Expansion (not soldered): RFM95W FeatherWing, UART GPS on GPIO 0/1.
+ * Store: https://www.adafruit.com/product/6130
+ * See docs/hardware/BOARD_COMPARISON.md.
  */
 
 #ifndef ROCKETCHIP_BOARD_FEATHER_RP2350_H
@@ -29,7 +30,7 @@ inline constexpr uint8_t kSpiSckPin        = 22;
 inline constexpr uint8_t kSpiMosiPin       = 23;
 #define BOARD_SPI_INSTANCE spi0
 
-// --- Radio (RFM95W LoRa FeatherWing) ---
+// --- Radio (expansion / FeatherWing defaults; not onboard LoRa) ---
 inline constexpr uint8_t kRadioCsPin       = 10;
 inline constexpr uint8_t kRadioRstPin      = 11;
 inline constexpr uint8_t kRadioIrqPin      = 6;
@@ -66,8 +67,7 @@ inline void board_release_peripheral_reset() {
 // --- PSRAM ---
 inline constexpr uint8_t kPsramCsPin       = 8;
 
-// --- UART GPS ---
-// Feather has UART0 on GPIO 0/1 — available for GPS FeatherWing
+// --- UART GPS (expansion / FeatherWing; not an onboard GPS chip) ---
 inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;

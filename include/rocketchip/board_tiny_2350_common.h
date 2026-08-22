@@ -2,19 +2,11 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file board_tiny_2350_common.h
- * @brief Shared board constants for Pimoroni Tiny 2350 family
+ * @brief WIP shared pins for Pimoroni Tiny 2350+ (unsupported until allowlisted)
  *
- * Tiny 2350 / Tiny 2350+ share ~95% of their pin map. Variant-specific
- * overrides (kPsramAvailable, kBoardName, flash size) live in
- * board_tiny_2350.h and board_tiny_2350_plus.h.
- *
- * Stage 16C IVP-143: scaffolding only. All pin assignments are
- * datasheet-sourced best-guesses and MUST be verified on hardware
- * before this file is used. The variant headers gate inclusion
- * behind the `TINY_2350_BRINGUP_OK` define which must be added in a
- * dedicated hardware bring-up IVP.
- *
- * Reference: Pimoroni Tiny 2350 schematic + RP2350A (QFN-60) datasheet.
+ * Datasheet-sourced guesses. There is no board_tiny_2350.h (base variant
+ * not packed). Plus header gates on TINY_2350_BRINGUP_OK (WN-028).
+ * Pack merge (one Tiny file + PSRAM flag) is later, not this sitting.
  */
 
 #ifndef ROCKETCHIP_BOARD_TINY_2350_COMMON_H
@@ -41,7 +33,7 @@ inline constexpr uint8_t kSpiSckPin        = 6;
 inline constexpr uint8_t kSpiMosiPin       = 3;
 #define BOARD_SPI_INSTANCE spi0
 
-// --- Radio (RFM95W on breakout) ---
+// --- Radio (expansion breakout defaults; not onboard LoRa) ---
 // TODO(Tiny_2350): verify on hardware.
 inline constexpr uint8_t kRadioCsPin       = 5;
 inline constexpr uint8_t kRadioRstPin      = 22;
@@ -73,9 +65,7 @@ inline void board_release_peripheral_reset() {
     // no-op on Tiny 2350
 }
 
-// --- UART GPS ---
-// TODO(Tiny_2350): verify pin availability. Base Tiny may lack free
-// UART pins after radio + I2C consume the broken-out set.
+// --- UART GPS (expansion; not onboard — currently unavailable on this pack) ---
 inline constexpr bool    kUartGpsAvailable = false;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;

@@ -2,23 +2,19 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file board_pico2.h
- * @brief Board constants for Raspberry Pi Pico 2 (RP2350A)
+ * @brief WIP / unsupported until allowlisted — Raspberry Pi Pico 2
  *
- * Standard Pico form factor: 40 pins, RP2350A (QFN-60), 4 MB flash,
- * no onboard PSRAM, no DVI, no SD.
- *
- * Stage 16C IVP-143 scaffolding. Pin assignments sourced from the
- * Raspberry Pi Pico 2 datasheet (§2.1 Pinout). Bring-up is gated
- * behind the PICO2_BRINGUP_OK define — a future bring-up IVP must
- * define that symbol after physically verifying radio + I2C wiring
- * on the Pico 2.
+ * Onboard: RP2350A, 4 MB flash, GPIO LED. No PSRAM, DVI, or SD.
+ * Expansion defaults: UART0 GPS GPIO 0/1, LoRa breakout pins.
+ * Pin map from Pico 2 datasheet §2.1 — not HW-verified as a flight
+ * board. Build fails unless PICO2_BRINGUP_OK is set (WN-027).
  */
 
 #ifndef ROCKETCHIP_BOARD_PICO2_H
 #define ROCKETCHIP_BOARD_PICO2_H
 
 #ifndef PICO2_BRINGUP_OK
-#error "Pico 2 pin map not yet verified on hardware. Define PICO2_BRINGUP_OK after hardware bring-up."
+#error "Pico 2 is WIP/unsupported. Define PICO2_BRINGUP_OK only after a documented pin-map allowlist."
 #endif
 
 #include "hardware/i2c.h"
@@ -39,8 +35,8 @@ inline constexpr uint8_t kSpiSckPin        = 18;
 inline constexpr uint8_t kSpiMosiPin       = 19;
 #define BOARD_SPI_INSTANCE spi0
 
-// --- Radio (RFM95W on breakout) ---
-// TODO(Pico2): confirm CS / RST / IRQ pin choices during bring-up.
+// --- Radio (expansion breakout defaults; not onboard LoRa) ---
+// TODO(Pico2): confirm CS / RST / IRQ during allowlisted bring-up.
 inline constexpr uint8_t kRadioCsPin       = 17;
 inline constexpr uint8_t kRadioRstPin      = 20;
 inline constexpr uint8_t kRadioIrqPin      = 21;
@@ -70,9 +66,7 @@ inline void board_release_peripheral_reset() {
     // no-op on Pico 2
 }
 
-// --- UART GPS ---
-// GPIO 0/1 are UART0 on Pico 2 and are not multiplexed with USB Host
-// or boot buttons (unlike the Fruit Jam). UART GPS is available.
+// --- UART GPS (expansion on UART0 GPIO 0/1; not an onboard GPS chip) ---
 inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
