@@ -3,8 +3,8 @@
 //============================================================================
 // Calibration Hooks — Sensor Read Callbacks + Post-Save Reload Signal
 //
-// Provides the callback functions wired into rc_os for calibration wizards:
-// - Accel read (reads IMU directly)
+// Provides sensor-read helpers called directly from ao_rcos:
+// - Accel read (reads IMU directly; no live caller after P10-9)
 // - Mag read (reads from seqlock, no I2C contention)
 // - cal_post_hook (signals Core 1 to reload calibration after a save)
 //
@@ -20,7 +20,6 @@
 
 #include <stdint.h>
 
-// Callback signatures matching rc_os.h function pointer types
 bool cal_read_accel(float* ax, float* ay, float* az, float* tempC);
 bool cal_read_mag(float* mx, float* my, float* mz);
 void cal_reset_mag_staleness();

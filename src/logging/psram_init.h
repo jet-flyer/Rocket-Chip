@@ -40,8 +40,9 @@ static constexpr uint32_t kPsramExpectedSize = 8U * 1024U * 1024U;  // 8MB
  * @param cs_pin GPIO pin for CS1 (8 on Adafruit Feather RP2350 HSTX)
  * @return Detected PSRAM size in bytes, or 0 on failure
  *
- * Must be called BEFORE stdio_init_all() and flash operations.
- * The entire function runs from SRAM (not flash).
+ * Must be called BEFORE Core 1 launch and flash operations.
+ * Direct-mode windows run from SRAM; clock_get_hz / timing math run
+ * with XIP still up (Arduino-Pico discussion 3431).
  */
 size_t psram_init(uint32_t cs_pin);
 

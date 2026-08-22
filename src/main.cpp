@@ -31,7 +31,6 @@
 #include "calibration/calibration_storage.h"
 #include "logging/radio_config_storage.h"  // Stage T IVP-T5.5
 #include "calibration/calibration_manager.h"
-#include "calibration/cal_hooks.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
@@ -308,14 +307,6 @@ static void init_rc_os_hooks() {
     rc_os_init();
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
-    rc_os_read_accel = cal_read_accel;
-    rc_os_read_mag = cal_read_mag;
-    rc_os_reset_mag_staleness = cal_reset_mag_staleness;
-    // R-17/R-18 (2026-05-07 audit): rc_os_cal_pre_hook /
-    // rc_os_cal_post_hook function-pointer table removed (dead — was
-    // assigned here but never invoked anywhere). The I2C-pause primitive
-    // moved to src/safety/core1_i2c_pause.{h,cpp}; cal_post_hook() is now
-    // called directly from ao_rcos.cpp cal_save_to_flash().
 }
 
 // Initialize PIO safety systems on PIO2
