@@ -10,34 +10,34 @@
 #ifndef ROCKETCHIP_RC_OS_COMMANDS_H
 #define ROCKETCHIP_RC_OS_COMMANDS_H
 
-/// Sensor status display (vehicle mode 's' key)
+// Sensor status display (vehicle mode 's' key)
 void cli_print_sensor_status();
 
-/// Station RX telemetry display (station mode 's' key)
+// Station RX telemetry display (station mode 's' key)
 void cli_print_station_status();
 
-/// Compact boot summary (auto-printed on connect)
+// Compact boot summary (auto-printed on connect)
 void cli_print_boot_summary();
 
-/// Full hardware init detail ('b' Boot Log key)
+// Full hardware init detail ('b' Boot Log key)
 void cli_print_hw_status();
 
-/// Full boot output (summary + HW detail, first connect only)
+// Full boot output (summary + HW detail, first connect only)
 void cli_print_boot_status();
 
-/// Compact ESKF live output (1Hz, 'e' key)
+// Compact ESKF live output (1Hz, 'e' key)
 void cli_print_eskf_live();
 
-/// Preflight Go/No-Go poll ('p' key, IVP-110)
+// Preflight Go/No-Go poll ('p' key, IVP-110)
 void cli_print_preflight();
 
-/// Unhandled key dispatcher (logging, radio, download commands)
+// Unhandled key dispatcher (logging, radio, download commands)
 void cli_handle_unhandled_key(int key);
 
-/// Stage L — manual beacon ('b' key). Publishes SIG_BEACON_MANUAL;
-/// AO_Notify flips beacon_manual → resolver returns pure-white 2Hz.
-/// Non-destructive: valid in any phase, auto-clears on next non-recovery
-/// phase transition.
+// Stage L — manual beacon ('b' key). Publishes SIG_BEACON_MANUAL;
+// AO_Notify flips beacon_manual → resolver returns pure-white 2Hz.
+// Non-destructive: valid in any phase, auto-clears on next non-recovery
+// phase transition.
 void cmd_findme_beacon();
 
 #endif // ROCKETCHIP_RC_OS_COMMANDS_H

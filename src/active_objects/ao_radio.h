@@ -20,7 +20,7 @@ extern "C" {
 
 extern QActive * const AO_Radio;
 
-/// Start AO_Radio. spi_ok: whether SPI bus was initialized successfully.
+// Start AO_Radio. spi_ok: whether SPI bus was initialized successfully.
 void AO_Radio_start(uint8_t prio, bool spi_ok);
 
 // CLI access — safe under QV cooperative scheduling (no preemption on Core 0)
@@ -68,24 +68,24 @@ struct RadioAoState {
 
 const RadioAoState* AO_Radio_get_state();
 
-/// Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
-/// after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.
-/// immediately after the ACK packet has physically left the antenna.
-/// If no TX is outstanding, applied on the next tick.
-/// A ~200 ms backstop timer guards against TxDone never firing.
-/// Caller is responsible for validating the config BEFORE calling this.
+// Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
+// after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.
+// immediately after the ACK packet has physically left the antenna.
+// If no TX is outstanding, applied on the next tick.
+// A ~200 ms backstop timer guards against TxDone never firing.
+// Caller is responsible for validating the config BEFORE calling this.
 void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
 
-/// Stage T IVP-T5.5: read-only access to the AO's current runtime config.
-/// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
+// Stage T IVP-T5.5: read-only access to the AO's current runtime config.
+// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
 const rc::RadioConfig* AO_Radio_get_runtime_config();
 
-/// Stage T IVP-T5.5 sub 2f: consume the "config just changed" flag.
-/// Returns true ONCE after a ao_radio_commit_pending_config or
-/// ao_radio_revert_to_prev_config, then auto-clears. Telemetry encoder
-/// reads this to set the kCfgFlagJustChanged bit on the first nav-with-
-/// config packet after a transition, giving the station explicit UX
-/// confirmation "yes, THIS packet is from the intentional change".
+// Stage T IVP-T5.5 sub 2f: consume the "config just changed" flag.
+// Returns true ONCE after a ao_radio_commit_pending_config or
+// ao_radio_revert_to_prev_config, then auto-clears. Telemetry encoder
+// reads this to set the kCfgFlagJustChanged bit on the first nav-with-
+// config packet after a transition, giving the station explicit UX
+// confirmation "yes, THIS packet is from the intentional change".
 bool AO_Radio_consume_just_changed();
 
 #endif // ROCKETCHIP_AO_RADIO_H

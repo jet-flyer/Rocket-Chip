@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file board_fruit_jam.h
- * @brief Board constants for Adafruit Fruit Jam (#6200)
- *
- * Onboard: RP2350B, 16 MB flash, 8 MB PSRAM, STEMMA QT I2C0, HSTX DVI,
- * SD slot, ESP32-C6, buttons, I2S DAC. ESP/SD/I2S/buttons are present
- * on the SKU but not wired as RocketChip APIs (not implemented).
- * Expansion: RFM95W on SPI1 adapter (GPIO 5 shared with Button3 — do
- * not use Button3 as GPIO input when radio is present). SPI1 also has
- * ESP32-C6 CS GPIO 46; keep CS arbitration if WiFi is ever revived.
- * UART GPS is not available (GPIO 0/1 are boot / USB Host).
- * Store: https://www.adafruit.com/product/6200
- * See docs/hardware/BOARD_COMPARISON.md.
- */
+// Board constants for Adafruit Fruit Jam (#6200)
+// Onboard: RP2350B, 16 MB flash, 8 MB PSRAM, STEMMA QT I2C0, HSTX DVI,
+// SD slot, ESP32-C6, buttons, I2S DAC. ESP/SD/I2S/buttons are present
+// on the SKU but not wired as RocketChip APIs (not implemented).
+// Expansion: RFM95W on SPI1 adapter (GPIO 5 shared with Button3 — do
+// not use Button3 as GPIO input when radio is present). SPI1 also has
+// ESP32-C6 CS GPIO 46; keep CS arbitration if WiFi is ever revived.
+// UART GPS is not available (GPIO 0/1 are boot / USB Host).
+// Store: https://www.adafruit.com/product/6200
+// See docs/hardware/BOARD_COMPARISON.md.
 
 #ifndef ROCKETCHIP_BOARD_FRUIT_JAM_H
 #define ROCKETCHIP_BOARD_FRUIT_JAM_H

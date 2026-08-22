@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file board_pico2.h
- * @brief WIP / unsupported until allowlisted — Raspberry Pi Pico 2
- *
- * Onboard: RP2350A, 4 MB flash, GPIO LED. No PSRAM, DVI, or SD.
- * Expansion defaults: UART0 GPS GPIO 0/1, LoRa breakout pins.
- * Pin map from Pico 2 datasheet §2.1 — not HW-verified as a flight
- * board. Build fails unless PICO2_BRINGUP_OK is set (WN-027).
- */
+// WIP / unsupported until allowlisted — Raspberry Pi Pico 2
+// Onboard: RP2350A, 4 MB flash, GPIO LED. No PSRAM, DVI, or SD.
+// Expansion defaults: UART0 GPS GPIO 0/1, LoRa breakout pins.
+// Pin map from Pico 2 datasheet §2.1 — not HW-verified as a flight
+// board. Build fails unless PICO2_BRINGUP_OK is set (WN-027).
 
 #ifndef ROCKETCHIP_BOARD_PICO2_H
 #define ROCKETCHIP_BOARD_PICO2_H

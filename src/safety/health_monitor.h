@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Health Monitor — Centralized System Health (Stage 13, IVP-104)
-//
-// 2-bit per-subsystem encoding: absent/fault/degraded/healthy.
-// Council-reviewed: 5 personas, unanimous GO.
-// Decision record: docs/decisions/HEALTH_CONTRACT.md
-//
-// Called from AO_HealthMonitor at 10Hz (promoted from FD module in IVP-105).
-// Consumers: AO_LedEngine (fault layer), AO_Telemetry (health byte),
-//            AO_Logger (FusedState), CLI preflight (pull model).
+// Health monitor — 2-bit per subsystem (absent/fault/degraded/healthy).
+// Layout and policy: docs/decisions/HEALTH_CONTRACT.md. Tick at 10 Hz.
 //============================================================================
 #ifndef ROCKETCHIP_HEALTH_MONITOR_H
 #define ROCKETCHIP_HEALTH_MONITOR_H
@@ -31,17 +24,8 @@ enum HealthLevel : uint8_t {
     kHealthOk      = 0b11,  // Fully operational
 };
 
-// ============================================================================
-// Primary health byte: 4 subsystems x 2 bits
-//
-// bits [1:0] = IMU, [3:2] = Baro, [5:4] = ESKF, [7:6] = GPS
-//
-// MCU die-temp health (IVP-142b-1) is tracked separately in
-// HealthState::mcu rather than widened into primary, to avoid rippling
-// the 8-bit assumption through FusedState / PCM log frame /
-// telemetry wire format / replay harness. Consumers that care about
-// MCU read HealthState::mcu directly.
-// ============================================================================
+// Primary byte: [1:0] IMU, [3:2] Baro, [5:4] ESKF, [7:6] GPS.
+// MCU die-temp is HealthState::mcu — not in primary (wire/PCM stay 8-bit).
 static constexpr uint8_t kHealthShiftImu  = 0;
 static constexpr uint8_t kHealthShiftBaro = 2;
 static constexpr uint8_t kHealthShiftEskf = 4;
@@ -59,49 +43,11 @@ enum HealthSecondary : uint8_t {
     kHealthCore1Ok    = (1 << 4),  // IVP-117: Core 1 vitality (primary check)
 };
 
-// ============================================================================
-// Critical flags byte: 1-bit per threshold-bound critical condition
-//
-// Distinct from HealthSecondary (which is "1-bit OK/not-OK" for absent-able
-// subsystems) and distinct from HealthLevel (which is 4-state severity for
-// per-subsystem quality). A bit in HealthCritical means "system-wide
-// invariant violated, about to damage hardware or lose safety margin."
-//
-// Encoding: 0 = nominal, 1 = critical. 0x00 default = no criticals = still
-// fail-safe since readers check bits individually.
-//
-// Writer: health_monitor_tick() only, recomputed fresh each tick from the
-// underlying signals (materialized for PCM/MAVLink/FD snapshot determinism).
-//
-// Consumers do NOT auto-trigger state transitions from these bits — bits
-// exist so humans (pilot, RSO, ground ops) see the condition via LED/audio/
-// telemetry/preflight and can abort manually. Wiring automatic responses
-// requires flight-data evidence that the condition is reachable (council
-// 2026-04-18: "no dead safe-mode paths").
-// ============================================================================
+// Critical bits: 0 = nominal. Display/preflight only — do not auto-transition.
 enum HealthCritical : uint8_t {
-    // MCU die temperature ≥ kMcuTempSafeModeC (105 °C). RP2350 silicon
-    // is at 20 °C margin below absolute-max junction temp (125 °C);
-    // continued operation risks permanent damage.
-    kHealthCriticalMcu              = (1 << 0),
-    // Previous boot hit a hardfault (e.g., MPU stack guard, R-3 audit
-    // 2026-05-07). The crash_record consumed at boot triggers this bit,
-    // letting the existing safe-mode / FAULT-health pivot machinery own
-    // the recovery path. Latched until health_monitor_clear_latches().
-    kHealthCriticalPriorHardfault   = (1 << 1),
-    // Previous boot was triggered by a brownout (POWMAN_CHIP_RESET.HAD_BOR
-    // sticky bit). Per the in-flight fault recovery architecture plan
-    // (council round 2 unanimous 2026-05-14), brownout indicates an
-    // abnormal power event that requires physical inspection — pad-side
-    // (bad battery, cable swap, ESD) or in-flight (deeper power loss
-    // than .uninitialized_data SRAM retention threshold). Latched until
-    // health_monitor_clear_latches(); gates pre-arm regardless of phase.
-    // Independent of kHealthCriticalPriorHardfault — a brownout can also
-    // co-occur with a hardfault, in which case both bits are set.
-    kHealthCriticalPriorBrownout    = (1 << 2),
-    // Reserved for future critical conditions (pyro-continuity short,
-    // battery undervolt/overvolt, flash-write failure).
-    // See docs/decisions/HEALTH_CONTRACT.md pending council note.
+    kHealthCriticalMcu              = (1 << 0),  // die temp ≥ kMcuTempSafeModeC
+    kHealthCriticalPriorHardfault   = (1 << 1),  // crash_record at boot; latched
+    kHealthCriticalPriorBrownout    = (1 << 2),  // POWMAN HAD_BOR; inspect before ARM
 };
 
 // ============================================================================
@@ -149,29 +95,8 @@ static constexpr uint8_t kHealthWindowSize         = 10;   // 10 ticks = 1s at 1
 static constexpr uint8_t kImuDegradeThreshold      = 5;    // 5/10 invalid → degraded
 static constexpr uint8_t kBaroDegradeThreshold     = 3;    // 3/10 invalid → degraded
 
-// ============================================================================
-// Critical-fault persistence (Stage 16C IVP-142b-3)
-//
-// Council rationale (2026-04-18): a single-tick health_monitor_critical_fault()
-// returning true on any kHealthFault triggers false auto-DISARMs on noise
-// events — dust in the baro vent, transient I2C NACKs, IMU sample drops.
-// Rocketeer's field-experience: closing a door near the pad pressure-pulses
-// the baro and a naive fault-means-abort path aborts the rocket.
-//
-// Fix: require N consecutive ticks of fault AND phase != IDLE before a
-// primary-byte fault counts as "critical" for auto-action purposes.
-// At 10 Hz tick rate, kCriticalFaultPersistTicks = 5 = 500 ms.
-//
-// Phases:
-//   IDLE: go/no-go NO-GO already blocks ARM. auto-DISARM is a no-op by
-//         definition (not armed). No persistence check needed — return
-//         false so callers don't think they need to act.
-//   ARMED / BOOST / COAST / DESCENT / LANDED: persistence-gated. A fault
-//         only counts as critical after N consecutive ticks.
-//   LANDED: same as flight phases — if a sensor dies mid-descent the
-//         health status still reports critical for post-flight review.
-// ============================================================================
-static constexpr uint8_t kCriticalFaultPersistTicks = 5;  // 500 ms at 10 Hz
+// N consecutive fault ticks (not IDLE) before auto-action. 5 = 500 ms at 10 Hz.
+static constexpr uint8_t kCriticalFaultPersistTicks = 5;
 
 // Pure bump helper for the persistence counter — extracted so the
 // algorithm is testable at host level without the full health_monitor
@@ -187,16 +112,7 @@ inline uint8_t critical_fault_ticks_next(uint8_t prev, HealthLevel lvl) {
     return kCriticalFaultPersistTicks;
 }
 
-// ============================================================================
-// MCU die-temp thresholds (Stage 16C IVP-142b-1)
-// Sources:
-//   - RP2350 datasheet §14.9.1 Absolute maximum ratings: Tj max 125 °C
-//   - Industrial-grade silicon operating range spec: -40 to +85 °C
-//   - 105 °C safe-mode threshold = 20 °C margin below abs-max
-// Flight-data validation of the WARN threshold may refine it downward
-// in Stage 18 (airframe thermal profile); FAULT/SAFE are datasheet
-// ceilings and do not move.
-// ============================================================================
+// MCU die-temp: datasheet Tj max 125 °C; 105 °C = 20 °C margin. WARN may move.
 static constexpr float kMcuTempWarnC      = 70.0F;   // enter DEGRADED
 static constexpr float kMcuTempFaultC     = 85.0F;   // enter FAULT
 static constexpr float kMcuTempSafeModeC  = 105.0F;  // trigger safe-mode (IVP-142b-2)

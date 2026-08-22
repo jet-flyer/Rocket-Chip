@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file ud_factor.cpp
- * @brief UD factorization for 24-state ESKF covariance.
- *
- * Thornton WMGS temporal update + Bierman scalar measurement update.
- * Three Thornton precision variants (f32, mixed f32/f64, f64 accum).
- *
- * All hot functions placed in .time_critical SRAM section for fair
- * comparison with codegen FPFT (LL Entry 30: XIP cache is only 2KB).
- */
+// UD factorization for 24-state ESKF covariance.
+// Thornton WMGS temporal update + Bierman scalar measurement update.
+// Three Thornton precision variants (f32, mixed f32/f64, f64 accum).
+// All hot functions placed in .time_critical SRAM section for fair
+// comparison with codegen FPFT (LL Entry 30: XIP cache is only 2KB).
 
 #include "fusion/ud_factor.h"
 

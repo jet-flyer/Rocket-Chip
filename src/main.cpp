@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file main.cpp
- * @brief RocketChip main entry point
- *
- * Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
- * Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
- *
- * See git history for prior IVP gate checks and test dispatchers.
- */
+// RocketChip main entry point
+// Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
+// Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
+// See git history for prior IVP gate checks and test dispatchers.
 
 #include "rocketchip/config.h"
 #include "rocketchip/rc_log.h"           // R-5 Unit B POC instrumentation

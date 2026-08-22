@@ -3,21 +3,10 @@
 #ifndef ROCKETCHIP_FUSION_ESKF_H
 #define ROCKETCHIP_FUSION_ESKF_H
 
-// ESKF: 24-state Error-State Kalman Filter.
-// Pure C++ — no Pico SDK dependencies.
-//
-// Nominal state: quaternion (body-to-NED), position, velocity, biases,
-//   earth mag field, body mag bias, wind, baro bias.
-// Error state: 24-dimensional per eskf_state.h.
-// States 15-23 use runtime inhibit flags (ArduPilot pattern).
-// Reference: Solà (2017) "Quaternion kinematics for the error-state KF"
-//   arXiv:1711.02508 — 560+ citations (Semantic Scholar, 2026).
-//   Industry standard reference used by PX4 ECL-EKF2 and ArduPilot EKF2/3.
-//   Tutorial/consolidation paper, not novel research — standardizes the
-//   quaternion error-state formulation used across robotics and aerospace.
-//
-// All noise parameters from ICM-20948 DS-000189 v1.3 Tables 1-2
-// unless noted as empirical. Every constant has a source citation.
+// ESKF: 24-state error-state KF. Pure C++ — no Pico SDK.
+// Nominal: q (body→NED), p, v, biases, earth mag, body mag bias, wind, baro bias.
+// Error state: eskf_state.h. States 15–23 have runtime inhibit flags.
+// Solà 2017 arXiv:1711.02508. Noise from ICM-20948 DS-000189 unless marked empirical.
 
 #include "fusion/eskf_state.h"
 #include "fusion/innovation_monitor.h"
@@ -160,7 +149,7 @@ struct ESKF {
     static constexpr float kInitPBaroBias = 1.0F;         // m² (~1 m uncertainty)
 
     // =================================================================
-    // P diagonal clamping — council review RF-2
+    // P diagonal clamping
     // =================================================================
 
     static constexpr float kClampPAttitude = 1.0F;      // rad² (~57° max)
@@ -174,7 +163,7 @@ struct ESKF {
     static constexpr float kClampPBaroBias = 25.0F;       // m² (~5 m max)
 
     // =================================================================
-    // Stationarity check — council review RF-5
+    // Stationarity check
     // =================================================================
 
     // Accel magnitude tolerance around gravity: ±0.1g
@@ -203,23 +192,9 @@ struct ESKF {
     static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;           // ~0.001089 m²
     static constexpr float kBaroInnovationGate = 3.0F;                 // 3σ gate
 
-    // =================================================================
-    // Magnetometer heading measurement
-    // AK09916 noise: 0.1 µT RMS at ~45 µT total field → ~0.002 rad.
-    // Soft iron residuals dominate — start conservative at 5°.
-    // Source: PHASE5_ESKF_PLAN.md, ArduPilot EKF3 MAG_NOISE.
-    //
-    // H ≈ [0, 0, 1, 0...0] (yaw-only, level-flight approximation).
-    // Valid while roll/pitch < ~45°. Above that, cross-coupling from
-    // roll/pitch into heading exceeds kSigmaMagHeading and the update
-    // effectively becomes a slow correction rather than a tight lock.
-    // Full attitude-dependent H is a Titan tier enhancement.
-    //
-    // Max trackable spin rate at 10Hz mag update: ~5 rev/s (900°/s).
-    // Beyond this, wrap_pi() on the innovation aliases. The ESKF
-    // gyro-driven predict (200Hz) tracks arbitrarily fast rotations;
-    // only the mag correction has this limit.
-    // =================================================================
+    // Magnetometer heading. H ≈ yaw-only (level). wrap_pi aliases above
+    // ~5 rev/s at 10 Hz mag; gyro predict still tracks. Soft-iron residuals
+    // dominate AK09916 noise — 5° (PHASE5_ESKF_PLAN / ArduPilot MAG_NOISE).
 
     static constexpr float kSigmaMagHeading = 0.087F;                   // rad (~5°)
     static constexpr float kRMagHeading = kSigmaMagHeading * kSigmaMagHeading;  // ~0.00757 rad²
@@ -248,26 +223,8 @@ struct ESKF {
     // conservative middle. Higher values weaken correction more at tilt.
     static constexpr float kMagTiltRInflationMax = 100.0F;
 
-    // =================================================================
-    // Zero-velocity pseudo-measurement (ZUPT)
-    // Constrains horizontal velocity when stationary. Without GPS or
-    // ZUPT, horizontal v/p states are unobservable and diverge within
-    // ~30s, corrupting accel bias estimation via positive feedback.
-    //
-    // Stationarity detection uses kStationaryAccelTol and
-    // kStationaryGyroMax (same as init() RF-5). When both are met,
-    // inject v=[0,0,0] as three scalar measurements.
-    //
-    // ArduPilot EKF3: InertialNav zero-velocity when onGround.
-    // PX4 ECL-EKF2: zero_velocity_update() with accel/gyro checks.
-    // =================================================================
-
-    // ZUPT measurement noise: how precisely we know v=0.
-    // Must be loose enough that velocity covariance P_v doesn't collapse.
-    // If P_v → 0, the Kalman gain for subsequent updates vanishes and
-    // the ZUPT can't fight accel-bias-driven velocity accumulation.
-    // ArduPilot EKF3 uses ~0.5 m/s for on-ground zero-velocity.
-    // PX4 ECL uses similar order. We match ArduPilot.
+    // ZUPT: without GPS, horizontal v/p diverge in ~30s and corrupt accel
+    // bias. Keep R loose enough that P_v does not collapse (ArduPilot ~0.5 m/s).
     static constexpr float kSigmaZupt = 0.5F;                           // m/s
     static constexpr float kRZupt = kSigmaZupt * kSigmaZupt;            // 0.25 m²/s²
     static constexpr float kSigmaZuptOnPad = 0.1F;                      // m/s (tighter when state machine confirms stationary)

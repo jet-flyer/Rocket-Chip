@@ -1,20 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Diagnostic statistics dump for soak testing (IVP-132).
-//
-// R-25-exec step 4 (2026-05-13, per council-APPROVED Approach A in
-// docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md): migrated
-// from src/dev/diag_stats.cpp. Lives in the single flight binary;
-// the full diag_stats_dump() is now unconditional because it is a
-// pure read-only snapshot (no state mutation, no fault injection).
-//
-//   - diag_stats_t0_preconditions(): build/role/board identity,
-//     radio RegVersion readback, IRQ pin state, SPI error counter.
-//     Used at T=0 of every soak to catch Frankenstein builds.
-//   - diag_stats_dump() + msp_tick(): full per-AO queue + MSP
-//     watermark + sensor snapshot. Always available; no test_mode
-//     gate required (reads only).
+// Soak dump. t0_preconditions: identity + RegVersion (Frankenstein catch).
+// dump/msp_tick: read-only, no test_mode gate.
 
 // -------------------------------------------------------------------
 // ALWAYS-ON block: T=0 preconditions for soak procedures

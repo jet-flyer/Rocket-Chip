@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file go_nogo_checks.h
- * @brief Go/No-Go pre-arm poll
- *
- * Two-tier Go/No-Go readiness poll (NASA launch terminology):
- *   Tier 1 (platform): IMU, baro, ESKF, flash, LAUNCH_ABORT, watchdog
- *   Tier 2 (profile): GPS, mag cal, radio, battery (stub)
- *
- * Tier 1 "No-Go" blocks arming. Tier 2 "No-Go" warns but allows ARM.
- *
- * All checks are pure functions of a GoNoGoInput snapshot — no globals,
- * no hardware access. main.cpp populates the snapshot from its statics.
- */
+// Go/No-Go pre-arm poll
+// Two-tier Go/No-Go readiness poll (NASA launch terminology):
+// Tier 1 (platform): IMU, baro, ESKF, flash, LAUNCH_ABORT, watchdog
+// Tier 2 (profile): GPS, mag cal, radio, battery (stub)
+// Tier 1 "No-Go" blocks arming. Tier 2 "No-Go" warns but allows ARM.
+// All checks are pure functions of a GoNoGoInput snapshot — no globals,
+// no hardware access. main.cpp populates the snapshot from its statics.
 
 #ifndef ROCKETCHIP_GO_NOGO_CHECKS_H
 #define ROCKETCHIP_GO_NOGO_CHECKS_H

@@ -1,34 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file gps_uart.cpp
- * @brief UART GPS driver using lwGPS library — interrupt-driven receive
- *
- * Reads NMEA sentences from a UART GPS module (e.g., Adafruit Ultimate GPS
- * FeatherWing #3133 / PA1616D) and parses with lwGPS.
- *
- * Architecture mirrors gps_pa1010d.cpp:
- *   - Same lwGPS parser (NMEA parsing is transport-agnostic)
- *   - Same gps_data_t output (transport-neutral, defined in gps.h)
- *   - PMTK commands sent as precomputed const-array sentences (R-2 / R-5 Unit D)
- *
- * Key differences from I2C backend:
- *   - No padding filter (UART gives clean bytes, no 0x0A padding)
- *   - No settling delay (point-to-point, no bus contention)
- *   - Interrupt-driven RX with 512-byte ring buffer (no FIFO overflow)
- *   - 2-second presence detection timeout at init
- *
- * Receive path:
- *   GPS module (9600 baud) -> UART0 hardware FIFO (32 bytes)
- *   -> ISR on Core 0 (drains FIFO -> ring buffer)
- *   -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
- *   -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
- *
- * Prior Art:
- *   - Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet
- *   - ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern)
- *   - Pico SDK stdio_uart.c (IRQ handler pattern)
- */
+// UART GPS driver using lwGPS library — interrupt-driven receive
+// Reads NMEA sentences from a UART GPS module (e.g., Adafruit Ultimate GPS
+// FeatherWing #3133 / PA1616D) and parses with lwGPS.
+// Architecture mirrors gps_pa1010d.cpp:
+// - Same lwGPS parser (NMEA parsing is transport-agnostic)
+// - Same gps_data_t output (transport-neutral, defined in gps.h)
+// - PMTK commands sent as precomputed const-array sentences (R-2 / R-5 Unit D)
+// Key differences from I2C backend:
+// - No padding filter (UART gives clean bytes, no 0x0A padding)
+// - No settling delay (point-to-point, no bus contention)
+// - Interrupt-driven RX with 512-byte ring buffer (no FIFO overflow)
+// - 2-second presence detection timeout at init
+// Receive path:
+// GPS module (9600 baud) -> UART0 hardware FIFO (32 bytes)
+// -> ISR on Core 0 (drains FIFO -> ring buffer)
+// -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
+// -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
+// Prior Art:
+// - Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet
+// - ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern)
+// - Pico SDK stdio_uart.c (IRQ handler pattern)
 
 #include "gps_uart.h"
 #include "rocketchip/board.h"
@@ -177,16 +169,11 @@ static gps_data_t g_data;
 // ISR
 // ============================================================================
 
-/**
- * @brief UART0 RX interrupt handler — drains hardware FIFO into ring buffer
- *
- * Runs on Core 0 (where gps_uart_init() registered it). Fires on:
- *   - UARTRXINTR: RX FIFO reaches threshold (>= 4 bytes, default IFLS)
- *   - UARTRTINTR: >= 1 byte and no new bytes for 32 bit periods (~3.3ms at 9600)
- *
- * At 9600 baud, fires at most ~240 times/sec. Each invocation is <1us.
- * Total Core 0 CPU impact: <0.1%.
- */
+// Runs on Core 0 (where gps_uart_init() registered it). Fires on:
+// - UARTRXINTR: RX FIFO reaches threshold (>= 4 bytes, default IFLS)
+// - UARTRTINTR: >= 1 byte and no new bytes for 32 bit periods (~3.3ms at 9600)
+// At 9600 baud, fires at most ~240 times/sec. Each invocation is <1us.
+// Total Core 0 CPU impact: <0.1%.
 static void gps_uart_rx_isr() {
     while (uart_is_readable(GPS_UART_INST)) {
         uint8_t byte = static_cast<uint8_t>(uart_get_hw(GPS_UART_INST)->dr);
@@ -208,14 +195,10 @@ static void gps_uart_rx_isr() {
 // Private Functions
 // ============================================================================
 
-/**
- * @brief Update internal data structure from lwGPS parser state
- *
- * Duplicated from gps_pa1010d.cpp — both backends produce identical
- * gps_data_t from the same lwGPS state. Factoring into a shared helper
- * would couple two otherwise-independent drivers for ~40 lines of
- * trivial field copies. Not worth the dependency.
- */
+// Duplicated from gps_pa1010d.cpp — both backends produce identical
+// gps_data_t from the same lwGPS state. Factoring into a shared helper
+// would couple two otherwise-independent drivers for ~40 lines of
+// trivial field copies. Not worth the dependency.
 static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;

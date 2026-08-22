@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file board_feather_rp2350.h
- * @brief Board constants for Adafruit Feather RP2350 HSTX (#6130)
- *
- * Onboard: RP2350A, 8 MB flash, 8 MB PSRAM (APS6404L CS GPIO 8),
- * STEMMA QT I2C1, WS2812 GPIO 21, LED GPIO 7.
- * Expansion (not soldered): RFM95W FeatherWing, UART GPS on GPIO 0/1.
- * Store: https://www.adafruit.com/product/6130
- * See docs/hardware/BOARD_COMPARISON.md.
- */
+// Board constants for Adafruit Feather RP2350 HSTX (#6130)
+// Onboard: RP2350A, 8 MB flash, 8 MB PSRAM (APS6404L CS GPIO 8),
+// STEMMA QT I2C1, WS2812 GPIO 21, LED GPIO 7.
+// Expansion (not soldered): RFM95W FeatherWing, UART GPS on GPIO 0/1.
+// Store: https://www.adafruit.com/product/6130
+// See docs/hardware/BOARD_COMPARISON.md.
 
 #ifndef ROCKETCHIP_BOARD_FEATHER_RP2350_H
 #define ROCKETCHIP_BOARD_FEATHER_RP2350_H

@@ -1,21 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Diagnostic statistics for IVP-132 soak testing.
-//
-// R-25-exec step 4 (2026-05-13, per council-APPROVED Approach A in
-// docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md): migrated
-// from src/dev/diag_stats.h. Lives in the single flight binary; the
-// full diag_stats_dump() runs unconditionally because it is a pure
-// read-only snapshot of AO queue depth, MSP high-water, radio
-// counters, health, and sensor state — no state mutation, no
-// risk. Both diag_stats_dump() and diag_stats_msp_tick() are now
-// always available (SWE-133 partitioning principle does not require
-// gating reads).
-//
-// T=0 preconditions block always compiled. Dump callable via:
-//   - rc_os_debug 'd' key (always available)
-//   - GDB `call diag_stats_dump()`
+// Soak snapshot + T=0 identity check. Read-only — always compiled.
+// Dump: rc_os_debug 'd' or GDB call diag_stats_dump().
 #ifndef ROCKETCHIP_DIAG_DIAG_STATS_H
 #define ROCKETCHIP_DIAG_DIAG_STATS_H
 

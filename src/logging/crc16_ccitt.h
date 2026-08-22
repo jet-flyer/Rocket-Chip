@@ -1,19 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file crc16_ccitt.h
- * @brief CRC-16-CCITT (CCSDS convention) — header-only, C++20 constexpr
- *
- * Polynomial: 0x1021 (CCITT)
- * Init: 0xFFFF
- * Final XOR: none (CCSDS convention)
- * Bit order: MSB-first
- *
- * 256-entry lookup table (512B in .rodata, zero runtime init).
- * Suitable for per-frame integrity in PCM data streams.
- *
- * IVP-49: Data Model & ICD (Stage 6: Data Logging)
- */
+// CRC-16-CCITT (CCSDS convention) — header-only, C++20 constexpr
+// Polynomial: 0x1021 (CCITT)
+// Init: 0xFFFF
+// Final XOR: none (CCSDS convention)
+// Bit order: MSB-first
+// 256-entry lookup table (512B in .rodata, zero runtime init).
+// Suitable for per-frame integrity in PCM data streams.
+// IVP-49: Data Model & ICD (Stage 6: Data Logging)
 
 #ifndef ROCKETCHIP_CRC16_CCITT_H
 #define ROCKETCHIP_CRC16_CCITT_H
@@ -53,12 +47,7 @@ inline constexpr Crc16Table kCrc16Table{};
 
 } // namespace detail
 
-/**
- * @brief Compute CRC-16-CCITT over a byte buffer
- * @param data Pointer to data
- * @param len  Length in bytes
- * @return CRC-16 value
- */
+// CRC-16 value
 inline uint16_t crc16_ccitt(const void* data, uint32_t len) {
     // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine;
     // callers pass the object pointer directly (no reinterpret_cast at call sites).

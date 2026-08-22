@@ -17,21 +17,21 @@
 
 #include "rocketchip/radio_config.h"
 
-/// Init flash sectors. Call once at boot, BEFORE stdio_init_all()
-/// (LL Entry 4/12). Returns true on success.
+// Init flash sectors. Call once at boot, BEFORE stdio_init_all()
+// (LL Entry 4/12). Returns true on success.
 bool radio_config_storage_init();
 
-/// Read persisted RadioConfig from flash. Returns true if valid data
-/// was found (CRC'd and in-whitelist). Caller uses the value as a boot
-/// override for kDefaultRocketRadioConfig.
+// Read persisted RadioConfig from flash. Returns true if valid data
+// was found (CRC'd and in-whitelist). Caller uses the value as a boot
+// override for kDefaultRocketRadioConfig.
 bool radio_config_storage_read(rc::RadioConfig* cfg);
 
-/// Write RadioConfig to flash (alternate sector for wear leveling).
-/// Uses flash_safe_execute() per LL Entry 31. ~100 ms blocking.
-/// Returns true on success.
+// Write RadioConfig to flash (alternate sector for wear leveling).
+// Uses flash_safe_execute() per LL Entry 31. ~100 ms blocking.
+// Returns true on success.
 bool radio_config_storage_write(const rc::RadioConfig* cfg);
 
-/// Erase both sectors (factory reset).
+// Erase both sectors (factory reset).
 bool radio_config_storage_erase();
 
 #endif // ROCKETCHIP_RADIO_CONFIG_STORAGE_H

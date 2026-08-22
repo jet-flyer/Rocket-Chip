@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file cli_commands.cpp
- * @brief CLI command handlers and display functions
- *
- * Pure command/display code — reads state from AO public APIs and
- * sensor seqlock, owns no state.
- */
+// CLI command handlers and display functions
+// Pure command/display code — reads state from AO public APIs and
+// sensor seqlock, owns no state.
 
 #include "cli/rc_os_commands.h"
 

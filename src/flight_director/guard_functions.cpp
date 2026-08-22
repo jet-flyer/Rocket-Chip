@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_functions.cpp
- * @brief Flight phase guard function implementations (IVP-70)
- */
+// Flight phase guard function implementations (IVP-70)
 
 #include "guard_functions.h"
 #include <cmath>

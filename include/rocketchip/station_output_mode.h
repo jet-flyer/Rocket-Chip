@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file station_output_mode.h
- * @brief Station output mode enum — shared between AO_RCOS and AO_Telemetry
- *
- * Extracted to its own header to avoid circular includes (Council A3).
- * AO_RCOS owns the write side, AO_Telemetry reads it.
- */
+// Station output mode enum — shared between AO_RCOS and AO_Telemetry
+// Extracted to its own header to avoid circular includes (Council A3).
+// AO_RCOS owns the write side, AO_Telemetry reads it.
 
 #ifndef ROCKETCHIP_STATION_OUTPUT_MODE_H
 #define ROCKETCHIP_STATION_OUTPUT_MODE_H

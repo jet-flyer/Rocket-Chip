@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file rc_os.c
- * @brief RocketChip OS - CLI menu system implementation
- *
- * Bare-metal adaptation of RC_OS v0.3 CLI.
- * Uses calibration_manager for calibration operations.
- */
+// RocketChip OS - CLI menu system implementation
+// Bare-metal adaptation of RC_OS v0.3 CLI.
+// Uses calibration_manager for calibration operations.
 
 #include "rc_os.h"
 #include "rc_os_dashboard.h"

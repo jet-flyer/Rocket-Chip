@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file pcm_frame.cpp
- * @brief PCM frame encode/decode/resync implementation
- */
+// PCM frame encode/decode/resync implementation
 
 #include "rocketchip/pcm_frame.h"
 #ifdef PICO_ON_DEVICE

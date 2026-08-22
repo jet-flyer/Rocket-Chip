@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file job_relay.h
- * @brief Relay role — range extender configuration
- *
- * RX continuous, validate CCSDS CRC, re-TX. Link-layer only — no payload
- * decode, no AO_Telemetry, no ESKF, no Flight Director.
- * Council 3 [C3-R2]: relay is link-layer only in AO_Radio.
- */
+// Relay role — range extender configuration
+// RX continuous, validate CCSDS CRC, re-TX. Link-layer only — no payload
+// decode, no AO_Telemetry, no ESKF, no Flight Director.
+// Council 3 [C3-R2]: relay is link-layer only in AO_Radio.
 
 #ifndef ROCKETCHIP_JOB_RELAY_H
 #define ROCKETCHIP_JOB_RELAY_H

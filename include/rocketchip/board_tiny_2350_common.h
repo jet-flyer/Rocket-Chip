@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file board_tiny_2350_common.h
- * @brief WIP shared pins for Pimoroni Tiny 2350+ (unsupported until allowlisted)
- *
- * Datasheet-sourced guesses. There is no board_tiny_2350.h (base variant
- * not packed). Plus header gates on TINY_2350_BRINGUP_OK (WN-028).
- * Pack merge (one Tiny file + PSRAM flag) is later, not this sitting.
- */
+// WIP shared pins for Pimoroni Tiny 2350+ (unsupported until allowlisted)
+// Datasheet-sourced guesses. There is no board_tiny_2350.h (base variant
+// not packed). Plus header gates on TINY_2350_BRINGUP_OK (WN-028).
+// Pack merge (one Tiny file + PSRAM flag) is later, not this sitting.
 
 #ifndef ROCKETCHIP_BOARD_TINY_2350_COMMON_H
 #define ROCKETCHIP_BOARD_TINY_2350_COMMON_H

@@ -1,19 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_combinator.h
- * @brief Guard combinator + safety lockout gates
- *
- * Three-layer safety architecture for deployment-critical transitions:
- *   Layer 1: Lockout gates (velocity + min-time) — block if unsafe
- *   Layer 2: Sensor combinators (AND/OR) — primary detection
- *   Layer 3: Timer backup — fires if sensors don't, gated by lockouts
- *
- * Industry standard: Altus Metrum velocity lockout + apogee lockout,
- * Featherweight dual-channel, NASA timer-primary for sounding rockets.
- *
- * Council review 2026-03-25: 6 amendments incorporated (A1-A6).
- */
+// Guard combinator + safety lockout gates
+// Three-layer safety architecture for deployment-critical transitions:
+// Layer 1: Lockout gates (velocity + min-time) — block if unsafe
+// Layer 2: Sensor combinators (AND/OR) — primary detection
+// Layer 3: Timer backup — fires if sensors don't, gated by lockouts
+// Industry standard: Altus Metrum velocity lockout + apogee lockout,
+// Featherweight dual-channel, NASA timer-primary for sounding rockets.
+// Council review 2026-03-25: 6 amendments incorporated (A1-A6).
 
 #ifndef ROCKETCHIP_GUARD_COMBINATOR_H
 #define ROCKETCHIP_GUARD_COMBINATOR_H

@@ -1,21 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_evaluator.h
- * @brief Guard sustain evaluator
- *
- * Manages sustain counters for each guard. A guard "fires" (returns a
- * signal) only when its condition is true for N consecutive ticks.
- * One false tick resets the counter to zero.
- *
- * Guards are either "unmanaged" (auto-dispatch on sustain) or
- * "managed" (combinator reads sustained[] and decides dispatch).
- * Managed/unmanaged is a compile-time property (Council A4).
- *
- * Phase validity: each guard is only active in specific phases.
- * The evaluator skips inactive guards and resets their counters on
- * phase transitions.
- */
+// Guard sustain evaluator: fire after N consecutive true ticks; one false
+// tick resets the count. Unmanaged guards auto-dispatch; managed ones only
+// set sustained[] for the combinator. Inactive in a phase → skip and reset.
 
 #ifndef ROCKETCHIP_GUARD_EVALUATOR_H
 #define ROCKETCHIP_GUARD_EVALUATOR_H
@@ -79,17 +66,8 @@ void guard_evaluator_init(GuardEvaluator* ev,
                            const MissionProfile& profile,
                            uint32_t tick_period_ms);
 
-// Evaluate all active guards for the current phase.
-// - Unmanaged guards: returns signal on first sustain (first-wins), or SIG_MAX
-// - Managed guards: updates sustained flag only, returns SIG_MAX
-//
-// Caller should check sustained[] for managed guards via the combinator.
-//
-// @param ev          Evaluator state
-// @param phase       Current flight phase
-// @param fused       ESKF fused state (velocity, altitude, baro)
-// @param accel_z     Calibrated body-Z acceleration (m/s^2)
-// @param accel_mag   Calibrated acceleration magnitude (m/s^2)
+// Unmanaged: signal on first sustain (or SIG_MAX). Managed: flag only.
+// accel_z / accel_mag are calibrated body-frame (m/s^2).
 uint16_t guard_evaluator_tick(GuardEvaluator* ev,
                                FlightPhase phase,
                                const FusedState& fused,

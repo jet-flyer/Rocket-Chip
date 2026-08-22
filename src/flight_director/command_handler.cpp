@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file command_handler.cpp
- * @brief Flight Director command validation
- */
+// Flight Director command validation
 
 #include "command_handler.h"
 #include "safety/inject_arm_gate.h"    // R-25-exec: refuse ARM if inject gate armed

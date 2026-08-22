@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file calibration_manager.cpp
- * @brief Calibration routine manager implementation
- */
+// Calibration routine manager implementation
 
 #include "calibration_manager.h"
 #include "calibration_storage.h"

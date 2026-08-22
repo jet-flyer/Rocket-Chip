@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file rfm95w.h
- * @brief RFM95W (SX1276) LoRa radio driver
- *
- * SPI-based driver for Adafruit LoRa Radio FeatherWing #3231.
- * GPIO-controlled CS for burst FIFO access (see spi_bus.h).
- *
- * Register addresses and init sequence from SX1276 datasheet
- * (Semtech DS_SX1276-7-8-9_W_APP_V7) and RadioHead RH_RF95.
- *
- * Optional peripheral — absent FeatherWing detected at init time
- * via RegVersion read (returns 0x00/0xFF when not present).
- */
+// RFM95W (SX1276) LoRa radio driver
+// SPI-based driver for Adafruit LoRa Radio FeatherWing #3231.
+// GPIO-controlled CS for burst FIFO access (see spi_bus.h).
+// Register addresses and init sequence from SX1276 datasheet
+// (Semtech DS_SX1276-7-8-9_W_APP_V7) and RadioHead RH_RF95.
+// Optional peripheral — absent FeatherWing detected at init time
+// via RegVersion read (returns 0x00/0xFF when not present).
 
 #ifndef ROCKETCHIP_RFM95W_H
 #define ROCKETCHIP_RFM95W_H
@@ -144,67 +138,31 @@ struct rfm95w_t {
 // Public API
 // ============================================================================
 
-/**
- * @brief Initialize the RFM95W radio
- *
- * Performs hardware reset, checks RegVersion (0x12 expected), configures
- * LoRa mode at 915 MHz, SF7, BW 125kHz, CR 4/5, +20 dBm via PA_BOOST.
- *
- * If the FeatherWing is not stacked (RegVersion reads 0x00 or 0xFF),
- * returns false and boot continues normally (Council #3: optional peripheral).
- *
- * @param dev Device handle (caller-owned, zero-initialized)
- * @param cs  GPIO pin for chip select
- * @param rst GPIO pin for reset
- * @param irq GPIO pin for DIO0 (TX/RX done interrupt)
- * @return true if radio detected and configured, false if absent or error
- */
+// Performs hardware reset, checks RegVersion (0x12 expected), configures
+// LoRa mode at 915 MHz, SF7, BW 125kHz, CR 4/5, +20 dBm via PA_BOOST.
+// If the FeatherWing is not stacked (RegVersion reads 0x00 or 0xFF),
+// returns false and boot continues normally (Council #3: optional peripheral).
 bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);
 
-/**
- * @brief Read SX1276 RegVersion (0x42) directly.
- *
- * GDB-callable diagnostic helper (IVP-132a.4 re-eval). Reads RegVersion
- * over SPI using the given CS pin. Returns 0x12 if an SX1276 is
- * physically present and responding; 0x00 or 0xFF if SPI line is dead
- * or no chip present. Does NOT require rfm95w_init() to have been
- * called first — uses the raw SPI bus.
- *
- * Use from GDB as the T=0 precondition "is the radio physically
- * reachable" check:
- *   (gdb) call rfm95w_read_version(10)  // Fruit Jam CS pin
- *
- * @param cs CS pin for the radio (board-specific)
- * @return 8-bit version register value (0x12 expected for SX1276)
- */
+// GDB-callable diagnostic helper (IVP-132a.4 re-eval). Reads RegVersion
+// over SPI using the given CS pin. Returns 0x12 if an SX1276 is
+// physically present and responding; 0x00 or 0xFF if SPI line is dead
+// or no chip present. Does NOT require rfm95w_init() to have been
+// called first — uses the raw SPI bus.
+// Use from GDB as the T=0 precondition "is the radio physically
+// reachable" check:
+// (gdb) call rfm95w_read_version(10)  // Fruit Jam CS pin
 uint8_t rfm95w_read_version(uint8_t cs);
 
-/**
- * @brief Read the audit-register snapshot (IVP-T11).
- *
- * Reads RegInvertIQ, RegModemConfig2, RegLna, RegModemConfig3 over SPI and
- * returns their values in @p audit. Caller is expected to log them and
- * compare against kAudit*Expected constants. Driver stays stdio-free.
- *
- * Call after rfm95w_init(). If the radio is absent, values will be 0x00 or
- * 0xFF — caller should skip the comparison when radio is not initialized.
- *
- * @param dev   Initialized device handle
- * @param audit Out param, populated on return
- */
+// Reads RegInvertIQ, RegModemConfig2, RegLna, RegModemConfig3 over SPI and
+// returns their values in audit. Caller is expected to log them and
+// compare against kAudit*Expected constants. Driver stays stdio-free.
+// Call after rfm95w_init(). If the radio is absent, values will be 0x00 or
+// 0xFF — caller should skip the comparison when radio is not initialized.
 void rfm95w_read_audit(rfm95w_t* dev, rfm95w_audit_t* audit);
 
-/**
- * @brief Send a packet
- *
- * Writes payload to FIFO, sets TX mode, polls DIO0 for TxDone with
- * 100ms timeout. Returns to Standby after completion.
- *
- * @param dev Initialized device handle
- * @param data Payload data
- * @param len Payload length (max 128 bytes)
- * @return true if TxDone received within timeout
- */
+// Writes payload to FIFO, sets TX mode, polls DIO0 for TxDone with
+// 100ms timeout. Returns to Standby after completion.
 bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len);
 
 // ============================================================================
@@ -222,158 +180,52 @@ bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len);
 //   }
 // ============================================================================
 
-/**
- * @brief Start a non-blocking packet transmission
- *
- * Writes payload to FIFO, sets TX mode, returns immediately (~200µs).
- * Call rfm95w_send_poll() on subsequent ticks to check completion.
- *
- * @param dev Initialized device handle
- * @param data Payload data
- * @param len Payload length (max 128 bytes)
- * @return true if TX started, false if not initialized or len invalid
- */
+// Writes payload to FIFO, sets TX mode, returns immediately (~200µs).
+// Call rfm95w_send_poll() on subsequent ticks to check completion.
 bool rfm95w_send_start(rfm95w_t* dev, const uint8_t* data, uint8_t len);
 
-/**
- * @brief Poll for TX completion (non-blocking)
- *
- * Reads RegIrqFlags register (latched, not GPIO DIO0 — Council C3-R3).
- * Returns kBusy until TxDone flag sets, or kTimeout after 150ms.
- * On kDone/kTimeout: clears IRQ flags, restores Standby mode.
- *
- * @param dev Device handle (must have called send_start first)
- * @return TxPollResult: kBusy, kDone, or kTimeout
- */
+// Reads RegIrqFlags register (latched, not GPIO DIO0 — Council C3-R3).
+// Returns kBusy until TxDone flag sets, or kTimeout after 150ms.
+// On kDone/kTimeout: clears IRQ flags, restores Standby mode.
 TxPollResult rfm95w_send_poll(rfm95w_t* dev);
 
-/**
- * @brief Receive a packet (call after rfm95w_available returns true)
- *
- * Reads payload from FIFO, records RSSI and SNR.
- *
- * @param dev Initialized device handle
- * @param buf Buffer to receive into
- * @param max_len Maximum bytes to read
- * @return Number of bytes received, or 0 on error/CRC failure
- */
+// Reads payload from FIFO, records RSSI and SNR.
 uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len);
 
-/**
- * @brief Check if a packet has been received
- *
- * Polls DIO0 for RxDone flag. Call periodically in main loop.
- *
- * @param dev Initialized device handle
- * @return true if a packet is ready to read
- */
+// Polls DIO0 for RxDone flag. Call periodically in main loop.
 bool rfm95w_available(rfm95w_t* dev);
 
-/**
- * @brief Poll DIO0 interrupt pin
- *
- * Isolated poll function structured for future ISR swap (Council #6).
- *
- * @param dev Initialized device handle
- * @return true if DIO0 is high (interrupt pending)
- */
+// Isolated poll function structured for future ISR swap (Council #6).
 bool rfm95w_poll_irq(rfm95w_t* dev);
 
-/**
- * @brief Set operating frequency
- *
- * Uses 64-bit arithmetic to avoid overflow at 915 MHz (Council #1).
- *
- * @param dev Initialized device handle
- * @param freq_hz Frequency in Hz (e.g., 915000000)
- */
+// Uses 64-bit arithmetic to avoid overflow at 915 MHz (Council #1).
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz);
 
-/**
- * @brief Set TX output power
- *
- * Uses PA_BOOST pin. Valid range: 2-20 dBm.
- *
- * @param dev Initialized device handle
- * @param dbm Power in dBm (clamped to 2-20)
- */
+// Uses PA_BOOST pin. Valid range: 2-20 dBm.
 void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm);
 
-/**
- * @brief Get RSSI of last received packet
- *
- * @param dev Initialized device handle
- * @return RSSI in dBm (negative value, e.g., -80)
- */
+// RSSI in dBm (negative value, e.g., -80)
 int16_t rfm95w_rssi(const rfm95w_t* dev);
 
-/**
- * @brief Set LoRa bandwidth
- *
- * Modifies RegModemConfig1[7:4]. Must be called while in Standby or Sleep.
- * Both TX and RX must use the same bandwidth to communicate.
- *
- * @param dev Initialized device handle
- * @param bw  Bandwidth code: rfm95w::kBw125, kBw250, or kBw500
- */
+// Modifies RegModemConfig1[7:4]. Must be called while in Standby or Sleep.
+// Both TX and RX must use the same bandwidth to communicate.
 void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw);
 
-/**
- * @brief Set LoRa spreading factor
- *
- * Modifies RegModemConfig2[7:4]. Must be called while in Standby or Sleep.
- * Both TX and RX must use the same SF to communicate.
- *
- * @param dev Initialized device handle
- * @param sf  Spreading factor: 6-12
- */
+// Modifies RegModemConfig2[7:4]. Must be called while in Standby or Sleep.
+// Both TX and RX must use the same SF to communicate.
 void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf);
 
-/**
- * @brief Set LoRa coding rate
- *
- * Modifies RegModemConfig1[3:1]. Must be called while in Standby or Sleep.
- *
- * @param dev Initialized device handle
- * @param cr  Coding rate denominator: 5-8 (meaning CR 4/5 through 4/8)
- */
+// Modifies RegModemConfig1[3:1]. Must be called while in Standby or Sleep.
 void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr);
 
-/**
- * @brief Set the TX polling abort threshold.
- *
- * Stage T Batch B prelim: airtime-scaled TX timeout. Previously hardcoded
- * to 150 ms (safe for SF7/BW125 worst case, over-generous for BW500,
- * under-generous for higher SF). Now the caller computes a sensible timeout
- * from the current radio config's airtime formula and installs it here.
- *
- * Rule of thumb: set to ~2× max expected packet airtime at the current
- * {SF, BW, CR, max payload}. Leaves room for preamble + PLL lock margin.
- *
- * @param dev Initialized device handle
- * @param timeout_us Abort threshold in microseconds
- */
+// Caller sets ~2× max packet airtime at current {SF, BW, CR, payload}.
 void rfm95w_set_tx_timeout_us(rfm95w_t* dev, uint32_t timeout_us);
 
-/**
- * @brief Compute LoRa packet airtime for a given {SF, BW, payload} config.
- *
- * Implements SX1276 datasheet §4.1.1.6 formula: T_preamble + T_payload.
- * Returns microseconds. Used by callers to set TX timeout and ACK-window
- * budgets. Assumes explicit header, CRC on, 8-symbol preamble, CR 4/5.
- *
- * @param sf Spreading factor 7-12
- * @param bw_khz Bandwidth in kHz (125, 250, 500 — others fall through to 125)
- * @param payload_bytes Payload length
- * @return Airtime in microseconds
- */
+// Implements SX1276 datasheet §4.1.1.6 formula: T_preamble + T_payload.
+// Returns microseconds. Used by callers to set TX timeout and ACK-window
+// budgets. Assumes explicit header, CRC on, 8-symbol preamble, CR 4/5.
 uint32_t rfm95w_airtime_us(uint8_t sf, uint16_t bw_khz, uint8_t payload_bytes);
 
-/**
- * @brief Set radio to RX continuous mode
- *
- * @param dev Initialized device handle
- */
 void rfm95w_start_rx(rfm95w_t* dev);
 
 #endif // ROCKETCHIP_RFM95W_H

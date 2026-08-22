@@ -15,21 +15,19 @@ constexpr uint32_t kPauseAckMaxMs = 100;  // Matches cal_hooks.cpp kCore1PauseAc
 
 void core1_i2c_pause() {
     if (!g_sensorPhaseActive) {
-        return;  // Core 1 idle (station/relay role); nothing to pause.
+        return;
     }
     if (g_core1I2CPaused.load(std::memory_order_acquire)) {
-        return;  // Already paused (e.g., calibration wizard nested under this).
+        return;
     }
     g_core1PauseI2C.store(true, std::memory_order_release);
     for (uint32_t i = 0; i < kPauseAckMaxMs; i++) {
         if (g_core1I2CPaused.load(std::memory_order_acquire)) {
-            return;  // Acked.
+            return;
         }
         sleep_ms(1);
     }
-    // Timeout — Core 1 did not ack within budget. Continue anyway; the
-    // post-flash i2c_bus_reset() (per LL Entry 31 / R-15) is the
-    // belt-and-suspenders recovery if the pause didn't take.
+    // Timeout: continue; post-flash i2c_bus_reset() is the backup (LL 31).
 }
 
 void core1_i2c_resume() {

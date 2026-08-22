@@ -19,18 +19,18 @@
 // Core 1 Entry Point
 // ============================================================================
 
-/// Launch target for multicore_launch_core1(). Sets up MPU stack guard,
-/// registers as multicore lockout victim, waits for sensor phase signal,
-/// then enters the sensor loop (never returns).
+// Launch target for multicore_launch_core1(). Sets up MPU stack guard,
+// registers as multicore lockout victim, waits for sensor phase signal,
+// then enters the sensor loop (never returns).
 void core1_entry();
 
 // ============================================================================
 // Cross-Core Shared State (written by Core 1, read by Core 0)
 // ============================================================================
 
-/// Best GPS fix diagnostic: captures the highest-quality fix seen this session.
-/// Written by Core 1, read by Core 0 CLI. Atomic flag guards visibility
-/// (not struct consistency -- benign for diagnostics, not flight-critical).
+// Best GPS fix diagnostic: captures the highest-quality fix seen this session.
+// Written by Core 1, read by Core 0 CLI. Atomic flag guards visibility
+// (not struct consistency -- benign for diagnostics, not flight-critical).
 struct best_gps_fix_t {
     int32_t lat_1e7;
     int32_t lon_1e7;
@@ -43,18 +43,18 @@ struct best_gps_fix_t {
 extern best_gps_fix_t g_bestGpsFix;
 extern std::atomic<bool> g_bestGpsValid;
 
-/// Update best-fix diagnostic when satellite count or HDOP improves.
-/// Shared by vehicle Core 1 sensor loop and station idle-bridge tick
-/// (Stage 16C IVP-141) so both roles maintain one authoritative
-/// implementation. Safe to call with invalid fix — no-op in that case.
+// Update best-fix diagnostic when satellite count or HDOP improves.
+// Shared by vehicle Core 1 sensor loop and station idle-bridge tick
+// (Stage 16C IVP-141) so both roles maintain one authoritative
+// implementation. Safe to call with invalid fix — no-op in that case.
 void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
 
-/// Poll GPS via transport-neutral function pointers and populate seqlock-
-/// shape GPS fields in localData. Internally rate-limited by
-/// *lastGpsReadUs (caller owns the state). Same body used by vehicle
-/// Core 1 loop and station idle-bridge tick. Caller is responsible for
-/// seqlock_write on localData after calling this — this helper only
-/// updates the local struct and invokes update_best_gps_fix.
+// Poll GPS via transport-neutral function pointers and populate seqlock-
+// shape GPS fields in localData. Internally rate-limited by
+// *lastGpsReadUs (caller owns the state). Same body used by vehicle
+// Core 1 loop and station idle-bridge tick. Caller is responsible for
+// seqlock_write on localData after calling this — this helper only
+// updates the local struct and invokes update_best_gps_fix.
 void core1_read_gps(shared_sensor_data_t* localData,
                     uint32_t* lastGpsReadUs);
 

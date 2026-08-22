@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file crc32.h
- * @brief CRC-32 (IEEE 802.3) — header-only, C++20 constexpr
- *
- * Polynomial: 0xEDB88320 (reflected form of 0x04C11DB7)
- * Init: 0xFFFFFFFF
- * Final XOR: 0xFFFFFFFF
- *
- * 256-entry lookup table (1024B in .rodata, zero runtime init).
- * Used for flight log table and entry integrity (per-entry + per-table CRC).
- *
- * IVP-53a: Flash Storage & Flight Table (Stage 6: Data Logging)
- */
+// CRC-32 (IEEE 802.3) — header-only, C++20 constexpr
+// Polynomial: 0xEDB88320 (reflected form of 0x04C11DB7)
+// Init: 0xFFFFFFFF
+// Final XOR: 0xFFFFFFFF
+// 256-entry lookup table (1024B in .rodata, zero runtime init).
+// Used for flight log table and entry integrity (per-entry + per-table CRC).
 
 #ifndef ROCKETCHIP_CRC32_H
 #define ROCKETCHIP_CRC32_H
@@ -51,12 +44,6 @@ inline constexpr Crc32Table kCrc32Table{};
 
 } // namespace detail
 
-/**
- * @brief Compute CRC-32 (IEEE 802.3) over a byte buffer
- * @param data Pointer to data
- * @param len  Length in bytes
- * @return CRC-32 value
- */
 inline uint32_t crc32(const void* data, uint32_t len) {
     // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine.
     const uint8_t* bytes = static_cast<const uint8_t*>(data);
@@ -68,13 +55,7 @@ inline uint32_t crc32(const void* data, uint32_t len) {
     return crc ^ 0xFFFFFFFFU;
 }
 
-/**
- * @brief Update running CRC-32 with additional data (no init/finalize)
- * @param crc   Running CRC (caller manages init 0xFFFFFFFF and final XOR)
- * @param data  Pointer to data
- * @param len   Length in bytes
- * @return Updated CRC value
- */
+// Running CRC — caller owns init 0xFFFFFFFF and the final XOR; this does neither.
 inline uint32_t crc32_update(uint32_t crc, const void* data, uint32_t len) {
     // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine.
     const uint8_t* bytes = static_cast<const uint8_t*>(data);

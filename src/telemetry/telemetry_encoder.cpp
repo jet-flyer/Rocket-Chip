@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file telemetry_encoder.cpp
- * @brief CCSDS and MAVLink telemetry encoders
- *
- * CCSDS primary header is big-endian per CCSDS 133.0-B-2 Section 4.1.1.
- * Secondary header contains MET in big-endian uint32.
- * Nav payload is the TelemetryState struct minus met_ms and _reserved
- * (those are in the secondary header or dropped).
- *
- * CRC-16-CCITT covers primary header + secondary header + payload
- * (same polynomial as PCM frames).
- *
- */
+// CCSDS and MAVLink telemetry encoders
+// CCSDS primary header is big-endian per CCSDS 133.0-B-2 Section 4.1.1.
+// Secondary header contains MET in big-endian uint32.
+// Nav payload is the TelemetryState struct minus met_ms and _reserved
+// (those are in the secondary header or dropped).
+// CRC-16-CCITT covers primary header + secondary header + payload
+// (same polynomial as PCM frames).
 
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/radio_config.h"     // T5.5 sub 2f: nav-with-config encoder needs full RadioConfig

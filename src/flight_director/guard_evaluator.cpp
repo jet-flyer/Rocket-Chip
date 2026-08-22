@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_evaluator.cpp
- * @brief Guard sustain evaluator implementation
- */
+// Guard sustain evaluator implementation
 
 #include "guard_evaluator.h"
 #include "guard_functions.h"

@@ -1,35 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// anomalous_boot — confidence gate at boot for "are we probably mid-flight?"
-//
-// Background: per the in-flight fault recovery architecture plan
-// (council round 2 unanimous 2026-05-14), the firmware must detect at boot
-// whether a reset happened mid-flight. Even though the firmware never
-// internally issues a reset in flight (B.1: zero in-flight reset), external
-// causes (brownout, snagged reset button, ESD, USB-power glitch) can still
-// reboot the chip. A mid-flight reboot followed by the normal "fresh on the
-// pad" boot sequence would re-zero the baro at altitude and re-init flight
-// phase to kIdle — catastrophic when the rocket is actually descending under
-// parachute at +500 m.
-//
-// Approach: read multiple signals at boot, classify "PROBABLY_MID_FLIGHT"
-// vs "PROBABLY_ON_PAD" using veto + 2-of-N corroborator logic. Bias toward
-// false-positive (refuse to act as fresh pad on ambiguous evidence) — cost
-// of false-positive is one operator intervention; cost of false-negative is
-// mission loss.
-//
-// Brownout has its own SEPARATE handling (kHealthCriticalPriorBrownout
-// latch in health monitor) regardless of the mid-flight verdict: brownout
-// can happen on the pad too (battery swap, ESD), and the right response is
-// always "physical inspection required before continuing." That latch is
-// not part of this module's PROBABLY_MID_FLIGHT verdict; it's surfaced via
-// the brownout_detected() accessor for the health monitor's use.
-//
-// References:
-//   - C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md  (plan B.4)
-//   - RP2350 datasheet §6 Power Manager (POWMAN_CHIP_RESET register)
-//   - SDK header: hardware/regs/powman.h
+// Boot gate: probably mid-flight vs on-pad (veto + 2-of-N). Bias false-positive
+// — a pad false alarm is operator intervention; a miss re-zeros baro in flight.
+// Brownout is a separate health latch (physical inspection), not this verdict.
+// POWMAN_CHIP_RESET: RP2350 datasheet §6 / hardware/regs/powman.h.
 //============================================================================
 #ifndef ROCKETCHIP_SAFETY_ANOMALOUS_BOOT_H
 #define ROCKETCHIP_SAFETY_ANOMALOUS_BOOT_H

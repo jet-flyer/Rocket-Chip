@@ -60,58 +60,58 @@ struct gps_session_stats_t {
 // Public API (read-only accessors per Council A6)
 // ============================================================================
 
-/// Initialize ESKF runner with mission profile.
-/// Must be called once before eskf_runner_tick().
-/// Confidence transitions log via AO_Logger_log_event (firmware only).
+// Initialize ESKF runner with mission profile.
+// Must be called once before eskf_runner_tick().
+// Confidence transitions log via AO_Logger_log_event (firmware only).
 void eskf_runner_init(const rc::MissionProfile* profile);
 
-/// Main entry point — called from qv_idle_bridge() every idle iteration.
-/// Reads seqlock, runs predict + measurement updates at 200Hz.
+// Main entry point — called from qv_idle_bridge() every idle iteration.
+// Reads seqlock, runs predict + measurement updates at 200Hz.
 void eskf_runner_tick();
 
-/// Read-only access to the ESKF instance.
+// Read-only access to the ESKF instance.
 const rc::ESKF* eskf_runner_get_eskf();
 
-/// Read-only access to the Mahony AHRS cross-check.
+// Read-only access to the Mahony AHRS cross-check.
 const rc::MahonyAHRS* eskf_runner_get_mahony();
 
-/// Read-only access to the confidence gate state.
+// Read-only access to the confidence gate state.
 const rc::ConfidenceState* eskf_runner_get_confidence();
 
-/// Current ESKF propagation epoch (monotonic counter).
+// Current ESKF propagation epoch (monotonic counter).
 uint32_t eskf_runner_get_epoch();
 
-/// Whether ESKF has been initialized (stationary init passed).
+// Whether ESKF has been initialized (stationary init passed).
 bool eskf_runner_is_initialized();
 
-/// Whether Mahony AHRS has been initialized.
+// Whether Mahony AHRS has been initialized.
 bool eskf_runner_is_mahony_initialized();
 
-/// Number of samples in the ESKF state circular buffer.
+// Number of samples in the ESKF state circular buffer.
 uint32_t eskf_runner_get_buffer_count();
 
-/// Read-only access to GPS session stats.
+// Read-only access to GPS session stats.
 const gps_session_stats_t* eskf_runner_get_gps_session();
 
 // R-25-exec step 8 (2026-05-13): ifdef gate stripped. Always available.
-/// ESKF predict-step profiling, µs (always-on).
+// ESKF predict-step profiling, µs (always-on).
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count);
-/// Full fusion cycle (predict + all measurements + phase/conf), µs.
+// Full fusion cycle (predict + all measurements + phase/conf), µs.
 void eskf_runner_get_bench_full_tick(uint32_t* avg, uint32_t* min_us,
                                     uint32_t* max_us, uint32_t* count);
 
-/// End Mahony startup Kp boost (called on ARM transition).
+// End Mahony startup Kp boost (called on ARM transition).
 void eskf_runner_end_mahony_startup();
 
-/// Whether 3-axis mag fusion is active (mag states un-inhibited).
+// Whether 3-axis mag fusion is active (mag states un-inhibited).
 bool eskf_runner_mag_3d_active();
 
-/// WMM field position used for mag initialization (lat, lon in degrees).
-/// Returns false if WMM field not yet initialized.
+// WMM field position used for mag initialization (lat, lon in degrees).
+// Returns false if WMM field not yet initialized.
 bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg);
 
-/// WMM position source: 0=none, 1=default, 2=stored, 3=GPS
+// WMM position source: 0=none, 1=default, 2=stored, 3=GPS
 uint8_t eskf_runner_get_wmm_source();
 
 // ============================================================================
@@ -125,23 +125,23 @@ uint8_t eskf_runner_get_wmm_source();
 // is called from CLI. Runtime-only — no persistence across power cycle.
 // ============================================================================
 
-/// True when the runaway-restart brake has disabled ESKF.
+// True when the runaway-restart brake has disabled ESKF.
 bool eskf_is_disabled();
 
-/// Re-enable ESKF after the brake has tripped. CLI-callable.
-/// Resets the consecutive-fail counter and clears the disabled flag.
+// Re-enable ESKF after the brake has tripped. CLI-callable.
+// Resets the consecutive-fail counter and clears the disabled flag.
 void eskf_reenable();
 
-/// Record one ESKF divergence event. Increments the consecutive-fail
-/// counter; sets disabled=true when the counter reaches the threshold.
-/// Called internally from eskf_runner.cpp on CR-1 reset paths.
+// Record one ESKF divergence event. Increments the consecutive-fail
+// counter; sets disabled=true when the counter reaches the threshold.
+// Called internally from eskf_runner.cpp on CR-1 reset paths.
 void eskf_note_divergence();
 
-/// Force ESKF + Mahony back into the uninitialized state so the next tick
-/// attempts a fresh stationary init. Also clears the divergence brake.
-/// Called from FD state_idle Q_ENTRY when re-entering IDLE from a flight
-/// phase (operator RESET from ABORT/LANDED, or pad-abort auto-IDLE timeout).
-/// Council-approved 2026-05-20.
+// Force ESKF + Mahony back into the uninitialized state so the next tick
+// attempts a fresh stationary init. Also clears the divergence brake.
+// Called from FD state_idle Q_ENTRY when re-entering IDLE from a flight
+// phase (operator RESET from ABORT/LANDED, or pad-abort auto-IDLE timeout).
+// Council-approved 2026-05-20.
 void eskf_runner_request_reinit();
 
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H

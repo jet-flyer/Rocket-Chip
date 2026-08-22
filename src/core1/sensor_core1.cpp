@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file sensor_core1.cpp
- * @brief Core 1 sensor loop — high-rate sampling + seqlock publish
- *
- * All functions are static except core1_entry() which is the public
- * interface.
- *
- * Core 1 owns I2C during sensor phase. Core 0 must NOT call icm20948_*()
- * or baro_dps310_*() unless g_core1I2CPaused == true.
- */
+// Core 1 sensor loop — high-rate sampling + seqlock publish
+// All functions are static except core1_entry() which is the public
+// interface.
+// Core 1 owns I2C during sensor phase. Core 0 must NOT call icm20948_*()
+// or baro_dps310_*() unless g_core1I2CPaused == true.
 
 #include "core1/sensor_core1.h"
 

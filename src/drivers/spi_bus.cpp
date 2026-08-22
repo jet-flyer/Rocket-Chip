@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file spi_bus.cpp
- * @brief SX1276 SPI helper implementation (WN-109)
- *
- * Prior Art:
- *   - Pico SDK hardware/spi.h (SPI peripheral interface)
- *   - SX1276 datasheet (burst FIFO access requires CS held low)
- */
+// SX1276 SPI helper implementation (WN-109)
+// Prior Art:
+// - Pico SDK hardware/spi.h (SPI peripheral interface)
+// - SX1276 datasheet (burst FIFO access requires CS held low)
 
 #include "spi_bus.h"
 #include "rocketchip/config.h"

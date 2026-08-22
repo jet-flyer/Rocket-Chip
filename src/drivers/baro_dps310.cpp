@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file baro_dps310.cpp
- * @brief DPS310 Barometer wrapper using ruuvi.dps310.c library
- *
- * Implements Pico SDK I2C callbacks for the ruuvi DPS310 driver.
- *
- * Prior Art:
- *   - Infineon DPS310 datasheet (IFXDS_DPS310_v1.1)
- *   - ruuvi.dps310.c driver (vendored in lib/ruuvi/)
- *   - Adafruit DPS310 Arduino library (init sequence reference)
- */
+// DPS310 Barometer wrapper using ruuvi.dps310.c library
+// Implements Pico SDK I2C callbacks for the ruuvi DPS310 driver.
+// Prior Art:
+// - Infineon DPS310 datasheet (IFXDS_DPS310_v1.1)
+// - ruuvi.dps310.c driver (vendored in lib/ruuvi/)
+// - Adafruit DPS310 Arduino library (init sequence reference)
 
 #include "baro_dps310.h"
 #include "i2c_bus.h"

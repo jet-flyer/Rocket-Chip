@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file config.h
- * @brief RocketChip build configuration (pins live in board::)
- *
- * Per CODING_STANDARDS.md:
- * - Constants use k prefix: kSampleRate, kMaxRetries
- * - Global variables use g_ prefix: g_sensorData
- */
+// RocketChip build configuration (pins live in board::)
+// Per CODING_STANDARDS.md:
+// - Constants use k prefix: kSampleRate, kMaxRetries
+// - Global variables use g_ prefix: g_sensorData
 
 #ifndef ROCKETCHIP_CONFIG_H
 #define ROCKETCHIP_CONFIG_H
