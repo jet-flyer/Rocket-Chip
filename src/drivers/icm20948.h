@@ -195,6 +195,11 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data);
  * @param dev Device handle
  * @param accel Output acceleration in m/s²
  * @return true on success
+ *
+ * Six-byte burst from ACCEL_XOUT_H does not reach TEMP_OUT_L, so the
+ * IMU data-ready flag is never cleared. After ~200 calls the output
+ * registers freeze at zeros. Sampling loops must use icm20948_read()
+ * (14-byte burst through TEMP_OUT_L).
  */
 bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel);
 

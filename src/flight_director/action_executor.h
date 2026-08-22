@@ -101,21 +101,15 @@ struct ActionEntry {
 // ============================================================================
 // Action Context — runtime state passed to action_execute
 //
-// Provides the executor with access to markers, timestamps, and
-// callbacks without coupling to FlightDirector internals.
+// Provides the executor with access to markers and timestamps without
+// coupling to FlightDirector internals. LED/pyro side effects go through
+// fd_effect_* (P10-9 — no function-pointer table).
 // ============================================================================
 struct ActionContext {
     FlightMarkers* markers;     // Event timestamps to write
     uint32_t now_ms;            // Current time (ms since boot)
     FlightPhase from_phase;     // Phase we're leaving (for REPORT_STATE)
     FlightPhase to_phase;       // Phase we're entering (for REPORT_STATE)
-
-    // Callback: set NeoPixel override (main.cpp provides implementation)
-    // On host tests, this can be a stub that records the value.
-    void (*set_led)(uint8_t led_value);
-
-    // Callback: log pyro intent (printf on target, stub on host)
-    void (*log_pyro)(PyroChannel channel);
 };
 
 // ============================================================================

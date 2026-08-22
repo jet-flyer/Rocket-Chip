@@ -5,6 +5,7 @@
 //============================================================================
 
 #include "action_executor.h"
+#include "flight_director.h"
 
 namespace rc {
 
@@ -30,9 +31,7 @@ static void set_marker(FlightMarkers* markers, MarkerId id, uint32_t ms) {
 void action_execute(const ActionEntry& action, ActionContext* ctx) {
     switch (action.type) {
         case ActionType::kSetLed:
-            if (ctx->set_led) {
-                ctx->set_led(action.param);
-            }
+            fd_effect_set_led(action.param);
             break;
 
         case ActionType::kMarkEvent:
@@ -47,15 +46,11 @@ void action_execute(const ActionEntry& action, ActionContext* ctx) {
             break;
 
         case ActionType::kFirePyro:
-            if (ctx->log_pyro) {
-                ctx->log_pyro(static_cast<PyroChannel>(action.param));
-            }
+            fd_effect_log_pyro(static_cast<PyroChannel>(action.param));
             break;
 
         case ActionType::kSetBeacon:
-            if (ctx->set_led) {
-                ctx->set_led(action.param);
-            }
+            fd_effect_set_led(action.param);
             break;
     }
 }

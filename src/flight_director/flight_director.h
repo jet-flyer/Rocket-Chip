@@ -80,15 +80,6 @@ struct FlightDirector {
     CombinatorSet combinator_set;   // Guard combinators + lockouts
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
     bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
-
-    // Action callbacks — set by main.cpp, stubbed in host tests
-    void (*set_led_cb)(uint8_t led_value);      // NeoPixel override
-    void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
-    void (*phase_change_cb)(FlightPhase phase, uint32_t timestamp_ms);  // Phase transition notify
-    void (*beacon_cb)();                        // Distress beacon activation (IVP-121 backstop)
-    void (*reset_subsystems_cb)();              // Force ESKF/Mahony re-init on RESET-to-IDLE
-                                                // (council-approved 2026-05-20, see
-                                                // docs/decisions/FAULT_RECOVERY_2026-05-14.md companion)
 };
 
 // Lifecycle
@@ -116,6 +107,23 @@ FlightPhase flight_director_phase(const FlightDirector* me);
 // power cycle clears automatically; no CLI command to clear, by design.
 void flight_director_set_launch_abort();
 bool flight_director_launch_abort();
+
+// P10-9: named side effects (was a function-pointer table). Target
+// definitions in ao_flight_director.cpp; host recorders below.
+void fd_effect_set_led(uint8_t led_value);
+void fd_effect_log_pyro(PyroChannel channel);
+void fd_effect_phase_change(FlightPhase phase, uint32_t timestamp_ms);
+void fd_effect_beacon();
+void fd_effect_reset_subsystems();
+
+#ifdef ROCKETCHIP_HOST_TEST
+void fd_effect_host_reset();
+uint8_t fd_effect_host_last_led();
+int fd_effect_host_led_calls();
+PyroChannel fd_effect_host_last_pyro();
+int fd_effect_host_pyro_calls();
+int fd_effect_host_reset_calls();
+#endif
 
 } // namespace rc
 
