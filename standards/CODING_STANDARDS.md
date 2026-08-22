@@ -129,6 +129,40 @@ grep -rn "test_mode_active()" src/cli/   # every state-mutating Debug-menu branc
 
 The host ctest `scripts_fault_force_gate_audit` (`scripts/audit/check_fault_force_gates.py`, landed 2026-05-21) mechanizes this: it walks every `fault_force_*` definition in `safety/fault_inject.cpp` + `safety/station_fault_inject.cpp` and verifies the first body line matches the `if (!fi_test_mode_gate("...")) { return; }` (or station-prefix `fis_`) pattern, with a documented allowlist for recovery actions (`fault_force_core0_stall_clear`, `fault_force_station_gps_restore`). It also verifies `rc_os_debug.cpp` state-mutating branches (`case 'l'/'L'`, `case '0'..'5'`) call `rc::test_mode_active()` before executing. Pre-commit hook runs ctest; the audit invariant cannot rot silently.
 
+### Hardware-agnostic domain code (no product fork)
+
+One codebase. No SKU fork. Domain code is hardware-agnostic **within the
+compatible ARM class this tree already targets**: Pico-SDK RP2350 / Cortex-M33
+boards selected by `PICO_BOARD` + `board_*.h` (Feather RP2350 HSTX, Fruit Jam,
+scaffolded Pico 2 / Tiny 2350). That is not “any ARM,” not other ISAs, and not
+a license to put pin maps in fusion.
+
+**Edge (allowed to name silicon, pins, SKU, part):**
+- `include/rocketchip/board.h` and `board_*.h` — pin maps, PSRAM presence, UART/LoRa wiring
+- `include/rocketchip/job.h` and `job_*.h` — vehicle / station / relay role
+- `src/drivers/*` that are named for a part (`icm20948`, `rfm95w`, `baro_dps310`)
+- Pico SDK / QMI / XIP sequences that cannot exist without that peripheral
+
+**Domain (must not name a board, pin, or SKU in the contract):**
+- Flight director, guards, Go/No-Go, ESKF/math, calibration solvers, logging
+  *layout* (flash as “some flash,” not Feather-era 8 MB)
+- `version.h` firmware semver — board/job strings belong in board/job packs
+- `config.h` is not a pin table and not a second `board.h`
+
+**Forbidden:**
+- Silent `else` → one flight board
+- A driver or header titled as universal while it encodes one board’s GPIO/DIO/ADC
+- Product I²C inventory (`switch` of part names) in a generic bus helper
+- Domain comments that treat a sensor rate, IMU axis convention, or TRNG as
+  the portable contract without saying which board/part it is tied to
+
+A board-coupled init (PSRAM APS6404L, SX1276 DIO0, RP2350 TRNG shuffle) may
+stay at the edge if the module banner says the part/board. Do not close a
+leakage WN by adding “this is portable” to a Feather-only body.
+
+L2-P5 sitting 4 (W-8 / HW-leakage cluster). Dispose those WNs against this rule;
+do not close them against an unwritten standard.
+
 ### RP2350 Bare-Metal Platform Constraints
 
 These constraints are non-negotiable. They exist because violations produce silent

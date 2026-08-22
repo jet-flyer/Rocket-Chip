@@ -64,7 +64,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX landed on `main` 2026-08-22**). **FIRST next sitting:** Phase 3 sitting 4 — HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`) then HW leakage. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX on `main`; HW-agnostic rule written in `CODING_STANDARDS.md`**). **FIRST next sitting:** Phase 3 sitting 4 remainder — HW-leakage WNs against that rule (not started). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -75,9 +75,9 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-1, R-3, R-4, R-5). R-2 erased (header landed).
 
-**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT (`75a80b5`); P10-9 18-site remediates + SPDX WN-004 merged to `main` (`2026-08-22-001`).
+**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT (`75a80b5`); P10-9 18-site remediates + SPDX WN-004 merged to `main` (`2026-08-22-001`); HW-agnostic rule in `CODING_STANDARDS.md`.
 
-**Next:** Phase 3 sitting 4 — HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`) then HW-leakage WNs. Doxygen inventory/policy is sitting 5. Skip RF sitting (WN-100 DEFER). Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
+**Next:** Phase 3 sitting 4 remainder — HW-leakage WNs against the CODING_STANDARDS HW-agnostic rule (owner picks which). Doxygen inventory/policy is sitting 5. Skip RF sitting (WN-100 DEFER). Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 
@@ -92,14 +92,6 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 1. **Inventory** production headers/sources with Doxygen markup (`@file`/`@brief`/`@param`/`@return` / `/** … */` API blocks). Grep; include/exclude rules at the time (public API vs all `src/`). Seeds: `gps_pa1010d.h`, `i2c_bus.h`, `icm20948.h`, `baro_dps310.h`, `rfm95w.h`.
 2. **Then** policy: header density exemption (**WN-054**) + Doxygen keep-consistently-or-drop (**WN-081**).
 3. **Then** process-archaeology / “dev comment” cleanup — **WN-085** and the per-file comment WNs (W-6/W-16 were only the theme pointer; 79 WNs already cite W-6). Keep live invariants; IVP/Stage/session essays belong in docs.
-
----
-
-## HW-agnostic rule — write it before HW-leakage WNs (OPEN) (landed from walk WB W-8)
-
-**No product fork.** Stance is already apparent: domain code HW-agnostic within the compatible ARM class; HAL/board/job packs at the edge. What is missing is a **written rule** (CODING_STANDARDS and/or SAD — both protected; edit only when that work is scheduled).
-
-**Write the rule first**, then dispose HW-reference / leakage notes (**WN-063**, **WN-068**, **WN-309**, and others in that family). Do not close those WNs against an unwritten standard. Spell out what must live in board/job packs vs domain headers, what “compatible ARM” means, and what is forbidden.
 
 ---
 
