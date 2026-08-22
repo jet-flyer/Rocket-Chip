@@ -18,7 +18,7 @@
 // Replay coverage moved host-side per council amendment #4.
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
-#include "safety/test_mode.h"
+#include "safety/inject_arm_gate.h"
 #include "drivers/i2c_bus.h"
 #include "safety/pyro_edge_logger.h"
 #include "diag/diag_stats.h"
@@ -143,7 +143,7 @@ bool dev_debug_menu_dispatch(int c) {
             // Approach A.
             if (!rc::test_mode_active()) {
                 rc::rc_log("[debug] LED test gated; arm test mode via probe "
-                       "(see safety/test_mode.h)\n");
+                       "(see safety/inject_arm_gate.h)\n");
                 break;
             }
             dev_led_test_menu();
@@ -154,7 +154,7 @@ bool dev_debug_menu_dispatch(int c) {
             // council Approach A.
             if (!rc::test_mode_active()) {
                 rc::rc_log("[debug] radio config set gated; arm test mode "
-                       "via probe (see safety/test_mode.h)\n");
+                       "via probe (see safety/inject_arm_gate.h)\n");
                 break;
             }
             // Stage T IVP-T6 — local radio config set (no RF).

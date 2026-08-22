@@ -39,7 +39,7 @@
 #include "safety/pio_backup_timer.h"
 #include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
-#include "safety/test_mode.h"          // R-25-exec runtime gate
+#include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
 #include "diag/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
@@ -391,10 +391,7 @@ static void init_application() {
 
     init_baro_auto_zero();
 
-    eskf_runner_init(&rc::kDefaultRocketProfile,
-                     [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
-                         AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
-                     });
+    eskf_runner_init(&rc::kDefaultRocketProfile);
 
     init_pio_safety();
 }

@@ -16,7 +16,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/go_nogo_checks.h"
-#include "safety/test_mode.h"          // R-25-exec: phase-accessor registration + IDLE-exit clearing
+#include "safety/inject_arm_gate.h"    // R-25-exec: phase cell + IDLE-exit clearing
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
@@ -196,15 +196,9 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
                      &g_fdAo.super, g_fdAo.super.prio);
 }
 
-// R-25-exec: register phase accessor for test_mode_evaluate's three-
-// condition AND gate (condition (b): current phase == kIdle). Lambda
-// calls flight_director_phase() against the module-local director
-// instance. Extracted from AO_FlightDirector_start to keep that
-// function under JSF AV Rule 1 line-count limit.
-static void fd_register_test_mode_accessor() {
-    rc::test_mode_register_phase_accessor([]() {
-        return rc::flight_director_phase(&g_fdAo.director);
-    });
+// R-25-exec: publish current phase for inject_arm_gate condition (b).
+static void fd_note_inject_arm_phase() {
+    rc::test_mode_note_phase(rc::flight_director_phase(&g_fdAo.director));
 }
 
 // Wire up FlightDirector C-style callbacks (HSM is C; AO is C++).
@@ -228,6 +222,7 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
         }
     };
     director->phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
+        rc::test_mode_note_phase(phase);
         if (phase != rc::FlightPhase::kIdle) {
             rc::test_mode_clear_on_idle_exit();
         }
@@ -263,9 +258,7 @@ void AO_FlightDirector_start(uint8_t prio) {
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
 
-    // R-25-exec: register phase accessor for test_mode_evaluate's
-    // three-condition AND gate. See fd_register_test_mode_accessor.
-    fd_register_test_mode_accessor();
+    fd_note_inject_arm_phase();
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&fd_ao_initial));

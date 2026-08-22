@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// test_mode — runtime gate for test/fault-injection affordances in the
-// flight binary. Replaces the parallel bench-tier build pattern that
-// caused R-23, F-2026-05-13-004, and R-22 design wall (all surfaced
-// during DC-2026-05-13 audit cleanup).
+// inject_arm_gate — probe-armed gate for fault-injection / debug
+// affordances in the *flight* binary (R-25-exec, 2026-05-13).
+//
+// Not host unit tests, not a project-wide "test mode." Only the
+// three-condition AND that opens inject/debug entry points
+// (fault_inject, debug submenu, etc.).
+//
+// Replaces the parallel bench-tier build that caused R-23,
+// F-2026-05-13-004, and R-22 (DC-2026-05-13).
 //
 // Design (council-approved 2026-05-13 unanimous: NASA/JPL + Prof +
 // ArduPilot + Cubesat) per docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md
@@ -35,8 +40,8 @@
 // is the three-condition AND + probe-only arming, suited to a single-
 // developer hobbyist project without an authenticated MAVLink link.
 //============================================================================
-#ifndef ROCKETCHIP_SAFETY_TEST_MODE_H
-#define ROCKETCHIP_SAFETY_TEST_MODE_H
+#ifndef ROCKETCHIP_SAFETY_INJECT_ARM_GATE_H
+#define ROCKETCHIP_SAFETY_INJECT_ARM_GATE_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -79,16 +84,10 @@ extern volatile bool g_test_mode_enabled;
 // once from init_hardware() before any AO_FlightDirector start.
 void test_mode_init();
 
-// Phase-accessor registration. AO_FlightDirector_start() passes its
-// phase accessor here so test_mode_evaluate() can read the current
-// phase without a hard link-time dependency on the FD module.
-//
-// The accessor is a function pointer returning the current FlightPhase.
-// Until this is called, test_mode_evaluate() refuses to arm (fail-
-// safe direction — no phase accessor means we can't verify condition
-// (b) of the three-condition AND gate).
-typedef FlightPhase (*FlightPhaseAccessor)();
-void test_mode_register_phase_accessor(FlightPhaseAccessor fn);
+// FD (and host tests) publish the current phase as data. Until this
+// is called, test_mode_evaluate() refuses to arm (fail-safe: cannot
+// verify condition (b) of the AND gate). Not a function pointer.
+void test_mode_note_phase(FlightPhase phase);
 
 // Called from the AO tick (probably ao_health_monitor or ao_rcos).
 // Re-evaluates the three-condition AND gate. Updates
@@ -103,7 +102,7 @@ void test_mode_clear_on_idle_exit();
 
 // Single-source-of-truth read accessor. Use this at every test
 // entry point (`if (!rc::test_mode_active()) return;`). NEVER
-// reach for g_test_mode_enabled directly outside of test_mode.cpp
+// reach for g_test_mode_enabled directly outside of inject_arm_gate.cpp
 // — the accessor exists so future refactors can change the gate
 // representation without touching every call site.
 inline bool test_mode_active() {
@@ -131,4 +130,4 @@ const char* test_mode_status_string();
 
 } // namespace rc
 
-#endif // ROCKETCHIP_SAFETY_TEST_MODE_H
+#endif // ROCKETCHIP_SAFETY_INJECT_ARM_GATE_H

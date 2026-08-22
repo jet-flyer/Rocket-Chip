@@ -2,8 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file test_test_mode.cpp
- * @brief Host tests for safety/test_mode.cpp — runtime gate for test/
- *        fault-injection affordances (R-25-exec).
+ * @brief Host tests for safety/inject_arm_gate.cpp — probe-armed
+ *        inject/debug gate (R-25-exec). Not a general "test mode."
  *
  * Verifies the council-required three-condition AND gate semantics:
  *   (a) g_test_mode_arm_magic == kTestModeMagic at boot,
@@ -20,33 +20,23 @@
  * The host environment doesn't have real .uninitialized_data SRAM
  * (it's a regular global on the host). The tests exercise the
  * arming/clearing logic directly via the module's exposed symbols
- * and reset module state between tests using the registered phase
- * accessor + direct magic write.
+ * and reset module state between tests using test_mode_note_phase
+ * + direct magic write.
  */
 
 #include <gtest/gtest.h>
-#include "safety/test_mode.h"
+#include "safety/inject_arm_gate.h"
 
 namespace {
-
-// Per-test phase the test fixture controls. test_mode_evaluate() will
-// query this via the registered accessor.
-rc::FlightPhase g_test_phase = rc::FlightPhase::kIdle;
-
-rc::FlightPhase test_phase_accessor() {
-    return g_test_phase;
-}
 
 // Fixture: reset module state before each test.
 class TestMode : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Reset module state to "boot fresh, no arm".
         rc::g_test_mode_arm_magic = 0;
         rc::g_test_mode_enabled = false;
-        rc::test_mode_init();          // captures s_magic_observed_at_boot = false
-        rc::test_mode_register_phase_accessor(test_phase_accessor);
-        g_test_phase = rc::FlightPhase::kIdle;
+        rc::test_mode_init();
+        rc::test_mode_note_phase(rc::FlightPhase::kIdle);
     }
 };
 
@@ -74,8 +64,8 @@ TEST_F(TestMode, ArmMagicAlone_DoesNotEnable_WithoutInit) {
 TEST_F(TestMode, ArmMagicBeforeInit_EnablesInBootWindow) {
     // Simulate: probe wrote magic, then boot.
     rc::g_test_mode_arm_magic = rc::kTestModeMagic;
-    rc::test_mode_init();   // captures + clears
-    rc::test_mode_register_phase_accessor(test_phase_accessor);
+    rc::test_mode_init();
+    rc::test_mode_note_phase(rc::FlightPhase::kIdle);
     // Note: this test relies on the host's to_ms_since_boot()
     // returning a small value early in process lifetime, which the
     // Pico SDK host shim provides. If running outside Pico-SDK host
@@ -92,16 +82,32 @@ TEST_F(TestMode, ArmMagicBeforeInit_EnablesInBootWindow) {
 TEST_F(TestMode, ArmedButNotIdle_StaysDisabled) {
     rc::g_test_mode_arm_magic = rc::kTestModeMagic;
     rc::test_mode_init();
-    rc::test_mode_register_phase_accessor(test_phase_accessor);
-    g_test_phase = rc::FlightPhase::kArmed;       // not idle
+    rc::test_mode_note_phase(rc::FlightPhase::kArmed);
     rc::test_mode_evaluate();
     EXPECT_FALSE(rc::test_mode_active());
 }
 
-TEST_F(TestMode, NoPhaseAccessor_FailsClosed) {
+TEST_F(TestMode, NoPhaseNoted_FailsClosed) {
     rc::g_test_mode_arm_magic = rc::kTestModeMagic;
     rc::test_mode_init();
-    rc::test_mode_register_phase_accessor(nullptr);   // not registered yet
+    // init clears noted phase; do not call test_mode_note_phase
+    rc::test_mode_evaluate();
+    EXPECT_FALSE(rc::test_mode_active());
+}
+
+TEST_F(TestMode, PhaseCell_NotFunctionPointer_ArmsThenDisarms) {
+    // Sitting P10-9: FD publishes a phase value (test_mode_note_phase),
+    // not a FlightPhaseAccessor callback. Re-evaluate after each store.
+    rc::g_test_mode_arm_magic = rc::kTestModeMagic;
+    rc::test_mode_init();
+    rc::test_mode_evaluate();
+    EXPECT_FALSE(rc::test_mode_active());
+
+    rc::test_mode_note_phase(rc::FlightPhase::kIdle);
+    rc::test_mode_evaluate();
+    EXPECT_TRUE(rc::test_mode_active());
+
+    rc::test_mode_note_phase(rc::FlightPhase::kBoost);
     rc::test_mode_evaluate();
     EXPECT_FALSE(rc::test_mode_active());
 }
@@ -113,7 +119,7 @@ TEST_F(TestMode, NoPhaseAccessor_FailsClosed) {
 TEST_F(TestMode, ClearOnIdleExit_DisablesPermanently) {
     rc::g_test_mode_arm_magic = rc::kTestModeMagic;
     rc::test_mode_init();
-    rc::test_mode_register_phase_accessor(test_phase_accessor);
+    rc::test_mode_note_phase(rc::FlightPhase::kIdle);
     rc::test_mode_evaluate();
     ASSERT_TRUE(rc::test_mode_active())
         << "Precondition: test mode must be active before clearing.";
@@ -124,7 +130,7 @@ TEST_F(TestMode, ClearOnIdleExit_DisablesPermanently) {
 
     // Even if phase returns to kIdle and we re-evaluate, the flag
     // cannot re-arm — s_magic_observed_at_boot was cleared.
-    g_test_phase = rc::FlightPhase::kIdle;
+    rc::test_mode_note_phase(rc::FlightPhase::kIdle);
     rc::test_mode_evaluate();
     EXPECT_FALSE(rc::test_mode_active())
         << "Once cleared, the flag must not re-arm without a fresh boot.";

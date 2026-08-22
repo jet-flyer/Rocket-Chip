@@ -27,7 +27,7 @@
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
 #include "safety/core1_i2c_pause.h"
-#include "safety/test_mode.h"  // R-25-exec step 11: magic-observed -> kMenu
+#include "safety/inject_arm_gate.h"  // R-25-exec step 11: magic-observed -> kMenu
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"

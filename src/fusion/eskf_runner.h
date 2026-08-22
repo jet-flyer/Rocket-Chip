@@ -57,20 +57,13 @@ struct gps_session_stats_t {
 };
 
 // ============================================================================
-// Event logging callback — injected by main.cpp at init time.
-// Avoids circular dependency on ring buffer / PCM encoding.
-// ============================================================================
-using EskfEventLogFn = void (*)(uint8_t event_id, uint8_t d0,
-                                uint8_t d1, uint8_t d2, uint8_t d3);
-
-// ============================================================================
 // Public API (read-only accessors per Council A6)
 // ============================================================================
 
-/// Initialize ESKF runner with mission profile and event logging callback.
+/// Initialize ESKF runner with mission profile.
 /// Must be called once before eskf_runner_tick().
-void eskf_runner_init(const rc::MissionProfile* profile,
-                      EskfEventLogFn log_fn);
+/// Confidence transitions log via AO_Logger_log_event (firmware only).
+void eskf_runner_init(const rc::MissionProfile* profile);
 
 /// Main entry point — called from qv_idle_bridge() every idle iteration.
 /// Reads seqlock, runs predict + measurement updates at 200Hz.

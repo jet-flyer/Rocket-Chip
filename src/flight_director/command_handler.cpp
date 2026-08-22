@@ -6,7 +6,7 @@
  */
 
 #include "command_handler.h"
-#include "safety/test_mode.h"          // R-25-exec: refuse ARM if test mode armed
+#include "safety/inject_arm_gate.h"    // R-25-exec: refuse ARM if inject gate armed
 #include <cstdio>
 #include <cstring>
 
