@@ -2,10 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file spi_bus.cpp
- * @brief SPI bus driver implementation
- *
- * GPIO-controlled chip select for SX1276 burst FIFO compatibility.
- * See spi_bus.h for rationale.
+ * @brief SX1276 SPI helper implementation (WN-109)
  *
  * Prior Art:
  *   - Pico SDK hardware/spi.h (SPI peripheral interface)

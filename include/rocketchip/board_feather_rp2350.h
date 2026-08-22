@@ -33,6 +33,8 @@ inline constexpr uint8_t kSpiMosiPin       = 23;
 inline constexpr uint8_t kRadioCsPin       = 10;
 inline constexpr uint8_t kRadioRstPin      = 11;
 inline constexpr uint8_t kRadioIrqPin      = 6;
+// Current path reads the SX1276 IRQ register (DIO0 not required).
+inline constexpr bool    kRadioTrustDio0   = false;
 
 // --- NeoPixel (WS2812) ---
 inline constexpr uint     kNeoPixelPin     = 21;
@@ -84,6 +86,7 @@ inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
 // when this is true so a second mount cannot inherit the convention silently
 // (WN-124). Not a full board_rotation matrix.
 inline constexpr bool    kImuZUpNed            = true;
+inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Feather RP2350 HSTX";

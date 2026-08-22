@@ -46,6 +46,7 @@ inline constexpr uint8_t kSpiMosiPin       = 3;
 inline constexpr uint8_t kRadioCsPin       = 5;
 inline constexpr uint8_t kRadioRstPin      = 22;
 inline constexpr uint8_t kRadioIrqPin      = 2;
+inline constexpr bool    kRadioTrustDio0   = false;
 
 // --- NeoPixel (on-board RGB LED per Pimoroni schematic) ---
 // TODO(Tiny_2350): verify NeoPixel pin.
@@ -89,6 +90,7 @@ inline constexpr bool    kI2cStemmaAvailable = false;  // external breakout need
 
 // Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
 inline constexpr bool    kImuZUpNed          = true;
+inline constexpr uint8_t kMcuTempAdcInput    = 4;  // RP2350A die sensor
 
 // --- PSRAM CS (only valid on Plus variant) ---
 // TODO(Tiny_2350+): confirm PSRAM CS pin from Pimoroni schematic.

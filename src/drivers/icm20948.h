@@ -249,4 +249,8 @@ bool icm20948_read_config_registers(icm20948_t* dev,
                                      uint8_t* gyro_config1,
                                      uint8_t* gyro_smplrt);
 
+// Stuck-slave recovery (27 SCL pulses + Bank 0 + PWR_MGMT_1 reset).
+// Lives on the IMU driver, not the generic I2C bus (WN-078).
+bool icm20948_stuck_slave_recovery(uint8_t addr);
+
 #endif // ROCKETCHIP_ICM20948_H

@@ -9,7 +9,7 @@
 //   Vbe = raw * kAdcVref / kAdcMaxCount
 //============================================================================
 #include "drivers/mcu_temp.h"
-
+#include "rocketchip/board.h"
 #include "hardware/adc.h"
 #include <string.h>
 
@@ -22,14 +22,7 @@ static constexpr float    kAdcMaxCount  = 4096.0F;   // 12-bit ADC
 static constexpr float    kTempVbeRef   = 0.706F;    // V, Vbe at 27°C typical
 static constexpr float    kTempSlope    = 0.001721F; // V/°C, silicon bandgap slope
 static constexpr float    kTempOffsetC  = 27.0F;     // °C
-// Temp sensor ADC channel depends on RP2350 package (SDK hardware/adc.h:44-45):
-//   RP2350A (QFN-60, Feather):   input 4
-//   RP2350B (QFN-80, Fruit Jam): input 8
-#if PICO_RP2350A
-static constexpr uint8_t  kTempAdcInput = 4;
-#else
-static constexpr uint8_t  kTempAdcInput = 8;
-#endif
+static constexpr uint8_t  kTempAdcInput = board::kMcuTempAdcInput;
 static constexpr float    kSentinelC    = -999.0F;   // "not initialized" marker
 
 // Stuck-sensor detection. At 1 Hz capture, 60 consecutive bit-identical

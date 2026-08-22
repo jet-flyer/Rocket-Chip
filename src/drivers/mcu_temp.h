@@ -3,9 +3,8 @@
 //============================================================================
 // RP2350 Internal Die-Temperature Sensor (Stage 16C IVP-142a)
 //
-// On-die sensor on ADC input 4. Available on every RP2350 variant (A/B)
-// with zero additional hardware. Called at ~1 Hz from sensor paths on
-// both roles (vehicle Core 1 loop; station idle-bridge tick).
+// Thin die-temp API (WN-110: keep until a second ADC consumer exists).
+// ADC channel is board::kMcuTempAdcInput (WN-111).
 //
 // Datasheet: RP2350 §12.4.6 "Temperature Sensor".
 //   T_C = 27 - (V_BE - 0.706) / 0.001721

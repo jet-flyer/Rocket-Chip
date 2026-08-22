@@ -4,8 +4,8 @@
  * @file psram_init.h
  * @brief APS6404L-3SQR PSRAM initialization via QMI CS1
  *
- * Initializes 8MB QSPI PSRAM on the Adafruit Feather RP2350 HSTX.
- * GPIO 8 → XIP_CS1, QPI mode (0xEB read, 0x38 write).
+ * APS6404L-3SQR on QMI CS1 — board-coupled, not a generic PSRAM HAL
+ * (WN-216). CS pin from board::kPsramCsPin. QPI 0xEB read / 0x38 write.
  *
  * Based on SparkFun sparkfun-pico and AudioMorphology/PSRAM (MIT license).
  * Both derived from Arduino-Pico (earlephilhower).

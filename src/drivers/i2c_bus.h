@@ -2,10 +2,9 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file i2c_bus.h
- * @brief I2C bus driver wrapper for QWIIC/STEMMA QT sensors
+ * @brief Generic I2C init/transfer/bus-clear (pins from board::)
  *
- * Provides a simple interface over Pico SDK I2C for sensor communication.
- * Uses I2C1 on GPIO 2 (SDA) and GPIO 3 (SCL) - the STEMMA QT connector.
+ * Device recovery and part names do not belong here (WN-078 / WN-080).
  */
 
 #ifndef ROCKETCHIP_I2C_BUS_H
@@ -145,17 +144,5 @@ bool i2c_bus_recover(void);
  * @return true if bus successfully reset and initialized
  */
 bool i2c_bus_reset(void);
-
-/**
- * @brief Attempt recovery for a non-responding ICM-20948 (no ACK on address)
- *
- * Performs extended SCL clocking (27 pulses) + blind writes to the device
- * reset register. Intended for the known "slave silently ignores address"
- * latch condition after rapid flash cycles. Does not require prior ACK.
- *
- * @param addr 7-bit I2C address of the IMU (usually 0x69 or 0x68)
- * @return true if subsequent probe succeeds, false if still unresponsive
- */
-bool i2c_bus_imu_recovery(uint8_t addr);
 
 #endif // ROCKETCHIP_I2C_BUS_H

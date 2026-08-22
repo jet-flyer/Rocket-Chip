@@ -334,11 +334,10 @@ bool rfm95w_available(rfm95w_t* dev) {
         return false;
     }
 
-    // Check IRQ flags register directly for RxDone.
-    // GPIO DIO0 polling is unreliable on some boards (Fruit Jam GPIO5
-    // shared with Button3 may have external pull-down clamping DIO0).
-    // Register read is authoritative — SX1276 sets RxDone bit regardless
-    // of DIO0 pin state.
+    if (board::kRadioTrustDio0) {
+        return gpio_get(dev->irq_pin) != 0;
+    }
+    // IRQ-register path (packs that cannot trust DIO0, WN-102).
     uint8_t irq_flags = spi_bus_read_reg(dev->cs_pin,
                                          rfm95w::reg::kIrqFlags);
     return (irq_flags & rfm95w::irq::kRxDone) != 0;

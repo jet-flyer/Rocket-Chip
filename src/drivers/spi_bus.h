@@ -2,15 +2,10 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file spi_bus.h
- * @brief SPI bus driver for LoRa FeatherWing
+ * @brief SX1276 register/FIFO SPI helper (not a multi-device SPI bus)
  *
- * Thin wrapper over Pico SDK SPI functions, mirrors i2c_bus.h pattern.
- * SPI instance and pins are board-abstracted (see board.h).
- *
- * Chip select is GPIO-controlled (not hardware CS) because the SX1276
- * requires CS held low across multi-byte FIFO burst transfers. The Pico SDK
- * hardware CS auto-deasserts between bytes, which breaks burst access.
- * (RadioHead, LoRaMac-node, Adafruit RFM9x all use GPIO-controlled CS.)
+ * Sole production caller is rfm95w. GPIO CS is held across bursts because
+ * SX1276 FIFO requires it (WN-109). Pins from board::.
  */
 
 #ifndef ROCKETCHIP_SPI_BUS_H

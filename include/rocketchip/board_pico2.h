@@ -44,6 +44,7 @@ inline constexpr uint8_t kSpiMosiPin       = 19;
 inline constexpr uint8_t kRadioCsPin       = 17;
 inline constexpr uint8_t kRadioRstPin      = 20;
 inline constexpr uint8_t kRadioIrqPin      = 21;
+inline constexpr bool    kRadioTrustDio0   = false;
 
 // --- NeoPixel ---
 // Pico 2 has only a standard GPIO-controlled LED, no RGB. Using 0 as a
@@ -84,6 +85,7 @@ inline constexpr bool    kI2cStemmaAvailable   = false;  // external breakout ne
 
 // Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
 inline constexpr bool    kImuZUpNed            = true;
+inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Raspberry Pi Pico 2";

@@ -42,7 +42,8 @@ inline constexpr uint8_t kSpiMosiPin       = 31;
 // --- Radio (RFM95W on breakout/FeatherWing adapter) ---
 inline constexpr uint8_t kRadioCsPin       = 10;
 inline constexpr uint8_t kRadioRstPin      = 6;
-inline constexpr uint8_t kRadioIrqPin      = 5;   // [M1] Shared with Button3
+inline constexpr uint8_t kRadioIrqPin      = 5;   // Shared with Button3
+inline constexpr bool    kRadioTrustDio0   = false;  // DIO0 not trusted on this pack
 
 // --- NeoPixel (WS2812) ---
 // GPIO 32 requires PIO gpiobase=16 on RP2350B (pins 16-47 range)
@@ -104,6 +105,7 @@ inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C0
 
 // Same ICM-20948 Z-up breakout convention as Feather (WN-124).
 inline constexpr bool    kImuZUpNed            = true;
+inline constexpr uint8_t kMcuTempAdcInput      = 8;  // RP2350B die sensor
 
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Fruit Jam";

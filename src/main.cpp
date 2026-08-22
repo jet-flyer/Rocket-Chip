@@ -152,7 +152,7 @@ static void init_sensors() {
     // mode is fully established.
     bool imu_detected  = i2c_bus_probe(kIcm20948AddrDefault);
     if (!imu_detected) {
-        imu_detected = i2c_bus_imu_recovery(kIcm20948AddrDefault);
+        imu_detected = icm20948_stuck_slave_recovery(kIcm20948AddrDefault);
     }
     bool baro_detected = i2c_bus_probe(kBaroDps310AddrDefault);
     // Sensor power-up settling time

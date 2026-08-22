@@ -110,10 +110,8 @@ static uint16_t compute_crc(const Entry& e) {
 static bool validate_entry(const Entry& e) {
     if (e.magic != kEntryMagic) { return false; }
     if (e.crc != compute_crc(e)) { return false; }
-    // Extra defence: reject configs that aren't SX1276-hardware-legal.
-    // Protects against flash corruption that happens to match CRC. Uses the
-    // broader validator (not preset-match) per 2026-04-21 user direction —
-    // persisted configs may be user-set advanced values, not just presets.
+    // This module stores SX1276-legal radio config (WN-220), not generic
+    // settings. Reject CRC-valid but illegal PHY values.
     if (!rc::radio_config_sx1276_legal(
             e.cfg.bandwidth_khz, e.cfg.nav_rate_hz,
             e.cfg.spreading_factor, e.cfg.coding_rate,
