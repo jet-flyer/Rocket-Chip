@@ -46,9 +46,13 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-22-002 | Grok 4.6 (Build CLI) | bugfix, hardware
+
+**Latent QMI/XIP boot lockup (not a walk WN).** `psram_configure_qmi` set `QMI_DIRECT_CSR.EN` then called flash-resident `clock_get_hz(clk_sys)` to size M1 timing. Datasheet 12.14.5: EN disconnects the AHB XIP window; Arduino-Pico discussion #3431 is the same failure (`clock_get_hz` veneer during direct mode). Deleting unused `rc_os_read_*` BSS pointers for P10-9 shifted layout so the XIP-cache hit became a miss — Core 0 IACCVIOL, stacked PC in `clock_get_hz`. Fix (in `1c98581`, rides `2026-08-22-001`): compute `clk_sys` and the 64-bit timing math **before** EN; `psram_configure_qmi` only writes precomputed M1 then clears EN. Not GWF-311 / CW-B26-05 (IRQ-fence dispute on the same window; still owner-settle in chunk 2). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each after the ordering change, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO.
+
 ### 2026-08-22-001 | Grok 4.6 (Build CLI) | refactor, standards, hardware
 
-**L2-P5 Phase 3 P10-9 closed and merged to `main`.** Eighteen live function-pointer sites in `src/`+`include/` are now direct calls: GPS `g_gpsFn*`, `kick_watchdog`, `FlightPhaseAccessor`, `EskfEventLogFn`, `rc_os_read_*`, and FD/`action_executor` callbacks (`fd_effect_*`). `cal_read_accel` retired; QMI `clk_sys`/timing computed before `DIRECT_CSR.EN` (Arduino-Pico #3431 / RP2350 datasheet 12.14.5). `lm_solver` stays closed. WN-052 remains DEFER (QP/`ao_signals.h`). SPDX WN-004 also landed on the same branch (184/184 authored SPDX; `THIRD_PARTY_LICENSES.md` ETL/QP/MAVLink + NOAA WMM2025). Plan: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`. Verified: host ctest 858/858; vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
+**L2-P5 Phase 3 P10-9 closed and merged to `main`.** Eighteen live function-pointer sites in `src/`+`include/` are now direct calls: GPS `g_gpsFn*`, `kick_watchdog`, `FlightPhaseAccessor`, `EskfEventLogFn`, `rc_os_read_*`, and FD/`action_executor` callbacks (`fd_effect_*`). `cal_read_accel` retired. `lm_solver` stays closed. WN-052 remains DEFER (QP/`ao_signals.h`). SPDX WN-004 also landed on the same branch (184/184 authored SPDX; `THIRD_PARTY_LICENSES.md` ETL/QP/MAVLink + NOAA WMM2025). Latent QMI/XIP lockup exposed by that pointer delete: `2026-08-22-002`. Plan: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`. Verified: host ctest 858/858; vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
 
 ### 2026-08-21-002 | Grok Researcher (Grok Bot) | documentation, architecture
 
