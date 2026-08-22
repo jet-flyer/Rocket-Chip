@@ -47,25 +47,27 @@ Commit cited is on `grok/l2p5-disposition`.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-036 | REMEDIATE | labeled | pending Phase 3 — `notify_intents.h` density |
-| WN-054 | REMEDIATE | labeled | pending Phase 3 — comment-density `.h` exemption (policy) |
-| WN-081 | REMEDIATE | labeled | pending Phase 3 — Doxygen keep-consistently-or-drop (policy) |
-| WN-095 | REMEDIATE | labeled | pending Phase 3 — `rfm95w.h` inventory seed |
-| WN-131 | REMEDIATE | labeled | pending Phase 3 — `eskf.h` density / wrong home |
-| WN-149 | REMEDIATE | labeled | pending Phase 3 — `ud_factor.h` comment ratio |
-| WN-150 | REMEDIATE | labeled | pending Phase 3 — `ud_factor.cpp` Doxygen / algorithm blocks |
-| WN-185 | REMEDIATE | labeled | pending Phase 3 — `guard_evaluator` hybrid table-Doxygen |
-| WN-206 | REMEDIATE | labeled | pending Phase 3 — `flash_flush` density |
-| WN-210 | REMEDIATE | labeled | pending Phase 3 — `flight_table` density |
-| WN-212 | REMEDIATE | labeled | pending Phase 3 — `log_decimator` density |
-| WN-215 | REMEDIATE | labeled | pending Phase 3 — `psram_init` density |
-| WN-223 | REMEDIATE | labeled | pending Phase 3 — `crc32.h` keep with inventory |
-| WN-226 | REMEDIATE | labeled | pending Phase 3 — `diag_stats` comment ratio |
-| WN-247 | REMEDIATE | labeled | pending Phase 3 — `anomalous_boot` banner density |
-| WN-250 | REMEDIATE | labeled | pending Phase 3 — `flight_in_progress.cpp` sentinel density |
-| WN-251 | REMEDIATE | labeled | pending Phase 3 — `health_monitor` density |
-| WN-266 | REMEDIATE | labeled | pending Phase 3 — `core1_i2c_pause.cpp` density |
-| WN-292 | REMEDIATE | labeled | pending Phase 3 — `ao_logger` partial Doxygen |
+| WN-036 | REMEDIATE | closed | `notify_intents.h` — short role + NOTIFY_CONTRACT pointer |
+| WN-054 | ACCEPT | closed | `.h` 15–25% carve-out stays mechanical; Doxygen was never the reason to keep essays. No CODING_STANDARDS edit (owner). |
+| WN-081 | REMEDIATE | closed | Drop Doxygen in authored `src/`+`include/`; short `//` contracts. Recipe on rem WB **R-7**. |
+| WN-095 | REMEDIATE | closed | `rfm95w.h` `@` walls → contracts; Stage-T timeout essay trimmed |
+| WN-131 | REMEDIATE | closed | `eskf.h` banner/mag/ZUPT essays compressed; council RF tags dropped |
+| WN-149 | REMEDIATE | closed | `ud_factor.h` Bierman wall → short path line |
+| WN-150 | REMEDIATE | closed | `ud_factor.cpp` `@file` gone; algorithm `//` kept as why |
+| WN-185 | REMEDIATE | closed | `guard_evaluator` hybrid `@param` gone |
+| WN-206 | REMEDIATE | closed | `flash_flush.h` Doxygen + council-req banner trimmed |
+| WN-210 | REMEDIATE | closed | `flight_table.h` address map → `flash_layout.h` pointer |
+| WN-212 | REMEDIATE | closed | `log_decimator.h` IVP/Stage line dropped; Markley why kept |
+| WN-215 | REMEDIATE | closed | `psram_init.h` council/IVP/map essay → short edge banner |
+| WN-223 | REMEDIATE | closed | `crc32.h` `@` gone; running-CRC contract kept; IVP line dropped |
+| WN-226 | REMEDIATE | closed | `diag_stats` R-25/IVP dump → soak snapshot + T=0 |
+| WN-247 | REMEDIATE | closed | `anomalous_boot.h` 30-line essay + local plan path gone |
+| WN-250 | REMEDIATE | closed | `flight_in_progress.cpp` tiny-TU banner slimmed |
+| WN-251 | REMEDIATE | closed | `health_monitor.h` tables/essays → HEALTH_CONTRACT + live bit map |
+| WN-266 | REMEDIATE | closed | `core1_i2c_pause.cpp` restating branches dropped |
+| WN-292 | REMEDIATE | closed | `ao_logger.h` partial `@param` island gone |
+
+**Not closed:** source conversion is **staged** on `grok/l2p5-disposition` (99 files, net −1772). Pre-commit wants `bench_sim`; OpenOCD was down. Inventory commit `8271dbd`. Sitting 13 still owns the 118 archaeology WNs (R-7).
 
 ---
 

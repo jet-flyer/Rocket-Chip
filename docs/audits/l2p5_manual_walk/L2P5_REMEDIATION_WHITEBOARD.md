@@ -56,6 +56,46 @@ the *action* here until the action is done, then erase.**
 
 ## Rows
 
+### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
+
+**Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`
+contracts; do not add a “don’t use Doxygen” line to `CODING_STANDARDS.md`.
+Inventory: `L2P5_DOXYGEN_INVENTORY_2026-08-22.md` (90 tagged; **75 walk-missed**).
+
+**What sitting 5 did (apply the same bins in sitting 13):**
+
+1. **Markup:** `@file` / `@brief` / `@param` / `@return` / `/**` / `///` → `//`.
+   Filename is not a comment. `@param` that only names the argument dies with
+   the signature. Generated `eskf_codegen.h` stays generated (do not hand-edit).
+2. **Contract:** one or two facts the signature does not carry — units, who
+   owns a buffer, what `false` means, which core may call, a surprising
+   precondition. Field units on structs (`// m/s^2`) stay. Restating the
+   function name does not.
+3. **Three bins for the data in the comment** (WN-085 is the house rule):
+   - **Live contract** — keep as `//`.
+   - **True, wrong home** — move to the named SSOT (`NOTIFY_CONTRACT.md`,
+     `HEALTH_CONTRACT.md`, `flash_layout.h`, fusion design notes) and leave
+     a pointer. Do not invent a new protected design doc.
+   - **False / restatement / process** — delete. IVP/Stage/council/session
+     essays, machine-local plan paths, `@brief Initialize the GPS`.
+4. **Do not** add a prohibition to `CODING_STANDARDS.md`. The `.cpp` 15–25%
+   density band already exists; header carve-out stays mechanical, not an
+   essay license.
+5. **Mechanical traps from this sitting:** one-line `/** @brief … */`,
+   indented class-method `/**` blocks, `/// @param` left behind after `///`
+   → `//`. Re-grep `@file|@brief|@param|@return|/\*\*|///` on `src/`+`include/`
+   before calling sitting 13 closed.
+
+**Sitting 13 (118 archaeology WNs):** same three bins, file by file. Do not
+re-litigate Doxygen. Do not polish a header sittings 7–12 will still rewrite
+if those sittings have not run yet — that is why 13 is last. WN-234 is an
+*invariant* (MAVLink ARM no-op): strip-stale-promise vs wire ARM, not a
+comment trim.
+
+**Disposition target:** Sitting 13 applies this. Erase when that sitting
+lands (or when L2-P5 closes if the bins are copied into Plan-3).
+**Blocking?** No
+
 ### R-6 — Thin-file / hopeful-future nameplates (seeded WN-035)
 
 **Surfaced:** 2026-08-21 · WN-035 (`notify_backend.h`) — not a public-vs-private
