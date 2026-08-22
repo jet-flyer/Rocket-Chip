@@ -64,7 +64,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX on `main`; HW-agnostic rule written in `CODING_STANDARDS.md`**). **FIRST next sitting:** Phase 3 sitting 4 remainder — HW-leakage WNs against that rule (not started). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX + sitting 4 HW-agnostic/leakage on `main` 2026-08-22-003**). **FIRST next sitting:** Phase 3 sitting 5 — Doxygen inventory, then policy (WN-054/081; name `CODING_STANDARDS.md` for the policy edit). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -75,9 +75,11 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-1, R-3, R-4, R-5). R-2 erased (header landed).
 
-**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT (`75a80b5`); P10-9 18-site remediates + SPDX WN-004 merged to `main` (`2026-08-22-001`); HW-agnostic rule in `CODING_STANDARDS.md`.
+**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT; P10-9; SPDX WN-004; sitting 4 HW-agnostic rule + leakage A–D merged (`2026-08-22-003`).
 
-**Next:** Phase 3 sitting 4 remainder — HW-leakage WNs against the CODING_STANDARDS HW-agnostic rule (owner picks which). Doxygen inventory/policy is sitting 5. Skip RF sitting (WN-100 DEFER). Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
+**Next (tomorrow):** Phase 3 sitting 5 — Doxygen inventory first (no mass delete), then WN-054/081 policy. Skip RF (WN-100 DEFER). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`.
+
+**Handoff 2026-08-22 wrap:** Sitting 4 closed. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up. Probe OpenOCD may still be on `:3333` (extra GDB reset glitched USB; do not treat as E2). Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 
@@ -86,6 +88,8 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 ---
 
 ## Comment / Doxygen work — order (OPEN) (landed from walk WB W-10; W-6 folded into WNs)
+
+**Tomorrow's sitting.** Inventory first. Policy edit needs `CODING_STANDARDS.md` named.
 
 **Do not start mass comment cleanup or the density/Doxygen policy edit until the inventory exists.** Already agreed; W-10 was the inventory so WN-081 would not grow a file list.
 

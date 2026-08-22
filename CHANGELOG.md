@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-22-003 | Grok 4.6 (Build CLI) | standards, refactor, hardware
+
+**L2-P5 Phase 3 sitting 4 closed and merged to `main`.** HW-agnostic domain rule landed in `CODING_STANDARDS.md` (no SKU fork; board/job/named drivers at the edge). Leakage remediates A–D: `config.h` pins:: gone, unknown `PICO_BOARD` fail-closed, flash layout / version SKU split, `board::kImuZUpNed` / pyro pins / UART GPS, ICM recovery off `i2c_bus`, `kRadioTrustDio0`, pack onboard-vs-expansion banners. Kept/deferred: WN-023 no-op hooks, WN-028 Tiny pack merge, WN-109 `spi_bus` filename, WN-110 thin `mcu_temp`, WN-320/325 RC_OS/display. Tomorrow: sitting 5 Doxygen inventory then policy. Verified: host ctest 858/858; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO (letter-A 3-boot; later letters hook 2/2); station skipped (not on bus).
+
 ### 2026-08-22-002 | Grok 4.6 (Build CLI) | bugfix, hardware
 
 **Latent QMI/XIP boot lockup (not a walk WN).** `psram_configure_qmi` set `QMI_DIRECT_CSR.EN` then called flash-resident `clock_get_hz(clk_sys)` to size M1 timing. Datasheet 12.14.5: EN disconnects the AHB XIP window; Arduino-Pico discussion #3431 is the same failure (`clock_get_hz` veneer during direct mode). Deleting unused `rc_os_read_*` BSS pointers for P10-9 shifted layout so the XIP-cache hit became a miss — Core 0 IACCVIOL, stacked PC in `clock_get_hz`. Fix (in `1c98581`, rides `2026-08-22-001`): compute `clk_sys` and the 64-bit timing math **before** EN; `psram_configure_qmi` only writes precomputed M1 then clears EN. Not GWF-311 / CW-B26-05 (IRQ-fence dispute on the same window; still owner-settle in chunk 2). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each after the ordering change, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO.
