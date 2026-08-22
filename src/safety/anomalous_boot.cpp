@@ -45,20 +45,7 @@ static constexpr uint32_t kAllCauseBitsMask =
 static constexpr uint32_t kNonPorCauseBitsMask =
     kAllCauseBitsMask & ~static_cast<uint32_t>(POWMAN_CHIP_RESET_HAD_POR_BITS);
 
-// AON timer prior-uptime read — DEFERRED to commit (b).
-//
-// The RP2350 POWMAN timer survives non-power-cycling resets (watchdog-RSM,
-// hazard-DP, glitch-detect, SWcore-PD, watchdog-SWcore) but is reset by
-// BOR/POR/watchdog-powman/rescue/DP-reset-req/RUN-low per SDK header
-// hardware/regs/powman.h. Wiring it as a corroborator signal requires:
-//   - Adding `hardware_powman` / `pico_aon_timer` to target_link_libraries
-//   - Explicit timer-start at boot so the prior-uptime reading at next boot
-//     has a meaningful zero (otherwise an uninitialized timer reading is
-//     ambiguous with a reset-cleared timer)
-// For commit (a) we leave prior_uptime_ms = 0 (signal absent); the verdict
-// uses sentinel + reset-cause signals which are load-bearing on their own.
-// Commit (b) wires the AON timer once the rest of the fault-recovery
-// architecture is in place and the corroborator signal earns its keep.
+// POWMAN AON prior-uptime is not wired; stub is 0 (signal absent).
 static uint32_t read_prior_uptime_ms() {
     return 0U;
 }
