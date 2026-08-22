@@ -26,6 +26,12 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ---
 
+## Starcom Phase 0 (OPEN) (2026-08-21)
+
+Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Next: Phase 0 host-only core skeleton (`cmake -S starcom`, host ctest, no RC includes). Not a license to start that until scheduled.
+
+---
+
 ## Probe dump PC not in the session diff (OPEN) (2026-08-20)
 
 When the board is stuck and the probe stacked PC/LR is **not a line this sitting edited**, do **not** patch that site first. Check E2 / probe residual power (`standards/RP2350_ERRATA.md`, `docs/FLASHING.md`: VBUS cycle; Feather-only unplug is not enough while the probe still feeds the board). Rescue-DP (`RP_AP:CTRL` `RESCUE_RESTART` / `rp2040-rescue.cfg`) is documented as **not** our primary recovery — replug is; try Rescue-DP only if physical replug stops working, and log the attempt on the E2 incident table.

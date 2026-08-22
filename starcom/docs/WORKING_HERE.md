@@ -7,9 +7,9 @@
 
 ## What this folder is
 
-`starcom/` is a **self-contained library project** incubating inside the Rocket-Chip monorepo. It will eventually become its own repository. Rocket-Chip is the **first consumer and integration driver** — not the owner, not the design boundary.
+`starcom/` is a **self-contained comms stack** incubating inside the Rocket-Chip monorepo. It will eventually become its own repository. The **core** is a portable library (`starcom::ccsds`). First-party **ports** (host bearers, reference radio adapters against generic I/O) live here too. Rocket-Chip is the **first consumer and integration driver** — not the owner, not the design boundary.
 
-The library's identity: **universal CCSDS data-link** (`starcom::ccsds`), usable by cubesats, ground stations, HABs, and RC alike.
+Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground stations, HABs, and RC alike. See `DESIGN.md` note 2026-08-21 for the stack-vs-library vocabulary.
 
 ---
 
@@ -17,6 +17,7 @@ The library's identity: **universal CCSDS data-link** (`starcom::ccsds`), usable
 
 ### Boundary and dependencies
 
+- **Do** keep the names straight: **Starcom** = stack, **core** = library, **port** = first-party adapter, **integration** = Rocket-Chip. “No hardware in Starcom” applies to the **core**, not the whole tree.
 - **Do** keep dependency direction one-way: **Rocket-Chip → Starcom**. Starcom must never `#include` Rocket-Chip headers, AO/QP types, board pins, mission profiles, or firmware drivers.
 - **Do** put portable protocol logic in `include/starcom/` and `src/ccsds/`.
 - **Do** put platform-specific glue in `adapters/` (host UDP, RP2350/SX1276, optional AO wrapper) — never in the core.

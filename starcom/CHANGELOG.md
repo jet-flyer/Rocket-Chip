@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-21-001 | Grok Researcher (Grok Bot) | documentation, architecture
+
+Named the stack-vs-library distinction in `docs/DESIGN.md` (dated note) and `docs/WORKING_HERE.md`. Starcom = stack; core = sans-I/O library; ports are first-party; RC is integration. Detail lives in the DESIGN note, not here.
+
 ### 2026-06-22-001 | Grok | docs, starcom
 
 **Condensation of all CCSDS preliminary documents.** Produced canonical `docs/DESIGN.md` replacing placeholder. Includes: full agreement/conflict/gaps table (sourced from comparison.md Entries 1/2 + design_record), §0 scope (lifted), D-1..D-5 decisions with adjudications, FOP-1/FARM-1 state tables, PLCW 16-bit 7-field layout, USLP/V-3 notes, sans-I/O + conformance + PHY tiers, unique Grok PIO prior-art + <50km data, Claude bit tables + FCC/Part97, generator test idea, "architecturally complete + feature-incremental", MIB, no-heap gates, etc. Zero substantive loss — all load-bearing items attributed back to sources. Finalized with modern naming convention (skip archaic I-prefix), added explicit pointer to detailed Claude council Round 2 verdict in design_record_claude.md for D-2 sans-I/O. Merged feat branch to main. Work only on feat/condense-starcom-ccsds-prelim-20260622. Historical docs untouched. Updated `docs/README.md`, `STATUS.md`, manifests, scripts + this entry. Verified: pure-software change, host ctest 857/857. (starcom/docs/DESIGN.md, starcom/docs/README.md, starcom/STATUS.md, starcom/CHANGELOG.md)

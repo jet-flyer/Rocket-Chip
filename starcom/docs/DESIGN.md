@@ -125,6 +125,22 @@ For an implementer picking this up later, the current settled position after Rou
 - Grok-council cross-check on §2.1 (PHY three-way), §2.2 (conformance subsystem), §2.3 (compliance-neutrality), §2.4/§3.1 (framing). Convergence settles them; divergence comes to the user.
 
 
+## Note — 2026-08-21 (Researcher + Nathan): Starcom is a stack; the core is the library
+
+Settled in conversation. Append-only: does not rewrite §0. It names what §0 already implied.
+
+**Vocabulary**
+- **Starcom** = the comms *stack* (the project / this tree): core + first-party ports + examples + conformance.
+- **Core** (`starcom::ccsds`) = the *library*: passive, sans-I/O, hardware-agnostic. Bytes and `tick(now)` in; events and bytes out.
+- **Port** = a first-party adapter that lives in Starcom because it is about CCSDS-on-a-link, not about this rocket (host UDP/loopback, a reference radio written against generic SPI/GPIO, …).
+- **Integration** = Rocket-Chip (or any consumer): RadioScheduler, AO/QP, board pins, mission profile.
+
+**Ownership test.** Would a cubesat person want this file without knowing Rocket-Chip? Yes → Starcom. Does it name RC types, pins, or the scheduler? → RC.
+
+**D-1 vs D-2 (clarified).** PHY honesty (D-1) and sans-I/O (D-2) are separate decisions. D-2 is library-craft: the core is a passive box. D-1 is no blanket 211.1-B-4 PHY claim; PHY adapters declare none / best-effort / compliant. Round 2 later linked them because a sans-I/O core makes “no PHY” the default. That is a bonus, not the original reason for D-2.
+
+**Build order (fundamentals).** Prove it is a library (host-only core) → pure codecs → state machines → host loopback → first-party ports → RC integration last.
+
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)
 
 **Claude-only / stronger (ccsds_domain_claude + library_craft_claude + design_record):**
