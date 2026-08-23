@@ -9,7 +9,7 @@
 #include "i2c_bus.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
-#include "rocketchip/rc_log.h"  // R-5 Unit D part 2c: replaces printf in i2c_bus_scan
+#include "rocketchip/rc_log.h"
 
 // I2C bus scan range (7-bit addressing: 0x08–0x77)
 constexpr uint8_t kI2cScanStart        = 0x08;

@@ -16,7 +16,7 @@
 
 // ============================================================================
 // Register Constants (SX1276 datasheet Table 41)
-// Only registers used by v1 driver — Council Amendment #5
+// Only registers this driver uses.
 // ============================================================================
 
 namespace rfm95w {
@@ -27,7 +27,7 @@ namespace reg {
     constexpr uint8_t kFrMid          = 0x07;
     constexpr uint8_t kFrLsb          = 0x08;
     constexpr uint8_t kPaConfig       = 0x09;
-    constexpr uint8_t kLna            = 0x0C;  // IVP-T11: LnaBoostHf +3 dB
+    constexpr uint8_t kLna            = 0x0C;  // LnaBoostHf +3 dB
     constexpr uint8_t kFifoAddrPtr    = 0x0D;
     constexpr uint8_t kFifoTxBase     = 0x0E;
     constexpr uint8_t kFifoRxBase     = 0x0F;
@@ -42,9 +42,9 @@ namespace reg {
     constexpr uint8_t kPreambleMsb    = 0x20;
     constexpr uint8_t kPreambleLsb    = 0x21;
     constexpr uint8_t kPayloadLength  = 0x22;
-    constexpr uint8_t kModemConfig3   = 0x26;  // IVP-T11: AgcAutoOn adaptive LNA
+    constexpr uint8_t kModemConfig3   = 0x26;  // AgcAutoOn adaptive LNA
     constexpr uint8_t kSyncWord       = 0x39;
-    constexpr uint8_t kInvertIQ       = 0x33;  // IVP-T11: boot-time audit only
+    constexpr uint8_t kInvertIQ       = 0x33;  // boot-time audit only
     constexpr uint8_t kDioMapping1    = 0x40;
     constexpr uint8_t kVersion        = 0x42;
     constexpr uint8_t kPaDac          = 0x4D;
@@ -73,8 +73,7 @@ namespace irq {
 // Max payload size (SX1276 FIFO is 256 bytes total, split TX/RX)
 constexpr uint8_t kMaxPayload         = 128;
 
-// TX timeout: SF7/BW250 airtime ~90ms for 105B (MAVLink worst case);
-// 150ms = ~1.7× margin. Council Amendment #2 (Stage 7 plan).
+// TX timeout: SF7/BW250 airtime ~90ms for 105B; 150ms ≈ 1.7× margin.
 constexpr uint32_t kTxTimeoutUs       = 150000;
 
 // Bandwidth constants for rfm95w_set_bandwidth()
@@ -86,13 +85,10 @@ constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 } // namespace rfm95w
 
 // ============================================================================
-// Boot-Time Audit (IVP-T11)
+// Boot-time register snapshot (vehicle vs station must match)
 // ============================================================================
 
-// Snapshot of registers that MUST match between vehicle and station for the
-// link to come up, but are easy to misconfigure silently. Read once post-init
-// and logged by the caller (driver stays stdio-free per project-wide R-5
-// stdio removal, 2026-05-17).
+// Logged by the caller after init. Driver does not print.
 struct rfm95w_audit_t {
     uint8_t invert_iq;        // RegInvertIQ (0x33) — expect 0x27 (non-inverted)
     uint8_t modem_config2;    // RegModemConfig2 — bit 2 (RxPayloadCrcOn) must be 1
@@ -195,10 +191,10 @@ uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len);
 // Polls DIO0 for RxDone flag. Call periodically in main loop.
 bool rfm95w_available(rfm95w_t* dev);
 
-// Isolated poll function structured for future ISR swap (Council #6).
+// Poll DIO0 (GPIO). Not an ISR.
 bool rfm95w_poll_irq(rfm95w_t* dev);
 
-// Uses 64-bit arithmetic to avoid overflow at 915 MHz (Council #1).
+// 64-bit Frf so 915 MHz does not overflow.
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz);
 
 // Uses PA_BOOST pin. Valid range: 2-20 dBm.

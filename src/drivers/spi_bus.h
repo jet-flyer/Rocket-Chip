@@ -27,9 +27,7 @@ constexpr uint32_t kSpiBusFreqHz = 5000000;  // 5 MHz (SX1276 supports up to 10 
 // Initialization
 // ============================================================================
 
-// Configures SPI0 at 5 MHz, Mode 0 (CPOL=0, CPHA=0), MSB first.
-// Sets up GPIO 20/22/23 for SPI function. Does NOT configure any CS pins
-// — each peripheral manages its own CS via gpio_put().
+// 5 MHz, Mode 0, MSB first. Pins from board::. CS is per-peripheral.
 bool spi_bus_init(void);
 
 // ============================================================================
@@ -49,10 +47,7 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len);
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len);
 
-// IVP-132a.4 (ArduPilot council #4): SPI hot-path error counter.
-// Incremented whenever an SPI HW call returns a short byte count
-// (timeout / DMA error / etc). Expected 0 indoors with good wiring.
-// Readable by GDB at T=0 and at each soak snapshot.
+// Short-count SPI errors. Expected 0 on a clean bench; growth is EMI/wiring.
 #ifdef __cplusplus
 #include <atomic>
 extern std::atomic<uint32_t> g_spi_error_count;

@@ -5,13 +5,6 @@
 // - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
 // - RadioHead RH_RF95 (airspayce.com)
 // - Adafruit CircuitPython adafruit_rfm9x
-// Council amendments incorporated:
-// #1: 64-bit freq calculation, 100ms TX timeout
-// #2: GPIO-controlled CS (in spi_bus.cpp)
-// #3: Optional peripheral — absent HW returns false
-// #4: FIFO pointer set before every TX write
-// #5: Only used registers defined
-// #6: rfm95w_poll_irq() isolated for future ISR swap
 
 #include "rfm95w.h"
 #include "spi_bus.h"
@@ -339,14 +332,12 @@ bool rfm95w_available(rfm95w_t* dev) {
 }
 
 bool rfm95w_poll_irq(rfm95w_t* dev) {
-    // Council #6: Isolated poll function for future ISR swap.
-    // Currently polls GPIO; future version can check a flag set by ISR.
     return gpio_get(dev->irq_pin) != 0;
 }
 
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
-    // Council #1: Use 64-bit arithmetic — 32-bit overflows at 915 MHz
-    // Frf = (freq_hz * 2^19) / F_XOSC, where F_XOSC = 32 MHz
+    // 64-bit: 32-bit overflows at 915 MHz.
+    // Frf = (freq_hz * 2^19) / F_XOSC, F_XOSC = 32 MHz.
     uint64_t frf = (static_cast<uint64_t>(freq_hz) << kFreqRegShift) / kFxoscHz;
 
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kFrMsb,

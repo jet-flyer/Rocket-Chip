@@ -1,19 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// RP2350 Internal Die-Temperature Sensor (Stage 16C IVP-142a)
-//
-// Thin die-temp API (WN-110: keep until a second ADC consumer exists).
-// ADC channel is board::kMcuTempAdcInput (WN-111).
-//
-// Datasheet: RP2350 §12.4.6 "Temperature Sensor".
-//   T_C = 27 - (V_BE - 0.706) / 0.001721
-// with V_BE measured via 12-bit ADC and 3.3 V reference.
-//
-// ADC-consumer single-owner rule: only one code path should call
-// mcu_temp_read_c() per tick cycle. If a future battery ADC lands on
-// a different channel, it must run from the same tick so adc_select_input()
-// changes are serialized.
+// RP2350 die temperature (datasheet §12.4.6).
+// T_C = 27 - (V_BE - 0.706) / 0.001721, 12-bit ADC, 3.3 V ref.
+// Channel: board::kMcuTempAdcInput. One reader per tick (adc_select_input).
 //============================================================================
 #ifndef ROCKETCHIP_MCU_TEMP_H
 #define ROCKETCHIP_MCU_TEMP_H

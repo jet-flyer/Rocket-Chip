@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// LwGPS configuration for RocketChip
+// LwGPS NMEA parser flags for this firmware.
 
 #ifndef LWGPS_OPTS_H
 #define LWGPS_OPTS_H

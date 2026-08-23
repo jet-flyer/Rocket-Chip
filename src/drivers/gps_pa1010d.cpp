@@ -27,16 +27,7 @@ constexpr uint16_t kGpsYearBase      = 2000;
 constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fixMode >= 3 = 3D fix
 constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fixMode == 2 = 2D fix
 
-// ============================================================================
-// R-2 absorbed (R-5 Unit D part 2a, 2026-05-16, council-approved): the 3
-// blind PMTK writes at init are now precomputed const arrays with
-// compile-time checksum + length verification via static_assert. No more
-// snprintf in the init path. Pattern source: R-2's prior council
-// (referenced in `docs/plans/R5_STDIO_REMOVAL.md` line 76 + PROBLEM_REPORTS
-// row R-2). NASA/JPL framing: correct-by-construction at compile time
-// instead of correct-by-runtime-formatting. Trades ~120 bytes of .rodata
-// (negligible on 4 MB flash) for zero snprintf attack surface.
-// ============================================================================
+// Blind PMTK sentences: compile-time checksum, no snprintf on init.
 
 // Compile-time NMEA checksum: XOR of all bytes between '$' and '*' (exclusive).
 // Same algorithm as the now-deleted runtime nmea_checksum() helper.
@@ -202,9 +193,7 @@ bool gps_pa1010d_init() {
     // exposes a transient ACK window at cold boot, then drops to low-power
     // if no command arrives. Probing first misses that window.
     //
-    // R-5 Unit D part 2a (2026-05-16): const-array sentences with
-    // compile-time checksum verification. No snprintf in this path; the
-    // three byte-on-wire sequences are correct-by-construction.
+    // Const-array PMTK; checksum verified at compile time.
     g_pmtkWriteResults[0] = i2c_bus_write(
         kGpsPa1010dAddr,
         reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
@@ -250,16 +239,8 @@ bool gps_pa1010d_init() {
 void gps_pa1010d_get_debug_status(char* buf, size_t len) {
     if (buf == nullptr || len == 0) return;
 
-    // R-5 Unit D part 2a (2026-05-16, council Option X): hand-rolled
-    // etl::string + etl::to_string into caller buffer. Preserves the
-    // (buf, len) API surface so the single caller
-    // (`src/cli/rc_os_commands.cpp:643`) is untouched — keeps Tier 5
-    // (rc_os_commands.cpp) scope out of this Tier 2 commit.
-    //
-    // Byte-on-wire identity vs prior snprintf format is required
-    // (see commit message for the captured baseline). Double-space
-    // between `]` and `window_hit:`, and between `:N` and `init:`,
-    // is load-bearing — preserved verbatim below.
+    // etl::string into caller buffer. Double-space after `]` and
+    // after `:N` is load-bearing (Hardware Status `b` parser).
     etl::string<96> tmp;
     tmp.append("PMTK writes: [");
     etl::to_string(g_pmtkWriteResults[0], tmp, true);

@@ -68,7 +68,7 @@ void i2c_bus_scan(void);
 [[nodiscard]] int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
 
 // ============================================================================
-// Bus Recovery (IVP-13a)
+// Bus recovery
 // ============================================================================
 
 // Clock out a stuck-low SDA (up to 9 SCL pulses + STOP). true = SDA released.
