@@ -625,13 +625,9 @@ bool health_monitor_tick() {
     g_health.critical = evaluate_critical(snap);
     g_health.mcu = mcu_level;
 
-    g_health.go_nogo_ready =
-        (lvl.imu  >= kHealthDegraded) &&
-        (lvl.baro >= kHealthDegraded) &&
-        (lvl.eskf >= kHealthDegraded) &&
-        ((secondary & kHealthFlashOk) != 0) &&
-        ((secondary & kHealthWatchdogOk) != 0) &&
-        !flight_director_launch_abort();
+    GoNoGoInput gng{};
+    health_monitor_fill_go_nogo(&gng);
+    g_health.go_nogo_ready = go_nogo_evaluate(gng).all_go;
 
     return finalize_tick_logging();
 }

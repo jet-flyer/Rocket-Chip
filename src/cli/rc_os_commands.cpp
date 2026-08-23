@@ -1387,8 +1387,10 @@ static void cmd_station_gps_push() {
 }
 
 // ============================================================================
-// Preflight Go/No-Go Poll (IVP-110)
+// Preflight Go/No-Go Poll
 // ============================================================================
+// ARM uses go_nogo_evaluate().all_go. This screen prints that poll so the
+// operator sees the same stations. MCU temp / CRITICAL are extra — not ARM.
 
 static const char* health_level_str(rc::HealthLevel level) {
     switch (level) {
@@ -1398,40 +1400,6 @@ static const char* health_level_str(rc::HealthLevel level) {
         case rc::kHealthAbsent:   return "ABSENT";
         default:                  return "?";
     }
-}
-
-static bool is_go(rc::HealthLevel level) {
-    return level >= rc::kHealthDegraded;  // OK or degraded = GO
-}
-
-static void preflight_print_primary(const rc::HealthState* hs) {
-    rc::HealthLevel imu  = rc::health_imu(hs->primary);
-    rc::HealthLevel baro = rc::health_baro(hs->primary);
-    rc::HealthLevel eskf = rc::health_eskf(hs->primary);
-    rc::HealthLevel gps  = rc::health_gps(hs->primary);
-
-    rc::rc_log("IMU:      %s\n", is_go(imu)  ? "GO" : health_level_str(imu));
-    rc::rc_log("Baro:     %s\n", is_go(baro) ? "GO" : health_level_str(baro));
-    rc::rc_log("ESKF:     %s\n", is_go(eskf) ? "GO" : health_level_str(eskf));
-
-    // GPS: show fix detail on non-GO
-    if (is_go(gps)) {
-        rc::rc_log("GPS:      GO\n");
-    } else {
-        shared_sensor_data_t snap{};
-        seqlock_read(&g_sensorSeqlock, &snap);
-        rc::rc_log("GPS:      %s  fix=%u sats=%u\n",
-               health_level_str(gps),
-               static_cast<unsigned>(snap.gps_fix_type),
-               static_cast<unsigned>(snap.gps_satellites));
-    }
-}
-
-static void preflight_print_secondary(const rc::HealthState* hs) {
-    rc::rc_log("Radio HW: %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
-    rc::rc_log("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
-    rc::rc_log("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
-    rc::rc_log("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
 }
 
 static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
@@ -1461,29 +1429,20 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
 void cli_print_preflight() {
     const rc::HealthState* hs = rc::health_monitor_get_state();
 
-    rc::rc_log("\n=== PREFLIGHT ===\n");
-    preflight_print_primary(hs);
-    preflight_print_secondary(hs);
-    preflight_print_mcu_and_critical(hs);
-
-    // Stage T Batch B IVP-T14: show "RF Link" station (learned-link state
-    // from AO_RfManager) alongside the hardware-level Radio health above.
-    // Uses the same go_nogo_evaluate path the ARM-time check uses, so the
-    // operator sees what ARM will see.
     rc::GoNoGoInput gng{};
     rc::health_monitor_fill_go_nogo(&gng);
     rc::GoNoGoResult gng_result = rc::go_nogo_evaluate(gng);
+
+    rc::rc_log("\n=== PREFLIGHT ===\n");
     for (uint8_t i = 0; i < gng_result.num_checks; ++i) {
         const rc::GoNoGoCheck& c = gng_result.checks[i];
-        // Only surface the RF-specific stations — the others duplicate the
-        // primary/secondary block above.
-        if (strcmp(c.name, "RF Link") == 0) {
-            rc::rc_log("RF Link:  %s\n", c.reason);
-        }
+        rc::rc_log("T%u %-10s %s\n",
+                   static_cast<unsigned>(c.tier), c.name, c.reason);
     }
+    preflight_print_mcu_and_critical(hs);
 
     rc::rc_log("----------------\n");
-    rc::rc_log("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
+    rc::rc_log("VERDICT:  %s\n", gng_result.all_go ? "GO" : "NO-GO");
 }
 
 void cli_handle_unhandled_key(int key) {

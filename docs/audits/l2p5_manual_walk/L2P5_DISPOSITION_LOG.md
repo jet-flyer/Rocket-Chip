@@ -318,13 +318,13 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-142 | REMEDIATE | labeled | pending Phase 3 — confidence_gate safety-banner wording |
 | WN-172 | REMEDIATE | labeled | pending Phase 3 — FD header safety posture |
 | WN-176 | REMEDIATE | labeled | pending Phase 3 — FIRE_PYRO / ActionEntry tables |
-| WN-179 | REMEDIATE | labeled | pending Phase 3 — two-tier Go/No-Go SSOT |
-| WN-182 | REMEDIATE | labeled | pending Phase 3 — Go/No-Go vital path ownership |
+| WN-179 | REMEDIATE | closed | two-tier model on `go_nogo_checks.h`; ARM = `all_go` (Tier 1) |
+| WN-182 | REMEDIATE | closed | fill = `health_monitor_fill_go_nogo`; evaluate SSOT; CLI/ARM same poll |
 | WN-184 | REMEDIATE | labeled | pending Phase 3 — kGuardManaged “DO NOT” only in comments |
 | WN-188 | REMEDIATE | labeled | pending Phase 3 — flight_actions FIRE_PYRO / FAULT essays |
 | WN-257 | REMEDIATE | labeled | pending Phase 3 — crash_record consume/latch |
 | WN-274 | REMEDIATE | labeled | pending Phase 3 — pyro_edge_logger role / untested |
-| WN-323 | REMEDIATE | labeled | pending Phase 3 — CLI preflight Go/No-Go re-implement |
+| WN-323 | REMEDIATE | closed | preflight prints evaluate stations; VERDICT is `all_go` not health-byte subset |
 
 ---
 

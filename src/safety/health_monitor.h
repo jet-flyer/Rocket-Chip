@@ -64,7 +64,7 @@ struct HealthState {
                               //   primary to keep FusedState/telemetry/PCM
                               //   layouts unchanged.
     HealthLevel prev_mcu;
-    bool go_nogo_ready;       // All tier-1 checks pass
+    bool go_nogo_ready;       // Cached go_nogo_evaluate().all_go (Tier 1)
     uint8_t tick_counter;     // Staleness: incremented each tick, watchdog-readable
 };
 
