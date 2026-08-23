@@ -452,6 +452,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 ## Version / identity / config.h grab-bag (15) — LABELED 2026-08-21
 
 **Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 7. All REMEDIATE.
+**Closed this sitting** except WN-010/067 version bump process (R-9, owner-scheduled).
 **config.h dissolve:** file deleted; `DBG_*` → `rc_debug.h`; `job::kRadioModeRx` at
 call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 
@@ -466,11 +467,11 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 | WN-013 | REMEDIATE | closed | `using job::kRadioModeRx` gone; callers use `job::` |
 | WN-015 | REMEDIATE | closed | grab-bag deleted; filename free (R-8) |
 | WN-016 | REMEDIATE | closed | `DBG_*` live in `rc_debug.h` |
-| WN-018 | REMEDIATE | labeled | pending — `DBG_*` rename macros still in `rc_debug.h` |
+| WN-018 | REMEDIATE | closed | `DBG_*` is the only call surface; templates live in `rc::dbg_impl` |
 | WN-067 | REMEDIATE | labeled | pending — version bump process (R-9, not this sitting) |
 | WN-092 | REMEDIATE | closed | ISA/hypsometric constants in `isa_atmosphere.h`; baro + cal consume |
 | WN-126 | REMEDIATE | closed | `eskf_runner` baro tick is on `baro_read_count`, not a fusion Hz |
-| WN-183 | REMEDIATE | labeled | pending Phase 3 — guard sustain/managed not sole SSOT |
+| WN-183 | REMEDIATE | closed | banner points at IVP-71/120 + STAGE8_FLIGHT_DIRECTOR.md |
 | WN-286 | REMEDIATE | closed | pub/sub verified vs `AO_ARCHITECTURE.md`; banners are one-line pointers |
 
 ---
