@@ -67,138 +67,136 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-266 | REMEDIATE | closed | `core1_i2c_pause.cpp` restating branches dropped |
 | WN-292 | REMEDIATE | closed | `ao_logger.h` partial `@param` island gone |
 
-**Code:** `0cab2ea` (99 files, net −1772). Inventory `8271dbd`. Rem WB **R-7**. Sitting 13 still owns the 118 archaeology WNs.
+**Code:** `0cab2ea` (99 files, net −1772). Inventory `8271dbd`. Rem WB **R-7** (erased sitting 13). Archaeology 118 closed sitting 13.
 
 ---
 
-## Process archaeology in comments (118) — LABELED 2026-08-21
+## Process archaeology in comments (118) — SITTING CLOSED 2026-08-23
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** not this phase (Phase 3 sitting 13, after Doxygen policy).
-**Policy:** trim to live contracts; rest to docs. Default REMEDIATE, no owner holdouts.
-**Flags (still REMEDIATE):** WN-001 header rewrite already landed (`ae31f44`); sitting may be no-op. WN-234 is an *invariant* (MAVLink ARM no-op) — Phase 3 picks strip-stale-promise vs wire ARM.
+**Sitting:** Phase 3 sitting 13. **Policy:** live contract / pointer at existing SSOT / delete process. No-ops resolved or removed (not left as honest ACK). Constexprs may be code SSOT; comment maps are not. Progress docs this sitting-close only.
+**Code:** `a4a0c74` A ARM/flash; `b73514c` B headers; `ec6b9f1` C includes; `0613747` D drivers; `a7a174e` E fusion/cal; `f8d0df1` F safety/station/FD/AO; `f922053` G signals/rc_log; `9353a90` H leftovers (FD/cal/encoder/AO/main).
+**Left:** `DO_SET_MODE` ACK-without-effect is Starcom WN-235. `docs/SAD.md` §9.3 stale 8MB/LittleFS (hard-protected). Encoder field comments that name on-wire bytes stay (not a comment map).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-001 | REMEDIATE | labeled | pending Phase 3 — `g_imu` banner (rewrite already landed) |
-| WN-003 | REMEDIATE | labeled | pending Phase 3 — `rc_log.h` narrative mass |
+| WN-001 | REMEDIATE | closed | `g_imu` ownership; dropped WB ticket |
+| WN-003 | REMEDIATE | closed | live bounds/drain/no-stdio; drop plan path (`b73514c`) |
 | WN-005 | REMEDIATE | closed | `config.h` banner gone with the file |
 | WN-006 | REMEDIATE | closed | `RC_ASSERT` banner gone with the file |
 | WN-017 | REMEDIATE | closed | R-5 DBG essay dropped with the grab-bag; `rc_debug.h` is the short contract |
-| WN-019 | REMEDIATE | labeled | pending Phase 3 — `board.h` banner contract vs history |
-| WN-021 | REMEDIATE | labeled | pending Phase 3 — Tiny 2350 / Pico 2 scaffolding completeness |
-| WN-025 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam M1/N1/M2/M3 ticket tags |
-| WN-033 | REMEDIATE | labeled | pending Phase 3 — job-pack banners |
-| WN-039 | REMEDIATE | labeled | pending Phase 3 — `radio_config_table.h` council banner |
-| WN-044 | REMEDIATE | labeled | pending Phase 3 — `g_calNeoPixelOverride` tombstone |
-| WN-047 | REMEDIATE | labeled | pending Phase 3 — `telemetry_encoder.h` protocol layout in banner |
-| WN-050 | REMEDIATE | labeled | pending Phase 3 — `mavlink_rx.h` IVP-62 banner line |
-| WN-053 | REMEDIATE | labeled | pending Phase 3 — `ao_signals.h` process mass |
-| WN-055 | REMEDIATE | labeled | pending Phase 3 — `led_patterns.h` value-range map in notes |
-| WN-056 | REMEDIATE | labeled | pending Phase 3 — beacon-overlay essay |
-| WN-060 | REMEDIATE | labeled | pending Phase 3 — `flash_layout.h` map as comments |
-| WN-061 | REMEDIATE | labeled | pending Phase 3 — `flash_layout.h` council cite |
-| WN-064 | REMEDIATE | labeled | pending Phase 3 — `prearm_fail_ticks.h` council/design banner |
-| WN-071 | REMEDIATE | labeled | pending Phase 3 — `vec3` host-purity banner |
-| WN-076 | REMEDIATE | labeled | pending Phase 3 — `i2c_bus` IVP/process tags |
-| WN-077 | REMEDIATE | labeled | pending Phase 3 — `i2c_bus` recovery docs stale risk |
-| WN-083 | REMEDIATE | labeled | pending Phase 3 — `gps_pa1010d` R-2/R-5/council blocks |
-| WN-084 | REMEDIATE | labeled | pending Phase 3 — `gps_pa1010d` protocol/process islands |
-| WN-085 | REMEDIATE | labeled | pending Phase 3 — project-wide: triage why-path = brief + commit |
-| WN-090 | REMEDIATE | labeled | pending Phase 3 — DPS310 OS/rate table → HW doc |
-| WN-094 | REMEDIATE | labeled | pending Phase 3 — RFM95W IVP/council tags |
-| WN-098 | REMEDIATE | labeled | pending Phase 3 — RFM95W council amendment dump |
-| WN-103 | REMEDIATE | labeled | pending Phase 3 — RFM95W poll_irq unfinished ISR story |
-| WN-105 | REMEDIATE | labeled | pending Phase 3 — `g_spi_error_count` council/IVP |
-| WN-106 | REMEDIATE | labeled | pending Phase 3 — `spi_bus` framed as SX1276 task |
-| WN-107 | REMEDIATE | labeled | pending Phase 3 — IVP-132a.4 on `g_spi_error_count` |
-| WN-112 | REMEDIATE | labeled | pending Phase 3 — MCU-temp stuck-detector essay |
-| WN-115 | REMEDIATE | labeled | pending Phase 3 — `lwgps_opts.h` banner (role/origin/hook) |
-| WN-116 | REMEDIATE | labeled | pending Phase 3 — `eskf_runner` banner length |
-| WN-117 | REMEDIATE | labeled | pending Phase 3 — `eskf_runner` council R-6 line |
-| WN-119 | REMEDIATE | labeled | pending Phase 3 — brake block historical narrative |
-| WN-120 | REMEDIATE | labeled | pending Phase 3 — `eskf_runner` API comments too long |
-| WN-121 | REMEDIATE | labeled | pending Phase 3 — LL Entry 1 on `g_eskf` |
-| WN-123 | REMEDIATE | labeled | pending Phase 3 — R-25 / CR-N ticket comments |
-| WN-125 | REMEDIATE | labeled | pending Phase 3 — mag yaw bootstrap comment |
-| WN-130 | REMEDIATE | labeled | pending Phase 3 — brake-split host-test comment |
-| WN-135 | REMEDIATE | labeled | pending Phase 3 — `eskf.cpp` inline essays/tables |
-| WN-136 | REMEDIATE | labeled | pending Phase 3 — `eskf.cpp` opaque ticket/equation refs |
-| WN-143 | REMEDIATE | labeled | pending Phase 3 — `confidence_gate.cpp` no role header |
-| WN-144 | REMEDIATE | labeled | pending Phase 3 — `innovation_monitor` council A7 cite |
-| WN-145 | REMEDIATE | labeled | pending Phase 3 — `innovation_monitor.cpp` no role header |
-| WN-146 | REMEDIATE | labeled | pending Phase 3 — `mahony_ahrs.h` banner refs |
-| WN-147 | REMEDIATE | labeled | pending Phase 3 — mahony council cites not pillars |
-| WN-148 | REMEDIATE | labeled | pending Phase 3 — `mahony_ahrs.cpp` no role header |
-| WN-155 | REMEDIATE | labeled | pending Phase 3 — cal manager IVP + API blocks |
-| WN-158 | REMEDIATE | labeled | pending Phase 3 — cal manager algorithm/process blocks |
-| WN-159 | REMEDIATE | labeled | pending Phase 3 — cal manager boot-order notes |
-| WN-165 | REMEDIATE | labeled | pending Phase 3 — cal storage flash-layout banner rot |
-| WN-167 | REMEDIATE | labeled | pending Phase 3 — `lm_solver.h` banner/history/council |
-| WN-168 | REMEDIATE | labeled | pending Phase 3 — `cal_hooks.h` Stage/audit banner |
-| WN-169 | REMEDIATE | labeled | pending Phase 3 — `cal_hooks.cpp` IVP/Stage/HW blocks |
-| WN-174 | REMEDIATE | labeled | pending Phase 3 — command_handler_validate rules block |
-| WN-175 | REMEDIATE | labeled | pending Phase 3 — opaque R-25-exec on test-mode ARM |
-| WN-180 | REMEDIATE | labeled | pending Phase 3 — kGoNoGoMaxChecks dated archaeology |
-| WN-181 | REMEDIATE | labeled | pending Phase 3 — go_nogo IVP/Stage + etl::string note |
-| WN-187 | REMEDIATE | labeled | pending Phase 3 — `flight_state.h` banner/tables |
-| WN-189 | REMEDIATE | labeled | pending Phase 3 — `flight_actions.h` Stage/IVP vs product |
-| WN-190 | REMEDIATE | labeled | pending Phase 3 — `mission_profile.h` banner vs design doc |
-| WN-192 | REMEDIATE | labeled | pending Phase 3 — PRELIMINARY markers / emoji |
-| WN-193 | REMEDIATE | labeled | pending Phase 3 — stale deviation-log callback cite |
-| WN-194 | REMEDIATE | labeled | pending Phase 3 — safety lockout Council A1 comments |
-| WN-199 | REMEDIATE | labeled | pending Phase 3 — `rc_log.cpp` council + format-spec banner |
-| WN-200 | REMEDIATE | labeled | pending Phase 3 — parse_spec printf wording |
-| WN-201 | REMEDIATE | labeled | pending Phase 3 — `rc_log.cpp` float/ring/drain essays |
-| WN-202 | REMEDIATE | labeled | pending Phase 3 — ring_buffer banner + PSRAM caveat |
-| WN-207 | REMEDIATE | labeled | pending Phase 3 — JPL-25 cite without context |
-| WN-208 | REMEDIATE | labeled | pending Phase 3 — xip_cache_clean_all council #1 |
-| WN-211 | REMEDIATE | labeled | pending Phase 3 — CRC-32 insider comment |
-| WN-217 | REMEDIATE | labeled | pending Phase 3 — PSRAM “Test 3” / flash-safe permanence |
-| WN-219 | REMEDIATE | labeled | pending Phase 3 — radio_config_storage LL cites |
-| WN-221 | REMEDIATE | labeled | pending Phase 3 — crc16 banner IVP / C++20 note |
-| WN-222 | REMEDIATE | labeled | pending Phase 3 — JSF AV-182 cast note |
-| WN-227 | REMEDIATE | labeled | pending Phase 3 — diag_stats orphan persona/council lines |
-| WN-229 | REMEDIATE | labeled | pending Phase 3 — LED backend banner / stale IVP |
-| WN-230 | REMEDIATE | labeled | pending Phase 3 — beacon overlay Stage L |
-| WN-231 | REMEDIATE | labeled | pending Phase 3 — `notify_resolver.h` banner |
-| WN-233 | REMEDIATE | labeled | pending Phase 3 — `mavlink_rx.cpp` IVP/Stage 7 banner |
-| WN-234 | REMEDIATE | labeled | pending Phase 3 — ARM no-op “IVP-67 will wire” (invariant; strip vs wire) |
-| WN-237 | REMEDIATE | labeled | pending Phase 3 — encoder IVP/Stage + Q15 meaning |
-| WN-238 | REMEDIATE | labeled | pending Phase 3 — TelemetryState layout table in comments |
-| WN-241 | REMEDIATE | labeled | pending Phase 3 — station_idle_tick header IVP-140/141 |
-| WN-242 | REMEDIATE | labeled | pending Phase 3 — station_idle_tick cpp banner |
-| WN-243 | REMEDIATE | labeled | pending Phase 3 — fault_protection header archaeology |
-| WN-244 | REMEDIATE | labeled | pending Phase 3 — fault_protection cpp rehash + B.1–B.7 |
-| WN-253 | REMEDIATE | labeled | pending Phase 3 — health_monitor cpp essays |
-| WN-254 | REMEDIATE | labeled | pending Phase 3 — “Tier 2: Profile” label |
-| WN-255 | REMEDIATE | labeled | pending Phase 3 — crash_record banner PA/history |
-| WN-256 | REMEDIATE | labeled | pending Phase 3 — crash_record cpp L12–20 |
-| WN-263 | REMEDIATE | labeled | pending Phase 3 — test_mode.h design/history block |
-| WN-265 | REMEDIATE | labeled | pending Phase 3 — core1_i2c_pause.h comment vs API |
-| WN-268 | REMEDIATE | labeled | pending Phase 3 — pio_backup_timer header table |
-| WN-269 | REMEDIATE | labeled | pending Phase 3 — pio_backup_timer.cpp no file header |
-| WN-271 | REMEDIATE | labeled | pending Phase 3 — pio_watchdog header IVP/stack |
-| WN-272 | REMEDIATE | labeled | pending Phase 3 — pio_watchdog.cpp no top block |
-| WN-278 | REMEDIATE | labeled | pending Phase 3 — sensor_core1 cpp IVP / boot-wait essay |
-| WN-282 | REMEDIATE | labeled | pending Phase 3 — ao_flight_director header IVP |
-| WN-283 | REMEDIATE | labeled | pending Phase 3 — ao_flight_director callback table |
-| WN-285 | REMEDIATE | labeled | pending Phase 3 — ao_health_monitor header council/IVP |
-| WN-287 | REMEDIATE | labeled | pending Phase 3 — ao_health_monitor cpp R-25/council |
-| WN-289 | REMEDIATE | labeled | pending Phase 3 — ao_rcos cpp IVP/tables |
-| WN-291 | REMEDIATE | labeled | pending Phase 3 — ao_rcos L1220–1230 stream-of-consciousness |
-| WN-293 | REMEDIATE | labeled | pending Phase 3 — ao_logger cpp IVP tags |
-| WN-295 | REMEDIATE | labeled | pending Phase 3 — ao_radio cpp Stage/IVP/council |
-| WN-296 | REMEDIATE | labeled | pending Phase 3 — ao_radio “Sub 2*” labels |
-| WN-299 | REMEDIATE | labeled | pending Phase 3 — ao_rf_manager cpp density/dev |
-| WN-301 | REMEDIATE | labeled | pending Phase 3 — ao_telemetry cpp Stage/IVP |
-| WN-302 | REMEDIATE | labeled | pending Phase 3 — ao_telemetry “sub 2*” labels |
-| WN-303 | REMEDIATE | labeled | pending Phase 3 — ao_notify header Stage/IVP |
-| WN-304 | REMEDIATE | labeled | pending Phase 3 — ao_notify cpp essays |
-| WN-305 | REMEDIATE | labeled | pending Phase 3 — ao_led_engine density/history |
-| WN-307 | REMEDIATE | labeled | pending Phase 3 — `main.cpp` IVP/council/Stage |
-| WN-310 | REMEDIATE | labeled | pending Phase 3 — deferred PSRAM flash-safe test comment |
-
----
+| WN-019 | REMEDIATE | closed | drop Stage J; keep Tiny/Pico2 WIP gates (`b73514c`) |
+| WN-021 | REMEDIATE | closed | Tiny/Pico2 WIP wording (`f8d0df1`) |
+| WN-025 | REMEDIATE | closed | drop [M2] ticket tag (`b73514c`) |
+| WN-033 | REMEDIATE | closed | KEEP short role banners on job packs |
+| WN-039 | REMEDIATE | closed | tested tuples; drop IVP-T5.5/T6 (`ec6b9f1`) |
+| WN-044 | REMEDIATE | closed | delete `g_calNeoPixelOverride` tombstone (`ec6b9f1`) |
+| WN-047 | REMEDIATE | closed | on-wire sizes; Stage T prefixes stripped (`ec6b9f1`/`9353a90`) |
+| WN-050 | REMEDIATE | closed | ACK-only contract (`a4a0c74`) |
+| WN-053 | REMEDIATE | closed | drop council/Stage tombstones (`f922053`) |
+| WN-055 | REMEDIATE | closed | code ranges; drop Stage 13/L novels (`ec6b9f1`) |
+| WN-056 | REMEDIATE | closed | beacon overlay live remap; drop Stage L (`9353a90`) |
+| WN-060 | REMEDIATE | closed | constexprs are the layout; comment map gone (`a4a0c74`) |
+| WN-061 | REMEDIATE | closed | Council C-A4 dropped (`a4a0c74`) |
+| WN-064 | REMEDIATE | closed | 3 s window contract; drop Stage L / council (`ec6b9f1`) |
+| WN-071 | REMEDIATE | closed | KEEP one-line host-purity |
+| WN-076 | REMEDIATE | closed | I2C recovery label (`0613747`) |
+| WN-077 | REMEDIATE | closed | recovery label (rides WN-076) |
+| WN-083 | REMEDIATE | closed | GPS compile-time PMTK (`0613747`) |
+| WN-084 | REMEDIATE | closed | protocol islands (rides WN-083) |
+| WN-085 | REMEDIATE | closed | three bins applied sitting-wide |
+| WN-090 | REMEDIATE | closed | OS table gone; constexprs stay (`0613747`) |
+| WN-094 | REMEDIATE | closed | drop council/IVP tags (`0613747`) |
+| WN-098 | REMEDIATE | closed | drop council amendment dump (`0613747`) |
+| WN-103 | REMEDIATE | closed | drop future-ISR story (`0613747`) |
+| WN-105 | REMEDIATE | closed | SPI error counter without IVP (`0613747`) |
+| WN-106 | REMEDIATE | closed | not framed as SX1276 task (`0613747`) |
+| WN-107 | REMEDIATE | closed | drop IVP-132a.4 (`0613747`) |
+| WN-112 | REMEDIATE | closed | datasheet formula only (`0613747`) |
+| WN-115 | REMEDIATE | closed | role/origin/hook (`0613747`) |
+| WN-116 | REMEDIATE | closed | live why; drop council/IVP (`a7a174e`) |
+| WN-117 | REMEDIATE | closed | drop council R-6 (`a7a174e`) |
+| WN-119 | REMEDIATE | closed | brake history gone with sitting-12 fold |
+| WN-120 | REMEDIATE | closed | API comments shortened (`a7a174e`) |
+| WN-121 | REMEDIATE | closed | LL Entry 1 dropped (`a7a174e`) |
+| WN-123 | REMEDIATE | closed | R-25/CR-N dropped (`a7a174e`) |
+| WN-125 | REMEDIATE | closed | mag yaw shortened (`a7a174e`) |
+| WN-130 | REMEDIATE | closed | brake-split comment gone with sitting-12 fold |
+| WN-135 | REMEDIATE | closed | guards keep the condition; lose council prefix (`a7a174e`) |
+| WN-136 | REMEDIATE | closed | opaque tickets dropped (`a7a174e`) |
+| WN-143 | REMEDIATE | closed | role header added (`a7a174e`) |
+| WN-144 | REMEDIATE | closed | drop council A7 (`a7a174e`) |
+| WN-145 | REMEDIATE | closed | role header added (`a7a174e`) |
+| WN-146 | REMEDIATE | closed | live why; drop refs (`a7a174e`) |
+| WN-147 | REMEDIATE | closed | council cites not pillars (`a7a174e`) |
+| WN-148 | REMEDIATE | closed | role header added (`a7a174e`) |
+| WN-155 | REMEDIATE | closed | drop IVP-15/16/17/35 section tags (`9353a90`) |
+| WN-158 | REMEDIATE | closed | KEEP 6-pos underdetermined why |
+| WN-159 | REMEDIATE | closed | boot-order notes already gone |
+| WN-165 | REMEDIATE | closed | `flash_layout.h` pointer (`a7a174e`) |
+| WN-167 | REMEDIATE | closed | role line only (`a7a174e`) |
+| WN-168 | REMEDIATE | closed | role lines only (`a7a174e`) |
+| WN-169 | REMEDIATE | closed | role line on cpp (`a7a174e`) |
+| WN-174 | REMEDIATE | closed | abort: HSM ignores DESCENT (`9353a90`) |
+| WN-175 | REMEDIATE | closed | refuse ARM while test-mode (`9353a90`) |
+| WN-180 | REMEDIATE | closed | `kGoNoGoMaxChecks` is capacity; drop dated latch archaeology (`9353a90`) |
+| WN-181 | REMEDIATE | closed | RF Link vs Radio HW; etl::string why kept (`9353a90`) |
+| WN-187 | REMEDIATE | closed | drop IVP/tables (`f8d0df1`) |
+| WN-189 | REMEDIATE | closed | KEEP FIRE_PYRO on transitions (already honest) |
+| WN-190 | REMEDIATE | closed | job vs MissionProfile; drop PRELIMINARY (`f8d0df1`) |
+| WN-192 | REMEDIATE | closed | PRELIMINARY/emoji gone (`f8d0df1`) |
+| WN-193 | REMEDIATE | closed | stale deviation-log cite gone (`f8d0df1`) |
+| WN-194 | REMEDIATE | closed | lockout comments are live SI (`f8d0df1`) |
+| WN-199 | REMEDIATE | closed | drop council transcript (`f922053`) |
+| WN-200 | REMEDIATE | closed | spec list kept (`f922053`) |
+| WN-201 | REMEDIATE | closed | drop float/ring essays (`f922053`) |
+| WN-202 | REMEDIATE | closed | uncached PSRAM why; drop IVP-52b cpp banner (`f8d0df1`/`9353a90`) |
+| WN-207 | REMEDIATE | closed | function-parameter limit, not JPL-25 ticket (`9353a90`) |
+| WN-208 | REMEDIATE | closed | flush dirty PSRAM cache before flash (`9353a90`) |
+| WN-211 | REMEDIATE | closed | KEEP CRC-32 IEEE banner on `flight_table.h` |
+| WN-217 | REMEDIATE | closed | flash-safe test why; drop council req #2 (`9353a90`) |
+| WN-219 | REMEDIATE | closed | sitting 12 already dropped LL/Option C |
+| WN-221 | REMEDIATE | closed | poly + uncached why (`f8d0df1`) |
+| WN-222 | REMEDIATE | closed | JSF AV-182 note dropped (`f8d0df1`) |
+| WN-227 | REMEDIATE | closed | sitting 5 already soak snapshot + T=0 |
+| WN-229 | REMEDIATE | closed | drop Stage L ticket prefixes (`9353a90`) |
+| WN-230 | REMEDIATE | closed | beacon overlay live remap (`9353a90`) |
+| WN-231 | REMEDIATE | closed | KEEP internal-header + host-test contract |
+| WN-233 | REMEDIATE | closed | drop IVP/Stage 7 banner (`f8d0df1`) |
+| WN-234 | REMEDIATE | closed | ARM case deleted; tests expect UNSUPPORTED (`a4a0c74`) |
+| WN-237 | REMEDIATE | closed | on-wire sizes; Q15 stays on `telemetry_state.h` (`9353a90`) |
+| WN-238 | REMEDIATE | closed | layout is the struct fields (`f8d0df1`) |
+| WN-241 | REMEDIATE | closed | GPS poll, not IVP-140 no-op (`f8d0df1`) |
+| WN-242 | REMEDIATE | closed | cpp is live GPS poll (`f8d0df1`) |
+| WN-243 | REMEDIATE | closed | phase-aware capture (`f8d0df1`) |
+| WN-244 | REMEDIATE | closed | drop B.1–B.7 plan tags (`9353a90`) |
+| WN-253 | REMEDIATE | closed | drop essays; KEEP health contract (`f8d0df1`) |
+| WN-254 | REMEDIATE | closed | KEEP "Tier 2: Profile" NASA pad label |
+| WN-255 | REMEDIATE | closed | phase-aware capture; drop PA (`f8d0df1`) |
+| WN-256 | REMEDIATE | closed | HOST_TEST AIRCR stub why kept |
+| WN-263 | REMEDIATE | closed | folded into `inject_arm_gate` sitting 11 |
+| WN-265 | REMEDIATE | closed | folded into `shared_state` sitting 12 |
+| WN-268 | REMEDIATE | closed | KEEP action table as live contract |
+| WN-269 | REMEDIATE | closed | one-line role on cpp (`f8d0df1`) |
+| WN-271 | REMEDIATE | closed | drop IVP/stack (`f8d0df1`) |
+| WN-272 | REMEDIATE | closed | one-line role on cpp (`f8d0df1`) |
+| WN-278 | REMEDIATE | closed | drop IVP/boot-wait essay (`f8d0df1`) |
+| WN-282 | REMEDIATE | closed | drop IVP/phase refs (`f8d0df1`) |
+| WN-283 | REMEDIATE | closed | drop IVP-105 tombstones; queue 32 is airtime margin (`9353a90`) |
+| WN-285 | REMEDIATE | closed | header already `AO_ARCHITECTURE.md` pointer |
+| WN-287 | REMEDIATE | closed | 1 Hz republish is late-subscriber catch (`9353a90`) |
+| WN-289 | REMEDIATE | closed | wizard ramble gone (`f8d0df1`) |
+| WN-291 | REMEDIATE | closed | stream-of-consciousness gone (`f8d0df1`) |
+| WN-293 | REMEDIATE | closed | drop IVP tags (`f8d0df1`) |
+| WN-295 | REMEDIATE | closed | drop Stage/IVP/council (`f8d0df1`) |
+| WN-296 | REMEDIATE | closed | drop Sub 2* labels (`f8d0df1`) |
+| WN-299 | REMEDIATE | closed | drop density/dev (`f922053`) |
+| WN-301 | REMEDIATE | closed | ACK/retry live why; Stage T essays gone (`9353a90`) |
+| WN-302 | REMEDIATE | closed | drop sub 2* labels (`9353a90`) |
+| WN-303 | REMEDIATE | closed | drop Stage/IVP (`f8d0df1`) |
+| WN-304 | REMEDIATE | closed | drop essays (`f922053`) |
+| WN-305 | REMEDIATE | closed | three-layer compositor; drop IVP-116 tombstones (`9353a90`) |
+| WN-307 | REMEDIATE | closed | drop IVP/council/Stage; idle tick is GPS poll (`9353a90`) |
+| WN-310 | REMEDIATE | closed | KEEP: flash-safe test after Core 1 lockout |
 
 ## HW leakage vs domain code (28) — SITTING CLOSED 2026-08-22
 
