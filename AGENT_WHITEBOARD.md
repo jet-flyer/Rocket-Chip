@@ -69,17 +69,17 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 ---
 
 
-## L2-P5 disposition resume (OPEN) (2026-08-21 wrap)
+## L2-P5 disposition resume (OPEN) (2026-08-23 wrap)
 
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. **Do not work this on `main`.**
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. **Do not work this on `main`.** Feature not merged.
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-7–R-9, R-11–R-14).
 
-**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops: GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14).
+**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops closed (`0a17613` / `7a7dfcb` / `ad0cb25` / `cba82ba`): GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14). Sitting 6 RF skipped (WN-100 DEFER).
 
 **Next:** sitting 10 fusion/math/cal — do not start until opened. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`.
 
-**Handoff 2026-08-22 wrap:** Sitting 4 closed. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up. Probe OpenOCD may still be on `:3333` (extra GDB reset glitched USB; do not treat as E2). Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
+**Wrap 2026-08-23:** Stopped after sitting 9. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up, `vehicle flight v0.16.0 (kmenu)`. Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 
