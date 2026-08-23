@@ -99,9 +99,37 @@
 
 **Note:** Lowercase `x` is erase-all-flights on vehicle, not DISARM.
 
+### Vehicle-only (no station)
+
+Standalone Estes-style flights arm the igniter with a **physical wire/clip**,
+not software ARM. There is nothing Go/No-Go-armable on that pad. Vehicle USB
+`'p'` is a bring-up poll, not the launch procedure.
+
 ### ABORT (vehicle CLI only)
 
 Not available from station in current firmware. Vehicle CLI: future IVP.
+
+---
+
+## Go / No-Go (station pad control)
+
+Go/No-Go is the **station** pre-arm poll for a radio-controlled vehicle.
+The station ARM sequence above is what this poll is for. Same function ARM
+uses (`go_nogo_evaluate`). Vehicle USB `'p'` prints it for bring-up.
+
+**Tier 1 (platform) — any NO-GO blocks station ARM:**
+IMU, baro, ESKF, flash, launch-abort latch, watchdog, prior hardfault,
+prior brownout.
+
+**Tier 2 (profile / link) — NO-GO warns; station ARM still allowed:**
+GPS lock, mag cal, radio HW, RF link, battery stub.
+
+`VERDICT: GO` means Tier 1 is clear. It does **not** mean RF link or GPS
+is good. A solo vehicle with no station radio will show `T2 RF Link
+NO-GO NO RX YET` and can still be `VERDICT: GO`.
+
+**PIO watchdog** is not a Go/No-Go station. It still needs a dedicated
+rework; a green preflight is not “PIO WDT proven.”
 
 ---
 
@@ -112,17 +140,17 @@ you're in determines what action clears it.
 
 ### Flight Hold — transient condition, auto-clears
 
-A normal condition that prevents arming until it resolves. Nothing is
-broken; the vehicle is just waiting.
+A normal condition on the **station** poll. Nothing is broken; wait it out.
 
-- **Examples:** GPS not yet locked, IMU still warming up, barometer
-  not yet settled, sensor calibration not yet applied.
-- **How you'll see it:** one or more NO-GO entries in the pre-flight
-  status check, with a reason like "NO-GO 0sat" or "NO-GO UNCALIBRATED."
-- **Clear mechanism:** **automatic.** As soon as the condition resolves
-  (GPS gets a lock, IMU warms up, etc.), the NO-GO turns GO on its own.
-- **Operator action required:** none beyond waiting and verifying the
-  condition resolved.
+- **Tier 1 examples (block station ARM):** IMU/baro/ESKF not healthy yet,
+  flash not ready, watchdog not OK.
+- **Tier 2 examples (warn only):** GPS not locked, mag not calibrated,
+  RF link not tracking. These do **not** block station ARM.
+- **How you'll see it:** `T1` / `T2` lines on preflight `'p'`, then
+  `VERDICT`. Reasons look like `NO-GO UNHEALTHY` or `NO-GO NO LOCK`.
+- **Clear mechanism:** **automatic** when the condition resolves.
+- **Operator action required:** none beyond waiting and checking VERDICT
+  (and reading Tier 2 warnings before you send station ARM).
 
 ### Safe Mode — operator-clearable fault *(not currently implemented)*
 
@@ -144,8 +172,8 @@ full pre-flight sequence.
     Vehicle auto-DISARMs and latches the abort flag.
   - Future: pyro fired out of sequence, terminal-sequence interruption,
     battery anomaly during ARMED.
-- **How you'll see it:** "NO-GO LAUNCH ABORT" in the pre-flight check.
-  Go/No-Go will refuse to arm regardless of any other condition.
+- **How you'll see it:** `T1 Safety  NO-GO LAUNCH ABORT` on preflight.
+  Station ARM is blocked regardless of other stations.
 - **Clear mechanism:** **power cycle only.** There is no CLI command
   to clear a launch abort, by design. You must physically reset the
   vehicle (disconnect battery, reconnect) and re-run the full pre-flight

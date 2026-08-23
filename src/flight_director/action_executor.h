@@ -7,17 +7,9 @@
 // defined as constexpr arrays in flight_actions.h and dispatched by
 // the QEP state handlers in flight_director.cpp.
 //
-// Action types:
-//   SET_LED       — Set NeoPixel mode/color for current phase
-//   MARK_EVENT    — Record event timestamp in FlightMarkers
-//   REPORT_STATE  — Log phase transition to serial
-//   FIRE_PYRO     — Log pyro intent (no physical pyro in Stage 8)
-//   SET_BEACON    — Set post-landing beacon mode
-//
-// Safety (Council Amendment #2):
-//   FIRE_PYRO must NEVER appear in entry or exit action lists.
-//   Pyro actions are ONLY permitted in transition action lists.
-//   Host tests verify this programmatically across all constexpr arrays.
+// Action types: SET_LED, MARK_EVENT, REPORT_STATE, FIRE_PYRO (intent),
+// SET_BEACON. FIRE_PYRO is transition lists only — never entry/exit.
+// Enforced by test_action_executor.cpp.
 //============================================================================
 #ifndef ROCKETCHIP_ACTION_EXECUTOR_H
 #define ROCKETCHIP_ACTION_EXECUTOR_H
@@ -34,7 +26,7 @@ enum class ActionType : uint8_t {
     kSetLed,        // Set NeoPixel mode for phase
     kMarkEvent,     // Record event timestamp
     kReportState,   // Log phase transition
-    kFirePyro,      // Log pyro intent (no physical fire in Stage 8)
+    kFirePyro,      // Pyro intent (transition lists only)
     kSetBeacon,     // Post-landing beacon mode
 };
 

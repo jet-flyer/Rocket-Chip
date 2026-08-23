@@ -138,6 +138,33 @@ Do not restore a stored-but-unread flag.
 tested, or when HAB is dropped as a product.
 **Blocking?** No
 
+### R-12 — PIO WDT still needs a rework
+
+**Surfaced:** 2026-08-22 · sitting 9 group 1. Owner: PIO watchdog is not a
+Go/No-Go station and is not proven by a green preflight.
+
+**What:** Do not promote `kHealthPioOk` into Tier 1. Dedicated sitting:
+role vs ARM, CLI display, and whether a PIO WDT fault is pad-blocking.
+Until then USER_GUIDE says a GO verdict is not “PIO WDT proven.”
+
+**Disposition target:** Erase when that rework lands.
+**Blocking?** No
+
+### R-13 — Go/No-Go is station pad control; vehicle Estes is wire-arm
+
+**Surfaced:** 2026-08-22 · sitting 9. Owner: GNG is for **station** ARM of
+a radio vehicle. Vehicle-only (Estes-type) arms the igniter with a
+physical wire — nothing software-ARM-able.
+
+**Firmware today:** `command_handler` still runs `go_nogo_evaluate` on
+vehicle CLI ARM (bring-up). Product pad flow is station `a` / ACK.
+Do not treat vehicle USB ARM as the Estes procedure. Later sitting may
+stop offering software ARM on vehicle-only images.
+
+**Disposition target:** Erase when vehicle-only ARM matches the product
+(no GNG software ARM) or station-only ARM is the only path.
+**Blocking?** No for sitting 9 groups 2–4.
+
 ### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
 
 **Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`

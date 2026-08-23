@@ -101,8 +101,8 @@ void flight_director_evaluate_guards(FlightDirector* me,
 // Query
 FlightPhase flight_director_phase(const FlightDirector* me);
 
-// Launch abort — level 3 safety posture (power-cycle-only clear).
-// See docs/USER_GUIDE.md "Safety State Model" for classification.
+// Launch abort — power-cycle-only clear. See docs/USER_GUIDE.md
+// "Safety State Model".
 // Module-scope flag: no FlightDirector pointer needed. BSS-zero on
 // power cycle clears automatically; no CLI command to clear, by design.
 void flight_director_set_launch_abort();

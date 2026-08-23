@@ -1,25 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flight Actions — Constexpr Action Arrays per Phase
-//
-// Defines entry, exit, and transition action lists for each flight phase.
-// These are executed by the QEP state handlers via action_execute_list().
-//
-// SAFETY (Council Amendment #2):
-//   FIRE_PYRO actions MUST NOT appear in any entry or exit action list.
-//   Pyro actions are ONLY permitted in transition action lists.
-//   This is verified by host tests in test_action_executor.cpp.
-//
-// NeoPixel color assignments per plan:
-//   IDLE:           no override (normal status logic)
-//   ARMED:          amber solid
-//   BOOST:          red solid
-//   COAST:          yellow solid
-//   DROGUE_DESCENT: red blink
-//   MAIN_DESCENT:   red blink
-//   LANDED:         green slow blink
-//   ABORT:          red fast blink
+// Flight Actions — constexpr entry/exit/transition lists per phase.
+// FIRE_PYRO only on transitions (test_action_executor.cpp).
+// LED codes: LedPhaseValue; operator colors: docs/USER_GUIDE.md.
 //============================================================================
 #ifndef ROCKETCHIP_FLIGHT_ACTIONS_H
 #define ROCKETCHIP_FLIGHT_ACTIONS_H
@@ -130,14 +114,8 @@ inline constexpr ActionEntry kAbortEntry[] = {
 // (Same as kTransitionFireDrogue — reuse the array)
 
 // ============================================================================
-// FAULT — Entry: magenta blink. Exit: none.
-//
-// Fault-recovery 2026-05-14 (council round 2 unanimous): explicit degraded-
-// in-place state distinct from kAbort. Entered ONLY by the phase-aware
-// hardfault dispatch or by the anomalous-boot confidence gate — never by
-// normal flight-state transitions. Per council Amendment #2, no pyro action
-// in entry actions; PIO backup timers handle pyro autonomously without
-// requiring the FD state machine to fire them.
+// FAULT — Entry: LED only. No pyro in entry; PIO backup timers are
+// independent of the FD HSM. Not entered by normal phase transitions.
 // ============================================================================
 inline constexpr ActionEntry kFaultEntry[] = {
     {ActionType::kSetLed, kLedPhaseFault},
