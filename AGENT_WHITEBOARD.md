@@ -75,13 +75,23 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-7–R-9, R-11–R-14).
 
-**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops closed (`0a17613` / `7a7dfcb` / `ad0cb25` / `cba82ba`): GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14). Sitting 6 RF skipped (WN-100 DEFER). Sitting 10 fusion/math/cal closed on worktree (`90432f2` A comments; `1670c41` B ESKF switch/labels; `3c2477e` C cal rates / P10-4 / MCU sentinel).
+**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops closed (`0a17613` / `7a7dfcb` / `ad0cb25` / `cba82ba`): GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14). Sitting 6 RF skipped (WN-100 DEFER). Sitting 10 fusion/math/cal closed on worktree (`90432f2` A comments; `1670c41` B ESKF switch/labels; `3c2477e` C cal rates / P10-4 / MCU sentinel). Sitting 11 test/inject/debug closed on worktree (keep-with-why; first-flight prod strip is its own WB row).
 
 **Next:** sitting 12 earn-rent / naming / packaging — do not start until opened. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`.
 
 **Sitting 10 (2026-08-23):** fusion/math/cal 10/10 closed on worktree. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up, `vehicle flight v0.16.0 (kmenu)`. Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
+
+---
+
+## First-flight prod strip of test/inject (OPEN) (2026-08-23)
+
+Current `build_flight` ELF **is still development firmware.** Approach A (inject/debug linked, `test_mode_active()` no-op) is acceptable until first flight.
+
+**Before first flight:** a dedicated production image that **omits** test/inject TUs from the link — not “compiled in and gated,” not “ifdef in the tree but we pinky-swear DEBUG is off.” `fault_force_*`, debug mutators, station inject, and the arm gate must not be in that ELF (`nm` / `strings` check). Mechanism (prod CMake preset vs stripped tree) is picked in that sitting, not now.
+
+Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Concerns:** Probe residual power (E2) if the board looks dead after SWD. R-3 Core 0 `icm20948_read` vs Core 1 still open (WN-002 not fully closed).
 
