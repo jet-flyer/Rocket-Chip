@@ -6,7 +6,6 @@
 // - SX1276 datasheet (burst FIFO access requires CS held low)
 
 #include "spi_bus.h"
-#include "rocketchip/config.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 #include <atomic>

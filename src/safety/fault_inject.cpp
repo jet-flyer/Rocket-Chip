@@ -15,7 +15,7 @@
 #include "safety/fault_inject.h"
 #include "safety/inject_arm_gate.h"
 #include "rocketchip/linker_symbols.h"  // __StackBottom (linker-defined)
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/ao_signals.h"
 #include "safety/pio_backup_timer.h"
 #include "active_objects/ao_flight_director.h"

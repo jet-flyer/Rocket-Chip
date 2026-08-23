@@ -8,7 +8,7 @@
 //============================================================================
 
 #include "fusion/eskf_runner.h"
-#include "rocketchip/config.h"
+#include "rocketchip/board.h"
 #include "rocketchip/shared_state.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/ao_signals.h"
@@ -228,7 +228,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
 // Measurement Updates
 // ============================================================================
 
-// Baro altitude measurement update (~32Hz DPS310 rate, on new data)
+// Baro altitude update on new sample (baro_read_count), not a fusion-owned Hz.
 static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     if (snap.baro_valid && g_baroContinuous) {
         static uint32_t g_lastEskfBaroCount = 0;

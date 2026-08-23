@@ -19,7 +19,7 @@
 #include "ao_rf_manager.h"       // AO_RfManager_next_tx_window_us (Batch B IVP-T14)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/radio_config.h"
 #include "rocketchip/rc_log.h"  // R-5 Unit F.5: STAGE_T diagnostics use rc::rc_log
 #include "logging/radio_config_storage.h"  // T5.5 sub persist: boot read + debounced write
@@ -193,7 +193,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     // retry lands in a real window instead of firing blind.
     // Vehicle-role keeps free-running TX (it's the anchor source, not the
     // follower).
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         uint32_t window = rc::AO_RfManager_next_tx_window_us(now_us_rf());
         if (window == 0) {
             DBG_PRINT("RADIO: station TX held — RfManager window=0 "

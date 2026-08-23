@@ -56,6 +56,54 @@ the *action* here until the action is done, then erase.**
 
 ## Rows
 
+### R-8 — `config.h` filename is free
+
+**Surfaced:** 2026-08-22 · sitting 7. Owner: original jobs already live in
+dedicated files; delete the grab-bag; name is open for a *real* compile-time
+config later (not this pass).
+
+**What:** `include/rocketchip/config.h` removed. Live pieces retargeted:
+`board.h` pins, `job.h` role (`job::kRadioModeRx` at call sites), `version.h`
+semver (`kFirmwareVersion`, no `kVersionString` alias), `rc_debug.h` `DBG_*`.
+Dropped with the file (walk: unused): `RC_ASSERT`, `ROCKETCHIP_TIER_*` /
+`ROCKETCHIP_FEATURE_*`, `rocketchip::i2c` / `timing`. Do not recreate as an
+umbrella “just in case.”
+
+**Protected docs still name the old file** (need owner to name them to tidy):
+`docs/SCAFFOLDING.md`, `docs/SAD.md` (tree + §13.1 TIER_*),
+`standards/DEBUG_OUTPUT.md`, `docs/audits/VERSION_STRING_AUDIT.md` (alias note).
+
+**Disposition target:** Erase when those named docs are updated, or when a
+deliberate new `config.h` is introduced for actual compile-time flags.
+**Blocking?** No
+
+### R-9 — Version bump process (WN-010 / WN-067) — not invented this sitting
+
+**Surfaced:** 2026-08-22 · sitting 7. Owner recalled the “more robust, rot-resistant”
+version conversation.
+
+**What that conversation already was:**
+- IVP-127b / `VERSION_STRING_AUDIT.md`: one header (`version.h`), no literals
+  elsewhere. That landed. It did **not** stop rot.
+- LL Entry 2 / CODING_STANDARDS Debugging: monotonic `kBuildIterationTag`
+  every debug rebuild; `__DATE__ __TIME__` is not enough. Tag still `"16B-init"`.
+- WN-010/067: numbers frozen since 2026-04-15 (`0.16.0` / `0.5.0` /
+  `"16B-init"`). Live discriminant is CMake `kGitHash`. `SESSION_CHECKLIST.md`
+  has **no** version-bump item. A banner that says SSOT does not make agents bump.
+
+**Not this sitting:** do not invent git-describe / auto-semver / a hook without
+an owner-picked scheme. Do not silently bump `0.16.0`.
+
+**When scheduled:** pick (1) wrap-only manual bump of `kFirmwareVersion` when
+you name it, and/or (2) a checklist item  / hook that fails if
+`kBuildIterationTag` is unchanged across a firmware sitting, and/or (3) drop
+the manual tag and treat `kGitHash` as the only machine identity. Until then
+the header wording must not claim a process that does not exist.
+
+**Disposition target:** Owner-scheduled sitting or wrap. Erase when a written
+process exists (checklist named, or hook, or explicit “git hash only”).
+**Blocking?** No for rest of sitting 7.
+
 ### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
 
 **Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`

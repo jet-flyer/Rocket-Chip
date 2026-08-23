@@ -9,7 +9,7 @@
 // Colors: green/yellow/red/cyan/default. No bold, no background.
 
 #include "rc_os_dashboard.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"

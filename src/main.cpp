@@ -5,7 +5,8 @@
 // Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
 // See git history for prior IVP gate checks and test dispatchers.
 
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
+#include "rocketchip/job.h"
 #include "rocketchip/rc_log.h"           // R-5 Unit B POC instrumentation
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/shared_state.h"   // OPT-IVP-02: all globals centralized here
@@ -330,7 +331,7 @@ static void init_core1_role() {
         }
     } else {
         rc_os_i2c_scan_allowed = true;
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             rc::station_idle_tick_init();  // Stage 16C IVP-140
         }
     }
@@ -421,7 +422,7 @@ extern "C" void qv_idle_bridge(void) {
     eskf_runner_tick();
 
     // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
         // Stage 16C IVP-140: station periodic work (GPS poll, MCU temp).
         // No-op until IVP-141 adds the GPS body. Safe-in-idle by design.

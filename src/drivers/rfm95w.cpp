@@ -15,7 +15,7 @@
 
 #include "rfm95w.h"
 #include "spi_bus.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 

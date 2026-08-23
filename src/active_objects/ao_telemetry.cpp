@@ -663,7 +663,7 @@ static void update_gcs_state(TelemAo* me, uint32_t t) {
 static void mavlink_direct_tick(TelemAo* me) {
 #ifndef ROCKETCHIP_HOST_TEST
     if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return; }
-    if constexpr (kRadioModeRx) { return; }  // Station uses RX path
+    if constexpr (job::kRadioModeRx) { return; }  // Station uses RX path
     if (!me->telem_valid) { return; }
     if (!stdio_usb_connected()) { return; }
 
@@ -751,7 +751,7 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
         // Vehicle TX: encode and post to AO_Radio
-        if constexpr (!kRadioModeRx) {
+        if constexpr (!job::kRadioModeRx) {
             encode_and_send(me);
         }
         // Vehicle direct USB MAVLink (no radio)

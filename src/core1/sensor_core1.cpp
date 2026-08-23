@@ -8,7 +8,6 @@
 
 #include "core1/sensor_core1.h"
 
-#include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/job.h"            // R-1: distinguish vehicle vs station/relay path for boot-wait bound
 #include "safety/fault_protection.h"   // OPT-IVP-01: shared MPU stack guard (removes duplication)

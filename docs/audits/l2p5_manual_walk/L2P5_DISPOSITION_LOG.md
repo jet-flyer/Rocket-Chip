@@ -67,7 +67,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-266 | REMEDIATE | closed | `core1_i2c_pause.cpp` restating branches dropped |
 | WN-292 | REMEDIATE | closed | `ao_logger.h` partial `@param` island gone |
 
-**Not closed:** source conversion is **staged** on `grok/l2p5-disposition` (99 files, net −1772). Pre-commit wants `bench_sim`; OpenOCD was down. Inventory commit `8271dbd`. Sitting 13 still owns the 118 archaeology WNs (R-7).
+**Code:** `0cab2ea` (99 files, net −1772). Inventory `8271dbd`. Rem WB **R-7**. Sitting 13 still owns the 118 archaeology WNs.
 
 ---
 
@@ -81,9 +81,9 @@ Commit cited is on `grok/l2p5-disposition`.
 |----|-------|-------|-------|
 | WN-001 | REMEDIATE | labeled | pending Phase 3 — `g_imu` banner (rewrite already landed) |
 | WN-003 | REMEDIATE | labeled | pending Phase 3 — `rc_log.h` narrative mass |
-| WN-005 | REMEDIATE | labeled | pending Phase 3 — `config.h` standards restated in banner |
-| WN-006 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` banner over-cites |
-| WN-017 | REMEDIATE | labeled | pending Phase 3 — `config.h` R-5 DBG essay |
+| WN-005 | REMEDIATE | closed | `config.h` banner gone with the file |
+| WN-006 | REMEDIATE | closed | `RC_ASSERT` banner gone with the file |
+| WN-017 | REMEDIATE | closed | R-5 DBG essay dropped with the grab-bag; `rc_debug.h` is the short contract |
 | WN-019 | REMEDIATE | labeled | pending Phase 3 — `board.h` banner contract vs history |
 | WN-021 | REMEDIATE | labeled | pending Phase 3 — Tiny 2350 / Pico 2 scaffolding completeness |
 | WN-025 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam M1/N1/M2/M3 ticket tags |
@@ -452,22 +452,24 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 ## Version / identity / config.h grab-bag (15) — LABELED 2026-08-21
 
 **Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 7. All REMEDIATE.
+**config.h dissolve:** file deleted; `DBG_*` → `rc_debug.h`; `job::kRadioModeRx` at
+call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-007 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` unused |
-| WN-008 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` in prod header |
-| WN-009 | REMEDIATE | labeled | pending Phase 3 — version SSOT wording |
-| WN-010 | REMEDIATE | labeled | pending Phase 3 — stale version numbers |
-| WN-011 | REMEDIATE | labeled | pending Phase 3 — phantom `version_string()` |
-| WN-012 | REMEDIATE | labeled | pending Phase 3 — product-tier defines |
-| WN-013 | REMEDIATE | labeled | pending Phase 3 — job re-export in `config.h` |
-| WN-015 | REMEDIATE | labeled | pending Phase 3 — does `config.h` need to exist? |
-| WN-016 | REMEDIATE | labeled | pending Phase 3 — DBG helpers in `config.h` |
-| WN-018 | REMEDIATE | labeled | pending Phase 3 — `DBG_*` rename macros |
-| WN-067 | REMEDIATE | labeled | pending Phase 3 — version SSOT aspirational (ties WN-010) |
-| WN-092 | REMEDIATE | labeled | pending Phase 3 — hypsometric constants SSOT |
-| WN-126 | REMEDIATE | labeled | pending Phase 3 — baro “~32Hz” as SSOT rate |
+| WN-007 | REMEDIATE | closed | `RC_ASSERT` deleted with `config.h` (0 callers) |
+| WN-008 | REMEDIATE | closed | unused assert left the prod header with the file |
+| WN-009 | REMEDIATE | labeled | pending — version SSOT wording (R-9, not this commit) |
+| WN-010 | REMEDIATE | labeled | pending — stale version numbers (R-9 DEFER) |
+| WN-011 | REMEDIATE | labeled | pending — phantom `version_string()` (R-9) |
+| WN-012 | REMEDIATE | closed | unused `TIER_*` / `FEATURE_*` dropped with `config.h` |
+| WN-013 | REMEDIATE | closed | `using job::kRadioModeRx` gone; callers use `job::` |
+| WN-015 | REMEDIATE | closed | grab-bag deleted; filename free (R-8) |
+| WN-016 | REMEDIATE | closed | `DBG_*` live in `rc_debug.h` |
+| WN-018 | REMEDIATE | labeled | pending — `DBG_*` rename macros still in `rc_debug.h` |
+| WN-067 | REMEDIATE | labeled | pending — version bump process (R-9, not this sitting) |
+| WN-092 | REMEDIATE | labeled | pending — hypsometric SSOT (not this commit) |
+| WN-126 | REMEDIATE | closed | `eskf_runner` baro tick is on `baro_read_count`, not a fusion Hz |
 | WN-183 | REMEDIATE | labeled | pending Phase 3 — guard sustain/managed not sole SSOT |
 | WN-286 | REMEDIATE | labeled | pending Phase 3 — ao_health_monitor pub/sub claims |
 

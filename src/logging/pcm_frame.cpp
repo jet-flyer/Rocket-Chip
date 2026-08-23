@@ -4,7 +4,7 @@
 
 #include "rocketchip/pcm_frame.h"
 #ifdef PICO_ON_DEVICE
-#include "rocketchip/config.h"    // kVersionString
+#include "rocketchip/version.h"   // kFirmwareVersion
 #include "rocketchip/board.h"     // board::kBoardName
 #endif
 #include "crc16_ccitt.h"
@@ -131,7 +131,7 @@ void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
 }
 
 // ============================================================================
-// Flight log header population (target only — needs config.h and board.h)
+// Flight log header population (target only — needs version.h and board.h)
 // ============================================================================
 
 #ifdef PICO_ON_DEVICE
@@ -151,7 +151,7 @@ void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
         std::memcpy(dst, src, len);
     };
 
-    copy_field(hdr.firmware_version, sizeof(hdr.firmware_version), kVersionString);
+    copy_field(hdr.firmware_version, sizeof(hdr.firmware_version), kFirmwareVersion);
     copy_field(hdr.build_tag, sizeof(hdr.build_tag), "ivp74-profile-1");
     copy_field(hdr.board_name, sizeof(hdr.board_name), board::kBoardName);
     copy_field(hdr.profile_name, sizeof(hdr.profile_name), profile_name);

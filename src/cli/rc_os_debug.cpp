@@ -25,7 +25,7 @@
 #include "active_objects/ao_led_engine.h"
 #include "active_objects/ao_radio.h"           // T6: local config set
 #include "rocketchip/led_patterns.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
 #include "rocketchip/radio_config_table.h"     // T6: whitelist for digit keys
 #include "pico/stdlib.h"
@@ -99,7 +99,7 @@ void dev_led_test_feed(int c) {
 bool dev_debug_menu_dispatch(int c) {
     switch (c) {
         case 's': case 'S':
-            if constexpr (kRadioModeRx) {
+            if constexpr (job::kRadioModeRx) {
                 cli_print_station_status();
             } else {
                 cli_print_sensor_status();

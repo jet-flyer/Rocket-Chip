@@ -29,7 +29,7 @@
 #include "calibration/calibration_data.h" // CAL_STATUS_MAG
 #include "flight_director/flight_director.h"  // flight_director_launch_abort()
 #include "fusion/eskf_runner.h"           // eskf_is_disabled()
-#include "rocketchip/config.h"            // DBG_PRINT
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/job_capabilities.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
 
 // ============================================================================
