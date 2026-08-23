@@ -221,7 +221,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-080 | REMEDIATE | closed | I2C scan names labeled as diag inventory |
 | WN-102 | REMEDIATE | closed | `kRadioTrustDio0`; no Fruit Jam name in `rfm95w` |
 | WN-109 | DEFER | labeled | `spi_bus` banner now SX1276 helper; **filename rename** still open |
-| WN-110 | ACCEPT | closed | keep thin `mcu_temp` (keep-with-why) |
+| WN-110 | REMEDIATE | closed | KEEP named RP2350 die-temp driver (datasheet §12.4.6, `board::kMcuTempAdcInput`). Not a generic ADC HAL (sitting 4: no fake-universal bus). Not a sitting-12 fold — file earns the part name; not deleted. |
 | WN-111 | REMEDIATE | closed | temp ADC channel from `board::` |
 | WN-124 | REMEDIATE | closed | `board::kImuZUpNed` |
 | WN-127 | REMEDIATE | closed | mag 3-axis opt-in comments |
@@ -337,7 +337,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 |----|-------|-------|-------|
 | WN-002 | REMEDIATE | closed | `g_imu` contract in header; after handoff Core 0 does not `icm20948_read*` (`cal_read_accel` gone; CLI 's' seqlock; HW-status config dump skipped when Core 1 owns bus) |
 | WN-042 | DEFER | labeled | WB early-impl — seqlock still the right path? |
-| WN-045 | ACCEPT | closed | prod header gone; parked at `docs/audits/l2p5_manual_walk/parked/sensor_snapshot.h`. IVP/ADVANCED_SETTINGS still name IVP-55 until those files are named |
+| WN-045 | REMEDIATE | closed | prod header gone; archive at `docs/audits/l2p5_manual_walk/parked/sensor_snapshot.h`. IVP/ADVANCED_SETTINGS still name IVP-55 until those files are named |
 | WN-062 | DEFER | labeled | WB early-impl — flash layout map, low priority |
 | WN-066 | DEFER | labeled | after RC_OS rework — `station_output_mode.h` |
 | WN-079 | DEFER | labeled | WB early-impl — i2c PA keep used-only |

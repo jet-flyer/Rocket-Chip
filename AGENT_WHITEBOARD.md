@@ -81,11 +81,11 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Done (sitting 13):** process archaeology 118/118 closed. A `a4a0c74` no fake ARM ACK, flash constexprs; B–G comment bins; H `9353a90` leftovers (FD/cal/encoder/AO/main). ARM live path is `AO_Telemetry` `dispatch_command` → `SIG_ARM`. Starcom leftover: WN-235 `DO_SET_MODE`. SAD §9.3 still stale (hard-protected).
 
-**Done (owner leftover rows):** WN-051 deleted lying DEPRECATED health aliases; WN-002 Core 0 does not `icm20948_read*` after handoff; WN-045 parked ACCEPT; WN-004 SPDX log closed (`f1c6f83`). Rem WB R-1 / R-3 erased. R-9 version bump still owner-scheduled.
+**Done (owner leftover rows):** WN-051 deleted lying DEPRECATED health aliases; WN-002 Core 0 does not `icm20948_read*` after handoff; WN-045 parked (REMEDIATE, not ACCEPT); WN-004 SPDX log closed (`f1c6f83`). Rem WB R-1 / R-3 erased. R-9 version bump still owner-scheduled.
 
 **Next:** Phase 4 Grok chunk `GWF-001–498`. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`. First-flight prod strip (omit test/inject TUs from the ELF) is a separate WB row.
 
-**Sitting 10 (2026-08-23):** fusion/math/cal 10/10 closed on worktree. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up, `vehicle flight v0.16.0 (kmenu)`. Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
+**Sitting 10 (2026-08-23):** fusion/math/cal 10/10 closed on worktree. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up, `vehicle flight v0.16.0 (kmenu)`. Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 4 `src/` on `main`.
 
