@@ -3,10 +3,16 @@
 #ifndef ROCKETCHIP_FUSION_ESKF_H
 #define ROCKETCHIP_FUSION_ESKF_H
 
-// ESKF: 24-state error-state KF. Pure C++ — no Pico SDK.
+// ESKF: 24-state error-state KF. Host-build, no Pico SDK.
 // Nominal: q (body→NED), p, v, biases, earth mag, body mag bias, wind, baro bias.
 // Error state: eskf_state.h. States 15–23 have runtime inhibit flags.
-// Solà 2017 arXiv:1711.02508. Noise from ICM-20948 DS-000189 unless marked empirical.
+// Solà 2017 arXiv:1711.02508.
+//
+// Noise/R/init defaults are for this vehicle's sensors (ICM-20948 DS-000189,
+// DPS310, AK09916, MT3333/PA1010D) unless marked empirical. A part swap
+// retunes R — it does not fork the ESKF.
+// Joseph scalar measurement path removed 2026-07 after host parity; Bierman
+// UD is the only measurement path.
 
 #include "fusion/eskf_state.h"
 #include "fusion/innovation_monitor.h"
@@ -15,13 +21,6 @@
 #include "math/mat.h"
 #include "math/quat.h"
 #include "math/vec3.h"
-
-// Bierman UD measurement path is the only supported implementation (host +
-// flight). Historical Joseph scalar path removed 2026-07 after host parity.
-// Define kept as always-on so residual call sites / docs can still mention it.
-#ifndef ESKF_USE_BIERMAN
-#define ESKF_USE_BIERMAN 1
-#endif
 
 namespace rc {
 
@@ -64,8 +63,7 @@ struct ESKF {
     static constexpr float kGravity = 9.80665F;  // m/s²
 
     // =================================================================
-    // IMU noise parameters — ICM-20948 DS-000189 v1.3
-    // All values verified correct.
+    // IMU noise parameters — ICM-20948 DS-000189 v1.3 (this vehicle's IMU).
     // Bias walk values conservative for stationary/low-vibration.
     // May need 10-100× increase during boost/coast phases (handled by phase Q/R).
     // =================================================================
@@ -105,10 +103,12 @@ struct ESKF {
     // ArduPilot EK3_MAGB_P_NSE default = 1e-4 Gauss/s = 0.01 uT/s
     static constexpr float kSigmaBodyMagBiasWalk = 0.01F;  // uT/s
 
-    // Wind velocity process noise (horizontal gust variance)
+    // Wind velocity process noise (horizontal gust variance).
     // ArduPilot EK3_WIND_P_NSE: 0.1 (Plane/Rover), 0.2 (Copter).
-    // Parachute descent has high drag + low inertia = sensitive to gusts,
-    // more like Copter than Plane. 0.2 matches Copter default.
+    // High-drag parachute descent is Copter-like; 0.2 is this vehicle's
+    // descent default. HAB/long-float wanting Plane 0.1 is a future profile
+    // hook, not a live override. Keep in sync with eskf_codegen (do not
+    // change this value without regenerating codegen).
     static constexpr float kSigmaWindWalk = 0.2F;  // m/s/s
 
     // Barometric altitude bias process noise.
@@ -173,14 +173,14 @@ struct ESKF {
     static constexpr float kStationaryGyroMax = 0.02F;  // rad/s (~1.1°/s)
 
     // =================================================================
-    // Health sentinel — velocity divergence guard
-    // Max plausible velocity: above hobby rocket burnout (~Mach 1.5 ≈ 510 m/s)
-    // but well below any divergence trajectory (1688 m/s after ~3 min of accel-bias
-    // at 9.8 m/s²). Catches silent ICM-20948 zero-output fault before vel grows
-    // large enough to corrupt bias estimates.
+    // Health sentinel — velocity divergence guard, not a vehicle Vmax.
+    // Above plausible hobby-rocket burnout (~Mach 1.5 ≈ 510 m/s at sea-level
+    // ISA, speed of sound 340.3 m/s) and below slow accel-bias runaway (~1688 m/s after
+    // ~3 min at 9.8 m/s²). A healthy HAB never hits this; a diverging filter
+    // still will. Catches silent ICM-20948 zero-output before vel corrupts
+    // bias estimates. 500 m/s gives ~1 s headroom vs Mach 1.5.
     // =================================================================
 
-    // Source: Mach 1.5 at sea level ≈ 510 m/s — 500 m/s gives ~1s headroom.
     static constexpr float kMaxHealthyVelocity = 500.0F;  // m/s
 
     // =================================================================
@@ -319,7 +319,7 @@ struct ESKF {
     // z = altitude_agl_m (positive up, from calibration_get_altitude_agl).
     // h(x) = -p.z (NED down negated). H = [0 0 0 | 0 0 -1 | 0...].
     // Returns false if input is non-finite or innovation is gated out.
-    // Solà (2017) §7.2, Joseph form for P update.
+    // Solà (2017) §7.2; Bierman UD scalar P update.
     bool update_baro(float altitudeAglM);
 
     // Magnetometer heading measurement update.
@@ -334,7 +334,7 @@ struct ESKF {
     // h(x) = -atan2(m_level.y, m_level.x) + declination.
     // H ≈ [0, 0, 1, 0...0] (yaw-only approximation — see constants block).
     // Returns false if non-finite, magnitude too low, interference reject,
-    //   or innovation gated out. Solà (2017) §6.2, Joseph form.
+    //   or innovation gated out. Solà (2017) §6.2; Bierman UD scalar P update.
     bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                             float declinationRad = 0.0F);
 
@@ -356,8 +356,8 @@ struct ESKF {
     // sets P velocity diagonal to kInitPVelocity.
     // Biases are NOT reset — they represent physical sensor characteristics
     // that survive state transitions (council unanimous).
-    // Note: triggers ensure_dense() when ESKF_USE_BIERMAN is active —
-    // next predict cycle will pay UD factorization cost.
+    // Note: triggers ensure_dense() — next predict cycle pays UD
+    // factorization cost.
     void reset_velocity();
 
     // Reset position to zero with covariance reset (Flight Director API).

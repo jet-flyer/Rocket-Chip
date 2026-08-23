@@ -712,7 +712,7 @@ void ESKF::invalidate_ud_factors() {
 //   R = kRBaro = 0.033² ≈ 0.001089 m²
 //
 // Sequential scalar update — no matrix inverse needed.
-// Joseph form P update for numerical stability (Bucy & Joseph, 1968).
+// Bierman UD scalar P update (Joseph form removed 2026-07).
 // Static locals for Mat15 temporaries (LL Entry 1, ~2.9KB BSS).
 // Single-threaded Core 0 — no reentrancy concern.
 //
@@ -816,7 +816,7 @@ static float wrap_pi(float angle) {
 //   >50% deviation: hard reject
 //
 // Sequential scalar update — same pattern as update_baro().
-// Joseph form P update for numerical stability.
+// Bierman UD scalar P update.
 // Static locals for Mat24 temporaries (LL Entry 1).
 // ============================================================================
 // Compute effective R after two-tier interference detection.

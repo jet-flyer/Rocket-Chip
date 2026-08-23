@@ -485,9 +485,9 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 | WN | Label | State | Close |
 |----|-------|-------|-------|
 | WN-075 | REMEDIATE | closed | `mat.h` banner: host-build / float32 / no heap; not eternal law |
-| WN-132 | REMEDIATE | labeled | pending sitting 10 group B — `ESKF_USE_BIERMAN` dead switch |
-| WN-133 | REMEDIATE | labeled | pending sitting 10 group B — ESKF noise/init prototype-HW |
-| WN-134 | REMEDIATE | labeled | pending sitting 10 group B — defaults for one mission shape |
+| WN-132 | REMEDIATE | closed | deleted always-on `ESKF_USE_BIERMAN`; Bierman is the only path |
+| WN-133 | REMEDIATE | closed | ESKF R/init labeled as this-vehicle sensor defaults; numbers kept |
+| WN-134 | REMEDIATE | closed | wind 0.2 + vel 500 kept; comments: descent default / divergence sentinel |
 | WN-153 | REMEDIATE | closed | cal section renamed “Flash signature and schema version”; fourCC kept |
 | WN-157 | REMEDIATE | labeled | pending sitting 10 group C — cal sample counts vs sensor Hz |
 | WN-191 | REMEDIATE | closed | profile comment: SI for m/m/s/m/s^2; timeouts are `*_ms` |

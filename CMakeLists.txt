@@ -58,9 +58,6 @@ if(BUILD_TESTS)
         src/fusion/eskf_brake.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
-    # Host matches flight: Bierman UD is the only measurement path (forced
-    # in eskf.h). Define retained for any residual #ifdef call sites/docs.
-    target_compile_definitions(rc_fusion PUBLIC ESKF_USE_BIERMAN=1)
 
     # ------------------------------------------------------------------
     # Logging library (no SDK dependencies)
@@ -741,11 +738,6 @@ else()
     # Enable USB CDC for stdio (not UART)
     pico_enable_stdio_usb(rocketchip 1)
     pico_enable_stdio_uart(rocketchip 0)
-
-    # Bierman scalar measurement update (replaces Joseph form)
-    target_compile_definitions(rocketchip PRIVATE
-        ESKF_USE_BIERMAN=1
-    )
 
     # Device role selection (IVP-95)
     # Pass -DROCKETCHIP_JOB_STATION=1 or -DROCKETCHIP_JOB_RELAY=1 to cmake
