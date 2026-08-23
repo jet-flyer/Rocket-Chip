@@ -83,7 +83,7 @@ static uint32_t g_pendingApplyBackstopCount = 0;
 // UX confirmation that THIS packet is from the intentional transition.
 static bool g_configJustChanged = false;
 
-// Sub-persist (Option C): debounced flash-write trigger. Set to a countdown
+// Debounced flash-write trigger. Set to a countdown
 // on successful apply; decrements each tick; when it hits 0 AND the apply
 // watchdog has cleared (apply_in_progress == false), we flush the current
 // runtime_config to flash. Skipped if the debounce starts while another
@@ -96,7 +96,7 @@ static bool     g_persistRequested = false;
 // Forward declarations
 static QState radio_ao_initial(RadioAo * const me, QEvt const * const e);
 static QState radio_ao_running(RadioAo * const me, QEvt const * const e);
-static void ao_radio_apply_runtime_config(RadioAoState& s);       // T5.5 prereq #1
+static void ao_radio_apply_runtime_config(RadioAoState& s);
 static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
 #if defined(ROCKETCHIP_RADIO_PERSIST)
 static void ao_radio_revert_to_prev_config(RadioAoState& s);      // T5.5 sub 2d
@@ -246,11 +246,8 @@ static void handle_tx_poll(RadioAo* me) {
                       static_cast<unsigned>(s.tx_consec_fail));
             rfm95w_init(&s.radio,
                         s.radio.cs_pin, s.radio.rst_pin, s.radio.irq_pin);
-            // Stage T IVP-T5.5 prereq #1: rfm95w_init() writes
-            // configure_modem() compile-time defaults (SF7/BW125/CR5/+20dBm).
-            // Reapply runtime_config so a runtime-SET config survives the
-            // recovery. Before this fix, post-recovery radio silently snapped
-            // back to defaults while station expected new config → zero RX.
+            // rfm95w_init() writes compile-time modem defaults. Reapply
+            // runtime_config so a runtime-SET config survives recovery.
             ao_radio_apply_runtime_config(s);
         } else if (s.tx_consec_fail >= kTxFailLogThresh) {
             DBG_ERROR("RADIO: TX timeout (%u consecutive)",
@@ -263,7 +260,7 @@ static void handle_tx_poll(RadioAo* me) {
     // kBusy — continue polling next tick
 }
 
-// Stage T IVP-T5.5 prereq #1: apply runtime radio config to the SX1276.
+// Apply runtime radio config to the SX1276.
 // Called from BOTH RadioAo_initial (fresh boot) AND the reinit-recovery branch
 // in handle_tx_poll() — without this, rfm95w_init() during TX-fail recovery
 // silently snapped radio back to configure_modem() compile-time defaults
@@ -529,9 +526,8 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
     s.link_quality = 0;
     s.boot_audit_valid = false;
 
-    // T5.5 prereq #1: seed runtime_config. Default is the mission-profile
-    // value; persistence-on may override from flash. SET_RADIO_CONFIG
-    // later mutates the field at runtime.
+    // Seed runtime_config from the mission-profile default; persistence-on
+    // may override from flash. SET_RADIO_CONFIG later mutates at runtime.
     s.runtime_config = rc::kDefaultRocketRadioConfig;
     ao_radio_boot_seed_runtime_config(s);
 
@@ -542,7 +538,7 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
             board::kRadioIrqPin)) {
         s.initialized = true;
 
-        // Apply RadioConfig from Mission Profile (IVP-64 / T5.5 prereq #1)
+        // Apply RadioConfig from the mission profile.
         ao_radio_apply_runtime_config(s);
 
         // IVP-T11 boot audit: read registers that must match between vehicle

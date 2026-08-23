@@ -116,10 +116,8 @@ static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalle
 } // namespace rc
 
 // ============================================================================
-// Backward-compatibility aliases (non-namespaced)
-//
-// Used throughout main.cpp, rc_os.cpp, ao_led_engine.cpp until those files
-// are migrated to use rc::led:: namespace directly.
+// Live aliases (non-namespaced). Canonical names are rc::led::k*.
+// Callers: ao_rcos.cpp, ao_led_engine.cpp. Not a dead-compat layer.
 // ============================================================================
 static constexpr uint8_t kCalNeoOff         = rc::led::kOff;
 static constexpr uint8_t kCalNeoGyro        = rc::led::kCalGyro;

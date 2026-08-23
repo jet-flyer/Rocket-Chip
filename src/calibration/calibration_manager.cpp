@@ -484,7 +484,7 @@ void calibration_reset_6pos() {
 }
 
 // ============================================================================
-// Async 6-Position API (Phase D1)
+// Async 6-position API
 // ============================================================================
 
 cal_result_t calibration_start_6pos_position(uint8_t pos) {
@@ -1096,7 +1096,7 @@ void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
 
 void calibration_apply_accel_with(const calibration_store_t* cal,
                                    const cal_vec3_t& raw, cal_vec3_t& out) {
-    // Stage 1: Ellipsoid correction — M * (raw + offset)
+    // Ellipsoid correction: M * (raw + offset)
     // M is symmetric 3x3 with scale (diagonal) and offdiag terms
     float ox = raw.x + cal->accel.offset.x;
     float oy = raw.y + cal->accel.offset.y;
@@ -1130,7 +1130,7 @@ void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
 
 void calibration_apply_mag_with(const calibration_store_t* cal,
                                   const cal_vec3_t& raw, cal_vec3_t& out) {
-    // Stage 1: Ellipsoid correction — M * (raw + offset)
+    // Ellipsoid correction: M * (raw + offset)
     float ox = raw.x + cal->mag.offset.x;
     float oy = raw.y + cal->mag.offset.y;
     float oz = raw.z + cal->mag.offset.z;

@@ -32,9 +32,7 @@ enum class ActionType : uint8_t {
 
 // ============================================================================
 // LED Phase Values — NeoPixel override codes for flight phases.
-//
-// These extend the kCalNeo* / kRxNeo* overlay scheme in main.cpp.
-// Values start at 20 to avoid collision with cal (0-8) and rx (9-11).
+// Canonical overlay table is led_patterns.h (cal 0-8, rx 9-11, FD 20+).
 // ============================================================================
 enum LedPhaseValue : uint8_t {
     kLedPhaseIdle           = 0,    // No flight override (normal status logic)

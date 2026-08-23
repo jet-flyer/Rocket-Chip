@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stddef.h>
 
-// CRC-16/CCITT constants (ITU-T V.41)
+// CRC-16-CCITT (poly 0x1021, init 0xFFFF — same poly as ITU-T V.41)
 constexpr uint16_t kCrc16Init       = 0xFFFF;   // Initial CRC value
 constexpr uint16_t kCrc16Poly       = 0x1021;   // CCITT polynomial
 constexpr uint16_t kCrc16HighBit    = 0x8000;   // MSB test mask

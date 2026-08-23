@@ -7,13 +7,9 @@
 // Each handler processes QEP signals (Q_ENTRY_SIG, Q_EXIT_SIG, user signals)
 // and returns Q_HANDLED(), Q_TRAN(), or Q_SUPER().
 //
-// ABORT behavior follows Council Amendment #1:
-//   ABORT-from-BOOST:   fire drogue pyro (safety)
-//   ABORT-from-COAST:   fire drogue pyro
-//   ABORT-from-DESCENT: no-op (chutes already deployed)
-//   Pad abort timeout:  → IDLE (never launched)
-//   In-flight abort:    beacon after timeout, stays in ABORT (no LANDED)
-//   Re-ARM from ABORT requires explicit RESET first
+// ABORT: BOOST/COAST fire drogue; DESCENT is no-op (chutes already out).
+// Pad abort timeout → IDLE. In-flight abort stays in ABORT (beacon, no LANDED).
+// Re-ARM from ABORT requires explicit RESET first.
 //============================================================================
 
 #include "flight_director.h"

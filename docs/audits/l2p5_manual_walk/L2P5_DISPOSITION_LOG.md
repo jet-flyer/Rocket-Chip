@@ -405,48 +405,48 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 ---
 
-## File earn-rent / naming / packaging (37) — SITTING 12 IN PROGRESS 2026-08-23
+## File earn-rent / naming / packaging (37) — SITTING CLOSED 2026-08-23
 
 **Sitting:** Phase 3 sitting 12. Rule: fold thin files; they can re-split later if they earn it. W-5 is include-count evidence, not the verdict. Groups of 2–4 (R-10).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-030 | REMEDIATE | labeled | pending Phase 3 — `job.h` name / scaffold |
-| WN-031 | REMEDIATE | labeled | pending Phase 3 — DeviceRole mutually exclusive |
+| WN-030 | REMEDIATE | closed | KEEP `job.h` name (role selector, not MissionProfile) |
+| WN-031 | REMEDIATE | closed | KEEP DeviceRole mutually exclusive via CMake job packs |
 | WN-032 | REMEDIATE | closed | folded `kRoleSamplesCore1` / `kRoleRunsLogger` into `job.h`; deleted `job_capabilities.h` |
-| WN-034 | REMEDIATE | labeled | pending Phase 3 — job packs three files (W-5: KEEP selector packs) |
-| WN-057 | REMEDIATE | labeled | pending Phase 3 — `k*Neo*` compat aliases |
-| WN-065 | REMEDIATE | labeled | pending Phase 3 — `prearm_fail_ticks.h` (W-5: KEEP) |
-| WN-072 | REMEDIATE | labeled | pending Phase 3 — `vec3.cpp` zero comments |
-| WN-074 | REMEDIATE | labeled | pending Phase 3 — rename `mat.h` |
-| WN-099 | REMEDIATE | labeled | pending Phase 3 — RFM JSF-151 section banner |
-| WN-113 | REMEDIATE | labeled | pending Phase 3 — `ws2812_status` name vs notify |
+| WN-034 | REMEDIATE | closed | KEEP three job packs (compile-time selector, not one mega-header) |
+| WN-057 | REMEDIATE | closed | `kCalNeo*` aliases are live (ao_rcos, ao_led_engine); comment no longer says "until migrated" |
+| WN-065 | REMEDIATE | closed | KEEP `prearm_fail_ticks.h` (host test include surface) |
+| WN-072 | REMEDIATE | closed | KEEP `vec3.cpp` sparse — `kNormEpsilon` is the one needed cite |
+| WN-074 | REMEDIATE | closed | KEEP `mat.h` name |
+| WN-099 | REMEDIATE | closed | RFM banner "Named constants (datasheet-cited below)"; dropped JSF-151 |
+| WN-113 | REMEDIATE | closed | KEEP `ws2812_status` name (driver, not notify) |
 | WN-140 | REMEDIATE | closed | brake folded into `eskf_runner.h` (inline C++17 state); host tests keep linking without Pico `board.h` |
-| WN-154 | REMEDIATE | labeled | pending Phase 3 — CRC-16 insider comment |
-| WN-160 | REMEDIATE | labeled | pending Phase 3 — cal manager Phase/Stage labels |
-| WN-164 | REMEDIATE | labeled | pending Phase 3 — cal storage Doxygen / sparse |
-| WN-171 | REMEDIATE | labeled | pending Phase 3 — FlightSignal alias |
-| WN-173 | REMEDIATE | labeled | pending Phase 3 — FD cpp process/IVP essays |
-| WN-177 | REMEDIATE | labeled | pending Phase 3 — LED phase codes split |
-| WN-178 | REMEDIATE | labeled | pending Phase 3 — action_executor pair sparse (W-5: KEEP) |
-| WN-186 | REMEDIATE | labeled | pending Phase 3 — guard_combinator home |
-| WN-197 | REMEDIATE | labeled | pending Phase 3 — guard_functions Doxygen / sparse |
-| WN-198 | REMEDIATE | labeled | pending Phase 3 — `src/log/` vs `src/logging/` |
-| WN-209 | REMEDIATE | labeled | pending Phase 3 — `flight_table` name |
-| WN-213 | REMEDIATE | labeled | pending Phase 3 — data_convert sparse TU |
-| WN-218 | REMEDIATE | labeled | pending Phase 3 — radio_config_storage Option C banner |
-| WN-224 | REMEDIATE | labeled | pending Phase 3 — `src/diag/` folder-for-one (W-5: KEEP pair) |
-| WN-225 | REMEDIATE | labeled | pending Phase 3 — diag_stats still needed? |
-| WN-228 | REMEDIATE | labeled | pending Phase 3 — audio backend no-op stub |
-| WN-239 | REMEDIATE | labeled | pending Phase 3 — `src/station/` folder-for-one |
-| WN-240 | REMEDIATE | labeled | pending Phase 3 — station_idle_tick size |
-| WN-246 | REMEDIATE | labeled | pending Phase 3 — anomalous_boot placement |
+| WN-154 | REMEDIATE | closed | CRC-16-CCITT poly 0x1021 named; ITU-T V.41 as same-poly cite |
+| WN-160 | REMEDIATE | closed | cal manager "Phase D1" / IVP-sounding Stage labels dropped |
+| WN-164 | REMEDIATE | closed | KEEP cal storage sparse (no Doxygen left) |
+| WN-171 | REMEDIATE | closed | FlightSignal is a live alias of RcSignal; comment says so |
+| WN-173 | REMEDIATE | closed | FD cpp abort contract kept; Council Amendment / process banner dropped |
+| WN-177 | REMEDIATE | closed | LED phase codes point at `led_patterns.h`, not main.cpp |
+| WN-178 | REMEDIATE | closed | KEEP action_executor pair |
+| WN-186 | REMEDIATE | closed | KEEP guard_combinator home |
+| WN-197 | REMEDIATE | closed | KEEP guard_functions sparse |
+| WN-198 | REMEDIATE | closed | KEEP `src/log/` vs `src/logging/` split |
+| WN-209 | REMEDIATE | closed | KEEP `flight_table` name |
+| WN-213 | REMEDIATE | closed | KEEP data_convert sparse TU |
+| WN-218 | REMEDIATE | closed | radio_config_storage: "debounced persist", dropped Option C / IVP-T5.5 |
+| WN-224 | REMEDIATE | closed | KEEP `src/diag/` pair |
+| WN-225 | REMEDIATE | closed | KEEP diag_stats |
+| WN-228 | REMEDIATE | closed | KEEP audio backend stub |
+| WN-239 | REMEDIATE | closed | KEEP `src/station/` |
+| WN-240 | REMEDIATE | closed | KEEP station_idle_tick |
+| WN-246 | REMEDIATE | closed | KEEP anomalous_boot placement |
 | WN-249 | REMEDIATE | closed | folded sentinel into `crash_record.cpp`; HOST_TEST stubs AIRCR so host FD still links |
 | WN-264 | REMEDIATE | closed | folded pause/resume into `shared_state` next to the handshake atomics |
-| WN-276 | REMEDIATE | labeled | pending Phase 3 — `src/core1/` folder-for-one (W-5: KEEP pair) |
-| WN-277 | REMEDIATE | labeled | pending Phase 3 — sensor_core1.h comment ratio |
-| WN-297 | REMEDIATE | labeled | pending Phase 3 — ao_radio “T5.5 prereq #1” |
-| WN-306 | REMEDIATE | labeled | pending Phase 3 — `shared_state.cpp` what/where |
+| WN-276 | REMEDIATE | closed | KEEP `src/core1/` pair |
+| WN-277 | REMEDIATE | closed | KEEP sensor_core1.h comment density (already in band) |
+| WN-297 | REMEDIATE | closed | ao_radio "T5.5 prereq #1" dropped; runtime_config survival still documented |
+| WN-306 | REMEDIATE | closed | KEEP `shared_state.cpp` as the g_* definition TU |
 | WN-308 | REMEDIATE | closed | deleted unused `kWatchdogTimeoutMs` in `main.cpp` and `rc_os_commands.cpp` (watchdog is `pio_watchdog`) |
 
 ---

@@ -20,7 +20,7 @@
 #include "pico/time.h"
 
 // ============================================================================
-// File-scope constants (JSF AV Rule 151)
+// Named constants (datasheet-cited below)
 // ============================================================================
 
 // Hardware reset timing (SX1276 datasheet Section 7.2.2)

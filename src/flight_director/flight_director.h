@@ -53,9 +53,8 @@ extern "C" {
 
 namespace rc {
 
-// Flight Director signals are now defined in ao_signals.h as part of the
-// system-wide RcSignal enum. FlightSignal is a backward-compatible alias.
-// Signal values (SIG_TICK=4 through SIG_RESET=13) are unchanged.
+// Flight Director signals live in ao_signals.h (RcSignal). FlightSignal is
+// a live alias (command_handler, ao_flight_director). Values unchanged.
 
 // Signal name strings for logging
 const char* flight_signal_name(uint16_t sig);

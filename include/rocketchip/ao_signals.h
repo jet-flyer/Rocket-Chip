@@ -107,7 +107,7 @@ enum RcSignal : uint16_t {
     SIG_AO_MAX                       // 33: Sentinel — pub-sub array size
 };
 
-// Backward compatibility aliases
+// Live alias — command_handler and ao_flight_director still use this name.
 using FlightSignal = RcSignal;
 
 // SIG_MAX retained as enum member for code that assigns it to FlightSignal-typed

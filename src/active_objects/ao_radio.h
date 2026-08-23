@@ -39,13 +39,13 @@ struct RadioAoState {
     uint32_t           tx_count;         // Total packets sent (vehicle mode)
     uint32_t           relay_count;      // Packets relayed (relay mode)
     uint8_t            link_quality;     // 0=no radio, 1=lost, 2=gap, 3=receiving
-    // Stage T IVP-T5.5 prereq #1: mutable current config. Initialized to
-    // kDefaultRocketRadioConfig at boot. Survives rfm95w_init() reinit-recovery
-    // via ao_radio_apply_runtime_config() — without this, the recovery path at
-    // :148-152 silently snapped radio back to compile-time defaults.
+    // Mutable current config. Initialized to kDefaultRocketRadioConfig at
+    // boot. Survives rfm95w_init() reinit-recovery via
+    // ao_radio_apply_runtime_config() — without this, recovery snapped
+    // radio back to compile-time defaults.
     rc::RadioConfig    runtime_config;
 
-    // Stage T IVP-T5.5 sub 2d: symmetric-revert support. When a config apply
+    // Symmetric-revert: when a config apply
     // happens, `runtime_config` before apply is cached here. `tx_since_apply`
     // counts our own TXes on the new config; if it reaches the revert
     // threshold with no RX from the station, we self-revert to prev_config.
