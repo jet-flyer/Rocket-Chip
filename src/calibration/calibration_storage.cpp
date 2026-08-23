@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Calibration persistent storage implementation
-// Flash layout (at end of 8MB flash):
-// Sector A: 0x7FE000 - 0x7FEFFF (4KB)
-// Sector B: 0x7FF000 - 0x7FFFFF (4KB)
-// Uses dual-sector approach: writes alternate between sectors.
-// Sequence number determines which sector has newest valid data.
+// Calibration flash store. Dual-sector; offsets from flash_layout.h.
 
 #include "calibration_storage.h"
 #include "rocketchip/flash_layout.h"

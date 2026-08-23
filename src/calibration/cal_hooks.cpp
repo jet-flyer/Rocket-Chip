@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Calibration Hooks — Cross-Core I2C Pause/Resume + Sensor Read Callbacks
-//
-// Stage 13 AO Architecture: Phase 8 extraction from main.cpp.
+// Cal helpers: seqlock mag read, post-save Core 1 reload.
 //============================================================================
 
 #include "cal_hooks.h"

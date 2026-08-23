@@ -10,12 +10,8 @@
 // the filter's process noise (Q) is too low for the actual sensor noise.
 // The q_scale output can be used to inflate Q diagonals adaptively.
 //
-// Design properties (Council A7):
-//   - One-directional: inflates Q only, never deflates below baseline.
-//     This is a deliberate safety property — the filter should never
-//     become overconfident via innovation feedback.
-//   - Capped at kMaxQInflation to prevent unbounded Q growth.
-//   - Caller freezes adaptation during phase transition ramps.
+// Inflates Q only, never below baseline (no overconfidence via
+// innovation). Capped at kMaxQInflation. Caller freezes during ramps.
 
 #include <cstdint>
 

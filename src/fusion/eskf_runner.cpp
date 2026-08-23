@@ -4,7 +4,7 @@
 // ESKF Runner — Fusion Tick Module (Implementation)
 //
 // All ESKF-related state and tick functions live here. The public API
-// (eskf_runner.h) exposes read-only accessors per Council A6.
+// (eskf_runner.h) exposes read-only accessors.
 //============================================================================
 
 #include "fusion/eskf_runner.h"
@@ -71,7 +71,7 @@ static const rc::MissionProfile* g_profile = nullptr;
 
 // ESKF error-state Kalman filter (Core 0 at 200Hz)
 // Non-static: Core 1 reads g_eskf.v for GPS staleness heuristic (sensor_core1.cpp).
-// Per LL Entry 1: ESKF struct is ~970 bytes — file-scope, not stack.
+// ESKF ~970 bytes — file-scope, not stack (LL 1).
 rc::ESKF g_eskf;
 bool g_eskfInitialized = false;
 static uint32_t g_lastEskfImuCount = 0;
@@ -96,7 +96,7 @@ static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
 static uint32_t g_eskfBufferIndex = 0;
 static uint32_t g_eskfBufferCount = 0;
 
-// R-25-exec step 8 (2026-05-13): ifdef stripped per Approach A.
+// Always profile (Approach A).
 // Benchmark counters always accumulate; ~30 cycles per predict is
 // negligible at 200 Hz. Pattern matches ArduPilot/PX4 — flight ops
 // debugging needs these timings in production.
@@ -191,7 +191,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
-    // R-25-exec step 8 (2026-05-13): ifdef stripped. Always profile.
+    // Always profile.
     uint32_t t0 = time_us_32();
     g_eskf.predict(accel, gyro, dt);
 

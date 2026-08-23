@@ -8,17 +8,13 @@
 // inverse buffer) is passed in by the caller — no file-scope globals. This
 // is what makes the solver host-testable in isolation.
 //
-// Extracted from calibration_manager.cpp during R-6c of the 2026-05-07
-// master standards audit. Two goals:
-//   1. Replace function-pointer dispatch (P10 Rule 9 deviation FP-1) with
-//      template dispatch. Same machine code, no pointer-to-function in scope.
-//   2. Separate algorithm from state so the math is unit-testable.
+// Template dispatch (not function pointers). Host-testable in isolation.
 
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
 
-// LM damping constants (ArduPilot + council consensus 2026-02-10).
+// LM damping (ArduPilot-shaped).
 constexpr float kMagLmLambdaInit = 1.0F;
 constexpr float kMagLmLambdaUp   = 10.0F;
 constexpr float kMagLmLambdaDown = 0.1F;

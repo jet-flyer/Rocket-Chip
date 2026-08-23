@@ -1,17 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// ESKF Runner — Fusion Tick Module
-//
-// Owns the ESKF instance, Mahony AHRS cross-check, confidence gate,
-// GPS session stats, state circular buffer, and benchmark timing.
-// Called from qv_idle_bridge() at ~200Hz via seqlock sensor data.
-//
-// After each successful predict, publishes SIG_SENSOR_DATA via QP/C
-// pub-sub so downstream AOs (Logger, Telemetry, LED) can react.
-//
-// Public API uses read-only accessors (Council A6 pattern) — callers
-// get const pointers/copies, never modify ESKF state directly.
+// ESKF runner — 200 Hz tick from seqlock. Owns ESKF, Mahony cross-check,
+// confidence gate, GPS session stats, state buffer, bench timing.
+// After predict, publishes SIG_SENSOR_DATA. Accessors are read-only.
 //============================================================================
 #ifndef ROCKETCHIP_FUSION_ESKF_RUNNER_H
 #define ROCKETCHIP_FUSION_ESKF_RUNNER_H
@@ -27,7 +19,7 @@ struct MissionProfile;
 }
 
 // ============================================================================
-// Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)
+// Compact ESKF state for circular buffer (no P matrix)
 // 68 bytes per sample. At 200Hz for 5s = 1000 samples = 68KB static in SRAM.
 // ============================================================================
 struct eskf_state_snap_t {

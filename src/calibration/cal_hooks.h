@@ -1,18 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Calibration Hooks — Sensor Read Callbacks + Post-Save Reload Signal
-//
-// Provides sensor-read helpers called directly from ao_rcos:
-// - Mag read (reads from seqlock, no I2C contention)
-// - cal_post_hook (signals Core 1 to reload calibration after a save)
-//
-// Stage 13 AO Architecture: Phase 8 extraction from main.cpp.
-// R-17/R-18 (2026-05-07 audit): the cal-specific cal_pre_hook was removed
-// (it was dead code — defined here but never called). The Core 1 I2C
-// pause/resume primitive that lived in cal_pre_hook now lives with the
-// pause atomics in shared_state and is invoked directly by every
-// flash_safe_execute callsite.
+// Cal helpers for ao_rcos: seqlock mag read, post-save Core 1 reload.
+// I2C pause for flash is in shared_state, not here.
 //============================================================================
 #ifndef ROCKETCHIP_CAL_HOOKS_H
 #define ROCKETCHIP_CAL_HOOKS_H

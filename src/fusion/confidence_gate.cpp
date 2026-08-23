@@ -2,6 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 #include "confidence_gate.h"
 
+// Confidence gate: hysteresis on ESKF vs Mahony disagreement.
+
 namespace rc {
 
 void confidence_gate_init(ConfidenceState* cs) {

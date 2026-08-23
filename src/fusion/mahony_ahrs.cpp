@@ -4,6 +4,8 @@
 
 #include <cmath>
 
+// Mahony complementary filter (see header).
+
 namespace rc {
 
 // ============================================================================

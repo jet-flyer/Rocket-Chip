@@ -34,7 +34,7 @@ static_assert(codegen::kSigmaBaroBiasWalk == rc::ESKF::kSigmaBaroBiasWalk,
 namespace rc {
 
 // ============================================================================
-// File-scope constants extracted from inline literals (JSF AV Rule 151)
+// Named constants
 // ============================================================================
 namespace {
 
@@ -716,12 +716,12 @@ void ESKF::invalidate_ud_factors() {
 // Static locals for Mat15 temporaries (LL Entry 1, ~2.9KB BSS).
 // Single-threaded Core 0 — no reentrancy concern.
 //
-// Council conditions: isfinite() guard, S > 0 guard. See review verdict.
+// isfinite() and S > 0 guards.
 // P rotation at reset() omitted — small-angle approximation, G ≈ I to
 // float precision for baro-only corrections. See Solà (2017) Eq. 298.
 // ============================================================================
 bool ESKF::update_baro(float altitude_agl_m) {
-    // Council condition 1: reject non-finite input
+    // Reject non-finite input
     if (!std::isfinite(altitude_agl_m)) {
         return false;
     }
@@ -747,7 +747,7 @@ bool ESKF::update_baro(float altitude_agl_m) {
     // Innovation covariance: S = H²*P_hh + R (UD-aware when factored)
     const float s = scalar_innovation_s(kHIdx, kHValue, r);
 
-    // Council condition 2: reject degenerate covariance
+    // Reject degenerate covariance
     if (s < kMinInnovationVariance) {
         return false;
     }
@@ -909,7 +909,7 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
 }
 
 // ============================================================================
-// update_mag_3axis: Full 3D magnetometer fusion (Stage 3D, IVP-99)
+// update_mag_3axis: full 3D magnetometer fusion
 //
 // Measurement model:
 //   z_observed = magBody (calibrated, body frame)
@@ -1125,8 +1125,8 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas,
 
 // ============================================================================
 // set_origin: Establish NED frame origin from first quality GPS fix
-// Council condition C-4: HDOP must be <= kGpsMaxHdopForOrigin.
-// Council fix: Reset position/velocity P to GPS-derived uncertainty.
+// HDOP must be <= kGpsMaxHdopForOrigin.
+// Reset position/velocity P to GPS-derived uncertainty.
 // Without this, stale cross-covariances from pre-origin drift corrupt
 // the Kalman gain for subsequent baro updates, causing bNIS explosion.
 // ArduPilot EKF3: ResetPosition() reinitializes P and zeros cross-terms.
@@ -1146,7 +1146,7 @@ bool ESKF::set_origin(double lat_rad, double lon_rad, float alt_m, float hdop) {
     cos_origin_lat_ = cosf(static_cast<float>(lat_rad));
     has_origin_ = true;
 
-    // Council fix: Reset position/velocity P to GPS-derived uncertainty.
+    // Reset position/velocity P to GPS-derived uncertainty.
     // Without this, stale cross-covariances corrupt baro Kalman gain.
     const float r_pos = kSigmaGpsPosBase * fmaxf(hdop, 1.0F);
     const float p_pos = r_pos * r_pos;  // Position variance from GPS quality
@@ -1175,7 +1175,7 @@ bool ESKF::set_origin(double lat_rad, double lon_rad, float alt_m, float hdop) {
 // reset_origin: Re-center NED frame, adjusting p for continuity
 // Computes absolute geodetic from old origin + p, stores new origin,
 // reprojects p into the new frame. Net effect: p becomes near-zero.
-// Council condition C-7: absolute position must be preserved.
+// Absolute position must be preserved.
 // ============================================================================
 void ESKF::reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m) {
     if (!has_origin_) {
@@ -1335,7 +1335,7 @@ bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
 //
 // Vertical velocity from GPS is unreliable — baro + IMU handle vertical.
 // ArduPilot EKF3: FuseVelPosNED() with velocity axes.
-// Council C-2: only indices [6..7], not [6..8].
+// Only indices [6..7], not [6..8].
 // ============================================================================
 bool ESKF::update_gps_velocity(float v_north, float v_east) {
     // Guard: reject non-finite input
@@ -1779,7 +1779,7 @@ void ESKF::apply_phase_q_delta(float dt) {
     }
 
     // Innovation adaptation: multiply Q scale by innovation-driven factor.
-    // Freeze adaptation during ramp (Council A4 — avoid reacting to transition transients).
+    // Freeze adaptation during ramp (avoid reacting to transition transients).
     float innov_scale_att = 1.0F;
     float innov_scale_vel = 1.0F;
     if (q_ramp_remaining_ == 0) {

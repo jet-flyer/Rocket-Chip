@@ -4,6 +4,8 @@
 
 #include <cmath>
 
+// NIS sliding window → Q inflation (see header).
+
 namespace rc {
 
 void innovation_channel_init(InnovationChannel* ch) {

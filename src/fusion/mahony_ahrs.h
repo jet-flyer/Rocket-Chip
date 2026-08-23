@@ -11,14 +11,8 @@
 // confidence gate. When ESKF diverges but Mahony doesn't
 // (or vice versa), the gate can flag the discrepancy.
 //
-// Algorithm: Mahony et al. (2008) "Nonlinear complementary filters
-// on the special orthogonal group." IEEE Trans. Automatic Control.
-// Council-approved parameters — see PHASE5_MAHONY_PLAN.md.
-//
-// Reference implementations consulted:
-//   ArduPilot AP_AHRS_DCM (Kp, Ki values)
-//   PX4/BetaFlight/INAV (accel/spin gate consensus)
-//   BetaFlight (startup Kp × 10 for 20s convergence)
+// Mahony et al. 2008. Gains from AP_AHRS_DCM; accel/spin gates from
+// PX4/Betaflight consensus.
 
 #include "math/quat.h"
 #include "math/vec3.h"
