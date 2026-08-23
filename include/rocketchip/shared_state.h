@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Centralized cross-core and CLI-visible global state (OPT-IVP-02).
-// Consolidates all init flags, GPS transport, seqlock, atomics,
-// and device handles from main.cpp. This reduces duplication and makes
-// ownership clear.
-// Core 0 owns initialization.
-// Core 1 reads most sensor flags and `g_gpsTransport`.
-// CLI reads status for display.
+// Cross-core and CLI-visible globals. Core 0 initializes; Core 1 reads
+// most sensor flags and g_gpsTransport; CLI reads status.
 
 #ifndef ROCKETCHIP_SHARED_STATE_H
 #define ROCKETCHIP_SHARED_STATE_H
@@ -20,7 +15,7 @@
 #include "rocketchip/sensor_seqlock.h"
 
 // ============================================================================
-// Global State (moved from src/main.cpp)
+// Global State
 // ============================================================================
 
 // Sensor initialization flags
@@ -32,8 +27,7 @@ extern bool g_baroContinuous;           // Core 1 reads
 extern bool g_gpsInitialized;           // Core 1 reads/writes
 extern bool g_spiInitialized;           // CLI reads
 
-// Init-attempted flags (IVP-142c). Distinguishes "attempted and failed"
-// from "not present on this role".
+// Distinguishes "attempted and failed" from "not present on this role".
 extern bool g_imuInitAttempted;
 extern bool g_baroInitAttempted;
 extern bool g_gpsInitAttempted;
@@ -50,13 +44,10 @@ extern bool g_calStorageInitialized;
 // and invoke gps_uart_* or gps_pa1010d_* by name (P10-9).
 extern gps_transport_t g_gpsTransport;
 
-// IMU device handle (not seqlock-protected).
-// Boot: Core 0 icm20948_init in init_sensors() before g_startSensorPhase.
-// After that release, Core 1 does the 1 kHz icm20948_read and may
-// icm20948_init again on consecutive-fail recovery (sensor_core1).
-// Core 0 CLI still calls icm20948_read on this handle after handoff
-// (print_direct_sensors) — that path shares I2C with Core 1; pause is
-// not currently taken there (remediation WB R-3).
+// IMU handle (not seqlock-protected). Core 0 inits before
+// g_startSensorPhase; Core 1 reads at 1 kHz (may re-init on consecutive
+// fail). CLI print_direct_sensors still reads this after handoff and
+// does not take the I2C pause.
 extern icm20948_t g_imu;
 
 // Sensor seqlock (Core 1 writer, Core 0 reader)

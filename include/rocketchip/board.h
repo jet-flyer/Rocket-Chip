@@ -1,16 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Compile-time board selector — includes correct board header
-// Selection based on PICO_BOARD CMake variable, which the Pico SDK sets
-// as a preprocessor define via the board header include chain.
-// Stage J: Fruit Jam HAL — board abstraction for same-binary builds.
-// All board-specific constants live in board_*.h headers under the
-// `board::` namespace. Drivers and main.cpp use `board::kFoo` instead
-// of hardcoded values.
-// Adding a new board:
-// 1. Create include/rocketchip/board_<name>.h with all board:: constants
-// 2. Add an #elif clause below matching the SDK board detection macro
-// 3. Verify pin assignments against docs/hardware/BOARD_COMPARISON.md
+// Compile-time board selector (PICO_BOARD → board_*.h, `board::` constants).
+// Adding a board: new board_<name>.h, #elif on the SDK macro, check
+// docs/hardware/BOARD_COMPARISON.md. Unknown PICO_BOARD must not inherit
+// Feather pins.
 
 #ifndef ROCKETCHIP_BOARD_H
 #define ROCKETCHIP_BOARD_H

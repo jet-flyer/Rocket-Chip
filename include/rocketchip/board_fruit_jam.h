@@ -45,7 +45,7 @@ inline constexpr uint8_t  kNeoPixelCount   = 5;
 inline constexpr uint8_t  kNeoPixelGpioBase = 16;  // Required for GPIO 32+
 
 // --- Onboard LED ---
-// [M2] Active-low: writing HIGH turns LED off, LOW turns LED on
+// Active-low: HIGH = off, LOW = on.
 inline constexpr uint8_t kLedPin           = 29;
 inline constexpr bool    kLedActiveHigh    = false;
 
@@ -84,11 +84,7 @@ inline constexpr bool    kUartGpsAvailable = false;
 inline constexpr uint8_t kUartGpsTxPin     = 0;   // Unused — guard prevents init
 inline constexpr uint8_t kUartGpsRxPin     = 0;   // Unused — guard prevents init
 
-// --- Capability flags (Stage 16C IVP-143) ---
-// Peripheral presence flags consumed by role-agnostic shared code
-// (health monitor, CLI, telemetry). Let call sites branch on capability
-// rather than board identity — makes future board ports drop-in
-// without touching shared code.
+// Peripheral presence — shared code branches on these, not board identity.
 inline constexpr bool    kPsramAvailable       = true;   // 8 MB
 inline constexpr bool    kDvmAvailable         = true;   // HSTX DVI output
 inline constexpr bool    kSdCardAvailable      = true;   // SPI0 SD slot
