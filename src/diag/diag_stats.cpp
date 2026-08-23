@@ -218,8 +218,8 @@ static void dump_sensors() {
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count);
     rc::rc_log("  core1 loops=%lu\n", (unsigned long)snap.core1_loop_count);
-    // MCU die temp sentinel -999 means not-yet-captured.
-    if (snap.mcu_die_temp_c > -100.0F) {
+    // MCU die temp below kMcuTempAbsentBelowC (includes sentinel) is unset.
+    if (snap.mcu_die_temp_c > rc::kMcuTempAbsentBelowC) {
         const uint32_t stuck_n = rc::mcu_temp_stuck_count();
         const bool     stuck  = rc::mcu_temp_is_stuck();
         rc::rc_log("  MCU temp=%.2fC (reads=%lu, stuck=%s%lu)\n",

@@ -23,7 +23,7 @@ static constexpr float    kTempVbeRef   = 0.706F;    // V, Vbe at 27°C typical
 static constexpr float    kTempSlope    = 0.001721F; // V/°C, silicon bandgap slope
 static constexpr float    kTempOffsetC  = 27.0F;     // °C
 static constexpr uint8_t  kTempAdcInput = board::kMcuTempAdcInput;
-static constexpr float    kSentinelC    = -999.0F;   // "not initialized" marker
+
 
 // Stuck-sensor detection. At 1 Hz capture, 60 consecutive bit-identical
 // reads = 60 seconds of zero ADC jitter, which is indistinguishable from
@@ -35,7 +35,7 @@ static constexpr float    kSentinelC    = -999.0F;   // "not initialized" marker
 static constexpr uint32_t kStuckThresholdSamples = 60U;
 
 static bool     g_mcuTempInitialized = false;
-static float    g_lastRawSample      = kSentinelC;  // raw read, for bit compare
+static float    g_lastRawSample      = kMcuTempSentinelC;  // raw read, for bit compare
 static uint32_t g_consecIdentical    = 0;
 
 bool mcu_temp_init() {
@@ -54,7 +54,7 @@ bool mcu_temp_available() {
 
 float mcu_temp_read_c() {
     if (!g_mcuTempInitialized) {
-        return kSentinelC;
+        return kMcuTempSentinelC;
     }
     adc_select_input(kTempAdcInput);
     uint16_t raw = adc_read();

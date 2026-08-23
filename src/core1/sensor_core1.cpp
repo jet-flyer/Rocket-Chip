@@ -392,8 +392,8 @@ static void core1_load_cal_or_defaults(calibration_store_t* local_cal) {
 }
 
 // Per-sensor rate dividers and consecutive-failure counter shared across
-// every iteration of the Core 1 sensor loop. Extracted from
-// core1_sensor_loop() for JSF AV rule 1 compliance; pure state container.
+// every iteration of the Core 1 sensor loop. Extracted so core1_sensor_loop
+// stays under the 60-line function-size gate (P10 Rule 4).
 struct Core1SensorCycle {
     uint32_t baroCycle     = 0;
     uint32_t calFeedCycle  = 0;
@@ -443,9 +443,9 @@ static void core1_sensor_loop() {
     core1_load_cal_or_defaults(&local_cal);
 
     shared_sensor_data_t local_data = {};
-    // Initial MCU temp sentinel so seqlock readers don't see an
-    // all-zeros 0.0°C before the first capture.
-    local_data.mcu_die_temp_c = -999.0F;
+    // Sentinel so seqlock readers don't see 0.0°C (a real pad temp)
+    // before the first capture.
+    local_data.mcu_die_temp_c = rc::kMcuTempSentinelC;
 
     Core1SensorCycle cyc{};
     uint32_t loop_count = 0;

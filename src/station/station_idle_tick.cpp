@@ -63,8 +63,9 @@ void station_idle_tick_init() {
     g_lastGpsReadUs = 0;
     g_lastTickUs = 0;
     g_mcuTempCycle = 0;
-    // Sentinel so seqlock readers don't see 0.0°C before first capture.
-    g_localData.mcu_die_temp_c = -999.0F;
+    // Sentinel so seqlock readers don't see 0.0°C (a real pad temp)
+    // before first capture.
+    g_localData.mcu_die_temp_c = kMcuTempSentinelC;
 }
 
 void station_idle_tick() {

@@ -15,14 +15,17 @@
 // Configuration
 // ============================================================================
 
-constexpr uint16_t kGyroCalSamples        = 200;      // ~2 seconds at 100Hz
+// Sample counts, not wall-clock. Duration follows the producer rate:
+// gyro/accel feed is Core 1 cal divider (~100 Hz); baro feed is each
+// DPS310 read (~31 Hz), not 50 Hz.
+constexpr uint16_t kGyroCalSamples        = 200;      // 200 feed() calls (~2 s at ~100 Hz)
 constexpr float    kGyroCalMotionThresh   = 0.10F;    // rad/s - motion detection (~6 deg/s)
 
-constexpr uint16_t kAccelCalSamples       = 100;      // ~1 second at 100Hz
+constexpr uint16_t kAccelCalSamples       = 100;      // 100 feed() calls (~1 s at ~100 Hz)
 constexpr float    kAccelCalMotionThresh  = 1.0F;     // m/s² - motion detection (relaxed for hand-held placement)
 constexpr float    kGravityNominal        = 9.80665F;
 
-constexpr uint16_t kBaroCalSamples        = 50;       // ~1 second at 50Hz
+constexpr uint16_t kBaroCalSamples        = 50;       // 50 feed() calls (~1.6 s at ~31 Hz)
 
 // 6-position accel calibration
 constexpr uint16_t kAccel6posSamplesPerPos = 50;

@@ -91,8 +91,8 @@ struct shared_sensor_data_t {
 
     // MCU die temperature (8 bytes) — Stage 16C IVP-142a
     // On-die sensor (RP2350 §12.4.6). Captured ~1 Hz from vehicle Core 1
-    // loop and station idle-bridge tick. Sentinel -999.0 means the
-    // sensor has not been initialized on this boot.
+    // loop and station idle-bridge tick. Sentinel kMcuTempSentinelC
+    // (-999.0) means not yet captured; 0 °C is a real pad reading.
     float mcu_die_temp_c;
     uint32_t mcu_temp_read_count;           // Monotonic for soak gates
 };

@@ -1406,7 +1406,8 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
     // MCU die temp (Stage 16C IVP-142b-1) — separate field, not in primary.
     shared_sensor_data_t snap{};
     seqlock_read(&g_sensorSeqlock, &snap);
-    if (hs->mcu == rc::kHealthAbsent || snap.mcu_die_temp_c < -100.0F) {
+    if (hs->mcu == rc::kHealthAbsent ||
+        snap.mcu_die_temp_c < rc::kMcuTempAbsentBelowC) {
         rc::rc_log("MCU temp: --- (sensor not ready)\n");
     } else {
         rc::rc_log("MCU temp: %s  %.1fC\n",

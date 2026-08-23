@@ -23,6 +23,12 @@
 
 namespace rc {
 
+// Snapshot / unread sentinel. 0 °C is a reachable pad temperature — do not
+// use 0 as unset. Never a RP2350 §12.4.6 conversion result.
+inline constexpr float kMcuTempSentinelC = -999.0F;
+// Classify/display: values below this (including the sentinel) are absent.
+inline constexpr float kMcuTempAbsentBelowC = -100.0F;
+
 // Initialize ADC + enable on-die temp sensor. Idempotent.
 // Returns true on success (ADC block came up). Safe to call even if
 // ADC is later used by other consumers — this just enables the sensor.
@@ -31,8 +37,8 @@ bool mcu_temp_init();
 // Returns true after mcu_temp_init() has succeeded.
 bool mcu_temp_available();
 
-// Read one temperature sample in degrees Celsius. Returns a large
-// negative sentinel (-999.0f) if not initialized — caller should check
+// Read one temperature sample in degrees Celsius. Returns
+// kMcuTempSentinelC if not initialized — caller should check
 // mcu_temp_available() first for flight-critical paths. Takes ~10 us.
 // Also updates the internal "stuck" detector (see mcu_temp_is_stuck).
 float mcu_temp_read_c();

@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "drivers/mcu_temp.h"
 
 namespace rc {
 
@@ -154,10 +155,11 @@ bool health_monitor_critical_fault();
 // on fall-back. Exposed for host-test coverage of state transitions.
 //
 // Does NOT consult mcu_temp_is_stuck() — caller layers that on top.
-//   prev=kHealthAbsent seeds to kHealthOk on first valid sample (>= -100).
-//   temp_c < -100 is treated as sentinel -> kHealthAbsent.
+//   prev=kHealthAbsent seeds to kHealthOk on first valid sample
+//   (>= kMcuTempAbsentBelowC). temp_c < kMcuTempAbsentBelowC (includes
+//   kMcuTempSentinelC) is treated as unset -> kHealthAbsent.
 inline HealthLevel mcu_temp_classify(HealthLevel prev, float temp_c) {
-    if (temp_c < -100.0F) {
+    if (temp_c < kMcuTempAbsentBelowC) {
         return kHealthAbsent;
     }
     HealthLevel base = (prev == kHealthAbsent) ? kHealthOk : prev;

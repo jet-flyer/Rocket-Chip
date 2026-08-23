@@ -478,7 +478,7 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 
 ---
 
-## Fusion / math / cal live invariants (10) — SITTING 10 IN PROGRESS 2026-08-23
+## Fusion / math / cal live invariants (10) — SITTING CLOSED 2026-08-23
 
 **Sitting:** Phase 3 sitting 10. All REMEDIATE. Groups of 2–4 (R-10).
 
@@ -489,11 +489,11 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 | WN-133 | REMEDIATE | closed | ESKF R/init labeled as this-vehicle sensor defaults; numbers kept |
 | WN-134 | REMEDIATE | closed | wind 0.2 + vel 500 kept; comments: descent default / divergence sentinel |
 | WN-153 | REMEDIATE | closed | cal section renamed “Flash signature and schema version”; fourCC kept |
-| WN-157 | REMEDIATE | labeled | pending sitting 10 group C — cal sample counts vs sensor Hz |
+| WN-157 | REMEDIATE | closed | cal counts are feed() calls; baro ~31 Hz not 50 Hz |
 | WN-191 | REMEDIATE | closed | profile comment: SI for m/m/s/m/s^2; timeouts are `*_ms` |
 | WN-203 | REMEDIATE | closed | `kRingMagic` comment is fourCC signature, not a JSF-151 carve-out |
-| WN-280 | REMEDIATE | labeled | pending sitting 10 group C — JSF AV Rule 1 on Core1SensorCycle |
-| WN-281 | REMEDIATE | labeled | pending sitting 10 group C — MCU temp sentinel must not be 0 °C |
+| WN-280 | REMEDIATE | closed | Core1SensorCycle cite is P10 Rule 4 (60-line), not JSF AV Rule 1 |
+| WN-281 | REMEDIATE | closed | `kMcuTempSentinelC` / `kMcuTempAbsentBelowC`; 0 °C is a real reading |
 
 ---
 

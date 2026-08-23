@@ -243,8 +243,9 @@ TEST(HealthState, DefaultInitAllAbsent) {
 // ============================================================================
 
 TEST(McuTempClassify, SentinelValueReturnsAbsent) {
-    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, -999.0F), kHealthAbsent);
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, kMcuTempSentinelC), kHealthAbsent);
     EXPECT_EQ(mcu_temp_classify(kHealthOk,     -150.0F), kHealthAbsent);
+    EXPECT_EQ(mcu_temp_classify(kHealthOk,     0.0F), kHealthOk);
 }
 
 TEST(McuTempClassify, FirstValidReadingSeedsFromAbsentToOk) {
