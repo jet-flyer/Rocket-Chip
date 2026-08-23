@@ -10,7 +10,7 @@
 
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/radio_config.h"     // T5.5 sub 2f: nav-with-config encoder needs full RadioConfig
-#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "safety/health_monitor.h"       // 2-bit health decode
 #include "crc16_ccitt.h"
 #include <string.h>
 #include <math.h>
@@ -129,7 +129,7 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
     seq_count = static_cast<uint16_t>((seq_count + 1) & kCcsdsSeqCountMask);
 }
 
-// Stage T IVP-T5.5 sub 2f — nav-with-config-echo (46-byte payload, APID 0x004).
+// Nav-with-config-echo (46-byte payload, APID 0x004).
 void CcsdsEncoder::encode_nav_with_config(const TelemetryState& telem,
                                            uint32_t met_ms,
                                            const RadioConfig& cfg,
@@ -214,7 +214,7 @@ uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
 
 uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
                                             uint8_t* buf) {
-    // Sensor present/enabled/health bitmasks — per-sensor from 2-bit encoding (IVP-107)
+    // Sensor present/enabled/health bitmasks — per-sensor from 2-bit encoding
     uint32_t sensors = MAV_SYS_STATUS_SENSOR_3D_ACCEL
                      | MAV_SYS_STATUS_SENSOR_3D_GYRO
                      | MAV_SYS_STATUS_SENSOR_3D_MAG
@@ -423,7 +423,7 @@ bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
 }
 
 // ============================================================================
-// CCSDS Command ACK Encoder/Decoder (IVP-122)
+// CCSDS Command ACK Encoder/Decoder
 // ============================================================================
 
 uint8_t ccsds_encode_cmd_ack(const ccsds::CommandAckPayload& ack,

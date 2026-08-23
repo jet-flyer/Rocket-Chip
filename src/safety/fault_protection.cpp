@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Implementation of shared fault protection.
-// OPT-IVP-01 extraction. No-stack fault handler and MPU setup.
+// Shared fault protection: no-stack handler and MPU stack guard.
 // Registered early in init_early_hw(). Core 1 calls only the MPU setup.
 
 #include "safety/fault_protection.h"
@@ -11,16 +10,15 @@
 #include "hardware/structs/mpu.h"
 #include "hardware/structs/scb.h"  // for SHCSR.MEMFAULTENA write in stack-guard setup
 #include "pico/time.h"   // for busy_wait_us in fault handler delay
-#include "rocketchip/rc_log.h"  // R-5 Unit C: replaces printf in Q_onError
+#include "rocketchip/rc_log.h"  // Q_onError — no printf
 
 // ============================================================================
-// Fault-handler dispatch internals (fault-recovery 2026-05-14, B.1-B.3, B.7)
+// Fault-handler dispatch internals
 // ============================================================================
 
-// B.7 reentrance guard: if a second fault fires from inside the handler
-// (e.g., during the busy-loop / LED-flash / status-print sequence), the
-// second entry observes this flag set and routes directly to __WFE() halt.
-// Prevents infinite recursion through the handler.
+// Reentrance guard: if a second fault fires from inside the handler
+// (busy-loop / LED-flash / status-print), the second entry observes this
+// flag and routes directly to __WFE() halt. Prevents handler recursion.
 //
 // One-shot: never cleared on successful exit. The only exits from the
 // handler are (a) AIRCR-reset which wipes SRAM-to-the-power-domain (the
@@ -62,9 +60,8 @@ static inline void fault_emit_visible_signal() {
 // so any AOs that still get scheduled see the new phase, then busy-loop
 // forever. PIO backup timers continue autonomously (they're independent of
 // ARM execution); the rest of the firmware effectively stops. Beacon
-// coverage during this state is the known gap — addressed by commit (c)'s
-// last-gasp beacon (compile-time #ifdef, default off) and ultimately by a
-// future dedicated PIO beacon session.
+// coverage during this state is a known gap (optional last-gasp beacon
+// is compile-time, default off).
 [[noreturn]] static inline void fault_degrade_in_place() {
     rc::flight_phase_observable_set(rc::FlightPhase::kFault);
     __asm volatile ("dsb" ::: "memory");
@@ -93,16 +90,14 @@ static inline void fault_emit_visible_signal() {
 }
 
 // MemManage / HardFault handler — phase-aware capture-then-dispatch.
-// Design rationale: see plan B.1, B.2, B.3, B.7 +
-// docs/decisions/FAULT_HANDLER_DESIGN.md (R-3 era). The no-stack-push
-// constraint still holds for the capture portion. Function-size deviation
-// logged in standards/ACCEPTED_STANDARDS_DEVIATIONS.md (FH-1).
+// Capture is no-stack-push. Design: docs/decisions/FAULT_HANDLER_DESIGN.md.
+// Function-size deviation: standards/ACCEPTED_STANDARDS_DEVIATIONS.md (FH-1).
 
 __attribute__((used))
 void memmanage_fault_handler(void) {
     __asm volatile ("cpsid i" ::: "memory");
 
-    // B.7 reentrance guard
+    // Reentrance guard
     if (g_inFaultHandler) {
         while (true) {
             __asm volatile ("wfe");
@@ -140,16 +135,13 @@ void memmanage_fault_handler(void) {
     rec->magic = rc::kCrashRecordMagic;  // magic last so torn writes reject on consume
     __asm volatile ("dsb" ::: "memory");
 
-    // B.1 / B.2 phase-aware dispatch. flight_phase_observable_get() returns
-    // kFault on checksum mismatch (safe-by-default for corrupted phase byte).
+    // Phase-aware dispatch. Corrupted phase byte → kFault (fail closed).
     const rc::FlightPhase phase = rc::flight_phase_observable_get();
     if (phase == rc::FlightPhase::kIdle) {
-        // B.2: pad fault — visible signal + reset (the post-reset latch
-        // surfaces via kHealthCriticalPriorHardfault, gating pre-arm).
+        // Pad: visible signal + reset; latch gates pre-arm after reboot.
         fault_reset_with_visible_signal();
     }
-    // B.1: any flight phase (kArmed/kBoost/kCoast/kDescent/kLanded/kAbort)
-    // OR a corrupted phase (returns kFault) → degrade in place.
+    // Any flight phase, or corrupted phase (kFault) → degrade in place.
     fault_degrade_in_place();
 }
 
@@ -161,11 +153,8 @@ void memmanage_fault_handler(void) {
 // as memmanage_fault_handler — in flight, degrade in place; on pad, capture
 // + visible signal + reset.
 //
-// Refactor 2026-05-14: removed stale "watchdog will reset us" comments that
-// referenced a watchdog_kick_tick() / SDK hardware watchdog that does not
-// exist in tree (IVP-90 removed it). With no auto-reset path, the previous
-// halt-forever code would leave the chip dead until manual power cycle —
-// inconsistent with the new phase-aware fault recovery architecture.
+// No SDK watchdog auto-reset. Halt-forever on pad is wrong; this
+// path uses the same phase-aware capture as memmanage_fault_handler.
 
 extern "C" Q_NORETURN Q_onError(
     char const * const module,
@@ -173,7 +162,7 @@ extern "C" Q_NORETURN Q_onError(
 {
     __asm volatile("cpsid i" ::: "memory");
 
-    // B.7 reentrance guard (shared with memmanage_fault_handler)
+    // Reentrance guard (shared with memmanage_fault_handler)
     if (g_inFaultHandler) {
         while (true) {
             __asm volatile ("wfe");

@@ -19,9 +19,7 @@
 #include "rocketchip/sensor_seqlock.h"
 #include "drivers/ws2812_status.h"
 #include "pico/time.h"
-// IVP-117: eskf_runner.h and core1/sensor_core1.h removed — sensor status
-// evaluation migrated to AO_Notify. LedEngine only reads the seqlock for
-// Core 1 vitality fallback (Council A1).
+// Seqlock is Core 1 vitality fallback only. Sensor-status LED lives in AO_Notify.
 
 // Internal signal for animation tick (private to this AO)
 enum : uint16_t {
@@ -29,27 +27,20 @@ enum : uint16_t {
 };
 
 // ============================================================================
-// Priority Layer Indices (highest priority = lowest index)
-//
-// IVP-117: simplified to 3 layers. Sensor status evaluation moved to
-// AO_Notify. LedEngine is now a pure display driver with only the
-// Core 1 vitality fallback (Council A1 defense-in-depth).
-//
-//   - kLayerFault: Core 1 vitality stall — defense-in-depth per A1.
-//     Primary check lives in AO_HealthMonitor; this is the local
-//     fallback in case AO_Notify or AO_HealthMonitor crash.
-//   - kLayerNotify: resolved pattern from AO_Notify via SIG_LED_PATTERN
-//   - kLayerIdle: blue-blink fallback
+// Priority layers (highest = lowest index).
+// Fault: Core 1 stall fallback if Notify/HealthMonitor die.
+// Notify: resolved pattern from AO_Notify via SIG_LED_PATTERN.
+// Idle: blue-blink fallback.
 // ============================================================================
 enum LedLayerIdx : uint8_t {
-    kLayerFault = 0,        // Highest — Core 1 vitality stall (A1 fallback)
+    kLayerFault = 0,        // Highest — Core 1 vitality stall fallback
     kLayerNotify,           // Resolved pattern from AO_Notify
     kLayerIdle,             // Default — slow blue blink
     kLayerCount
 };
 
 // ============================================================================
-// Core 1 vitality check parameters (Council A1 defense-in-depth fallback)
+// Core 1 vitality check (local fallback if Notify/HealthMonitor die)
 // ============================================================================
 // At 33Hz ticks, 500ms = ~16 ticks without a core1_loop_count increment.
 static constexpr uint8_t kCore1StallThreshold = 17;
@@ -63,24 +54,19 @@ struct LedEngine {
     uint8_t layers[kLayerCount]; // Pattern code per layer (0 = inactive)
     ws2812_mode_t last_mode;
     ws2812_rgb_t last_color;
-    ws2812_rgb_t last_alt_color;   // Stage L: tracked for MODE_ALTERNATE dedup
-    uint32_t last_core1_count;  // Core1 vitality defense-in-depth (A1)
+    ws2812_rgb_t last_alt_color;   // MODE_ALTERNATE dedup
+    uint32_t last_core1_count;  // Core1 vitality fallback
     uint8_t core1_stall_ticks;  // Consecutive ticks without core1 progress
-    // IVP-117: sensor_phase_start_ms removed — sensor evaluation migrated
-    //          to AO_Notify.
-    // IVP-116: health_fault_code removed — AO_Notify owns health faults.
 };
 
 static LedEngine g_ledEngine;
 static bool g_ledEngineStarted = false;
 
-// Stage L IVP-L1 dev override: non-zero value wins over all layers.
-// Set via AO_LedEngine_dev_force_fault_layer() from the LED-test debug CLI.
-// 0 = inactive (normal layer compositor applies).
+// Dev override: non-zero wins over all layers. LED-test CLI only. 0 = off.
 static uint8_t g_devOverridePattern = 0;
 
 // Queue depth 8: pattern change events + tick events. Callers should
-// deduplicate before posting (see AO_LedEngine_post_pattern). (A6)
+// deduplicate before posting (see AO_LedEngine_post_pattern).
 static QEvtPtr g_ledEngineQueue[8];
 
 // Forward declarations

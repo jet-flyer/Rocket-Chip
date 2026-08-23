@@ -5,7 +5,7 @@
 // - Gyro bias calibration (device at rest)
 // - Accelerometer level calibration (device flat)
 // - Barometer ground reference
-// - 6-position accel calibration (IVP-17)
+// - 6-position accel calibration
 // Public API is SI units and named thresholds. Part/SKU notes stay in
 // the .cpp (WN-156).
 
@@ -51,7 +51,7 @@ const calibration_store_t* calibration_manager_get(void);
 cal_state_t calibration_manager_get_state(void);
 
 // ============================================================================
-// Gyro Calibration (IVP-15)
+// Gyro Calibration
 // ============================================================================
 
 // Device must be stationary. Takes ~2 seconds.
@@ -60,7 +60,7 @@ cal_result_t calibration_start_gyro(void);
 void calibration_feed_gyro(float gx, float gy, float gz, float temperatureC);
 
 // ============================================================================
-// Accelerometer Level Calibration (IVP-16)
+// Accelerometer Level Calibration
 // ============================================================================
 
 // Device must be flat and stationary. Takes ~1 second.
@@ -92,7 +92,7 @@ uint8_t calibration_get_progress(void);
 cal_result_t calibration_get_result(void);
 
 // ============================================================================
-// 6-Position Accelerometer Calibration (IVP-17)
+// 6-Position Accelerometer Calibration
 // ============================================================================
 
 // Sets state to CAL_STATE_ACCEL_6POS_SAMPLING. Core 1 feeds samples
@@ -121,7 +121,7 @@ const float* calibration_get_6pos_avg(uint8_t pos);
 const char* calibration_get_6pos_name(uint8_t pos);
 
 // ============================================================================
-// Magnetometer Calibration (IVP-35/36)
+// Magnetometer Calibration
 // ============================================================================
 
 enum class mag_feed_result_t : uint8_t {

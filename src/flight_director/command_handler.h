@@ -35,8 +35,7 @@ struct CommandResult {
 //
 // For kArm: runs Go/No-Go poll, prints result, blocks if Tier 1 NO-GO.
 // For kDisarm: only valid from ARMED.
-// For kAbort: valid from ARMED, BOOST, COAST (ignored in DESCENT per
-//             Amendment #1 — but that's handled by the QHsm, not here).
+// For kAbort: valid except IDLE/LANDED; HSM ignores DESCENT.
 // For kReset: only valid from LANDED or ABORT.
 //
 // go_nogo_input is only used for kArm — can be nullptr for other commands.

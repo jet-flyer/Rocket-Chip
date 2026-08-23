@@ -40,39 +40,26 @@ constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry (legacy, 42 B p
 // 2026-02-27 two-tier plan: nav high-rate, diag low-rate). No encoder yet —
 // keep the number so we do not collide when diagnostics land. Not dead code.
 constexpr uint16_t kApidDiag = 0x002;
-constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (IVP-122: half-duplex ACK)
-// Stage T IVP-T5.5 sub 2f: nav-with-config-echo. 46 B payload = 42 B nav +
-// 4 B config tail. APID chosen distinct from kApidNav so old stations that
-// know only 0x001 drop the packet cleanly instead of misparsing. On new
-// firmware we always emit 0x101; decoder falls back to 0x001 path if seen.
+constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (half-duplex ACK)
+// Nav-with-config-echo. 46 B payload = 42 B nav + 4 B config tail.
+// Distinct from kApidNav so old stations that know only 0x001 drop it
+// instead of misparsing. Decoder falls back to 0x001 if seen.
 constexpr uint16_t kApidNavWithConfig = 0x004;
 
-// Stage T Batch B IVP-T14d (PARKED 2026-04-22): station→vehicle 1 Hz
-// beacon was planned to populate vehicle's RF Link pre-arm gate, but a
-// continuous uplink beacon collides with vehicle's 5 Hz nav TX on our
-// single shared radio / half-duplex channel. Real CCSDS / smallsat
-// practice is downlink-inferred liveness; uplink activity is bursty /
-// on-demand, not continuous. Replaced by: operator-triggered ping at
-// preflight (reuses kApidCmdAck round trip — no new APID needed).
-// Left as a parked reservation in case future dual-radio tiers revisit.
+// Parked: continuous station→vehicle 1 Hz beacon would collide with
+// 5 Hz nav TX on one half-duplex radio. Preflight ping reuses kApidCmdAck.
 // constexpr uint16_t kApidStationBeacon = 0x005;
 
-// Command ACK result codes (IVP-122)
+// Command ACK result codes
 enum class CmdAckResult : uint8_t {
     kAccepted = 0,
     kDenied   = 1,
     kFailed   = 2,
 };
 
-// Command ACK payload (IVP-122) — sent from vehicle to station over LoRa
-// after dispatching a received command (ARM, DISARM, ABORT).
-//
-// Stage T IVP-T5.5 sub 2e: extended from 5 to 10 bytes. The 5-byte config_echo
-// tail is populated only for QUERY_RADIO_CONFIG (MAV_CMD_USER_3) responses;
-// zeroed for all other commands. Station decodes on cmd_id. CCSDS packet-
-// length field makes the longer frame self-describing so it's backwards-
-// compatible at the decoder level (old stations would just ignore extra
-// bytes — but both sides always upgrade together in this project).
+// Command ACK payload — vehicle → station after dispatch (ARM/DISARM/ABORT).
+// 10 B: 5 B ACK + 5 B config_echo (QUERY_RADIO_CONFIG only; zeroed else).
+// Packet length makes the extra bytes self-describing.
 struct __attribute__((packed)) CommandAckPayload {
     uint8_t  cmd_seq;      // Sequence number echoed from COMMAND_LONG confirmation field
     uint16_t cmd_id;       // MAVLink command ID (e.g., MAV_CMD_COMPONENT_ARM_DISARM = 400)
@@ -100,7 +87,7 @@ constexpr uint8_t kNavPacketLen       = kPrimaryHeaderLen + kSecondaryHeaderLen
 
 static_assert(kNavPacketLen == 54, "CCSDS nav packet must be 54 bytes");
 
-// Stage T IVP-T5.5 sub 2f — nav-with-config-echo layout.
+// Nav-with-config-echo layout.
 // Config tail is 4 bytes appended after the 42-byte nav payload:
 //   byte 0-1: bw_khz (uint16 big-endian, 125/250/500)
 //   byte 2:   sf_nav_packed — SF in upper nibble, nav_rate_hz in lower
@@ -123,7 +110,7 @@ constexpr uint8_t kCfgTailCrFlags     = 3;
 constexpr uint8_t kCfgFlagJustChanged = 0x08;  // bit 3 of cr_flags_packed
 
 // ACK packet: primary(6) + secondary(4) + payload(10) + CRC(2) = 22
-// (T5.5 sub 2e bumped payload from 5 to 10 bytes for config-echo on QUERY.)
+// (payload 10 B includes 5 B config-echo on QUERY.)
 constexpr uint8_t kCmdAckPacketLen = kPrimaryHeaderLen + kSecondaryHeaderLen
                                    + kCmdAckPayloadLen + kCrcLen;
 static_assert(kCmdAckPacketLen == 22, "CCSDS cmd ACK packet must be 22 bytes");
@@ -170,11 +157,8 @@ struct CcsdsEncoder {
                                  const RadioConfig& cfg, bool just_changed,
                                  EncodeResult& result);
 
-    // Stage T Batch B IVP-T14d (PARKED 2026-04-22): continuous uplink
-    // beacon collides with vehicle's 5 Hz nav TX on our single shared
-    // half-duplex radio. Replaced by preflight-triggered on-demand ping
-    // that reuses the existing kApidCmdAck round-trip — no new APID
-    // needed. Declaration left as a parked reservation.
+    // Parked: continuous uplink beacon collides with 5 Hz nav TX.
+    // Preflight ping reuses kApidCmdAck. No new APID.
     // void encode_station_beacon(uint32_t uptime_ms, uint8_t lq_pct,
     //                             EncodeResult& result);
 
@@ -234,8 +218,8 @@ struct MavlinkEncoder {
 // CCSDS Decoder (RX mode)
 // ============================================================================
 
-// Stage T IVP-T5.5 sub 2f: config tail decoded from nav-with-config packets.
-// bw_khz=0 indicates "no config tail present" (packet was legacy APID 0x001).
+// Config tail decoded from nav-with-config packets.
+// bw_khz=0 means no tail (legacy APID 0x001).
 struct NavConfigEcho {
     uint16_t bw_khz;       // 125 / 250 / 500, or 0 if packet was legacy
     uint8_t  nav_hz;       // 2 / 5 / 10
@@ -264,12 +248,12 @@ inline bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
     return ccsds_decode_nav(buf, len, telem, seq_out, met_ms_out, unused);
 }
 
-// Encode a CCSDS command ACK packet (IVP-122).
+// Encode a CCSDS command ACK packet.
 // No secondary header — just primary header + payload + CRC-16.
 uint8_t ccsds_encode_cmd_ack(const ccsds::CommandAckPayload& ack,
                               uint16_t seq, uint8_t* out);
 
-// Decode a CCSDS command ACK packet (IVP-122).
+// Decode a CCSDS command ACK packet.
 // Validates APID, length, and CRC.
 bool ccsds_decode_cmd_ack(const uint8_t* buf, uint8_t len,
                            ccsds::CommandAckPayload& ack_out);

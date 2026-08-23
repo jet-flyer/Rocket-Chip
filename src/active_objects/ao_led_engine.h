@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_LedEngine — NeoPixel Status LED Active Object (IVP-77, Phase 5)
-//
-// Sole owner of the NeoPixel hardware. Priority layer compositor determines
-// which pattern to display each tick. Layers (highest to lowest):
-//   Fault → FlightPhase → Calibration → RadioStatus → SensorStatus → Idle
-//
-// Sensor status logic (GPS fix, ESKF health) migrated from Core 1's
-// core1_neopixel_update(). Core 1 vitality monitored via seqlock.
-//
-// No other module calls ws2812_set_mode() or ws2812_update() directly
-// (except Core 1 pause indicator in core1_check_pause_and_reload, debug-only).
+// AO_LedEngine — sole owner of the NeoPixel. Compositor picks one pattern
+// per tick. Layers (highest to lowest): Fault → Notify → Idle.
+// Core 1 vitality is a local Fault-layer fallback. Notify owns the rest.
+// No other module calls ws2812_set_mode() / ws2812_update() (except Core 1
+// pause indicator, debug-only).
 //============================================================================
 #ifndef ROCKETCHIP_AO_LED_ENGINE_H
 #define ROCKETCHIP_AO_LED_ENGINE_H
@@ -24,20 +18,11 @@ extern QActive * const AO_LedEngine;
 
 void AO_LedEngine_start(uint8_t prio);
 
-// Post a resolved pattern to the LED engine (AO_Notify → kLayerNotify).
-// IVP-116: now the sole public API — all state-to-display routing
-// happens via AO_Notify's backend, which calls this to update the
-// Notify layer. See NOTIFY_CONTRACT.md.
+// Post a resolved pattern (AO_Notify → kLayerNotify). See NOTIFY_CONTRACT.md.
 void AO_LedEngine_post_pattern(uint8_t pattern);
 
-// IVP-116: AO_LedEngine_post_override() removed. CLI calibration now
-// calls AO_Notify_post_cal_intent() which updates NotifyState and the
-// resolver picks the correct calibration pattern.
-
-// Stage L IVP-L1 dev helper: force a pattern into the Fault layer so it
-// wins over AO_Notify's continuous re-publishes. Pass 0 to clear and
-// restore normal resolver output. Only used by the LED-test debug CLI
-// (dev_cli.cpp). Not for flight code.
+// Dev helper: force a pattern into the Fault layer so it wins over
+// AO_Notify re-publishes. Pass 0 to clear. LED-test debug CLI only.
 void AO_LedEngine_dev_force_fault_layer(uint8_t pattern);
 
 #endif // ROCKETCHIP_AO_LED_ENGINE_H

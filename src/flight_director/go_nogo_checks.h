@@ -35,22 +35,14 @@ struct GoNoGoInput {
     bool launch_abort;          // WatchdogRecovery::launch_abort latched
     bool watchdog_ok;           // No safe-mode, no ESKF disabled
     bool prior_hardfault_clear; // kHealthCriticalPriorHardfault not latched
-                                //   (fault-recovery 2026-05-14: makes the
-                                //   existing latch actually gate arm; before
-                                //   commit (b) it was visibility-only)
     bool prior_brownout_clear;  // kHealthCriticalPriorBrownout not latched
-                                //   (fault-recovery 2026-05-14: requires
-                                //   physical inspection + operator-cleared
-                                //   latch before re-arm permitted)
+                                //   (operator-cleared after inspection)
 
     // Tier 2: Profile-specific
     bool gps_has_lock;          // fix_type >= 2 && satellites >= 4
     bool mag_calibrated;        // CAL_STATUS_MAG flag set
     bool radio_linked;          // Radio init OK (TX or RX)
-    // Stage T Batch B IVP-T14: RF link-health from AO_RfManager.
-    // Separate from radio_linked (hardware init) — this is the
-    // learned-link state used by the pre-arm glance indicator.
-    // Populated from AO_RfManager_get_state() by the caller.
+    // Learned RF link from AO_RfManager, not radio_linked (HW init).
     uint8_t rf_link_state;      // rc::LinkState cast to uint8_t
                                 //   0=kAcq, 1=kTentative, 2=kTrack, 3=kTrackDegraded
     uint8_t rf_lq_pct;          // 0-100, sliding-window link quality

@@ -258,8 +258,8 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
     return FlushResult::kOk;
 }
 
-// Flight-log entry flash layout (grouped to keep save_flight_entry within the
-// JPL-25 parameter limit).
+// Flight-log entry flash layout (grouped so save_flight_entry stays
+// within the function-parameter limit).
 struct FlightEntryLayout {
     uint32_t start_sector;
     uint32_t sector_count;
@@ -336,7 +336,7 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
     }
     flight_log_header_fill(header, kPcmFrameTypeStandard, log_rate_hz, prof_name);
 
-    // Council req. #1: flush dirty PSRAM cache lines before reading
+    // Flush dirty PSRAM cache lines before reading the ring into flash.
     xip_cache_clean_all();
 
     FlushResult result = flush_sectors(rb, stored, start_sector, sectors_needed,

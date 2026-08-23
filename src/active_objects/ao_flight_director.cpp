@@ -16,7 +16,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/go_nogo_checks.h"
-#include "safety/inject_arm_gate.h"    // R-25-exec: phase cell + IDLE-exit clearing
+#include "safety/inject_arm_gate.h"    // inject/test-mode: phase cell + IDLE-exit clear
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
@@ -37,7 +37,6 @@ enum : uint16_t {
 // Flight Director period
 // ============================================================================
 static constexpr uint32_t kFlightDirectorPeriodMs = 10;  // 100Hz
-// Health monitor moved to AO_HealthMonitor (IVP-105)
 
 // ============================================================================
 // FdAo struct — owns the FlightDirector instance
@@ -48,17 +47,14 @@ struct FdAo {
     rc::FlightDirector director;    // Flight Director QHsm
     bool initialized;               // true after ctor + init
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
-    // health_tick_count removed — health monitor is now AO_HealthMonitor (IVP-105)
     bool pio_drogue_reported;       // PIO backup drogue fire already published
     bool pio_main_reported;         // PIO backup main fire already published
 };
 
 static FdAo g_fdAo;
 
-// Queue depth 32: tick events accumulate while telemetry_radio_tick() blocks
-// in QV_onIdle (rfm95w_send polls DIO0 for 50-150ms LoRa airtime). At 100Hz,
-// 150ms = 15 events. Depth 32 gives 2x margin. Real fix: non-blocking LoRa
-// driver (see whiteboard deferred notes). (A6, revised after HW test)
+// Queue depth 32: tick events accumulate while rfm95w_send polls DIO0
+// (50-150ms LoRa airtime). At 100Hz, 150ms = 15 events; 32 is 2x margin.
 static QEvtPtr g_fdAoQueue[32];
 
 // ============================================================================
@@ -131,7 +127,7 @@ static void fd_tick(FdAo* me) {
                                              snap.accel_z, accel_mag);
     }
 
-    // Auto-DISARM on critical sensor fault while ARMED (Stage 13 safety)
+    // Auto-DISARM on critical sensor fault while ARMED
     // If IMU or ESKF faults on the pad, disarm and latch launch_abort.
     // Launch abort is level 3 in the safety state model — power-cycle-only
     // clear. See docs/USER_GUIDE.md "Safety State Model".
@@ -176,7 +172,7 @@ QActive * const AO_FlightDirector = &g_fdAo.super;
 namespace rc {
 
 void fd_effect_set_led(uint8_t led_value) {
-    // Phase LED routing lives in AO_Notify; this path is beacon-only (IVP-116).
+    // Phase LED routing lives in AO_Notify; this path is beacon-only.
     if (led_value == kLedPhaseBeacon) {
         static QEvt g_beaconEvt;
         g_beaconEvt.sig = SIG_BEACON_ACTIVE;

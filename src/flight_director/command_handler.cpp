@@ -3,7 +3,7 @@
 // Flight Director command validation
 
 #include "command_handler.h"
-#include "safety/inject_arm_gate.h"    // R-25-exec: refuse ARM if inject gate armed
+#include "safety/inject_arm_gate.h"    // refuse ARM while inject/test-mode is armed
 #include <cstdio>
 #include <cstring>
 
@@ -39,11 +39,7 @@ CommandResult command_handler_validate(
             if (current_phase != FlightPhase::kIdle) {
                 return rejected("Not in IDLE");
             }
-            // R-25-exec council amendment #2 (second clearing gate):
-            // refuse ARM if test mode is currently armed. Defense-in-
-            // depth against the case where an operator armed test mode
-            // and then attempted to ARM the flight director without
-            // a separate IDLE-exit clearing the flag first.
+            // Refuse ARM while inject/test-mode is armed.
             if (rc::test_mode_active()) {
                 return rejected("Test mode active");
             }
@@ -68,9 +64,7 @@ CommandResult command_handler_validate(
         }
 
         case CommandType::kAbort: {
-            // ABORT valid from ARMED, BOOST, COAST
-            // DESCENT ignoring is handled by the QHsm (Amendment #1),
-            // but we still send the signal — the HSM decides
+            // Send SIG_ABORT; HSM ignores it in DESCENT.
             if (current_phase == FlightPhase::kIdle ||
                 current_phase == FlightPhase::kLanded) {
                 return rejected("Cannot abort from IDLE/LANDED");

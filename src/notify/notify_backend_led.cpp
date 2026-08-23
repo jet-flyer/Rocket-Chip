@@ -58,8 +58,8 @@ static uint8_t phase_to_pattern(PhaseIntent p) {
         case PhaseIntent::kCoast:      return rc::led::kFdCoast;
         case PhaseIntent::kBoost:      return rc::led::kFdBoost;
         case PhaseIntent::kArmed:      return rc::led::kFdArmed;
-        case PhaseIntent::kPreArmFail: return rc::led::kFdPreArmFail;  // Stage L
-        case PhaseIntent::kInit:       return rc::led::kFdBootInit;    // Stage L
+        case PhaseIntent::kPreArmFail: return rc::led::kFdPreArmFail;
+        case PhaseIntent::kInit:       return rc::led::kFdBootInit;
         case PhaseIntent::kIdle:       return 0;  // Fall through
         case PhaseIntent::kNone:       return 0;
     }
@@ -91,12 +91,9 @@ static uint8_t sensor_to_pattern(SensorIntent s) {
 }
 
 // ============================================================================
-// Stage L: beacon overlay remap — applied to the base pattern after priority
-// resolution. beacon_manual forces pure white (max visibility). beacon_auto
-// preserves the state color so a recovery crew sees good/fault/safe-mode at
-// a glance. Any base pattern not explicitly remapped (IDLE, BOOST/COAST,
-// sensor states, calibration overlays) falls through to pure white when a
-// beacon is active — beacon > any non-recovery-relevant state.
+// Beacon overlay — applied after priority resolution.
+// beacon_manual: pure white (max visibility). beacon_auto: keep state color
+// so recovery sees good/fault/safe-mode. Unmapped bases fall to white.
 // ============================================================================
 static uint8_t apply_beacon_overlay(uint8_t base, const NotifyState& s) {
     if (s.beacon_manual) {
@@ -121,7 +118,7 @@ static uint8_t apply_beacon_overlay(uint8_t base, const NotifyState& s) {
 // ============================================================================
 // Priority resolver — pure function
 // Iterates categories in order: Fault > Cal > Flight > Radio > Sensor > Idle.
-// First non-zero result wins. Stage L: beacon overlay applied after resolution.
+// First non-zero result wins. Beacon overlay applied after resolution.
 // ============================================================================
 uint8_t resolve_led_pattern(const NotifyState& s) {
     uint8_t p = 0;

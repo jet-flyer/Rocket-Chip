@@ -24,16 +24,12 @@
 #pragma GCC diagnostic pop
 #include "common/mavlink.h"        // MAVLink c_library_v2 (COMMAND_LONG encoding)
 #include "rocketchip/radio_config.h"
-#include "rocketchip/radio_config_table.h"          // T5.5: SET whitelist
+#include "rocketchip/radio_config_table.h"          // SET_RADIO_CONFIG whitelist
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
-#include <math.h>                                   // lroundf (T5.5: float->int)
+#include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
 #ifdef ROCKETCHIP_JOB_STATION
-// R-25-exec step 6 (2026-05-13): station_fault_inject.h migrated to
-// src/safety/. Runtime test_mode_active() gate at each
-// fault_force_station_* entry replaces compile-time gate; the global
-// flags themselves are read-only here and harmless on inactive boots.
-#include "safety/station_fault_inject.h"
+#include "safety/station_fault_inject.h"  // runtime-gated; flags are 0 unless armed
 #endif
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -56,7 +52,7 @@ enum : uint16_t {
 // AO State
 // ============================================================================
 
-// GCS connection state (IVP-62a)
+// GCS connection state
 enum class GcsState : uint8_t {
     kWaitingForGcs = 0,  // Send heartbeat only — no full telemetry
     kGcsConnected  = 1,  // GCS detected — full telemetry streaming
@@ -65,33 +61,11 @@ enum class GcsState : uint8_t {
 
 static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat → lost
 
-// Stage T Batch B prelim — airtime-scaled tracked-command retry timeout.
-// History:
-//   Pre-T6: hardcoded 3000 ms (chosen for SF7/BW125 + conservative).
-//   IVP-T7: dropped to 500 ms flat (pinned for BW500 collision regime).
-//   Batch B prelim: mutable — AO_Radio pushes a value derived from current
-//   {SF, BW, max payload} airtime on every SET_RADIO_CONFIG apply. Keeps the
-//   retry timeout sensible whether user selects BW500/SF7 (~200ms floor) or
-//   BW125/SF12 long-range preset (~1000ms ceiling).
-//   IVP-T14d wrap-up 2026-04-22: dropped seed to 250 ms (paired with retry
-//   count bump to 8) to keep safety-class command round-trip under ~2 s
-//   even in the half-duplex collision regime. This is a STOP-GAP tuning
-//   pending a full CCSDS-compliant link-layer rework (see
-//   docs/decisions/COP1_NOT_PURSUED.md for why COP-1 / FARM / FOP were
-//   deferred, and the "Stage T latency re-baseline" whiteboard item).
-// Seeded to 250 ms until first apply runs.
+// Airtime-scaled tracked-command retry timeout. AO_Radio pushes a value
+// from {SF, BW, max payload} on every SET_RADIO_CONFIG apply. Seed 250 ms
+// until first apply. 8 × 250 ms ≈ 2 s give-up window.
 static uint32_t g_ackRetryTimeoutMs = 250U;
 
-// Stage T Batch B IVP-T14d wrap-up — tracked-command retry budget.
-// Aggressive retry for ALL tracked commands: latency matters more than
-// airtime cost because (a) we send few commands, (b) half-duplex
-// collisions with the vehicle's 5 Hz nav TX eat ~10-15% of retry slots
-// blindly, so more retries directly buys more delivery probability, and
-// (c) ABORT / ARM / DISARM want fast confirmation.
-// 8 retries × 250 ms = ~2 s round-trip window before give-up.
-// STOP-GAP: proper CCSDS TC-Layer + COP-1 would give us exactly-once
-// delivery semantics without needing retry tuning at all. Parked until
-// full CCSDS rework.
 static constexpr uint8_t kAckMaxRetries = 8U;
 
 struct TelemAo {
@@ -108,11 +82,11 @@ struct TelemAo {
     uint32_t            last_tx_ms;
     uint32_t            last_heartbeat_ms;
 
-    // GCS connection tracking (IVP-62a)
+    // GCS connection tracking
     GcsState            gcs_state;
     uint32_t            last_gcs_heartbeat_ms;
 
-    // MAVLink RX parser (IVP-62b)
+    // MAVLink RX parser
     rc::MavlinkRxState  mavlink_rx;
     uint8_t             gcs_heartbeat_count;    // Consecutive GCS heartbeats seen [JPL-1]
     int16_t             param_send_idx;         // >=0: send param at this index on next tick (-1=idle)
@@ -158,19 +132,15 @@ static uint32_t now_ms() {
 #endif
 }
 
-// IVP-122: Vehicle-side pending ACK (queued for next TX opportunity)
+// Vehicle-side pending ACK (queued for next TX opportunity)
 static rc::ccsds::CommandAckPayload g_pendingAck = {};
 static bool g_pendingAckValid = false;
 static uint16_t g_ackSeq = 0;
 
-// Stage T IVP-T5.5: pending radio config storage lives in AO_Radio.
-// This AO (Telemetry) owns ACK buffering and command dispatch; AO_Radio
-// owns the actual radio reconfigure. After SET_RADIO_CONFIG validates,
-// we call AO_Radio_set_pending_config() which queues the apply to fire
-// on the next TxDone (which will be our outgoing ACK for this very
-// command — per smell-test A.1 "apply on confirmed egress").
+// Radio reconfigure lives in AO_Radio. After SET_RADIO_CONFIG validates,
+// AO_Radio_set_pending_config() applies on the next TxDone (outgoing ACK).
 
-// IVP-122: Send pending command ACK before nav frame
+// Send pending command ACK before nav frame
 static void send_pending_ack_if_any() {
     if (!g_pendingAckValid) return;
     g_pendingAckValid = false;
@@ -180,8 +150,6 @@ static void send_pending_ack_if_any() {
     g_ackSeq = static_cast<uint16_t>((g_ackSeq + 1) & 0x3FFF);
 
     // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
-    // Stage T IVP-T5: RadioTxEvt.buf bumped to 256; uint8_t ack_len ≤ sizeof
-    // check is now always-true. Removed redundant guard.
     static rc::RadioTxEvt g_ackTxEvt;
     g_ackTxEvt.super.sig = rc::SIG_RADIO_TX;
     g_ackTxEvt.super.refCtr_ = 0;
@@ -233,9 +201,8 @@ static void encode_and_send(TelemAo* me) {
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
-// Stage T IVP-T5.5 sub 2b: SET_RADIO_CONFIG dispatcher. Returns ACK result.
-// 3 validation gates (flight-state, whitelist, ±6 dB power delta) before
-// queuing the new config. Separated out for JSF AV rule 1 compliance.
+// SET_RADIO_CONFIG dispatcher. Returns ACK result.
+// 3 gates (flight-state, SX1276-legal, ±6 dB power delta) before queue.
 static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     uint16_t new_bw  = static_cast<uint16_t>(lroundf(cmd.param1));
     uint8_t  new_nav = static_cast<uint8_t> (lroundf(cmd.param2));
@@ -246,11 +213,7 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     if (!AO_FlightDirector_is_ground_state()) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
-    // Stage T Batch B prelim (2026-04-21): broader validation.
-    // Previously only accepted presets from kRadioConfigTable. User flagged
-    // that presets are just convenient defaults for the debug-menu digit
-    // keys — the advanced-settings path should accept anything legal on
-    // SX1276 hardware. See radio_config_table.h for both validators.
+    // Presets are debug-menu defaults; advanced path accepts SX1276-legal.
     if (!rc::radio_config_sx1276_legal(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
@@ -286,18 +249,18 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
         AO_FlightDirector_dispatch_signal(static_cast<uint16_t>(rc::SIG_ABORT));
         break;
     case MAV_CMD_USER_1: {
-        // Stage L IVP-L5: GCS-initiated manual beacon. Static event per LL Entry 35.
+        // GCS-initiated manual beacon. Static event (QP publish must outlive call).
         static QEvt g_beaconCmdEvt;
         g_beaconCmdEvt.sig = rc::SIG_BEACON_MANUAL;
         QActive_publish_(&g_beaconCmdEvt, &me->super, me->super.prio);
         break;
     }
     case MAV_CMD_USER_2:
-        // Stage T IVP-T5.5 sub 2b: SET_RADIO_CONFIG (3 gates inside).
+        // SET_RADIO_CONFIG (3 gates inside).
         ack_result = dispatch_set_radio_config(cmd);
         break;
     case MAV_CMD_USER_3:
-        // Sub 2e: QUERY_RADIO_CONFIG — read-only, echo fields populated below.
+        // QUERY_RADIO_CONFIG — read-only, echo fields populated below.
         break;
     default:
         ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
@@ -355,9 +318,7 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
     }
 }
 
-// IVP-122: Station-side pending command state (ACK tracking)
-// Stage T IVP-T5.5: +p1..p5 so resend_pending_cmd() replays the exact
-// parameters the operator sent for multi-param commands (SET_RADIO_CONFIG).
+// Station-side pending command. p1..p5 replay SET_RADIO_CONFIG on retry.
 static struct {
     bool pending;
     uint8_t seq;
@@ -371,9 +332,8 @@ static struct {
     float p5;
 } g_pendingCmd = {};
 
-// Stage T Batch B IVP-T14c: last-command-result latch for dashboard display.
-// Cleared by send_tracked_command; set on ACK or on retry exhaustion.
-// Dashboard renders this for a brief hold window after result.
+// Last-command-result latch for dashboard. Cleared on send; set on ACK
+// or retry exhaustion. Dashboard holds the result for a brief window.
 static struct {
     bool     valid;
     bool     ok;
@@ -383,14 +343,8 @@ static struct {
 } g_lastCmdResult = {};
 
 // ============================================================================
-// Stage T Batch B T14b: retry instrumentation (always on).
-//
-// Per-command-type counters so we can distinguish collision regimes from
-// sensitivity regimes and drive Batch C's T13 enable decision (post-field).
-// Counters never reset during a session — cumulative since boot.
-//
-// Indexed by enum below rather than by raw MAV_CMD id to keep the table
-// bounded. "Other" catches the long tail of infrequent/custom commands.
+// Retry counters (cumulative since boot). Indexed by CmdClass, not raw
+// MAV_CMD, so the table stays bounded. "Other" is the long tail.
 // ============================================================================
 enum CmdClass : uint8_t {
     kCmdClassArm          = 0,   // MAV_CMD_COMPONENT_ARM_DISARM param1>0.5
@@ -436,12 +390,9 @@ static const char* cmd_class_name(CmdClass c) {
 
 
 // Handle received packet from AO_Radio
-// Handle a received CCSDS command ACK (IVP-122): match against the station-
-// side pending command and clear if matched. Returns true if the buffer
-// decoded as a CmdAck (caller returns immediately on true).
-// Extracted from handle_rx_packet for JSF AV rule 1 compliance.
+// Match a CCSDS command ACK against the station pending command.
 #ifdef ROCKETCHIP_JOB_STATION
-// Sub 2c: ACK for SET_RADIO_CONFIG — station switches its own radio too.
+// ACK for SET_RADIO_CONFIG — station switches its own radio too.
 static void station_on_set_radio_ack(float p1, float p2, float p3,
                                       float p4, float p5) {
     rc::RadioConfig new_cfg = *AO_Radio_get_runtime_config();
@@ -457,7 +408,7 @@ static void station_on_set_radio_ack(float p1, float p2, float p3,
                static_cast<unsigned>(new_cfg.spreading_factor));
 }
 
-// Sub 2e: ACK for QUERY_RADIO_CONFIG — print echoed vehicle config.
+// ACK for QUERY_RADIO_CONFIG — print echoed vehicle config.
 static void station_on_query_ack(const rc::ccsds::CommandAckPayload& ack) {
     if (ack.cfg_bw_khz == 0) { return; }  // vehicle didn't populate
     rc::rc_log("[CMD] vehicle config: BW=%u nav=%u SF=%u CR=%u\n",
@@ -468,13 +419,11 @@ static void station_on_query_ack(const rc::ccsds::CommandAckPayload& ack) {
 }
 #endif
 
-// Post-ACK bookkeeping: latch dashboard snapshot (IVP-T14c) + update
-// retry stats (IVP-T14b). Extracted to keep try_handle_cmd_ack under
-// the 60-line JSF AV Rule 1 cap.
+// Post-ACK: dashboard latch + retry stats. Split out for function size.
 static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
                                uint8_t retries_left_at_ack,
                                uint32_t rtt_ms, bool accepted) {
-    // IVP-T14c dashboard latch.
+    // Dashboard latch.
     g_lastCmdResult.valid  = true;
     g_lastCmdResult.ok     = accepted;
     g_lastCmdResult.cmd_id = matched_cmd;
@@ -482,7 +431,7 @@ static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
                                                    : static_cast<uint16_t>(rtt_ms);
     g_lastCmdResult.at_ms  = now_ms();
 
-    // T14b retry stats.
+    // Retry stats.
     CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
     uint8_t retries_used = kAckMaxRetries - retries_left_at_ack;
     g_retryStats[cls].total_retries_used += retries_used;
@@ -499,10 +448,7 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
         return false;
     }
 #ifdef ROCKETCHIP_JOB_STATION
-    // IVP-132a: fault-inject ACK suppression — forces station retry path.
-    // R-25-exec step 6: flag is set only via fault_force_station_ack_suppress()
-    // which checks test_mode_active() at entry; on production boots the flag
-    // is always 0 and this branch is dead. (Runtime gate per Approach A.)
+    // Inject ACK suppression (runtime-gated; 0 on production boots).
     if (g_fault_station_ack_suppress_remaining > 0) {
         g_fault_station_ack_suppress_remaining =
             g_fault_station_ack_suppress_remaining - 1;
@@ -596,10 +542,7 @@ static void dispatch_nav_output(TelemAo* me,
 
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
 #ifdef ROCKETCHIP_JOB_STATION
-    // IVP-132a: fault-inject RX drop. R-25-exec step 6: flag is set
-    // only via fault_force_station_rx_drop() which checks
-    // test_mode_active() at entry; production boots leave the flag
-    // at 0 and this branch is dead.
+    // Inject RX drop (runtime-gated; 0 on production boots).
     if (g_fault_station_rx_drop_remaining > 0) {
         g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;
         return;
@@ -624,9 +567,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     me->rx_snapshot.met_ms = met_ms;
     me->rx_snapshot.seq = seq;
     me->rx_snapshot.valid = true;
-    // Sub 2f: config echo. If this was an APID 0x001 legacy packet,
-    // echo.bw_khz == 0 — leave last-known values in place so the
-    // dashboard can still show "last seen" (only overwrite on real echoes).
+    // Config echo. APID 0x001 legacy has echo.bw_khz == 0 — keep last seen.
     if (echo.bw_khz != 0) {
         me->rx_snapshot.echo_bw_khz       = echo.bw_khz;
         me->rx_snapshot.echo_nav_hz       = echo.nav_hz;
@@ -636,9 +577,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     }
 
 #ifdef ROCKETCHIP_STAGE_T2_CHEAT
-    // Stage T2 cheat-mode: fire pending command now that we know the vehicle
-    // just completed TX and is entering kRxWindow. Decoupled from normal
-    // X-press dispatch. Station build only.
+    // Cheat-mode: fire pending command once vehicle TX done / kRxWindow.
     extern void stage_t2_fire_pending_if_any();
     stage_t2_fire_pending_if_any();
 #endif
@@ -650,7 +589,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
 #endif
 }
 
-// GCS connection state update (IVP-62a)
+// GCS connection state update
 static void update_gcs_state(TelemAo* me, uint32_t t) {
     if (me->gcs_state == GcsState::kGcsConnected) {
         if (t - me->last_gcs_heartbeat_ms > kGcsTimeoutMs) {
@@ -659,7 +598,7 @@ static void update_gcs_state(TelemAo* me, uint32_t t) {
     }
 }
 
-// Direct USB MAVLink output for Vehicle mode (IVP-62a: heartbeat-only until GCS detected)
+// Direct USB MAVLink output (heartbeat-only until GCS detected)
 static void mavlink_direct_tick(TelemAo* me) {
 #ifndef ROCKETCHIP_HOST_TEST
     if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return; }
@@ -740,7 +679,7 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
-    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: health byte
+    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // health byte
 
     // 10Hz tick (every 10 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 10U, 10U);
@@ -809,12 +748,7 @@ uint8_t AO_Telemetry_cycle_rate() {
     return 5;
 }
 
-// Stage T Batch B prelim fix: wire nav_rate_hz into TX interval.
-// Called from AO_Radio::apply_runtime_config() so SET_RADIO_CONFIG actually
-// changes vehicle TX cadence. The radio_config_table whitelist is the policy
-// gate for which rates are acceptable; this setter just computes the interval
-// from whatever value arrived, with a guard against divide-by-zero and a
-// sanity ceiling.
+// SET_RADIO_CONFIG → vehicle TX interval. Rate policy is radio_config_table.
 void AO_Telemetry_set_rate(uint8_t rate_hz) {
     if (rate_hz == 0) { rate_hz = 5; }
     if (rate_hz > 50) { rate_hz = 50; }  // sanity: 50 Hz ~ 20ms period
@@ -822,9 +756,7 @@ void AO_Telemetry_set_rate(uint8_t rate_hz) {
     g_telemAo.interval_ms = 1000U / rate_hz;
 }
 
-// Stage T Batch B prelim fix: airtime-scaled ACK-retry timeout.
-// Called from AO_Radio::apply_runtime_config() with a value derived from
-// current {SF, BW, max payload} airtime. Seeds at 500 ms until first apply.
+// Airtime-scaled ACK-retry timeout from AO_Radio ({SF, BW, payload}).
 void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms) {
     if (timeout_ms < 100U)  { timeout_ms = 100U; }
     if (timeout_ms > 5000U) { timeout_ms = 5000U; }
@@ -835,7 +767,7 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &g_telemAo.rx_snapshot;
 }
 
-// IVP-62c: encode + send MAVLink COMMAND_LONG over LoRa
+// Encode + send MAVLink COMMAND_LONG over LoRa
 void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 #ifndef ROCKETCHIP_HOST_TEST
     mavlink_message_t msg;
@@ -864,15 +796,11 @@ void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 #endif
 }
 
-// IVP-122: Send a tracked command — populates pending-cmd state for ACK tracking.
+// Tracked command — pending-cmd state for ACK tracking.
 static uint8_t g_cmdSeq = 0;
 
-// Stage T Batch B T14a: is this command class safety-critical? Per Round 2
-// council consensus #5, ARM (COMPONENT_ARM_DISARM with param1 > 0.5) and
-// flight-termination (ABORT) are safety-class — excluded from newest-wins
-// dedupe so every deliberate operator press is preserved as its own
-// tracked command. DISARM is NOT safety-class (DISARM is safer than ARM;
-// mashing DISARM is a harmless noop if already disarmed).
+// ARM and ABORT skip newest-wins dedupe so each press is its own ACK
+// window. DISARM may dedupe (safer than ARM; mash is a no-op if disarmed).
 static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
     if (cmd_id == MAV_CMD_DO_FLIGHTTERMINATION) {
         return true;
@@ -918,14 +846,11 @@ static void populate_pending(uint16_t command, uint8_t seq,
     g_pendingCmd.p4 = params.p4;
     g_pendingCmd.p5 = params.p5;
 
-    // T14b: count a new send. Dedupe-replace path also reuses populate_pending
-    // — but the command is semantically "a new send" (new seq, fresh ACK
-    // window), so counting it is correct.
+    // Dedupe-replace is still a new send (new seq, fresh ACK window).
     CmdClass c = classify_tracked_cmd(command, params.p1);
     g_retryStats[c].sent_count++;
 
-    // IVP-T14c: clear stale last-result latch on new send so dashboard
-    // transitions directly to "Try 0/N (pending)" without stale ACK text.
+    // Clear last-result so dashboard shows pending, not stale ACK.
     g_lastCmdResult.valid = false;
 }
 #endif
@@ -934,14 +859,8 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
                                        float p2, float p3,
                                        float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
-    // Stage T Batch B T14a: MAV_CMD dedupe newest-wins. If a command of the
-    // same cmd_id is already pending and the class is NOT safety-critical,
-    // replace in-place (bump seq, overwrite params, reset retries). Prevents
-    // operator-mashing self-collision: N rapid presses → 1 pending command
-    // with most-recent params, seq monotonic.
-    //
-    // Safety-class commands (ARM, ABORT) bypass dedupe — every deliberate
-    // press is preserved as its own tracked command with its own ACK window.
+    // Newest-wins dedupe for non-safety cmds: mash → one pending, latest params.
+    // ARM/ABORT bypass so each press keeps its own ACK window.
     if (g_pendingCmd.pending &&
         g_pendingCmd.cmd_id == command &&
         !is_tracked_command_safety_class(command, p1)) {
@@ -966,8 +885,7 @@ bool AO_Telemetry_is_cmd_pending() {
     return g_pendingCmd.pending;
 }
 
-// Stage T Batch B IVP-T14c: dashboard-visible snapshot of pending/recent-ack
-// state. Pure snapshot — Core 0 cooperative dispatch, no locks needed.
+// Dashboard snapshot of pending/recent-ack. Core 0 cooperative, no locks.
 void AO_Telemetry_get_pending_cmd_status(PendingCmdStatus* out) {
     if (out == nullptr) { return; }
     out->pending      = g_pendingCmd.pending;
@@ -982,7 +900,7 @@ void AO_Telemetry_get_pending_cmd_status(PendingCmdStatus* out) {
     out->last_result_ms    = g_lastCmdResult.at_ms;
 }
 
-// Stage T Batch B IVP-T14b: retry-stats snapshot for CLI/diag.
+// Retry-stats snapshot for CLI/diag.
 uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows) {
     uint8_t n = 0;
     for (uint8_t i = 0; i < static_cast<uint8_t>(kCmdClassCount) && n < max_rows; ++i) {
@@ -1001,8 +919,7 @@ uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows) 
 static void resend_pending_cmd() {
 #ifndef ROCKETCHIP_HOST_TEST
     mavlink_message_t msg;
-    // Stage T IVP-T5.5: replay ALL cached params (was p1-only, hard-coded
-    // for ARM). Multi-param commands like SET_RADIO_CONFIG depend on this.
+    // Replay all cached params (SET_RADIO_CONFIG is multi-param).
     mavlink_msg_command_long_pack(
         255, 0, &msg, 1, 1,
         g_pendingCmd.cmd_id,
@@ -1038,13 +955,13 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
                        kAckMaxRetries, g_pendingCmd.seq);
             resend_pending_cmd();
         } else {
-            // T14b: record fail + retries used (all kAckMaxRetries).
+            // Record fail + retries used.
             CmdClass cls = classify_tracked_cmd(g_pendingCmd.cmd_id,
                                                  g_pendingCmd.p1);
             g_retryStats[cls].fail_count++;
             g_retryStats[cls].total_retries_used += kAckMaxRetries;
 
-            // IVP-T14c: latch failure for dashboard display.
+            // Latch failure for dashboard.
             g_lastCmdResult.valid  = true;
             g_lastCmdResult.ok     = false;
             g_lastCmdResult.cmd_id = g_pendingCmd.cmd_id;
@@ -1061,7 +978,7 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
 #endif
 }
 
-// IVP-62b: feed USB input byte to MAVLink parser for GCS detection + commands.
+// Feed USB input byte to MAVLink parser for GCS detection + commands.
 // Uses COMM_0 (dedicated to USB input) — not COMM_1 (mavlink_rx module) which
 // gets corrupted by CLI bytes. CRLF translation disabled so binary frames parse correctly.
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
@@ -1105,7 +1022,7 @@ bool AO_Telemetry_is_gcs_connected() {
     return g_telemAo.gcs_state == GcsState::kGcsConnected;
 }
 
-// IVP-62a: notify that a GCS heartbeat was received (USB or LoRa)
+// Notify that a GCS heartbeat was received (USB or LoRa)
 void AO_Telemetry_notify_gcs_heartbeat() {
     g_telemAo.last_gcs_heartbeat_ms = now_ms();
     if (g_telemAo.gcs_state != GcsState::kGcsConnected) {

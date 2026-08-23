@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Go/No-Go poll evaluation (IVP-69)
+// Go/No-Go poll evaluation
 
 #include "go_nogo_checks.h"
 #include "rocketchip/rc_log.h"
@@ -33,10 +33,9 @@ static void add_station(GoNoGoResult& r, uint8_t tier, const char* name,
     ++r.num_checks;
 }
 
-// Stage T Batch B IVP-T14: add "RF Link" Tier-2 station. GO when link is
-// in kTrack with LQ >= 65% — matches the dashboard glance-indicator green
-// threshold (Round 2 design §12). kTrackDegraded (state 3) is warn-yellow.
-//   state: 0=ACQ, 1=Tentative, 2=Track, 3=TrackDegraded
+// RF Link Tier-2 station. GO when link is in kTrack with LQ >= 65%
+// (dashboard glance green). kTrackDegraded (state 3) is warn-yellow.
+// state: 0=ACQ, 1=Tentative, 2=Track, 3=TrackDegraded
 static void add_rf_link_station(GoNoGoResult& r, const GoNoGoInput& input) {
     const bool link_go = input.rf_anchor_valid &&
                          (input.rf_link_state == 2) &&
@@ -90,9 +89,7 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
                 !input.launch_abort ? "GO" : "NO-GO LAUNCH ABORT");
     add_station(r, 1, "Watchdog", input.watchdog_ok,
                 input.watchdog_ok ? "GO" : "NO-GO SAFE MODE");
-    // Fault-recovery 2026-05-14: prior-boot fault latches gate ARM.
-    // Each requires operator-cleared latch (via CLI reset command in IDLE
-    // after physical inspection of the recovery cause) before re-arm.
+    // Prior-boot fault latches gate ARM until operator-cleared in IDLE.
     add_station(r, 1, "PriorHF", input.prior_hardfault_clear,
                 input.prior_hardfault_clear ? "GO" : "NO-GO PRIOR HARDFAULT");
     add_station(r, 1, "PriorBOR", input.prior_brownout_clear,
@@ -103,8 +100,7 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
                 input.gps_has_lock ? "GO" : "NO-GO NO LOCK");
     add_station(r, 2, "Mag Cal", input.mag_calibrated,
                 input.mag_calibrated ? "GO" : "NO-GO NOT CALIBRATED");
-    // Stage T Batch B: "Radio HW" = SX1276 init / SPI reachable;
-    // "RF Link" below = learned link state from AO_RfManager (IVP-T14).
+    // Radio HW = SX1276 init / SPI reachable; RF Link = learned link state.
     add_station(r, 2, "Radio HW", input.radio_linked,
                 input.radio_linked ? "GO" : "NO-GO NOT INIT");
     add_rf_link_station(r, input);

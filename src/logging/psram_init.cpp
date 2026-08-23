@@ -299,7 +299,7 @@ size_t psram_get_size() {
 }
 
 // ============================================================================
-// Flash-safe PSRAM integrity test (council req. #2 hard gate)
+// Flash-safe PSRAM integrity test
 // ============================================================================
 
 // Write a known pattern to PSRAM, perform a flash erase+program cycle,

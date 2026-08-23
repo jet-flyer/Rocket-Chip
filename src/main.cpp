@@ -22,14 +22,14 @@
 #include "drivers/mcu_temp.h"
 #include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
-#include "logging/radio_config_storage.h"  // Stage T IVP-T5.5
+#include "logging/radio_config_storage.h"  // persisted radio config
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
-#include "safety/fault_protection.h"  // OPT-IVP-01
+#include "safety/fault_protection.h"
 #include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
 #include "diag/diag_stats.h"
@@ -77,13 +77,13 @@
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 
-// Watchdog timeout/feed lives in pio_watchdog (OPT-IVP-01).
+// Watchdog timeout/feed lives in pio_watchdog.
 
 // Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
 static constexpr uint32_t kSensorSettleMs = 200;
 
 // All global state is declared in include/rocketchip/shared_state.h and
-// defined in src/shared_state.cpp (OPT-IVP-02).
+// defined in src/shared_state.cpp.
 
 namespace {
 
@@ -186,7 +186,7 @@ static void init_fault_recovery() {
     // (init_application) consumes anomalous_boot_verdict().
     rc::anomalous_boot_init();
 
-    // Shared fault handlers (OPT-IVP-01) + MPU stack guard.
+    // Shared fault handlers + MPU stack guard.
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
     mpu_setup_stack_guard(reinterpret_cast<uintptr_t>(&__StackBottom));
@@ -220,7 +220,7 @@ static void init_early_hw() {
 
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                 board::kNeoPixelCount);
-    (void)rc::mcu_temp_init();  // Stage 16C IVP-142a
+    (void)rc::mcu_temp_init();
 }
 
 static void init_peripherals() {
@@ -233,10 +233,8 @@ static void init_peripherals() {
     g_calStorageInitialized = calibration_storage_init();
     calibration_manager_init();
 
-    // Stage T IVP-T5.5: radio config storage init (before USB, per same rule).
-    // Persisted config read happens later in RadioAo_initial via
-    // radio_config_storage_read() — but the sector scan must happen here
-    // while flash ops are still safe.
+    // Radio config storage init (before USB, same flash-safety rule).
+    // Sector scan here; RadioAo_initial later calls radio_config_storage_read().
     radio_config_storage_init();
 
     // USB CDC init (after I2C/flash per LL Entry 4/12). Non-blocking —
@@ -328,7 +326,7 @@ static void init_core1_role() {
     } else {
         rc_os_i2c_scan_allowed = true;
         if constexpr (job::kRadioModeRx) {
-            rc::station_idle_tick_init();  // Stage 16C IVP-140
+            rc::station_idle_tick_init();
         }
     }
 }
@@ -381,7 +379,7 @@ static void init_application() {
 // Each tick function manages one subsystem. nowMs is computed once per loop
 // iteration and passed to all ticks to prevent temporal skew.
 
-// PIO watchdog feed replaces SDK watchdog (IVP-90). The PIO heartbeat is
+// PIO watchdog feed replaces SDK watchdog. The PIO heartbeat is
 // the sole health monitor — sets an IRQ flag on timeout, never resets
 // the chip. No MCU reset ever without user command.
 static void watchdog_kick_tick() {
@@ -399,7 +397,7 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 // QV_onIdle bridge — called from bsp_qv.c when all AO queues are empty.
 // Runs watchdog feed and ESKF propagation (seqlock bridge).
 //
-// Council A2: watchdog_kick_tick() stays here permanently — never an AO.
+// watchdog_kick_tick stays here permanently — never an AO.
 extern "C" void qv_idle_bridge(void) {
     // The fault_force_* writers in src/safety/fault_inject.cpp check
     // rc::test_mode_active() at entry and no-op on production boots, so
@@ -417,11 +415,9 @@ extern "C" void qv_idle_bridge(void) {
 
     eskf_runner_tick();
 
-    // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
+    // Station: command ACK retry + GPS/MCU-temp poll.
     if constexpr (job::kRadioModeRx) {
         AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
-        // Stage 16C IVP-140: station periodic work (GPS poll, MCU temp).
-        // No-op until IVP-141 adds the GPS body. Safe-in-idle by design.
         rc::station_idle_tick();
     }
 
@@ -457,30 +453,26 @@ static void start_active_objects() {
     // RfManager=7 (consumes SIG_RADIO_RX, gates station TX — between Radio
     // and HealthMon so it drains same cooperative pass as Radio's posts),
     // HealthMon=6, Notify=5, Logger=4, Telem=3, LED=2, RCOS=1.
-    // Stage T Batch B: FD moved 7→9 to free 7 for RfManager.
+    // FD=9 so RfManager can sit at 7 (between Radio and HealthMon).
     AO_Radio_start(8U, g_spiInitialized);  // 100Hz — owns radio hardware init
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_FlightDirector_start(9U); // 100Hz — top priority; station has no FD
     }
-    // Stage 16C IVP-142c: HealthMonitor runs on every role that has a
-    // health pipeline to populate. Station's AO uses capability-masked
-    // paths (job.h kRoleSamplesCore1 / kRoleRunsLogger) so Core1/Flash
-    // bits aren't stuck off, and un-installed sensors report
-    // kHealthAbsent cleanly.
-    // Relay stays out — it's link-layer only.
+    // HealthMonitor on every role with a health pipeline. Station uses
+    // job.h capability masks so unused sensors report kHealthAbsent.
+    // Relay stays out — link-layer only.
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify
     }
-    // Stage T Batch B IVP-T14: AO_RfManager tracks RF link health +
-    // anchors station TX to vehicle RxDone. Runs on both station and
-    // vehicle. Relay stays out — no nav RX cadence to track.
+    // AO_RfManager: RF link health + station TX anchored to vehicle RxDone.
+    // Vehicle and station; not Relay.
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         // Initial nav_period_ms = 200 (5 Hz default). Updated via
         // AO_RfManager_set_nav_period_ms() on SET_RADIO_CONFIG apply.
         rc::AO_RfManager_start(7U, 200U);  // 10Hz
     }
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        AO_Notify_start(5U);         // 33Hz — notification intent hub (IVP-114)
+        AO_Notify_start(5U);         // 33Hz — notification intent hub
         AO_Logger_start(4U, g_psramSize, g_psramSelfTestPassed);  // 50Hz
     }
     if constexpr (job::kRole != job::DeviceRole::kRelay) {

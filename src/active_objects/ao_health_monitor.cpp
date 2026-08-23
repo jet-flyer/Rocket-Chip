@@ -7,7 +7,7 @@
 
 #include "ao_health_monitor.h"
 #include "safety/health_monitor.h"
-#include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
+#include "safety/inject_arm_gate.h"    // inject/test-mode gate
 #include "rocketchip/ao_signals.h"
 
 // ============================================================================
@@ -97,7 +97,7 @@ static QState hm_running(HealthMonitor * const me, QEvt const * const e) {
         me->republish_count++;
         if (me->republish_count >= kRepublishDivider) {
             me->republish_count = 0;
-            // 1Hz forced re-publish (council amendment 2: prevents startup-order bugs)
+            // 1Hz forced re-publish — catches subscribers that started late.
             hm_publish(me);
         } else if (changed) {
             // On-change publish

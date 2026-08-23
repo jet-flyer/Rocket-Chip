@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Frame-level ring buffer implementation
-// IVP-52b: Ring Buffer (Stage 6: Data Logging)
 
 #include "ring_buffer.h"
 #include <cstring>
