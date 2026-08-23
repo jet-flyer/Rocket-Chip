@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// flight_in_progress sentinel — boot-time evidence that the firmware was
-// armed/airborne when something reset it. See safety/crash_record.h for
-// the declarations. Implemented in its own file (separate from
-// crash_record.cpp) so it can be linked into host-test targets without
-// dragging the target-only `dsb` / `wfi` / AIRCR code path from
-// crash_record_capture().
+// Uninitialized-data magic: armed/airborne across reset. Own TU so host
+// tests do not pull crash_record_capture() dsb/wfi/AIRCR. See crash_record.h.
 
 #include "safety/crash_record.h"
 

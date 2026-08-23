@@ -18,8 +18,9 @@
 #include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
+#include "rocketchip/version.h"
 #include "rocketchip/led_patterns.h"
 #include "cli/rc_os_dashboard.h"
 #include "cli/rc_os.h"
@@ -60,7 +61,7 @@ enum : uint16_t {
 
 // Vehicle defaults to kMenu (CLI). Station defaults to kAnsi (dashboard).
 // kAnsi causes poll_dashboard_keys() to eat all input — must not be default on vehicle.
-static StationOutputMode g_outputMode = kRadioModeRx ? StationOutputMode::kAnsi
+static StationOutputMode g_outputMode = job::kRadioModeRx ? StationOutputMode::kAnsi
                                                        : StationOutputMode::kMenu;
 
 StationOutputMode AO_RCOS_get_output_mode() {
@@ -211,7 +212,7 @@ static void enter_cli_menu() {
 #if 0
 // Handle 'm' key — cycle output mode
 static void handle_mode_cycle() {
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         AO_RCOS_cycle_output_mode();
         auto new_mode = AO_RCOS_get_output_mode();
         const char* name = (new_mode == StationOutputMode::kAnsi) ? "ANSI" :
@@ -258,7 +259,7 @@ static void poll_dashboard_keys() {
     int ch;
     while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
         if (ch == 'x' || ch == 'X') { enter_cli_menu(); return; }
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             if (ch == 'a') {
                 rc_os_start_arm_confirm();
                 return;
@@ -285,7 +286,7 @@ static void cli_dispatch() {
 
 // ANSI dashboard render — event-driven on new RX packet or 1Hz idle
 static void ansi_render_tick(RcosAo* me) {
-    if constexpr (!kRadioModeRx) { return; }
+    if constexpr (!job::kRadioModeRx) { return; }
     if (AO_RCOS_get_output_mode() != StationOutputMode::kAnsi) { return; }
     if (!stdio_usb_connected()) { return; }
 

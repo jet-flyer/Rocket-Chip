@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file cli_commands.cpp
- * @brief CLI command handlers and display functions
- *
- * Pure command/display code — reads state from AO public APIs and
- * sensor seqlock, owns no state.
- */
+// CLI command handlers and display functions
+// Pure command/display code — reads state from AO public APIs and
+// sensor seqlock, owns no state.
 
 #include "cli/rc_os_commands.h"
 
 #include "ao_rcos.h"
 #include "rocketchip/ao_signals.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
+#include "rocketchip/job.h"
+#include "rocketchip/version.h"
 #include "rocketchip/shared_state.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "safety/core1_i2c_pause.h"       // R-17 audit 2026-05-07: cooperative pause around flash ops
@@ -87,7 +85,7 @@ void stage_t2_fire_pending_if_any() {
 // the command and log it — operator verifies on dashboard that the NEW
 // config shows up in the echo.
 static void cmd_radio_config_cycle() {
-    if constexpr (!kRadioModeRx) { return; }  // station-only
+    if constexpr (!job::kRadioModeRx) { return; }  // station-only
 
     // Find the current station-side target by matching against the whitelist.
     // On first press we don't know what the vehicle is on — start at index 0
@@ -767,7 +765,7 @@ void cli_print_hw_status() {
         rc::rc_log("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
                board::kRadioCsPin, board::kRadioRstPin,
                board::kRadioIrqPin);
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             auto mode = AO_RCOS_get_output_mode();
             const char* mode_name = (mode == StationOutputMode::kAnsi) ? "ANSI dashboard" :
                                     (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
@@ -1244,7 +1242,7 @@ static void cmd_radio_status() {
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         uint32_t gap = (rs->rx_count > 0) ? (now - rs->last_rx_ms) : 0;
         rc::rc_log("RX: %lu pkts  seq=%u  %ddBm  %ddB SNR  %lu CRC err\n",
                (unsigned long)rs->rx_count,
@@ -1306,7 +1304,7 @@ static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
 }
 
 static void cmd_station_gps() {
-    if constexpr (!kRadioModeRx) { return; }
+    if constexpr (!job::kRadioModeRx) { return; }
     if (!g_gpsInitialized) {
         rc::rc_log("Station GPS: not connected\n");
         return;
@@ -1339,7 +1337,7 @@ static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
 }
 
 static void cmd_station_distance() {
-    if constexpr (!kRadioModeRx) { return; }
+    if constexpr (!job::kRadioModeRx) { return; }
     if (!g_gpsInitialized || g_bestGpsFix.fix_type < 2) {
         rc::rc_log("Distance: station GPS has no fix\n");
         return;
@@ -1389,8 +1387,10 @@ static void cmd_station_gps_push() {
 }
 
 // ============================================================================
-// Preflight Go/No-Go Poll (IVP-110)
+// Preflight Go/No-Go Poll
 // ============================================================================
+// ARM uses go_nogo_evaluate().all_go. This screen prints that poll so the
+// operator sees the same stations. MCU temp / CRITICAL are extra — not ARM.
 
 static const char* health_level_str(rc::HealthLevel level) {
     switch (level) {
@@ -1400,40 +1400,6 @@ static const char* health_level_str(rc::HealthLevel level) {
         case rc::kHealthAbsent:   return "ABSENT";
         default:                  return "?";
     }
-}
-
-static bool is_go(rc::HealthLevel level) {
-    return level >= rc::kHealthDegraded;  // OK or degraded = GO
-}
-
-static void preflight_print_primary(const rc::HealthState* hs) {
-    rc::HealthLevel imu  = rc::health_imu(hs->primary);
-    rc::HealthLevel baro = rc::health_baro(hs->primary);
-    rc::HealthLevel eskf = rc::health_eskf(hs->primary);
-    rc::HealthLevel gps  = rc::health_gps(hs->primary);
-
-    rc::rc_log("IMU:      %s\n", is_go(imu)  ? "GO" : health_level_str(imu));
-    rc::rc_log("Baro:     %s\n", is_go(baro) ? "GO" : health_level_str(baro));
-    rc::rc_log("ESKF:     %s\n", is_go(eskf) ? "GO" : health_level_str(eskf));
-
-    // GPS: show fix detail on non-GO
-    if (is_go(gps)) {
-        rc::rc_log("GPS:      GO\n");
-    } else {
-        shared_sensor_data_t snap{};
-        seqlock_read(&g_sensorSeqlock, &snap);
-        rc::rc_log("GPS:      %s  fix=%u sats=%u\n",
-               health_level_str(gps),
-               static_cast<unsigned>(snap.gps_fix_type),
-               static_cast<unsigned>(snap.gps_satellites));
-    }
-}
-
-static void preflight_print_secondary(const rc::HealthState* hs) {
-    rc::rc_log("Radio HW: %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
-    rc::rc_log("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
-    rc::rc_log("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
-    rc::rc_log("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
 }
 
 static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
@@ -1463,29 +1429,20 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
 void cli_print_preflight() {
     const rc::HealthState* hs = rc::health_monitor_get_state();
 
-    rc::rc_log("\n=== PREFLIGHT ===\n");
-    preflight_print_primary(hs);
-    preflight_print_secondary(hs);
-    preflight_print_mcu_and_critical(hs);
-
-    // Stage T Batch B IVP-T14: show "RF Link" station (learned-link state
-    // from AO_RfManager) alongside the hardware-level Radio health above.
-    // Uses the same go_nogo_evaluate path the ARM-time check uses, so the
-    // operator sees what ARM will see.
     rc::GoNoGoInput gng{};
     rc::health_monitor_fill_go_nogo(&gng);
     rc::GoNoGoResult gng_result = rc::go_nogo_evaluate(gng);
+
+    rc::rc_log("\n=== PREFLIGHT ===\n");
     for (uint8_t i = 0; i < gng_result.num_checks; ++i) {
         const rc::GoNoGoCheck& c = gng_result.checks[i];
-        // Only surface the RF-specific stations — the others duplicate the
-        // primary/secondary block above.
-        if (strcmp(c.name, "RF Link") == 0) {
-            rc::rc_log("RF Link:  %s\n", c.reason);
-        }
+        rc::rc_log("T%u %-10s %s\n",
+                   static_cast<unsigned>(c.tier), c.name, c.reason);
     }
+    preflight_print_mcu_and_critical(hs);
 
     rc::rc_log("----------------\n");
-    rc::rc_log("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
+    rc::rc_log("VERDICT:  %s\n", gng_result.all_go ? "GO" : "NO-GO");
 }
 
 void cli_handle_unhandled_key(int key) {
@@ -1493,16 +1450,16 @@ void cli_handle_unhandled_key(int key) {
     case 'l': case 'L': cmd_flush_log(); break;
     case 'x': AO_RCOS_start_erase_flights(); break;
     case 'd': case 'D':
-        if constexpr (kRadioModeRx) { cmd_station_distance(); }
+        if constexpr (job::kRadioModeRx) { cmd_station_distance(); }
         else { AO_RCOS_start_download_flight(); }
         break;
     case 'g': case 'G':
-        if constexpr (kRadioModeRx) { cmd_station_gps(); }
+        if constexpr (job::kRadioModeRx) { cmd_station_gps(); }
         else { cmd_list_flights(); }
         break;
     case 't': case 'T': cmd_radio_status(); break;
     case 'r':
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             // Stage T IVP-T5.5 sub 2c: station SET_RADIO_CONFIG.
             // Cycle through kRadioConfigTable entries, sending the next
             // entry after the current. Operator can press repeatedly to
@@ -1528,13 +1485,13 @@ void cli_handle_unhandled_key(int key) {
         }
         break;
     case 'a':
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             // IVP-122: ARM confirm flow — enter multi-char confirm state
             rc_os_start_arm_confirm();
         }
         break;
     case 'X':
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             // IVP-122: Station DISARM — single-key, no confirm, ACK-tracked.
             // Capital X only (lowercase x is erase-flights in TX mode).
 #ifdef ROCKETCHIP_STAGE_T2_CHEAT
@@ -1547,7 +1504,7 @@ void cli_handle_unhandled_key(int key) {
         }
         break;
     case 'p': case 'P':
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             cmd_station_gps_push();
         }
         break;
@@ -1571,7 +1528,7 @@ void cli_handle_unhandled_key(int key) {
 // handler turns that into the same SIG_BEACON_MANUAL publish, so the visual
 // behavior is identical from either side.
 void cmd_findme_beacon() {
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         // Station — send beacon command to vehicle via tracked command (IVP-122
         // ACK protocol). cmd.param1 unused by MAV_CMD_USER_1 receiver.
         AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0F);

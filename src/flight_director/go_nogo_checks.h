@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file go_nogo_checks.h
- * @brief Go/No-Go pre-arm poll
- *
- * Two-tier Go/No-Go readiness poll (NASA launch terminology):
- *   Tier 1 (platform): IMU, baro, ESKF, flash, LAUNCH_ABORT, watchdog
- *   Tier 2 (profile): GPS, mag cal, radio, battery (stub)
- *
- * Tier 1 "No-Go" blocks arming. Tier 2 "No-Go" warns but allows ARM.
- *
- * All checks are pure functions of a GoNoGoInput snapshot — no globals,
- * no hardware access. main.cpp populates the snapshot from its statics.
- */
+// Go/No-Go pre-arm poll. Pure function of GoNoGoInput — no globals, no HW.
+// Snapshot: health_monitor_fill_go_nogo(). ARM: command_handler uses all_go.
+//
+// Two tiers (NASA pad terminology):
+//   Tier 1 platform — IMU, baro, ESKF, flash, launch-abort, watchdog,
+//     prior hardfault, prior brownout. Any NO-GO blocks ARM.
+//   Tier 2 profile — GPS, mag cal, radio HW, RF link, battery stub.
+//     NO-GO warns; ARM still allowed.
+// CLI preflight must print this poll and use all_go as VERDICT — not a
+// parallel health-byte policy.
 
 #ifndef ROCKETCHIP_GO_NOGO_CHECKS_H
 #define ROCKETCHIP_GO_NOGO_CHECKS_H
@@ -21,10 +18,7 @@
 
 namespace rc {
 
-// Maximum number of individual check results
-// Bumped 12 -> 16 on 2026-05-14 (commit b/3 of fault-recovery rework) to
-// accommodate the two new Tier-1 prior-fault-latch stations (PriorHF +
-// PriorBOR) without truncating Tier-2 stations.
+// Room for 8 Tier-1 + 5 Tier-2 stations (see go_nogo_evaluate).
 static constexpr uint8_t kGoNoGoMaxChecks = 16;
 
 // Maximum reason string length (stack-allocated, no heap)

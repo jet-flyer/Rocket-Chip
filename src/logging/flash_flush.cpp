@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file flash_flush.cpp
- * @brief PSRAM/SRAM ring buffer → flash flush engine + flight table I/O
- */
+// PSRAM/SRAM ring buffer → flash flush engine + flight table I/O
 
 #include "flash_flush.h"
 #include "crc32.h"

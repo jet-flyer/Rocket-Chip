@@ -39,32 +39,35 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ---
 
-## Doxygen + header comment-density policy (19) — LABELED 2026-08-21
+## Doxygen + header comment-density policy (19) — SITTING 5 APPLY 2026-08-22
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** not this phase (Phase 3 sitting 5).
-**Policy to write then apply:** WN-054 (`.h` density exemption) + WN-081 (keep structured Doxygen consistently, or drop it). Not a mass delete. File-level rows are evidence for that sitting. No owner exceptions.
+**Sitting:** Phase 3 sitting 5. Inventory: `L2P5_DOXYGEN_INVENTORY_2026-08-22.md` (90 tagged files; **75 walk-missed**).
+**Policy (owner, not a CODING_STANDARDS line):** drop Doxygen markup; short `//` contracts. Existing `.cpp` 15–25% density band unchanged. No “don’t use Doxygen” sentence — absence of a requirement is the rule. Header carve-out stays mechanical.
+**Apply:** converted authored `@`/`/**`/`///` in `src/`+`include/` (not generated `eskf_codegen.h`). Sitting-5 WNs also trimmed data homes (essays → pointer/delete). Remaining process essays on non-S5 files wait sitting 13.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-036 | REMEDIATE | labeled | pending Phase 3 — `notify_intents.h` density |
-| WN-054 | REMEDIATE | labeled | pending Phase 3 — comment-density `.h` exemption (policy) |
-| WN-081 | REMEDIATE | labeled | pending Phase 3 — Doxygen keep-consistently-or-drop (policy) |
-| WN-095 | REMEDIATE | labeled | pending Phase 3 — `rfm95w.h` inventory seed |
-| WN-131 | REMEDIATE | labeled | pending Phase 3 — `eskf.h` density / wrong home |
-| WN-149 | REMEDIATE | labeled | pending Phase 3 — `ud_factor.h` comment ratio |
-| WN-150 | REMEDIATE | labeled | pending Phase 3 — `ud_factor.cpp` Doxygen / algorithm blocks |
-| WN-185 | REMEDIATE | labeled | pending Phase 3 — `guard_evaluator` hybrid table-Doxygen |
-| WN-206 | REMEDIATE | labeled | pending Phase 3 — `flash_flush` density |
-| WN-210 | REMEDIATE | labeled | pending Phase 3 — `flight_table` density |
-| WN-212 | REMEDIATE | labeled | pending Phase 3 — `log_decimator` density |
-| WN-215 | REMEDIATE | labeled | pending Phase 3 — `psram_init` density |
-| WN-223 | REMEDIATE | labeled | pending Phase 3 — `crc32.h` keep with inventory |
-| WN-226 | REMEDIATE | labeled | pending Phase 3 — `diag_stats` comment ratio |
-| WN-247 | REMEDIATE | labeled | pending Phase 3 — `anomalous_boot` banner density |
-| WN-250 | REMEDIATE | labeled | pending Phase 3 — `flight_in_progress.cpp` sentinel density |
-| WN-251 | REMEDIATE | labeled | pending Phase 3 — `health_monitor` density |
-| WN-266 | REMEDIATE | labeled | pending Phase 3 — `core1_i2c_pause.cpp` density |
-| WN-292 | REMEDIATE | labeled | pending Phase 3 — `ao_logger` partial Doxygen |
+| WN-036 | REMEDIATE | closed | `notify_intents.h` — short role + NOTIFY_CONTRACT pointer |
+| WN-054 | ACCEPT | closed | `.h` 15–25% carve-out stays mechanical; Doxygen was never the reason to keep essays. No CODING_STANDARDS edit (owner). |
+| WN-081 | REMEDIATE | closed | Drop Doxygen in authored `src/`+`include/`; short `//` contracts. Recipe on rem WB **R-7**. |
+| WN-095 | REMEDIATE | closed | `rfm95w.h` `@` walls → contracts; Stage-T timeout essay trimmed |
+| WN-131 | REMEDIATE | closed | `eskf.h` banner/mag/ZUPT essays compressed; council RF tags dropped |
+| WN-149 | REMEDIATE | closed | `ud_factor.h` Bierman wall → short path line |
+| WN-150 | REMEDIATE | closed | `ud_factor.cpp` `@file` gone; algorithm `//` kept as why |
+| WN-185 | REMEDIATE | closed | `guard_evaluator` hybrid `@param` gone |
+| WN-206 | REMEDIATE | closed | `flash_flush.h` Doxygen + council-req banner trimmed |
+| WN-210 | REMEDIATE | closed | `flight_table.h` address map → `flash_layout.h` pointer |
+| WN-212 | REMEDIATE | closed | `log_decimator.h` IVP/Stage line dropped; Markley why kept |
+| WN-215 | REMEDIATE | closed | `psram_init.h` council/IVP/map essay → short edge banner |
+| WN-223 | REMEDIATE | closed | `crc32.h` `@` gone; running-CRC contract kept; IVP line dropped |
+| WN-226 | REMEDIATE | closed | `diag_stats` R-25/IVP dump → soak snapshot + T=0 |
+| WN-247 | REMEDIATE | closed | `anomalous_boot.h` 30-line essay + local plan path gone |
+| WN-250 | REMEDIATE | closed | `flight_in_progress.cpp` tiny-TU banner slimmed |
+| WN-251 | REMEDIATE | closed | `health_monitor.h` tables/essays → HEALTH_CONTRACT + live bit map |
+| WN-266 | REMEDIATE | closed | `core1_i2c_pause.cpp` restating branches dropped |
+| WN-292 | REMEDIATE | closed | `ao_logger.h` partial `@param` island gone |
+
+**Code:** `0cab2ea` (99 files, net −1772). Inventory `8271dbd`. Rem WB **R-7**. Sitting 13 still owns the 118 archaeology WNs.
 
 ---
 
@@ -78,9 +81,9 @@ Commit cited is on `grok/l2p5-disposition`.
 |----|-------|-------|-------|
 | WN-001 | REMEDIATE | labeled | pending Phase 3 — `g_imu` banner (rewrite already landed) |
 | WN-003 | REMEDIATE | labeled | pending Phase 3 — `rc_log.h` narrative mass |
-| WN-005 | REMEDIATE | labeled | pending Phase 3 — `config.h` standards restated in banner |
-| WN-006 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` banner over-cites |
-| WN-017 | REMEDIATE | labeled | pending Phase 3 — `config.h` R-5 DBG essay |
+| WN-005 | REMEDIATE | closed | `config.h` banner gone with the file |
+| WN-006 | REMEDIATE | closed | `RC_ASSERT` banner gone with the file |
+| WN-017 | REMEDIATE | closed | R-5 DBG essay dropped with the grab-bag; `rc_debug.h` is the short contract |
 | WN-019 | REMEDIATE | labeled | pending Phase 3 — `board.h` banner contract vs history |
 | WN-021 | REMEDIATE | labeled | pending Phase 3 — Tiny 2350 / Pico 2 scaffolding completeness |
 | WN-025 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam M1/N1/M2/M3 ticket tags |
@@ -197,41 +200,42 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ---
 
-## HW leakage vs domain code (28) — LABELED 2026-08-21
+## HW leakage vs domain code (28) — SITTING CLOSED 2026-08-22
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 4, after HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`).
-**Policy:** all REMEDIATE. No owner holdouts. WN-220 stays REMEDIATE (module-clarity), not ACCEPT.
+**Sitting:** Phase 3 sitting 4. **Code:** `288daf1` (rule) + `03d86ca`/`7c17290`/`3590ab2`/`0377d1d` (A–D). Merged to `main` as `2026-08-22-003`.
+**Policy applied:** `CODING_STANDARDS.md` “Hardware-agnostic domain code (no product fork).” Edge = `board_*` / `job_*` / named part drivers. Domain must not name SKU/pin. No silent-else; no fake-universal bus.
+**Not 28/28 remediates.** Six leftovers stay open as DEFER/KEEP (CHANGELOG + whiteboard 2026-08-22 wrap). Do not re-open the sitting for those; they wait their named homes.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-014 | REMEDIATE | labeled | pending Phase 3 — pin aliases out of `config.h` |
-| WN-020 | REMEDIATE | labeled | pending Phase 3 — silent else → Feather HSTX |
-| WN-022 | REMEDIATE | labeled | pending Phase 3 — board-pack header format family |
-| WN-023 | REMEDIATE | labeled | pending Phase 3 — optional board hooks no-op on other packs |
-| WN-024 | REMEDIATE | labeled | pending Phase 3 — UART GPS block on board packs |
-| WN-026 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam onboard extras / implement status |
-| WN-027 | REMEDIATE | labeled | pending Phase 3 — Pico 2 WIP gate wording |
-| WN-028 | REMEDIATE | labeled | pending Phase 3 — Tiny 2350 WIP / oversplit |
-| WN-029 | REMEDIATE | labeled | pending Phase 3 — UART GPS + LoRa pins on every pack |
-| WN-063 | REMEDIATE | labeled | pending Phase 3 — `flash_layout.h` stay HW-agnostic |
-| WN-068 | REMEDIATE | labeled | pending Phase 3 — SKU identity in `version.h` |
-| WN-078 | REMEDIATE | labeled | pending Phase 3 — `i2c_bus` device-specific vs universal |
-| WN-080 | REMEDIATE | labeled | pending Phase 3 — I2C scan `switch` embeds HW inventory |
-| WN-102 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam DIO0/RxDone in generic RFM driver |
-| WN-109 | REMEDIATE | labeled | pending Phase 3 — `spi_bus` HW-specific as universal |
-| WN-110 | REMEDIATE | labeled | pending Phase 3 — MCU-temp vs generic ADC |
-| WN-111 | REMEDIATE | labeled | pending Phase 3 — temp ADC A/B package vs board |
-| WN-124 | REMEDIATE | labeled | pending Phase 3 — INTERIM Z-up→NED negate, no safeguard |
-| WN-127 | REMEDIATE | labeled | pending Phase 3 — mag 3D/WMM silent degrade |
-| WN-138 | REMEDIATE | labeled | pending Phase 3 — `eskf.cpp` file-scope HW constants |
-| WN-156 | REMEDIATE | labeled | pending Phase 3 — cal path HW-specific vs general |
-| WN-162 | REMEDIATE | labeled | pending Phase 3 — mag thin RP2350 TRNG Fisher–Yates |
-| WN-216 | REMEDIATE | labeled | pending Phase 3 — APS6404L/Feather PSRAM board-coupled |
-| WN-220 | REMEDIATE | labeled | pending Phase 3 — SX1276-legal validate; module must be clear |
-| WN-248 | REMEDIATE | labeled | pending Phase 3 — anomalous_boot AON-timer deferral |
-| WN-309 | REMEDIATE | labeled | pending Phase 3 — `main.cpp` Fruit Jam/GPIO callouts |
-| WN-320 | REMEDIATE | labeled | pending Phase 3 — CLI HW-specific commands |
-| WN-325 | REMEDIATE | labeled | pending Phase 3 — dashboard mapping tables |
+| WN-014 | REMEDIATE | closed | `config.h` pins:: gone; callers use `board::` |
+| WN-020 | REMEDIATE | closed | unknown `PICO_BOARD` fail-closed; host still compiles Feather |
+| WN-022 | REMEDIATE | closed | pack banners: onboard vs expansion + store URL |
+| WN-023 | DEFER | labeled | no-op board hooks kept — pattern, not this sitting |
+| WN-024 | REMEDIATE | closed | UART GPS labeled expansion on these packs |
+| WN-026 | REMEDIATE | closed | Fruit Jam extras folded as not-implemented |
+| WN-027 | REMEDIATE | closed | Pico 2 WIP fail-closed wording |
+| WN-028 | DEFER | labeled | Tiny 2350 pack merge kept — wording only this sitting |
+| WN-029 | REMEDIATE | closed | LoRa pins labeled expansion (none onboard) |
+| WN-063 | REMEDIATE | closed | `flash_layout.h` is some-flash, not Feather 8 MB |
+| WN-068 | REMEDIATE | closed | board/job strings out of `version.h` |
+| WN-078 | REMEDIATE | closed | ICM stuck-slave recovery off `i2c_bus` onto `icm20948` |
+| WN-080 | REMEDIATE | closed | I2C scan names labeled as diag inventory |
+| WN-102 | REMEDIATE | closed | `kRadioTrustDio0`; no Fruit Jam name in `rfm95w` |
+| WN-109 | DEFER | labeled | `spi_bus` banner now SX1276 helper; **filename rename** still open |
+| WN-110 | ACCEPT | closed | keep thin `mcu_temp` (keep-with-why) |
+| WN-111 | REMEDIATE | closed | temp ADC channel from `board::` |
+| WN-124 | REMEDIATE | closed | `board::kImuZUpNed` |
+| WN-127 | REMEDIATE | closed | mag 3-axis opt-in comments |
+| WN-138 | REMEDIATE | closed | ESKF file-scope constants sourced/SKU-labeled |
+| WN-156 | REMEDIATE | closed | cal path SKU labels |
+| WN-162 | REMEDIATE | closed | mag shuffle: uniform RNG wrap, not portable-TRNG claim |
+| WN-216 | REMEDIATE | closed | PSRAM APS6404L/Feather banner at the edge |
+| WN-220 | REMEDIATE | closed | SX1276-legal validate; module banner names the part |
+| WN-248 | REMEDIATE | closed | AON-timer stub stays 0; POWMAN essay trimmed |
+| WN-309 | REMEDIATE | closed | pyro pins / UART GPS via `board::` in `main.cpp` |
+| WN-320 | DEFER | labeled | CLI HW-specific commands — RC_OS rework |
+| WN-325 | DEFER | labeled | dashboard mapping tables — RC_OS / display SSOT |
 
 ---
 
@@ -270,7 +274,9 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ## Generated files / codegen hygiene (5) — LABELED 2026-08-21
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** WN-195 only this plan; the other four wait on the existing WB **codegen audit**.
+**Sitting:** owner chunk, Phase 2 labels. **Code:** WN-195 only this plan
+(`emergency_deploy_anytime` removed; HAB later, rem WB **R-11**). The other
+four wait on the existing WB **codegen audit**.
 **A/B (2026-08-21, no overwrite):** `python scripts/generate_profile.py profiles/rocket.cfg --output <temp>`. `rocket.cfg` sha256 prefix still `e1c22265fc444258`. Committed `mission_profile_data.h` differs by exactly the two Stage-T post-gen edits the WB already names: (1) `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch, (2) IVP-T6 sweep comment. Regenerating in place would **delete the MAVLink switch** (plan: no silent regen). HAB generator **failed** (missing `BARO_LAND_*`, `DESCENT_MAX_MS`, `DROGUE_TIMER_S`, `MAIN_TIMER_S`); `test/test_hab_profile_data.h` not compared. `generate_fpft.py` not re-run (writes `eskf_codegen.cpp` in place and stamps a date).
 
 | WN | Label | State | Close |
@@ -278,7 +284,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-137 | DEFER | labeled | Codegen audit — eskf vs codegen / verify / non-core aids |
 | WN-141 | DEFER | labeled | Codegen audit — `eskf_state.h` banner / state table |
 | WN-152 | DEFER | labeled | Codegen audit — `phase_qr.h` council cite + density |
-| WN-195 | REMEDIATE | labeled | pending Phase 3 — `emergency_deploy_anytime` override scrutiny |
+| WN-195 | REMEDIATE | closed | field/cfg/wizard removed; generator rejects `EMERG_DEPLOY`; HAB later (R-11) |
 | WN-196 | DEFER | labeled | Codegen audit — A/B: two Stage-T hand-edits still in `mission_profile_data.h`; do not regen this pass |
 
 **DEFER safety (WN-137/141/152/196):** No post-gen hand-edits *this* pass and no silent regen. The two Stage-T edits are intentional radio-path switches, not random drift; a later regen without absorbing them into `generate_profile.py` would drop MAVLink compile-flag behavior. Flight profile *values* match the generator. HAB fixture is stale (generator now errors) — audit must fix generator or fixture before HAB profile work.
@@ -309,16 +315,16 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-142 | REMEDIATE | labeled | pending Phase 3 — confidence_gate safety-banner wording |
-| WN-172 | REMEDIATE | labeled | pending Phase 3 — FD header safety posture |
-| WN-176 | REMEDIATE | labeled | pending Phase 3 — FIRE_PYRO / ActionEntry tables |
-| WN-179 | REMEDIATE | labeled | pending Phase 3 — two-tier Go/No-Go SSOT |
-| WN-182 | REMEDIATE | labeled | pending Phase 3 — Go/No-Go vital path ownership |
-| WN-184 | REMEDIATE | labeled | pending Phase 3 — kGuardManaged “DO NOT” only in comments |
-| WN-188 | REMEDIATE | labeled | pending Phase 3 — flight_actions FIRE_PYRO / FAULT essays |
-| WN-257 | REMEDIATE | labeled | pending Phase 3 — crash_record consume/latch |
-| WN-274 | REMEDIATE | labeled | pending Phase 3 — pyro_edge_logger role / untested |
-| WN-323 | REMEDIATE | labeled | pending Phase 3 — CLI preflight Go/No-Go re-implement |
+| WN-142 | REMEDIATE | closed | confidence_gate: FD lockout consumer + hysteresis; no “PLATFORM SAFETY” |
+| WN-172 | REMEDIATE | closed | launch abort points at USER_GUIDE Safety State Model |
+| WN-176 | REMEDIATE | closed | FIRE_PYRO transition-only; test_action_executor.cpp is the check |
+| WN-179 | REMEDIATE | closed | two-tier model on `go_nogo_checks.h`; ARM = `all_go` (Tier 1) |
+| WN-182 | REMEDIATE | closed | fill = `health_monitor_fill_go_nogo`; evaluate SSOT; CLI/ARM same poll |
+| WN-184 | REMEDIATE | closed | constexpr + static_assert + host test lock combinator pattern |
+| WN-188 | REMEDIATE | closed | LED → USER_GUIDE; FAULT entry = no pyro, PIO timers independent |
+| WN-257 | REMEDIATE | closed | consume is one-shot `crash_record_take`; only capture re-arms magic |
+| WN-274 | REMEDIATE | closed | WIP; not armed at boot; banner/docs match bench-only (R-14) |
+| WN-323 | REMEDIATE | closed | preflight prints evaluate stations; VERDICT is `all_go` not health-byte subset |
 
 ---
 
@@ -448,24 +454,27 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 ## Version / identity / config.h grab-bag (15) — LABELED 2026-08-21
 
 **Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 7. All REMEDIATE.
+**Closed this sitting** except WN-010/067 version bump process (R-9, owner-scheduled).
+**config.h dissolve:** file deleted; `DBG_*` → `rc_debug.h`; `job::kRadioModeRx` at
+call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-007 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` unused |
-| WN-008 | REMEDIATE | labeled | pending Phase 3 — `RC_ASSERT` in prod header |
-| WN-009 | REMEDIATE | labeled | pending Phase 3 — version SSOT wording |
-| WN-010 | REMEDIATE | labeled | pending Phase 3 — stale version numbers |
-| WN-011 | REMEDIATE | labeled | pending Phase 3 — phantom `version_string()` |
-| WN-012 | REMEDIATE | labeled | pending Phase 3 — product-tier defines |
-| WN-013 | REMEDIATE | labeled | pending Phase 3 — job re-export in `config.h` |
-| WN-015 | REMEDIATE | labeled | pending Phase 3 — does `config.h` need to exist? |
-| WN-016 | REMEDIATE | labeled | pending Phase 3 — DBG helpers in `config.h` |
-| WN-018 | REMEDIATE | labeled | pending Phase 3 — `DBG_*` rename macros |
-| WN-067 | REMEDIATE | labeled | pending Phase 3 — version SSOT aspirational (ties WN-010) |
-| WN-092 | REMEDIATE | labeled | pending Phase 3 — hypsometric constants SSOT |
-| WN-126 | REMEDIATE | labeled | pending Phase 3 — baro “~32Hz” as SSOT rate |
-| WN-183 | REMEDIATE | labeled | pending Phase 3 — guard sustain/managed not sole SSOT |
-| WN-286 | REMEDIATE | labeled | pending Phase 3 — ao_health_monitor pub/sub claims |
+| WN-007 | REMEDIATE | closed | `RC_ASSERT` deleted with `config.h` (0 callers) |
+| WN-008 | REMEDIATE | closed | unused assert left the prod header with the file |
+| WN-009 | REMEDIATE | closed | `version.h` is canonical constants home, not tree-wide identity SSOT |
+| WN-010 | REMEDIATE | labeled | pending — stale version numbers (R-9 DEFER) |
+| WN-011 | REMEDIATE | closed | phantom `version_string()` dropped; callers use `kFirmwareVersion` |
+| WN-012 | REMEDIATE | closed | unused `TIER_*` / `FEATURE_*` dropped with `config.h` |
+| WN-013 | REMEDIATE | closed | `using job::kRadioModeRx` gone; callers use `job::` |
+| WN-015 | REMEDIATE | closed | grab-bag deleted; filename free (R-8) |
+| WN-016 | REMEDIATE | closed | `DBG_*` live in `rc_debug.h` |
+| WN-018 | REMEDIATE | closed | `DBG_*` is the only call surface; templates live in `rc::dbg_impl` |
+| WN-067 | REMEDIATE | labeled | pending — version bump process (R-9, not this sitting) |
+| WN-092 | REMEDIATE | closed | ISA/hypsometric constants in `isa_atmosphere.h`; baro + cal consume |
+| WN-126 | REMEDIATE | closed | `eskf_runner` baro tick is on `baro_read_count`, not a fusion Hz |
+| WN-183 | REMEDIATE | closed | banner points at IVP-71/120 + STAGE8_FLIGHT_DIRECTOR.md |
+| WN-286 | REMEDIATE | closed | pub/sub verified vs `AO_ARCHITECTURE.md`; banners are one-line pointers |
 
 ---
 

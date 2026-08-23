@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file telemetry_state.h
- * @brief Fixed-point wire-ready telemetry payload — 45 bytes packed
- *
- * TelemetryState is the canonical wire format for PCM frames and radio
- * telemetry. All fields quantized from FusedState float32 to fixed-point
- * integers for compact transport.
- *
- * Also defines FlightMetadata (UTC epoch anchor) and FlightSummary
- * (per-flight running statistics).
- *
- */
+// Fixed-point wire-ready telemetry payload — 45 bytes packed
+// TelemetryState is the canonical wire format for PCM frames and radio
+// telemetry. All fields quantized from FusedState float32 to fixed-point
+// integers for compact transport.
+// Also defines FlightMetadata (UTC epoch anchor) and FlightSummary
+// (per-flight running statistics).
 
 #ifndef ROCKETCHIP_TELEMETRY_STATE_H
 #define ROCKETCHIP_TELEMETRY_STATE_H
@@ -20,15 +14,11 @@
 
 namespace rc {
 
-/**
- * @brief Fixed-point telemetry payload — packed, 45 bytes
- *
- * Quantization bounds (max roundtrip error):
- *   Quaternion Q15: ±3.05e-5
- *   Velocity cm/s:  ±0.005 m/s
- *   Altitude mm:    ±0.001 m
- *   Temperature:    ±0.5 C
- */
+// Quantization bounds (max roundtrip error):
+// Quaternion Q15: ±3.05e-5
+// Velocity cm/s:  ±0.005 m/s
+// Altitude mm:    ±0.001 m
+// Temperature:    ±0.5 C
 struct __attribute__((packed)) TelemetryState {
     int16_t  q_w;               // Q15: val * 32767
     int16_t  q_x;
@@ -67,14 +57,9 @@ static constexpr uint8_t kFlagsZuptActive = (1U << 0);
 static constexpr uint8_t kHealthEskfHealthy = (1U << 0);  // DEPRECATED
 static constexpr uint8_t kHealthZuptActive  = (1U << 1);   // DEPRECATED
 
-/**
- * @brief UTC epoch anchor — captured on first GPS fix
- *
- * Enables MET-to-wall-clock reconstruction:
- *   UTC = anchor_UTC + (frame_MET - met_at_gps_epoch_ms)
- *
- * If met_at_gps_epoch_ms == 0, no GPS fix was acquired — MET is boot-relative.
- */
+// Enables MET-to-wall-clock reconstruction:
+// UTC = anchor_UTC + (frame_MET - met_at_gps_epoch_ms)
+// If met_at_gps_epoch_ms == 0, no GPS fix was acquired — MET is boot-relative.
 struct FlightMetadata {
     uint32_t met_at_gps_epoch_ms;    // MET when UTC anchor was captured
     uint16_t utc_year;
@@ -87,12 +72,8 @@ struct FlightMetadata {
     uint8_t  _pad[2];                // Align to 14 bytes
 };
 
-/**
- * @brief Per-flight summary statistics (computed as running values)
- *
- * User-configurable display: max (default), min, average.
- * Updated on every frame during an active flight.
- */
+// User-configurable display: max (default), min, average.
+// Updated on every frame during an active flight.
 struct FlightSummary {
     float    max_alt_m;              // Running max baro altitude AGL
     float    max_speed_mps;          // Running max velocity magnitude

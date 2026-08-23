@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file ansi_dashboard.cpp
- * @brief Live ANSI terminal dashboard — ground station telemetry display
- *
- * Renders a fixed-layout dashboard using ANSI escape codes.
- * Technique: \033[H (cursor home) + \033[K (clear to EOL) per line.
- * No \033[2J (clear screen) — that causes visible flicker.
- * Entire frame built in a static buffer, written via tud_cdc_write.
- *
- * Target: 80 columns, ~18 rows. 115200 baud USB CDC.
- * Colors: green/yellow/red/cyan/default. No bold, no background.
- */
+// Live ANSI terminal dashboard — ground station telemetry display
+// Renders a fixed-layout dashboard using ANSI escape codes.
+// Technique: \033[H (cursor home) + \033[K (clear to EOL) per line.
+// No \033[2J (clear screen) — that causes visible flicker.
+// Entire frame built in a static buffer, written via tud_cdc_write.
+// Target: 80 columns, ~18 rows. 115200 baud USB CDC.
+// Colors: green/yellow/red/cyan/default. No bold, no background.
 
 #include "rc_os_dashboard.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"

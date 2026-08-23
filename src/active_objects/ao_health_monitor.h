@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_HealthMonitor — System Health Active Object (Stage 13, IVP-105)
-//
-// Standalone AO that evaluates system health at 10Hz, publishes
-// SIG_HEALTH_STATUS to LED/Logger/Telemetry. Decoupled from FD so
-// health reporting survives FD handler overruns.
-//
-// Council-reviewed: priority between FD and Logger, queue depth 8.
+// AO_HealthMonitor — 10 Hz. Pub/sub catalog: docs/AO_ARCHITECTURE.md.
 //============================================================================
 #ifndef ROCKETCHIP_AO_HEALTH_MONITOR_H
 #define ROCKETCHIP_AO_HEALTH_MONITOR_H

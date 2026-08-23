@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file job_vehicle.h
- * @brief Vehicle role — flight computer configuration
- *
- * TX telemetry downlink, sensors active, ESKF active, logging active.
- * This is the default role when no job is specified.
- *
- * "Job" = device role, distinct from "MissionProfile" (flight profile data).
- */
+// Vehicle role — flight computer configuration
+// TX telemetry downlink, sensors active, ESKF active, logging active.
+// This is the default role when no job is specified.
+// "Job" = device role, distinct from "MissionProfile" (flight profile data).
 
 #ifndef ROCKETCHIP_JOB_VEHICLE_H
 #define ROCKETCHIP_JOB_VEHICLE_H

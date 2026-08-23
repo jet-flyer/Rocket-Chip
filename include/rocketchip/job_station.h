@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file job_station.h
- * @brief Station role — ground receiver configuration
- *
- * RX telemetry reception, CCSDS decode, MAVLink re-encode over USB serial.
- * Sensors and ESKF are inert if hardware is absent (same binary,
- * just different behavioral defaults).
- *
- * "Job" = device role, distinct from "MissionProfile" (flight profile data).
- */
+// Station role — ground receiver configuration
+// RX telemetry reception, CCSDS decode, MAVLink re-encode over USB serial.
+// Sensors and ESKF are inert if hardware is absent (same binary,
+// just different behavioral defaults).
+// "Job" = device role, distinct from "MissionProfile" (flight profile data).
 
 #ifndef ROCKETCHIP_JOB_STATION_H
 #define ROCKETCHIP_JOB_STATION_H

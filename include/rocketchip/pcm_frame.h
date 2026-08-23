@@ -1,25 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file pcm_frame.h
- * @brief PCM frame format — 55-byte standard frame with CRC-16-CCITT
- *
- * Frame layout:
- *   Byte  0-1:  Sync word     0xEB 0x90 (IRIG convention, big-endian)
- *   Byte  2-5:  MET ms        uint32_t (little-endian, RP2350 native)
- *   Byte  6:    Frame type    0=Economy, 1=Standard, 2=Research
- *   Byte  7:    Payload len   45 for Standard
- *   Byte  8-52: Payload       TelemetryState (45 bytes)
- *   Byte 53-54: CRC-16        CRC-16-CCITT over bytes 0-52
- *                              ─────────────
- *   Total:                    55 bytes
- *
- * Stream resync uses triple validation gate:
- *   1. Find sync word 0xEB90
- *   2. Verify payload_len matches frame type
- *   3. Verify CRC-16 over header + payload
- *
- */
+// PCM frame format — 55-byte standard frame with CRC-16-CCITT
+// Frame layout:
+// Byte  0-1:  Sync word     0xEB 0x90 (IRIG convention, big-endian)
+// Byte  2-5:  MET ms        uint32_t (little-endian, RP2350 native)
+// Byte  6:    Frame type    0=Economy, 1=Standard, 2=Research
+// Byte  7:    Payload len   45 for Standard
+// Byte  8-52: Payload       TelemetryState (45 bytes)
+// Byte 53-54: CRC-16        CRC-16-CCITT over bytes 0-52
+// ─────────────
+// Total:                    55 bytes
+// Stream resync uses triple validation gate:
+// 1. Find sync word 0xEB90
+// 2. Verify payload_len matches frame type
+// 3. Verify CRC-16 over header + payload
 
 #ifndef ROCKETCHIP_PCM_FRAME_H
 #define ROCKETCHIP_PCM_FRAME_H
@@ -94,12 +88,8 @@ struct __attribute__((packed)) PcmFrameStandard {
 static_assert(sizeof(PcmFrameStandard) == kPcmFrameStandardSize,
               "PcmFrameStandard must be 55 bytes");
 
-/**
- * @brief Decommutation field descriptor — self-describing data
- *
- * Maps payload byte offsets to field names, types, and scaling factors.
- * Used by ground tools for automatic decoding.
- */
+// Maps payload byte offsets to field names, types, and scaling factors.
+// Used by ground tools for automatic decoding.
 struct DecomField {
     const char* name;
     uint8_t     offset;     // Byte offset within TelemetryState payload
@@ -116,42 +106,16 @@ extern const uint32_t   kStandardDecomTableLen;
 // Encode / Decode API
 // ============================================================================
 
-/**
- * @brief Encode a standard PCM frame
- * @param telem   Telemetry payload
- * @param met_ms  Mission elapsed time in milliseconds
- * @param frame   Output frame (55 bytes)
- */
 void pcm_encode_standard(const TelemetryState& telem, uint32_t met_ms,
                           PcmFrameStandard& frame);
 
-/**
- * @brief Encode an event PCM frame
- * @param event_id  Event type (LogEventId)
- * @param data      4 bytes of event-specific context (zeroed if unused)
- * @param met_ms    Mission elapsed time in milliseconds
- * @param frame     Output frame (15 bytes)
- */
 void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
                        uint32_t met_ms, PcmFrameEvent& frame);
 
-/**
- * @brief Decode and validate a standard PCM frame
- * @param frame  Input frame (55 bytes)
- * @param telem  Output telemetry payload
- * @return true if sync, length, and CRC all validate
- */
+// true if sync, length, and CRC all validate
 bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem);
 
-/**
- * @brief Scan a byte stream for the next valid frame
- * @param data    Byte stream
- * @param len     Length of stream
- * @param offset  Output: byte offset of valid frame start
- * @return true if a valid frame was found
- *
- * Uses triple validation: sync word + payload_len + CRC.
- */
+// Uses triple validation: sync word + payload_len + CRC.
 bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset);
 
 // ============================================================================
@@ -180,7 +144,7 @@ struct __attribute__((packed)) FlightLogHeader {
 static_assert(sizeof(FlightLogHeader) == kFlightLogHeaderSize,
               "FlightLogHeader must be 64 bytes");
 
-/// Populate a FlightLogHeader with current firmware/board/profile info
+// Populate a FlightLogHeader with current firmware/board/profile info
 void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
                             uint8_t log_rate_hz, const char* profile_name);
 

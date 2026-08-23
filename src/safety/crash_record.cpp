@@ -53,17 +53,11 @@ CrashRecord g_crash_record;
 }
 
 bool crash_record_consume_prior(CrashRecord* out) {
-    if (g_crash_record.magic != kCrashRecordMagic) {
-        return false;
+    const bool took = crash_record_take(g_crash_record, out);
+    if (took) {
+        __asm volatile ("dsb" ::: "memory");
     }
-    if (out != nullptr) {
-        *out = g_crash_record;
-    }
-    // Clear the magic so a clean boot doesn't re-report. Use a barrier
-    // to ensure the write commits before any subsequent code reads it.
-    g_crash_record.magic = 0;
-    __asm volatile ("dsb" ::: "memory");
-    return true;
+    return took;
 }
 
 } // namespace rc

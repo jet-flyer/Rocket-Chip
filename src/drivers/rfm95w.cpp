@@ -1,26 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file rfm95w.cpp
- * @brief RFM95W (SX1276) LoRa radio driver implementation
- *
- * Prior Art:
- *   - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
- *   - RadioHead RH_RF95 (airspayce.com)
- *   - Adafruit CircuitPython adafruit_rfm9x
- *
- * Council amendments incorporated:
- * #1: 64-bit freq calculation, 100ms TX timeout
- * #2: GPIO-controlled CS (in spi_bus.cpp)
- * #3: Optional peripheral — absent HW returns false
- * #4: FIFO pointer set before every TX write
- * #5: Only used registers defined
- * #6: rfm95w_poll_irq() isolated for future ISR swap
- */
+// RFM95W (SX1276) LoRa radio driver implementation
+// Prior Art:
+// - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
+// - RadioHead RH_RF95 (airspayce.com)
+// - Adafruit CircuitPython adafruit_rfm9x
+// Council amendments incorporated:
+// #1: 64-bit freq calculation, 100ms TX timeout
+// #2: GPIO-controlled CS (in spi_bus.cpp)
+// #3: Optional peripheral — absent HW returns false
+// #4: FIFO pointer set before every TX write
+// #5: Only used registers defined
+// #6: rfm95w_poll_irq() isolated for future ISR swap
 
 #include "rfm95w.h"
 #include "spi_bus.h"
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 

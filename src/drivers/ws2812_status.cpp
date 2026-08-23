@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file ws2812_status.c
- * @brief WS2812 NeoPixel status LED driver implementation
- *
- * Prior Art:
- *   - Pico SDK examples/pio/ws2812 (PIO program for WS2812 protocol)
- *   - WS2812B datasheet (timing requirements: T0H/T1H/T0L/T1L)
- *   - Adafruit NeoPixel library (color format, brightness scaling)
- */
+// WS2812 NeoPixel status LED driver implementation
+// Prior Art:
+// - Pico SDK examples/pio/ws2812 (PIO program for WS2812 protocol)
+// - WS2812B datasheet (timing requirements: T0H/T1H/T0L/T1L)
+// - Adafruit NeoPixel library (color format, brightness scaling)
 
 #include "ws2812_status.h"
 #include "hardware/clocks.h"
@@ -104,9 +100,6 @@ static struct {
 // Private Functions
 // ============================================================================
 
-/**
- * @brief Send raw RGB data to WS2812 via PIO
- */
 static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
     if (!g_state.initialized) {
         return;
@@ -226,9 +219,6 @@ void ws2812_set_sweep_bar(ws2812_rgb_t color) {
         static_cast<int>(g_pos) + static_cast<int>(g_dir));
 }
 
-/**
- * @brief Apply brightness scaling to a color
- */
 static ws2812_rgb_t apply_brightness(ws2812_rgb_t color, float scale) {
     ws2812_rgb_t result;
     result.r = static_cast<uint8_t>(static_cast<float>(color.r) * scale);

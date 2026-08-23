@@ -69,36 +69,36 @@ struct RfManagerState {
 
 extern QActive * const AO_RfManager;
 
-/// Start the AO. Priority between FD (highest) and Logger (middle).
-/// nav_period_ms_init seeds the initial period; updated via set_nav_period_ms
-/// when SET_RADIO_CONFIG changes cadence.
+// Start the AO. Priority between FD (highest) and Logger (middle).
+// nav_period_ms_init seeds the initial period; updated via set_nav_period_ms
+// when SET_RADIO_CONFIG changes cadence.
 void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init);
 
-/// Read-only snapshot. Pointer stable; contents change between ticks.
-/// **Cooperative-dispatch-only invariant — see header doc.**
+// Read-only snapshot. Pointer stable; contents change between ticks.
+// **Cooperative-dispatch-only invariant — see header doc.**
 const RfManagerState* AO_RfManager_get_state();
 
-/// Station TX scheduler hook: returns the microsecond timestamp of the
-/// next safe-to-TX window, OR 0 if the anchor is stale (deadman fired,
-/// §4) or not yet acquired. Returns 0 if LinkState is kAcq.
+// Station TX scheduler hook: returns the microsecond timestamp of the
+// next safe-to-TX window, OR 0 if the anchor is stale (deadman fired,
+// §4) or not yet acquired. Returns 0 if LinkState is kAcq.
 uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us);
 
-/// Station retry gate: "is the link healthy enough to bother retrying?"
-/// Returns false in kAcq (no point TXing blind) and during kTrackDegraded
-/// early frames (wait for recovery).
+// Station retry gate: "is the link healthy enough to bother retrying?"
+// Returns false in kAcq (no point TXing blind) and during kTrackDegraded
+// early frames (wait for recovery).
 bool AO_RfManager_ok_to_retry();
 
-/// Called when SET_RADIO_CONFIG successfully applies a new nav rate.
-/// Recomputes deadman + alpha thresholds against the new period.
+// Called when SET_RADIO_CONFIG successfully applies a new nav rate.
+// Recomputes deadman + alpha thresholds against the new period.
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms);
 
-/// Test-only: override last_rx_ms so the next 10 Hz tick sees a stale anchor
-/// and the deadman / forced-ACQ branches fire. Used by fault_force_radio_
-/// dropout() (R-9b) for fault-injection harness; never called from
-/// production paths. R-25-exec step 3 (2026-05-13): no longer dev-tier
-/// gated. Lives in single flight binary; access is protected at
-/// fault_force_radio_dropout()'s entry by test_mode_active() (SWE-133
-/// partitioning).
+// Test-only: override last_rx_ms so the next 10 Hz tick sees a stale anchor
+// and the deadman / forced-ACQ branches fire. Used by fault_force_radio_
+// dropout() (R-9b) for fault-injection harness; never called from
+// production paths. R-25-exec step 3 (2026-05-13): no longer dev-tier
+// gated. Lives in single flight binary; access is protected at
+// fault_force_radio_dropout()'s entry by test_mode_active() (SWE-133
+// partitioning).
 void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms);
 
 } // namespace rc

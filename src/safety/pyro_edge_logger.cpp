@@ -14,6 +14,7 @@ static PyroEdgeEvent g_buffer[kPyroEdgeBufferSize];
 static volatile uint32_t g_count = 0;
 static uint8_t g_droguPin = 0;
 static uint8_t g_mainPin = 0;
+static bool g_armed = false;  // true only after bench init; flight boot leaves this false
 
 static void gpio_edge_callback(uint gpio, uint32_t events) {
     if (g_count >= kPyroEdgeBufferSize) { return; }
@@ -28,6 +29,7 @@ void pyro_edge_logger_init(uint8_t drogue_pin, uint8_t main_pin) {
     g_droguPin = drogue_pin;
     g_mainPin = main_pin;
     g_count = 0;
+    g_armed = true;
 
     gpio_set_irq_enabled_with_callback(
         drogue_pin,
@@ -52,6 +54,10 @@ const PyroEdgeEvent* pyro_edge_logger_get(uint32_t index) {
 }
 
 void pyro_edge_logger_dump_cli() {
+    if (!g_armed) {
+        rc::rc_log("Pyro log: WIP — not armed at boot (WN-274)\n");
+        return;
+    }
     uint32_t n = g_count;
     if (n == 0) {
         rc::rc_log("Pyro log: empty\n");

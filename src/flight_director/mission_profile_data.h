@@ -39,7 +39,6 @@ inline constexpr MissionProfile kDefaultRocketProfile = {
     .burnout_backup_ms = 10000,
     .main_backup_ms = 120000,
     .apogee_require_both = true,
-    .emergency_deploy_anytime = false,
     .abort_fires_drogue_from_boost = false,
     .abort_fires_drogue_from_coast = false,
     .require_gps_lock = false,

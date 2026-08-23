@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file calibration_manager.cpp
- * @brief Calibration routine manager implementation
- */
+// Calibration routine manager implementation
 
 #include "calibration_manager.h"
 #include "calibration_storage.h"
 #include "lm_solver.h"
 #include "math/quat.h"
+#include "rocketchip/isa_atmosphere.h"
 #include "pico/rand.h"
 #include <math.h>
 #include <string.h>
@@ -94,9 +92,6 @@ constexpr float    kMinMaxInitializer      = 1e9F;    // Initial min/max accumul
 
 // Atmospheric constants (barometric formula)
 constexpr float    kMinValidPressurePa     = 10000.0F;   // Sanity floor for ground pressure
-constexpr float    kStdAtmPressurePa       = 101325.0F;  // Standard sea-level pressure (Pa)
-constexpr float    kHypsometricScale       = 44330.0F;    // Barometric formula coefficient
-constexpr float    kHypsometricExponent    = 0.1903F;     // Barometric formula exponent (1/5.255)
 
 // ============================================================================
 // Private State
@@ -1179,13 +1174,13 @@ bool calibration_load_into(calibration_store_t* dest) {
 }
 
 float calibration_get_altitude_agl(float pressure_pa) {
-    // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
     float p0 = g_calibration.baro.ground_pressure_pa;
     if (p0 < kMinValidPressurePa) {
-        p0 = kStdAtmPressurePa;  // Sanity check
+        p0 = rc::kStdAtmPressurePa;  // Sanity check
     }
 
-    return kHypsometricScale * (1.0F - powf(pressure_pa / p0, kHypsometricExponent));
+    return rc::kHypsometricScale *
+           (1.0F - powf(pressure_pa / p0, rc::kHypsometricExponent));
 }
 
 // ============================================================================

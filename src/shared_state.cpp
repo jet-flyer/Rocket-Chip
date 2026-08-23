@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file shared_state.cpp
- * @brief Definitions for globals declared in include/rocketchip/shared_state.h (OPT-IVP-02).
- *
- * Single translation unit keeps cross-core state in one place for review and linking.
- */
+// Definitions for globals declared in include/rocketchip/shared_state.h (OPT-IVP-02).
+// Single translation unit keeps cross-core state in one place for review and linking.
 
 #include "rocketchip/shared_state.h"
 

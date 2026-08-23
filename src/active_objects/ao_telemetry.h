@@ -27,22 +27,22 @@ bool AO_Telemetry_get_mavlink_output();
 void AO_Telemetry_toggle_mavlink();
 uint8_t AO_Telemetry_cycle_rate();
 
-/// Stage T Batch B prelim fix: wire nav_rate_hz → TX interval.
-/// Called from ao_radio_apply_runtime_config() so a SET_RADIO_CONFIG apply
-/// actually changes the vehicle's TX cadence (previously only the dashboard
-/// string changed; TX cadence was stuck at the manual `r`-cycled rate or the
-/// 5 Hz default). Only affects vehicle role — station has no TX cadence.
+// Stage T Batch B prelim fix: wire nav_rate_hz → TX interval.
+// Called from ao_radio_apply_runtime_config() so a SET_RADIO_CONFIG apply
+// actually changes the vehicle's TX cadence (previously only the dashboard
+// string changed; TX cadence was stuck at the manual `r`-cycled rate or the
+// 5 Hz default). Only affects vehicle role — station has no TX cadence.
 void AO_Telemetry_set_rate(uint8_t rate_hz);
 
-/// Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
-/// Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for
-/// SF7/BW125 collision regime). Now AO_Radio computes it from current
-/// {SF, BW, max payload} airtime and pushes it here. Only station-side
-/// (tracked commands originate on station).
+// Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
+// Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for
+// SF7/BW125 collision regime). Now AO_Radio computes it from current
+// {SF, BW, max payload} airtime and pushes it here. Only station-side
+// (tracked commands originate on station).
 void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms);
 
-/// Stage T Batch B IVP-T14b: retry-instrumentation accessor for CLI/diag.
-/// Snapshot of per-command-class counters (cumulative since boot).
+// Stage T Batch B IVP-T14b: retry-instrumentation accessor for CLI/diag.
+// Snapshot of per-command-class counters (cumulative since boot).
 struct CmdRetryStatsLine {
     const char* name;             // "ARM" / "DISARM" / "ABORT" / ...
     uint32_t    sent;
@@ -51,8 +51,8 @@ struct CmdRetryStatsLine {
     uint32_t    failed;           // all 3 retries exhausted
     uint32_t    total_retries_used;
 };
-/// Returns count of rows. rows is filled with up to max_rows entries.
-/// Stable row order = CmdClass enum order.
+// Returns count of rows. rows is filled with up to max_rows entries.
+// Stable row order = CmdClass enum order.
 uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows);
 
 // Station RX telemetry access (IVP-99: station CLI display)

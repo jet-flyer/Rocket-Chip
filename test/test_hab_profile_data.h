@@ -32,7 +32,6 @@ inline constexpr MissionProfile kHabProfile = {
     .burnout_backup_ms = 30000,
     .main_backup_ms = 300000,
     .apogee_require_both = false,
-    .emergency_deploy_anytime = true,
     .abort_fires_drogue_from_boost = false,
     .abort_fires_drogue_from_coast = false,
     .require_gps_lock = true,

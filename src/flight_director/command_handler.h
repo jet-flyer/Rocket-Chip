@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file command_handler.h
- * @brief Flight Director command validation
- *
- * Validates user commands against current flight phase and Go/No-Go
- * readiness. CLI ARM/DISARM/RESET/ABORT route through here. Sensor
- * event signals (LAUNCH, BURNOUT, APOGEE, MAIN_DEPLOY, LANDING) bypass
- * — they come from guard functions or bench test injection, not user
- * commands.
- *
- * Returns the QSignal to dispatch, or rejected with reason.
- */
+// Flight Director command validation
+// Validates user commands against current flight phase and Go/No-Go
+// readiness. CLI ARM/DISARM/RESET/ABORT route through here. Sensor
+// event signals (LAUNCH, BURNOUT, APOGEE, MAIN_DEPLOY, LANDING) bypass
+// — they come from guard functions or bench test injection, not user
+// commands.
+// Returns the QSignal to dispatch, or rejected with reason.
 
 #ifndef ROCKETCHIP_COMMAND_HANDLER_H
 #define ROCKETCHIP_COMMAND_HANDLER_H

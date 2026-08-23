@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file job_capabilities.h
- * @brief Compile-time capability predicates for each device role.
- *
- * Role-scoped "does this role do X?" constexprs, consumed by shared code
- * paths that need to mask behavior without scattering `if (kRole == ...)`
- * checks across the codebase.
- *
- * Stage 16C IVP-142c introduces this file as the single home for
- * capability masking. Stage 16C IVP-143 will generalize into board-level
- * capability flags (peripheral presence, etc.); role-level capabilities
- * stay here.
- *
- * Do NOT add per-peripheral presence flags here (IMU/baro/GPS presence
- * is a board property, not a role property — a station with an optional
- * baro is still "station role"). Those live in board_*.h.
- */
+// Compile-time capability predicates for each device role.
+// Role-scoped "does this role do X?" constexprs, consumed by shared code
+// paths that need to mask behavior without scattering `if (kRole == ...)`
+// checks across the codebase.
+// Stage 16C IVP-142c introduces this file as the single home for
+// capability masking. Stage 16C IVP-143 will generalize into board-level
+// capability flags (peripheral presence, etc.); role-level capabilities
+// stay here.
+// Do NOT add per-peripheral presence flags here (IMU/baro/GPS presence
+// is a board property, not a role property — a station with an optional
+// baro is still "station role"). Those live in board_*.h.
 
 #ifndef ROCKETCHIP_JOB_CAPABILITIES_H
 #define ROCKETCHIP_JOB_CAPABILITIES_H

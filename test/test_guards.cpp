@@ -420,6 +420,17 @@ TEST_F(GuardEvaluatorTest, BaroStationary_SustainResetsOnBreach) {
     EXPECT_EQ(sig, SIG_MAX);  // Not yet — needs 500 total
 }
 
+TEST(GuardManagedTable, CombinatorContract) {
+    using G = GuardId;
+    EXPECT_FALSE(kGuardManaged[static_cast<uint8_t>(G::kLaunchAccel)]);
+    EXPECT_FALSE(kGuardManaged[static_cast<uint8_t>(G::kBurnoutAccel)]);
+    EXPECT_TRUE(kGuardManaged[static_cast<uint8_t>(G::kApogeeVelocity)]);
+    EXPECT_TRUE(kGuardManaged[static_cast<uint8_t>(G::kBaroPeak)]);
+    EXPECT_TRUE(kGuardManaged[static_cast<uint8_t>(G::kMainDeploy)]);
+    EXPECT_FALSE(kGuardManaged[static_cast<uint8_t>(G::kStationary)]);
+    EXPECT_FALSE(kGuardManaged[static_cast<uint8_t>(G::kBaroStationary)]);
+}
+
 TEST_F(GuardEvaluatorTest, BaroStationary_NotActiveInIdlePhase) {
     FusedState f = make_fused();
     f.baro_alt_rate_mps = 0.0f;  // Perfect stationary

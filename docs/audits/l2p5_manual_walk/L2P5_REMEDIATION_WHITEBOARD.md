@@ -56,6 +56,169 @@ the *action* here until the action is done, then erase.**
 
 ## Rows
 
+### R-8 — `config.h` filename is free
+
+**Surfaced:** 2026-08-22 · sitting 7. Owner: original jobs already live in
+dedicated files; delete the grab-bag; name is open for a *real* compile-time
+config later (not this pass).
+
+**What:** `include/rocketchip/config.h` removed. Live pieces retargeted:
+`board.h` pins, `job.h` role (`job::kRadioModeRx` at call sites), `version.h`
+semver (`kFirmwareVersion`, no `kVersionString` alias), `rc_debug.h` `DBG_*`.
+Dropped with the file (walk: unused): `RC_ASSERT`, `ROCKETCHIP_TIER_*` /
+`ROCKETCHIP_FEATURE_*`, `rocketchip::i2c` / `timing`. Do not recreate as an
+umbrella “just in case.”
+
+**Protected docs still name the old file** (need owner to name them to tidy):
+`docs/SCAFFOLDING.md`, `docs/SAD.md` (tree + §13.1 TIER_*),
+`standards/DEBUG_OUTPUT.md`, `docs/audits/VERSION_STRING_AUDIT.md` (alias note).
+
+**Disposition target:** Erase when those named docs are updated, or when a
+deliberate new `config.h` is introduced for actual compile-time flags.
+**Blocking?** No
+
+### R-9 — Version bump process (WN-010 / WN-067) — not invented this sitting
+
+**Surfaced:** 2026-08-22 · sitting 7. Owner recalled the “more robust, rot-resistant”
+version conversation.
+
+**What that conversation already was:**
+- IVP-127b / `VERSION_STRING_AUDIT.md`: one header (`version.h`), no literals
+  elsewhere. That landed. It did **not** stop rot.
+- LL Entry 2 / CODING_STANDARDS Debugging: monotonic `kBuildIterationTag`
+  every debug rebuild; `__DATE__ __TIME__` is not enough. Tag still `"16B-init"`.
+- WN-010/067: numbers frozen since 2026-04-15 (`0.16.0` / `0.5.0` /
+  `"16B-init"`). Live discriminant is CMake `kGitHash`. `SESSION_CHECKLIST.md`
+  has **no** version-bump item. A banner that says SSOT does not make agents bump.
+
+**Not this sitting:** do not invent git-describe / auto-semver / a hook without
+an owner-picked scheme. Do not silently bump `0.16.0`.
+
+**When scheduled:** pick (1) wrap-only manual bump of `kFirmwareVersion` when
+you name it, and/or (2) a checklist item  / hook that fails if
+`kBuildIterationTag` is unchanged across a firmware sitting, and/or (3) drop
+the manual tag and treat `kGitHash` as the only machine identity. Until then
+the header wording must not claim a process that does not exist.
+
+**Disposition target:** Owner-scheduled sitting or wrap. Erase when a written
+process exists (checklist named, or hook, or explicit “git hash only”).
+**Blocking?** No for rest of sitting 7.
+
+### R-10 — Test remaining dispositions in groups of 2–4
+
+**Surfaced:** 2026-08-22 · after `config.h` `a97d46c`. Owner: do not let a
+bucket’s edits pile up untested.
+
+**What:** Rest of sitting 7 and later Phase 3 sittings: pick **2–4 WNs**,
+explain, edit, host ctest + firmware build, HW gate if the paths need it,
+commit that group. Then the next group. Do not finish a 10–15 WN bucket in
+the tree and gate once. Comment-only groups still get a host build; they
+skip 3-boot only when the change is pure-software.
+
+**Disposition target:** Erase when L2-P5 disposition closes (process for
+this pass).
+**Blocking?** No
+
+### R-11 — HAB lockout-skip (`EMERG_DEPLOY`) not implemented
+
+**Surfaced:** 2026-08-22 · sitting 8 / WN-195. Owner: no first rocket flight
+yet; a speculative HAB bypass of deploy lockouts is a critical failure
+point — take the code out, keep the feature logged.
+
+**What was removed:** `MissionProfile::emergency_deploy_anytime`, generator
+field `EMERG_DEPLOY`, wizard emit, `.cfg` keys. The combinator never read
+the flag; docs claimed it skipped lockouts. Generator now **rejects** the
+key if someone puts it back.
+
+**When HAB is scheduled:** re-add as a profile bit **and** wire
+`guard_combinator` lockouts (tests: rocket still locked; HAB skip explicit).
+Do not restore a stored-but-unread flag.
+
+**Disposition target:** Erase when HAB lockout-skip is implemented and
+tested, or when HAB is dropped as a product.
+**Blocking?** No
+
+### R-12 — PIO WDT still needs a rework
+
+**Surfaced:** 2026-08-22 · sitting 9 group 1. Owner: PIO watchdog is not a
+Go/No-Go station and is not proven by a green preflight.
+
+**What:** Do not promote `kHealthPioOk` into Tier 1. Dedicated sitting:
+role vs ARM, CLI display, and whether a PIO WDT fault is pad-blocking.
+Until then USER_GUIDE says a GO verdict is not “PIO WDT proven.”
+
+**Disposition target:** Erase when that rework lands.
+**Blocking?** No
+
+### R-13 — Go/No-Go is station pad control; vehicle Estes is wire-arm
+
+**Surfaced:** 2026-08-22 · sitting 9. Owner: GNG is for **station** ARM of
+a radio vehicle. Vehicle-only (Estes-type) arms the igniter with a
+physical wire — nothing software-ARM-able.
+
+**Firmware today:** `command_handler` still runs `go_nogo_evaluate` on
+vehicle CLI ARM (bring-up). Product pad flow is station `a` / ACK.
+Do not treat vehicle USB ARM as the Estes procedure. Later sitting may
+stop offering software ARM on vehicle-only images.
+
+**Disposition target:** Erase when vehicle-only ARM matches the product
+(no GNG software ARM) or station-only ARM is the only path.
+**Blocking?** No for sitting 9 groups 2–4.
+
+### R-14 — Pyro edge logger WIP, not armed at boot
+
+**Surfaced:** 2026-08-22 · sitting 9 group 4 / WN-274. Owner: option 1
+(honest WIP) **and** not active in flight boot until finished.
+
+**What:** `pyro_edge_logger_init()` removed from `init_pio_safety()`.
+Banner/USER_GUIDE/debug `y`: bench GPIO capture on PIO timer pins, 64-slot
+fill-and-stop, not forensic. Re-arm only when pyro HW is on those pins
+**and** a PCM/flight-log consumer exists.
+
+**Disposition target:** Erase when that sitting lands, or when the files
+are deleted.
+**Blocking?** No
+
+### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
+
+**Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`
+contracts; do not add a “don’t use Doxygen” line to `CODING_STANDARDS.md`.
+Inventory: `L2P5_DOXYGEN_INVENTORY_2026-08-22.md` (90 tagged; **75 walk-missed**).
+
+**What sitting 5 did (apply the same bins in sitting 13):**
+
+1. **Markup:** `@file` / `@brief` / `@param` / `@return` / `/**` / `///` → `//`.
+   Filename is not a comment. `@param` that only names the argument dies with
+   the signature. Generated `eskf_codegen.h` stays generated (do not hand-edit).
+2. **Contract:** one or two facts the signature does not carry — units, who
+   owns a buffer, what `false` means, which core may call, a surprising
+   precondition. Field units on structs (`// m/s^2`) stay. Restating the
+   function name does not.
+3. **Three bins for the data in the comment** (WN-085 is the house rule):
+   - **Live contract** — keep as `//`.
+   - **True, wrong home** — move to the named SSOT (`NOTIFY_CONTRACT.md`,
+     `HEALTH_CONTRACT.md`, `flash_layout.h`, fusion design notes) and leave
+     a pointer. Do not invent a new protected design doc.
+   - **False / restatement / process** — delete. IVP/Stage/council/session
+     essays, machine-local plan paths, `@brief Initialize the GPS`.
+4. **Do not** add a prohibition to `CODING_STANDARDS.md`. The `.cpp` 15–25%
+   density band already exists; header carve-out stays mechanical, not an
+   essay license.
+5. **Mechanical traps from this sitting:** one-line `/** @brief … */`,
+   indented class-method `/**` blocks, `/// @param` left behind after `///`
+   → `//`. Re-grep `@file|@brief|@param|@return|/\*\*|///` on `src/`+`include/`
+   before calling sitting 13 closed.
+
+**Sitting 13 (118 archaeology WNs):** same three bins, file by file. Do not
+re-litigate Doxygen. Do not polish a header sittings 7–12 will still rewrite
+if those sittings have not run yet — that is why 13 is last. WN-234 is an
+*invariant* (MAVLink ARM no-op): strip-stale-promise vs wire ARM, not a
+comment trim.
+
+**Disposition target:** Sitting 13 applies this. Erase when that sitting
+lands (or when L2-P5 closes if the bins are copied into Plan-3).
+**Blocking?** No
+
 ### R-6 — Thin-file / hopeful-future nameplates (seeded WN-035)
 
 **Surfaced:** 2026-08-21 · WN-035 (`notify_backend.h`) — not a public-vs-private

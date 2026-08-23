@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_combinator.cpp
- * @brief Guard combinator + safety lockout implementation
- */
+// Guard combinator + safety lockout implementation
 
 #include "guard_combinator.h"
 #include "flight_director.h"

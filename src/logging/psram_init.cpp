@@ -1,25 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file psram_init.cpp
- * @brief APS6404L-3SQR PSRAM initialization via QMI CS1
- *
- * Based on SparkFun sparkfun-pico and AudioMorphology/PSRAM (MIT license).
- * Both derived from Arduino-Pico (earlephilhower).
- *
- * Sequence: detect via SPI ID read → compute M1 timing (XIP still up) →
- * enable QPI mode → program QMI M1 timing/format → enable XIP writable
- * for M1.
- *
- * QMI direct-mode windows run from SRAM (__no_inline_not_in_flash_func).
- * Datasheet 12.14.5: with DIRECT_CSR.EN set, the AHB XIP window is
- * disconnected; a fetch generates a bus fault. pico-sdk qmi.h same
- * contract. Arduino-Pico discussion 3431: calling clock_get_hz() from
- * RAM-resident PSRAM init after enabling direct mode is intermittent
- * (works only if that flash line is still in the XIP cache). Compute
- * timing, including clock_get_hz and any libgcc helpers, before EN.
- *
- */
+// APS6404L-3SQR PSRAM initialization via QMI CS1
+// Based on SparkFun sparkfun-pico and AudioMorphology/PSRAM (MIT license).
+// Both derived from Arduino-Pico (earlephilhower).
+// Sequence: detect via SPI ID read → compute M1 timing (XIP still up) →
+// enable QPI mode → program QMI M1 timing/format → enable XIP writable
+// for M1.
+// QMI direct-mode windows run from SRAM (__no_inline_not_in_flash_func).
+// Datasheet 12.14.5: with DIRECT_CSR.EN set, the AHB XIP window is
+// disconnected; a fetch generates a bus fault. pico-sdk qmi.h same
+// contract. Arduino-Pico discussion 3431: calling clock_get_hz() from
+// RAM-resident PSRAM init after enabling direct mode is intermittent
+// (works only if that flash line is still in the XIP cache). Compute
+// timing, including clock_get_hz and any libgcc helpers, before EN.
 
 #include "psram_init.h"
 #include "rocketchip/flash_layout.h"

@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file shared_state.h
- * @brief Centralized cross-core and CLI-visible global state (OPT-IVP-02).
- *
- * Consolidates all init flags, GPS transport, seqlock, atomics,
- * and device handles from main.cpp. This reduces duplication and makes
- * ownership clear.
- *
- * Core 0 owns initialization.
- * Core 1 reads most sensor flags and `g_gpsTransport`.
- * CLI reads status for display.
- */
+// Centralized cross-core and CLI-visible global state (OPT-IVP-02).
+// Consolidates all init flags, GPS transport, seqlock, atomics,
+// and device handles from main.cpp. This reduces duplication and makes
+// ownership clear.
+// Core 0 owns initialization.
+// Core 1 reads most sensor flags and `g_gpsTransport`.
+// CLI reads status for display.
 
 #ifndef ROCKETCHIP_SHARED_STATE_H
 #define ROCKETCHIP_SHARED_STATE_H

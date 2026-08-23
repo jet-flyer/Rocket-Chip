@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file main.cpp
- * @brief RocketChip main entry point
- *
- * Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
- * Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
- *
- * See git history for prior IVP gate checks and test dispatchers.
- */
+// RocketChip main entry point
+// Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
+// Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
+// See git history for prior IVP gate checks and test dispatchers.
 
-#include "rocketchip/config.h"
+#include "rocketchip/rc_debug.h"
+#include "rocketchip/job.h"
 #include "rocketchip/rc_log.h"           // R-5 Unit B POC instrumentation
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/shared_state.h"   // OPT-IVP-02: all globals centralized here
@@ -36,7 +32,6 @@
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
-#include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
 #include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
@@ -318,7 +313,9 @@ static void init_pio_safety() {
     if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
-    rc::pyro_edge_logger_init(board::kPyroDroguePin, board::kPyroMainPin);
+    // pyro_edge_logger_init() is WIP (WN-274 / rem WB R-14). Do not arm the
+    // GPIO IRQ from flight boot until pyro HW is on these pins and a real
+    // log consumer exists.
 }
 
 // Vehicle: signal Core 1 to start sensor phase + wait for lockout.
@@ -335,7 +332,7 @@ static void init_core1_role() {
         }
     } else {
         rc_os_i2c_scan_allowed = true;
-        if constexpr (kRadioModeRx) {
+        if constexpr (job::kRadioModeRx) {
             rc::station_idle_tick_init();  // Stage 16C IVP-140
         }
     }
@@ -426,7 +423,7 @@ extern "C" void qv_idle_bridge(void) {
     eskf_runner_tick();
 
     // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
-    if constexpr (kRadioModeRx) {
+    if constexpr (job::kRadioModeRx) {
         AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
         // Stage 16C IVP-140: station periodic work (GPS poll, MCU temp).
         // No-op until IVP-141 adds the GPS body. Safe-in-idle by design.

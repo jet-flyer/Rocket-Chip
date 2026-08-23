@@ -39,10 +39,6 @@ TEST(MissionProfileRocket, AbortDoesNotFireDrogueByDefault) {
     EXPECT_FALSE(rc::kDefaultRocketProfile.abort_fires_drogue_from_coast);
 }
 
-TEST(MissionProfileRocket, RespectsLockouts) {
-    EXPECT_FALSE(rc::kDefaultRocketProfile.emergency_deploy_anytime);
-}
-
 TEST(MissionProfileRocket, ApogeeRequiresBoth) {
     EXPECT_TRUE(rc::kDefaultRocketProfile.apogee_require_both);
 }
@@ -90,10 +86,6 @@ TEST(MissionProfileHab, NameIsHab) {
 
 TEST(MissionProfileHab, NoPyro) {
     EXPECT_FALSE(rc::kHabProfile.has_pyro);
-}
-
-TEST(MissionProfileHab, EmergencyDeployEnabled) {
-    EXPECT_TRUE(rc::kHabProfile.emergency_deploy_anytime);
 }
 
 TEST(MissionProfileHab, NoAbortPyro) {

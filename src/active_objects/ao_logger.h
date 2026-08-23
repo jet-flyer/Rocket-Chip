@@ -28,42 +28,38 @@ struct shared_sensor_data_t;
 
 extern QActive * const AO_Logger;
 
-/// Initialize ring buffer, decimator, flight table, and start 50Hz tick.
-/// Must be called after PSRAM init and flight_table_load().
-/// @param prio  QP/C priority level for this AO
-/// @param psram_size  PSRAM size in bytes (0 if absent)
-/// @param psram_self_test_passed  true if PSRAM self-test passed
+// After PSRAM init and flight_table_load(). psram_size 0 if absent.
 void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passed);
 
-/// Read-only access to the ring buffer (Council A6).
-/// Used by CLI commands (cmd_flush_log, print_logging_status).
+// Read-only access to the ring buffer (Council A6).
+// Used by CLI commands (cmd_flush_log, print_logging_status).
 const rc::RingBuffer* AO_Logger_get_ring();
 
-/// Mutable access to the ring buffer — needed by CLI flush command
-/// (flush_ring_to_flash modifies head).
+// Mutable access to the ring buffer — needed by CLI flush command
+// (flush_ring_to_flash modifies head).
 rc::RingBuffer* AO_Logger_get_ring_mut();
 
-/// Read-only access to the flight table (Council A6).
-/// Used by CLI commands and AO_FlightDirector Go/No-Go checks.
+// Read-only access to the flight table (Council A6).
+// Used by CLI commands and AO_FlightDirector Go/No-Go checks.
 const rc::FlightTableState* AO_Logger_get_flight_table();
 
-/// Mutable access to the flight table — needed by CLI flush/erase commands
-/// that write to flash.
+// Mutable access to the flight table — needed by CLI flush/erase commands
+// that write to flash.
 rc::FlightTableState* AO_Logger_get_flight_table_mut();
 
-/// Whether the logging ring buffer has been initialized.
+// Whether the logging ring buffer has been initialized.
 bool AO_Logger_is_initialized();
 
-/// Log a discrete flight event to the ring buffer as a PCM event frame.
-/// Called from AO_FlightDirector (pyro fire, abort, etc.) and eskf_runner
-/// (via callback).
+// Log a discrete flight event to the ring buffer as a PCM event frame.
+// Called from AO_FlightDirector (pyro fire, abort, etc.) and eskf_runner
+// (via callback).
 void AO_Logger_log_event(rc::LogEventId id,
                          uint8_t d0 = 0, uint8_t d1 = 0,
                          uint8_t d2 = 0, uint8_t d3 = 0);
 
-/// Build FusedState from ESKF + sensor snapshot.
-/// Shared utility: used by AO_Logger (logging_tick) and AO_FlightDirector
-/// (guard evaluation). Declared here so both can call it.
+// Build FusedState from ESKF + sensor snapshot.
+// Shared utility: used by AO_Logger (logging_tick) and AO_FlightDirector
+// (guard evaluation). Declared here so both can call it.
 void AO_Logger_populate_fused_state(rc::FusedState& fused,
                                     const shared_sensor_data_t& snap);
 

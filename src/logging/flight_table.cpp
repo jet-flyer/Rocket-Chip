@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file flight_table.cpp
- * @brief Flight log table management — pure logic, no flash I/O
- *
- * Flash read/write is handled by a separate target-only module.
- * This file contains only the data manipulation logic for host testability.
- */
+// Flight log table management — pure logic, no flash I/O
+// Flash read/write is handled by a separate target-only module.
+// This file contains only the data manipulation logic for host testability.
 
 #include "flight_table.h"
 #include "crc32.h"

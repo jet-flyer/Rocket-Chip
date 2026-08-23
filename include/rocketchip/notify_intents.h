@@ -1,20 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Notification Intent Enums and State (Stage 14, IVP-113)
-//
-// Per-category typed enums (Council A3: compile-time category enforcement).
-// Callers set a typed intent; AO_Notify resolves priority and dispatches
-// to output backends (LED, future audio, future OLED).
-//
-// Each enum's kNone = 0 so zero-init of NotifyState means "no intent active."
-//
-// Category priority order (highest to lowest):
-//   Fault > Calibration > Flight > Radio > Sensor > Idle
-//
-// Calibration above Flight: when calibrating, the overlay must be visible
-// regardless of flight phase (always IDLE during cal, but enforced structurally).
-// See docs/decisions/NOTIFY_CONTRACT.md for rationale.
+// Notification intents — typed per category; kNone=0 so zero-init is idle.
+// Priority: Fault > Calibration > Flight > Radio > Sensor > Idle.
+// Cal above Flight so a cal overlay stays visible. See NOTIFY_CONTRACT.md.
 //============================================================================
 #ifndef ROCKETCHIP_NOTIFY_INTENTS_H
 #define ROCKETCHIP_NOTIFY_INTENTS_H
@@ -39,9 +28,9 @@ enum class PhaseIntent : uint8_t {
     kMain       = 6,
     kLanded     = 7,
     kAbort      = 8,
-    kBeacon     = 9,   // Post-landing/abort recovery beacon (white blink)
-    kPreArmFail = 10,  // Stage L — ARM rejected (yellow double-flash, ~3s auto-clear)
-    kInit       = 11,  // Stage L — boot/init warmup (rainbow; auto-clear on ESKF+IMU ready)
+    kBeacon     = 9,   // post-landing/abort recovery (white blink)
+    kPreArmFail = 10,  // ARM rejected (yellow double-flash, ~3s auto-clear)
+    kInit       = 11,  // boot warmup (rainbow; auto-clear on ESKF+IMU ready)
 };
 
 // ============================================================================
@@ -97,24 +86,11 @@ enum class FaultIntent : uint8_t {
     kCore1Stall  = 6,  // Core 1 stalled (highest fault priority)
 };
 
-// ============================================================================
-// NotifyState — complete intent snapshot owned by AO_Notify
-//
-// Zero-initialized = no active intents (safe default).
-// One active intent per category. The resolver iterates categories in
-// priority order and picks the first non-kNone.
-//
-// Stage L — beacon overlay flags (orthogonal to the 5 category slots):
-//   beacon_auto   set on auto triggers (MAIN_DESCENT backstop, LANDED
-//                 entry, safe-mode entry). Composes with the state color:
-//                 LANDED → green+white, ABORT → red+white, faults keep
-//                 their color + white.
-//   beacon_manual set by CLI `findme` or a GCS beacon command. Forces
-//                 pure-white 2Hz blink regardless of underlying state —
-//                 maximum physical visibility "I don't care about state,
-//                 just find me." Wins over beacon_auto if both are set.
-// Both clear on SIG_PHASE_CHANGE to a phase other than LANDED/ABORT.
-// ============================================================================
+// One intent per category. Resolver takes the first non-kNone in priority order.
+// beacon_auto: MAIN_DESCENT/LANDED/safe-mode overlay (composes with state color).
+// beacon_manual: CLI findme / GCS — pure white 2 Hz; wins over auto.
+// Both clear on SIG_PHASE_CHANGE out of LANDED/ABORT.
+// vehicle_lost: AO_RfManager link-lost latch (not AO_Radio's per-packet RadioIntent).
 struct NotifyState {
     PhaseIntent  phase;
     CalIntent    cal;
@@ -123,12 +99,6 @@ struct NotifyState {
     FaultIntent  fault;
     bool         beacon_auto;
     bool         beacon_manual;
-    // Stage T Batch B IVP-T14 (Round 2 #10): unmissable "VEHICLE NOT HEARD"
-    // indicator on the station. Latched by AO_RfManager on link-lost edge
-    // (kTrack/kTrackDegraded → kAcq), cleared on re-acquire. Orthogonal to
-    // RadioIntent, which is AO_Radio's per-packet heuristic; this flag is
-    // AO_RfManager's learned-link verdict. Audio backend plays the
-    // vehicle-lost tone when audio hardware is wired.
     bool         vehicle_lost;
 };
 

@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file board_tiny_2350_plus.h
- * @brief Board constants for Pimoroni Tiny 2350+ (the Plus variant)
- *
- * RP2350A (QFN-60), 8 MB flash, onboard PSRAM. Pin map largely
- * shared with the base Tiny 2350; variant overrides are explicit
- * below.
- *
- * WIP / unsupported until TINY_2350_BRINGUP_OK (WN-027/028).
- * Pin map in board_tiny_2350_common.h is unverified.
- */
+// Board constants for Pimoroni Tiny 2350+ (the Plus variant)
+// RP2350A (QFN-60), 8 MB flash, onboard PSRAM. Pin map largely
+// shared with the base Tiny 2350; variant overrides are explicit
+// below.
+// WIP / unsupported until TINY_2350_BRINGUP_OK (WN-027/028).
+// Pin map in board_tiny_2350_common.h is unverified.
 
 #ifndef ROCKETCHIP_BOARD_TINY_2350_PLUS_H
 #define ROCKETCHIP_BOARD_TINY_2350_PLUS_H

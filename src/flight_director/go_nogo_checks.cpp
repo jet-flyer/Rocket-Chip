@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file go_nogo_checks.cpp
- * @brief Go/No-Go poll evaluation (IVP-69)
- */
+// Go/No-Go poll evaluation (IVP-69)
 
 #include "go_nogo_checks.h"
 #include "rocketchip/rc_log.h"

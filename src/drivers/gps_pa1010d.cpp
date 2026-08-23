@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file gps_pa1010d.cpp
- * @brief PA1010D GPS module driver using lwGPS library
- *
- * Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
- *
- * Prior Art:
- *   - CDTop PA1010D datasheet (MT3333 chipset)
- *   - Adafruit PA1010D Arduino/CircuitPython GPS library (I2C chunked reads)
- *   - lwGPS library (vendored in lib/lwgps/) — NMEA parser
- */
+// PA1010D GPS module driver using lwGPS library
+// Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
+// Prior Art:
+// - CDTop PA1010D datasheet (MT3333 chipset)
+// - Adafruit PA1010D Arduino/CircuitPython GPS library (I2C chunked reads)
+// - lwGPS library (vendored in lib/lwgps/) — NMEA parser
 
 #include "gps_pa1010d.h"
 #include "i2c_bus.h"
@@ -101,21 +96,15 @@ static size_t g_lastReadLen = 0;           // Last successful read length
 // Private Functions
 // ============================================================================
 
-/**
- * @brief Read NMEA data from PA1010D via I2C, filtering padding bytes
- *
- * The PA1010D (MT3333) pads its 255-byte I2C buffer with 0x0A when empty.
- * Three packet types can arrive (per GlobalTop/Quectel app notes):
- *   Type 1: [NMEA data][0x0A padding...]   — normal
- *   Type 2: [all 0x0A]                     — buffer was empty
- *   Type 3: [0x0A padding...][NMEA data]   — read caught tail of prev buffer
- *
- * Adafruit approach: keep 0x0A only when preceded by 0x0D (legitimate \r\n
- * NMEA terminator). Discard all standalone 0x0A (padding). This handles
- * all three packet types and preserves sentence framing for lwGPS.
- *
- * Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
- */
+// The PA1010D (MT3333) pads its 255-byte I2C buffer with 0x0A when empty.
+// Three packet types can arrive (per GlobalTop/Quectel app notes):
+// Type 1: [NMEA data][0x0A padding...]   — normal
+// Type 2: [all 0x0A]                     — buffer was empty
+// Type 3: [0x0A padding...][NMEA data]   — read caught tail of prev buffer
+// Adafruit approach: keep 0x0A only when preceded by 0x0D (legitimate \r\n
+// NMEA terminator). Discard all standalone 0x0A (padding). This handles
+// all three packet types and preserves sentence framing for lwGPS.
+// Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // Read raw I2C data into a local buffer, then filter in-place
     static uint8_t g_raw[kGpsMaxRead];
@@ -144,9 +133,6 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     return out;
 }
 
-/**
- * @brief Update internal data structure from lwGPS
- */
 static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;

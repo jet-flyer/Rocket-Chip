@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file fault_protection.cpp
- * @brief Implementation of shared fault protection.
- *
- * OPT-IVP-01 extraction. No-stack fault handler and MPU setup.
- * Registered early in init_early_hw(). Core 1 calls only the MPU setup.
- */
+// Implementation of shared fault protection.
+// OPT-IVP-01 extraction. No-stack fault handler and MPU setup.
+// Registered early in init_early_hw(). Core 1 calls only the MPU setup.
 
 #include "safety/fault_protection.h"
 #include "safety/crash_record.h"

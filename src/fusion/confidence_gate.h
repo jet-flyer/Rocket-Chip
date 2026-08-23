@@ -3,20 +3,9 @@
 #ifndef ROCKETCHIP_FUSION_CONFIDENCE_GATE_H
 #define ROCKETCHIP_FUSION_CONFIDENCE_GATE_H
 
-// Confidence gate — binary "trust my estimates" flag.
-// Pure C++ — no Pico SDK dependencies.
-//
-// Evaluates ESKF health signals and Mahony AHRS cross-check to produce
-// a binary confident/uncertain flag consumed by the Flight Director.
-//
-// This is a PLATFORM SAFETY layer — NOT configurable by Mission Profiles.
-// All thresholds are VALIDATE defaults for field tuning.
-//
-// When confident=false, the Flight Director locks pyro channels.
-// No fallback pyro firing — when uncertain, the safest action is no action.
-//
-// Hysteresis prevents flapping: loss requires sustained failure for
-// kLossDebounceMs; recovery requires sustained pass for kRecoveryDebounceMs.
+// Confidence gate: compile-time thresholds (not MissionProfile).
+// Consumed by FD SafetyLockout.confident — pyro locked when false.
+// Loss / recovery: kLossDebounceMs / kRecoveryDebounceMs hysteresis.
 
 #include <cstdint>
 

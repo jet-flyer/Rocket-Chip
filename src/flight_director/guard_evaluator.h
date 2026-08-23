@@ -1,21 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file guard_evaluator.h
- * @brief Guard sustain evaluator
- *
- * Manages sustain counters for each guard. A guard "fires" (returns a
- * signal) only when its condition is true for N consecutive ticks.
- * One false tick resets the counter to zero.
- *
- * Guards are either "unmanaged" (auto-dispatch on sustain) or
- * "managed" (combinator reads sustained[] and decides dispatch).
- * Managed/unmanaged is a compile-time property (Council A4).
- *
- * Phase validity: each guard is only active in specific phases.
- * The evaluator skips inactive guards and resets their counters on
- * phase transitions.
- */
+// Guard sustain evaluator: fire after N consecutive true ticks; one false
+// tick resets the count. Unmanaged guards auto-dispatch; managed ones only
+// set sustained[] for the combinator. Inactive in a phase → skip and reset.
+// Model also in docs/IVP.md IVP-71 / IVP-120 and
+// docs/plans/STAGE8_FLIGHT_DIRECTOR.md — this header is not the sole SSOT.
 
 #ifndef ROCKETCHIP_GUARD_EVALUATOR_H
 #define ROCKETCHIP_GUARD_EVALUATOR_H
@@ -35,17 +24,12 @@ enum class GuardId : uint8_t {
     kBaroPeak        = 3,
     kMainDeploy      = 4,
     kStationary      = 5,
-    kBaroStationary  = 6,  // IVP-120: raw baro alt rate near zero (ESKF-independent)
+    kBaroStationary  = 6,  // raw baro alt rate near zero (ESKF-independent)
     kCount           = 7,
 };
 
-// Compile-time managed flag (Council A4).
-// Managed guards track sustain but don't auto-dispatch — the combinator
-// layer reads their sustained status and decides when to fire.
-// Unmanaged guards auto-dispatch on first sustain.
-//
-// DO NOT modify at runtime. This array is the contract between the
-// evaluator and the combinator.
+// constexpr contract with the combinator. Managed: combinator fires.
+// Unmanaged: evaluator auto-dispatches on first sustain.
 inline constexpr bool kGuardManaged[static_cast<uint8_t>(GuardId::kCount)] = {
     false,  // kLaunchAccel    — unmanaged (single guard, no combinator)
     false,  // kBurnoutAccel   — unmanaged (single guard)
@@ -53,8 +37,16 @@ inline constexpr bool kGuardManaged[static_cast<uint8_t>(GuardId::kCount)] = {
     true,   // kBaroPeak       — managed (AND combinator with velocity)
     true,   // kMainDeploy     — managed (lockout-gated)
     false,  // kStationary     — unmanaged (single guard, long sustain)
-    false,  // kBaroStationary — unmanaged (ESKF-independent landing detect, IVP-120)
+    false,  // kBaroStationary — unmanaged (ESKF-independent landing detect)
 };
+
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kLaunchAccel)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kBurnoutAccel)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kApogeeVelocity)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kBaroPeak)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kMainDeploy)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kStationary)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kBaroStationary)]);
 
 // Per-guard runtime state
 struct GuardState {
@@ -79,17 +71,8 @@ void guard_evaluator_init(GuardEvaluator* ev,
                            const MissionProfile& profile,
                            uint32_t tick_period_ms);
 
-// Evaluate all active guards for the current phase.
-// - Unmanaged guards: returns signal on first sustain (first-wins), or SIG_MAX
-// - Managed guards: updates sustained flag only, returns SIG_MAX
-//
-// Caller should check sustained[] for managed guards via the combinator.
-//
-// @param ev          Evaluator state
-// @param phase       Current flight phase
-// @param fused       ESKF fused state (velocity, altitude, baro)
-// @param accel_z     Calibrated body-Z acceleration (m/s^2)
-// @param accel_mag   Calibrated acceleration magnitude (m/s^2)
+// Unmanaged: signal on first sustain (or SIG_MAX). Managed: flag only.
+// accel_z / accel_mag are calibrated body-frame (m/s^2).
 uint16_t guard_evaluator_tick(GuardEvaluator* ev,
                                FlightPhase phase,
                                const FusedState& fused,

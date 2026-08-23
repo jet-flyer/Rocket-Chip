@@ -1,30 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file baro_dps310.cpp
- * @brief DPS310 Barometer wrapper using ruuvi.dps310.c library
- *
- * Implements Pico SDK I2C callbacks for the ruuvi DPS310 driver.
- *
- * Prior Art:
- *   - Infineon DPS310 datasheet (IFXDS_DPS310_v1.1)
- *   - ruuvi.dps310.c driver (vendored in lib/ruuvi/)
- *   - Adafruit DPS310 Arduino library (init sequence reference)
- */
+// DPS310 Barometer wrapper using ruuvi.dps310.c library
+// Implements Pico SDK I2C callbacks for the ruuvi DPS310 driver.
+// Prior Art:
+// - Infineon DPS310 datasheet (IFXDS_DPS310_v1.1)
+// - ruuvi.dps310.c driver (vendored in lib/ruuvi/)
+// - Adafruit DPS310 Arduino library (init sequence reference)
 
 #include "baro_dps310.h"
 #include "i2c_bus.h"
+#include "rocketchip/isa_atmosphere.h"
 extern "C" {
 #include "dps310.h"
 }
 #include "pico/time.h"
 #include <math.h>
 #include <string.h>
-
-// Atmospheric constants (barometric formula)
-constexpr float kStdAtmPressurePa    = 101325.0F;  // Standard sea-level pressure (Pa)
-constexpr float kHypsometricScale    = 44330.0F;    // Barometric formula coefficient
-constexpr float kHypsometricExponent = 0.1903F;     // Barometric formula exponent (1/5.255)
 
 // I2C write buffer limit
 constexpr uint8_t kMaxMultiByteWrite = 16;
@@ -63,7 +54,7 @@ static dps310_mr_t mr_from_int(uint8_t val) {
 // ============================================================================
 
 static uint8_t g_i2cAddr = 0;
-static float g_seaLevelPa = kStdAtmPressurePa;
+static float g_seaLevelPa = rc::kStdAtmPressurePa;
 
 // Forward declarations for callbacks
 static void pico_sleep(uint32_t ms);
@@ -188,6 +179,6 @@ void baro_dps310_set_sea_level(float pressure_pa) {
 }
 
 float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa) {
-    // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
-    return kHypsometricScale * (1.0F - powf(pressure_pa / sea_level_pa, kHypsometricExponent));
+    return rc::kHypsometricScale *
+           (1.0F - powf(pressure_pa / sea_level_pa, rc::kHypsometricExponent));
 }

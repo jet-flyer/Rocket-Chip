@@ -1,24 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file icm20948.cpp
- * @brief ICM-20948 9-axis IMU driver implementation
- *
- * Prior Art:
- *   - ICM-20948 datasheet (TDK InvenSense DS-000189 Rev 1.6)
- *   - AK09916 datasheet (AKM AKD09916 Rev 2.0)
- *   - ArduPilot AP_InertialSensor_Invensensev2.cpp (bypass mode pattern)
- *
- * Note: ICM-20948 uses a bank-switching register architecture.
- * Registers 0x00-0x7F exist in each of 4 banks (0-3).
- *
- * AK09916 magnetometer is accessed via I2C bypass mode (BYPASS_EN=1),
- * which connects the internal auxiliary bus to the external I2C bus.
- * The AK09916 appears directly at address 0x0C. This eliminates the
- * ICM-20948's internal I2C master (and its bank-switching race, stall
- * after disable/enable, and fragile SLV0 configuration).
- * ArduPilot uses the same approach (AP_InertialSensor_Invensensev2.cpp).
- */
+// ICM-20948 9-axis IMU driver implementation
+// Prior Art:
+// - ICM-20948 datasheet (TDK InvenSense DS-000189 Rev 1.6)
+// - AK09916 datasheet (AKM AKD09916 Rev 2.0)
+// - ArduPilot AP_InertialSensor_Invensensev2.cpp (bypass mode pattern)
+// Note: ICM-20948 uses a bank-switching register architecture.
+// Registers 0x00-0x7F exist in each of 4 banks (0-3).
+// AK09916 magnetometer is accessed via I2C bypass mode (BYPASS_EN=1),
+// which connects the internal auxiliary bus to the external I2C bus.
+// The AK09916 appears directly at address 0x0C. This eliminates the
+// ICM-20948's internal I2C master (and its bank-switching race, stall
+// after disable/enable, and fragile SLV0 configuration).
+// ArduPilot uses the same approach (AP_InertialSensor_Invensensev2.cpp).
 
 #include "icm20948.h"
 #include "i2c_bus.h"
@@ -189,16 +183,10 @@ constexpr uint32_t kMagInitRetries    = 3;    // Magnetometer init retry count
 // Private Functions
 // ============================================================================
 
-/**
- * @brief Select register bank
- */
 static bool select_bank(icm20948_t* dev, uint8_t bank) {
     return i2c_bus_write_reg(dev->addr, kRegBankSel, (bank << 4)) == 0;
 }
 
-/**
- * @brief Write to a register in a specific bank
- */
 static bool write_bank_reg(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t value) {
     if (!select_bank(dev, bank)) {
         return false;
@@ -206,9 +194,6 @@ static bool write_bank_reg(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t v
     return i2c_bus_write_reg(dev->addr, reg, value) == 0;
 }
 
-/**
- * @brief Read from a register in a specific bank
- */
 static bool read_bank_reg(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t* value) {
     if (!select_bank(dev, bank)) {
         return false;

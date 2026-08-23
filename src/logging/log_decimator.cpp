@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file log_decimator.cpp
- * @brief Box-car averaging decimator for FusedState
- *
- * IVP-52c: Decimation + Main Loop Integration (Stage 6: Data Logging)
- */
+// Box-car averaging decimator for FusedState
+// IVP-52c: Decimation + Main Loop Integration (Stage 6: Data Logging)
 
 #include "log_decimator.h"
 #include <cmath>

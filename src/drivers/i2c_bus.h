@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file i2c_bus.h
- * @brief Generic I2C init/transfer/bus-clear (pins from board::)
- *
- * Device recovery and part names do not belong here (WN-078 / WN-080).
- */
+// Generic I2C init/transfer/bus-clear (pins from board::)
+// Device recovery and part names do not belong here (WN-078 / WN-080).
 
 #ifndef ROCKETCHIP_I2C_BUS_H
 #define ROCKETCHIP_I2C_BUS_H
@@ -43,106 +39,42 @@ constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
 // Initialization
 // ============================================================================
 
-/**
- * @brief Initialize the I2C bus
- * @return true on success
- */
 [[nodiscard]] bool i2c_bus_init(void);
 
-/**
- * @brief Check if a device is present on the bus
- * @param addr 7-bit I2C address
- * @return true if device ACKs
- */
 [[nodiscard]] bool i2c_bus_probe(uint8_t addr);
 
-/**
- * @brief Scan the bus and print all detected devices
- */
 void i2c_bus_scan(void);
 
 // ============================================================================
 // Read/Write Operations
 // ============================================================================
 
-/**
- * @brief Write bytes to a device
- * @param addr 7-bit I2C address
- * @param data Data to write
- * @param len Number of bytes to write
- * @return Number of bytes written, or negative on error
- */
+// Number of bytes written, or negative on error
 [[nodiscard]] int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len);
 
-/**
- * @brief Read bytes from a device
- * @param addr 7-bit I2C address
- * @param data Buffer to read into
- * @param len Number of bytes to read
- * @return Number of bytes read, or negative on error
- */
+// Number of bytes read, or negative on error
 [[nodiscard]] int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len);
 
-/**
- * @brief Write to a register then read response (common pattern)
- * @param addr 7-bit I2C address
- * @param reg Register address to write
- * @param data Buffer to read into
- * @param len Number of bytes to read
- * @return Number of bytes read, or negative on error
- */
+// Number of bytes read, or negative on error
 [[nodiscard]] int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
 
-/**
- * @brief Write a single byte to a register
- * @param addr 7-bit I2C address
- * @param reg Register address
- * @param value Value to write
- * @return 0 on success, negative on error
- */
+// 0 on success, negative on error
 [[nodiscard]] int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value);
 
-/**
- * @brief Read a single byte from a register
- * @param addr 7-bit I2C address
- * @param reg Register address
- * @param value Pointer to store read value
- * @return 0 on success, negative on error
- */
+// 0 on success, negative on error
 [[nodiscard]] int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value);
 
-/**
- * @brief Read multiple bytes starting from a register
- * @param addr 7-bit I2C address
- * @param reg Starting register address
- * @param data Buffer to read into
- * @param len Number of bytes to read
- * @return Number of bytes read, or negative on error
- */
+// Number of bytes read, or negative on error
 [[nodiscard]] int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
 
 // ============================================================================
 // Bus Recovery (IVP-13a)
 // ============================================================================
 
-/**
- * @brief Attempt to recover a stuck I2C bus
- *
- * If a slave device is holding SDA low (stuck in mid-transaction),
- * this function toggles SCL up to 9 times to clock out the stuck byte,
- * then issues a STOP condition.
- *
- * @return true if recovery successful (SDA released), false otherwise
- */
+// Clock out a stuck-low SDA (up to 9 SCL pulses + STOP). true = SDA released.
 bool i2c_bus_recover(void);
 
-/**
- * @brief Reset the I2C bus (deinit + recover + reinit)
- *
- * Performs a full bus reset sequence when a device becomes unresponsive.
- *
- * @return true if bus successfully reset and initialized
- */
+// Performs a full bus reset sequence when a device becomes unresponsive.
 bool i2c_bus_reset(void);
 
 #endif // ROCKETCHIP_I2C_BUS_H

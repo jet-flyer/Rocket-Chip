@@ -57,8 +57,6 @@ FIELDS = [
     ('MAIN_BACKUP_MS',      'main_backup_ms',             'uint32', (5000, 3600000)),
     # Combinator config
     ('APOGEE_BOTH',         'apogee_require_both',        'bool',   None),
-    # Emergency override
-    ('EMERG_DEPLOY',        'emergency_deploy_anytime',   'bool',   None),
     # Abort behavior
     ('ABORT_DROGUE_BOOST',  'abort_fires_drogue_from_boost', 'bool', None),
     ('ABORT_DROGUE_COAST',  'abort_fires_drogue_from_coast', 'bool', None),
@@ -244,8 +242,16 @@ def validate_and_convert(params):
     known.update(f[0] for f in QR_FIELDS)
     known.update(f[0] for f in RADIO_FIELDS)
     known.add('QR_RAMP_STEPS')
+    # HAB lockout skip is not implemented (WN-195). Re-adding the cfg key
+    # must fail, not silently ignore, until a named HAB sitting wires it.
+    rejected = {
+        'EMERG_DEPLOY': 'HAB lockout skip is not implemented '
+                        '(WN-195 / rem WB R-11); lockouts always apply',
+    }
     for key in params:
-        if key not in known:
+        if key in rejected:
+            errors.append(f'{key}: {rejected[key]}')
+        elif key not in known:
             print(f'WARNING: unknown field: {key} (ignored)')
 
     if errors:

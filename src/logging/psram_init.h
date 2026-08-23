@@ -1,26 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file psram_init.h
- * @brief APS6404L-3SQR PSRAM initialization via QMI CS1
- *
- * APS6404L-3SQR on QMI CS1 — board-coupled, not a generic PSRAM HAL
- * (WN-216). CS pin from board::kPsramCsPin. QPI 0xEB read / 0x38 write.
- *
- * Based on SparkFun sparkfun-pico and AudioMorphology/PSRAM (MIT license).
- * Both derived from Arduino-Pico (earlephilhower).
- *
- * XIP memory map for CS1 (PSRAM):
- *   0x11000000  Cached XIP access
- *   0x15000000  Uncached XIP access
- *
- * Council req. #1: Use uncached alias (0x15000000) for crash recovery
- *   header writes to avoid cache coherency issues.
- * Council req. #3: PSRAM is volatile — power loss erases it. Flash
- *   flight table is the durable record.
- *
- * IVP-52a: PSRAM Init + Self-Test (Stage 6: Data Logging)
- */
+// APS6404L-3SQR on QMI CS1 — board-coupled (WN-216), pin from board::kPsramCsPin.
+// Cached XIP 0x11000000; uncached 0x15000000 for crash-recovery header writes.
+// Volatile: power loss wipes it; flash flight table is durable.
 
 #ifndef ROCKETCHIP_PSRAM_INIT_H
 #define ROCKETCHIP_PSRAM_INIT_H
@@ -35,52 +17,26 @@ static constexpr uint32_t kPsramCachedBase   = 0x11000000U;
 static constexpr uint32_t kPsramUncachedBase = 0x15000000U;
 static constexpr uint32_t kPsramExpectedSize = 8U * 1024U * 1024U;  // 8MB
 
-/**
- * @brief Initialize PSRAM via QMI CS1
- * @param cs_pin GPIO pin for CS1 (8 on Adafruit Feather RP2350 HSTX)
- * @return Detected PSRAM size in bytes, or 0 on failure
- *
- * Must be called BEFORE Core 1 launch and flash operations.
- * Direct-mode windows run from SRAM; clock_get_hz / timing math run
- * with XIP still up (Arduino-Pico discussion 3431).
- */
+// Must be called BEFORE Core 1 launch and flash operations.
+// Direct-mode windows run from SRAM; clock_get_hz / timing math run
+// with XIP still up (Arduino-Pico discussion 3431).
 size_t psram_init(uint32_t cs_pin);
 
-/**
- * @brief Self-test: write/read pattern at 3 addresses
- * @param size PSRAM size in bytes (from psram_init)
- * @return true if all 3 test points pass
- *
- * Tests offset 0, size/2, and size-4 to catch addressing issues.
- */
+// Tests offset 0, size/2, and size-4 to catch addressing issues.
 bool psram_self_test(size_t size);
 
-/**
- * @brief Get pointer to PSRAM base (cached)
- * @return Pointer to cached PSRAM base, or nullptr if not initialized
- */
+// Pointer to cached PSRAM base, or nullptr if not initialized
 uint8_t* psram_base_ptr();
 
-/**
- * @brief Get pointer to PSRAM base (uncached — for crash recovery header)
- * @return Pointer to uncached PSRAM base, or nullptr if not initialized
- */
+// Pointer to uncached PSRAM base, or nullptr if not initialized
 uint8_t* psram_uncached_base_ptr();
 
-/**
- * @brief Get detected PSRAM size
- * @return Size in bytes, or 0 if not initialized
- */
+// Size in bytes, or 0 if not initialized
 size_t psram_get_size();
 
-/**
- * @brief Verify PSRAM data survives a flash_safe_execute() cycle
- * @return true if data integrity preserved after flash erase+program
- *
- * Council req. #2 (hard gate): Write known pattern → flash_safe_execute()
- * erase+program → read back → byte-for-byte verify. Validates SDK's
- * QMI M1 save/restore for our CS1-not-in-FLASH_DEVINFO case.
- */
+// Council req. #2 (hard gate): Write known pattern → flash_safe_execute()
+// erase+program → read back → byte-for-byte verify. Validates SDK's
+// QMI M1 save/restore for our CS1-not-in-FLASH_DEVINFO case.
 bool psram_flash_safe_test();
 
 } // namespace rc

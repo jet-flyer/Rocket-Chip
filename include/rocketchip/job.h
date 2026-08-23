@@ -1,26 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file job.h
- * @brief Compile-time device role selector
- *
- * Selects behavioral configuration based on CMake defines.
- * Board hardware (pins, peripherals) is handled separately by board.h.
- *
- * "Job" = device role. Distinct from "MissionProfile" which is the
- * flight profile data used by the Flight Director at runtime.
- *
- * Supported roles:
- *   VEHICLE  — Flight computer: TX telemetry, sensors, ESKF, logging, FD
- *   STATION  — Ground receiver: RX telemetry, MAVLink USB output, optional GPS
- *   RELAY    — Range extender: RX → validate → re-TX, no decode
- *
- * Default (no define): VEHICLE
- *
- * Usage in CMakeLists.txt:
- *   add_compile_definitions(ROCKETCHIP_JOB_STATION=1)
- *   add_compile_definitions(ROCKETCHIP_JOB_RELAY=1)
- */
+// Compile-time device role selector
+// Selects behavioral configuration based on CMake defines.
+// Board hardware (pins, peripherals) is handled separately by board.h.
+// "Job" = device role. Distinct from "MissionProfile" which is the
+// flight profile data used by the Flight Director at runtime.
+// Supported roles:
+// VEHICLE  — Flight computer: TX telemetry, sensors, ESKF, logging, FD
+// STATION  — Ground receiver: RX telemetry, MAVLink USB output, optional GPS
+// RELAY    — Range extender: RX → validate → re-TX, no decode
+// Default (no define): VEHICLE
+// Usage in CMakeLists.txt:
+// add_compile_definitions(ROCKETCHIP_JOB_STATION=1)
+// add_compile_definitions(ROCKETCHIP_JOB_RELAY=1)
 
 #ifndef ROCKETCHIP_JOB_H
 #define ROCKETCHIP_JOB_H

@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_HealthMonitor — System Health Active Object (Stage 13, IVP-105)
-//
-// Ticks at 10Hz via QF time event. Calls health_monitor_tick() and
-// publishes SIG_HEALTH_STATUS on change + 1Hz periodic re-publish.
-// Subscribes to SIG_PHASE_CHANGE for fault-latch phase tracking.
+// AO_HealthMonitor — 10 Hz tick. Pub/sub catalog: docs/AO_ARCHITECTURE.md.
+// Publishes SIG_HEALTH_STATUS (change + 1 Hz). Subscribes SIG_PHASE_CHANGE.
 //============================================================================
 
 #include "ao_health_monitor.h"

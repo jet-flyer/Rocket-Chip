@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file calibration_data.c
- * @brief Calibration data handling implementation
- */
+// Calibration data handling implementation
 
 #include "calibration_data.h"
 #include "math/quat.h"

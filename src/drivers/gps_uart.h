@@ -1,23 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-/**
- * @file gps_uart.h
- * @brief UART GPS driver — interrupt-driven hardware UART transport backend
- *
- * UART GPS (e.g., Adafruit Ultimate GPS FeatherWing #3133) via UART0.
- * Uses transport-neutral types from gps.h.
- * NMEA parsing by lwGPS (same parser as I2C backend).
- *
- * Receive architecture: UART0 RX interrupt (Core 0) drains hardware FIFO
- * into a 512-byte ring buffer. Application code on Core 1 reads from the
- * ring buffer — zero bytes lost at operating baud rate.
- *
- * Baud rate: init at 9600 (MT3339 factory default), negotiate to 57600
- * during gps_uart_init() before enabling IRQ. Required for 10Hz operation
- * (9600 baud saturates at ~4.8 NMEA bursts/sec; 57600 gives 2.8x headroom).
- *
- * Pin assignment: GPIO0 (TX), GPIO1 (RX) — Feather standard UART0.
- */
+// UART GPS driver — interrupt-driven hardware UART transport backend
+// UART GPS (e.g., Adafruit Ultimate GPS FeatherWing #3133) via UART0.
+// Uses transport-neutral types from gps.h.
+// NMEA parsing by lwGPS (same parser as I2C backend).
+// Receive architecture: UART0 RX interrupt (Core 0) drains hardware FIFO
+// into a 512-byte ring buffer. Application code on Core 1 reads from the
+// ring buffer — zero bytes lost at operating baud rate.
+// Baud rate: init at 9600 (MT3339 factory default), negotiate to 57600
+// during gps_uart_init() before enabling IRQ. Required for 10Hz operation
+// (9600 baud saturates at ~4.8 NMEA bursts/sec; 57600 gives 2.8x headroom).
+// Pin assignment: GPIO0 (TX), GPIO1 (RX) — Feather standard UART0.
 
 #ifndef ROCKETCHIP_GPS_UART_H
 #define ROCKETCHIP_GPS_UART_H
@@ -40,75 +33,36 @@ constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
 // API (mirrors gps_pa1010d.h — same contract, different transport)
 // ============================================================================
 
-/**
- * @brief Initialize the UART GPS module
- *
- * Configures UART0 at 9600 baud, drains for up to 2 seconds looking for
- * NMEA '$' start byte. On success, registers RX interrupt handler on
- * Core 0 for background byte capture into ring buffer.
- *
- * @return true on success (GPS detected on UART)
- */
+// Configures UART0 at 9600 baud, drains for up to 2 seconds looking for
+// NMEA '$' start byte. On success, registers RX interrupt handler on
+// Core 0 for background byte capture into ring buffer.
 [[nodiscard]] bool gps_uart_init(void);
 
-/**
- * @brief Check if UART GPS is initialized
- * @return true if initialized
- */
 [[nodiscard]] bool gps_uart_ready(void);
 
-/**
- * @brief Drain ring buffer into lwGPS parser (no data extraction)
- *
- * Reads bytes accumulated by the RX ISR and feeds them to lwGPS.
- * Called internally by gps_uart_update(). Safe to call from Core 1
- * at any rate — the ISR handles byte capture independently.
- */
+// Reads bytes accumulated by the RX ISR and feeds them to lwGPS.
+// Called internally by gps_uart_update(). Safe to call from Core 1
+// at any rate — the ISR handles byte capture independently.
 void gps_uart_drain(void);
 
-/**
- * @brief Poll UART GPS for new data
- *
- * Drains ring buffer and extracts parsed data from lwGPS.
- * Call at 10Hz for 10Hz GPS position updates.
- *
- * @return true if UART read succeeded, false on error
- */
+// Drains ring buffer and extracts parsed data from lwGPS.
+// Call at 10Hz for 10Hz GPS position updates.
 [[nodiscard]] bool gps_uart_update(void);
 
-/**
- * @brief Get latest GPS data
- * @param data Output data structure
- * @return true if data is valid (has fix)
- */
+// true if data is valid (has fix)
 [[nodiscard]] bool gps_uart_get_data(gps_data_t* data);
 
-/**
- * @brief Check if GPS has a valid fix
- * @return true if GPS has 2D or 3D fix
- */
+// true if GPS has 2D or 3D fix
 [[nodiscard]] bool gps_uart_has_fix(void);
 
-/**
- * @brief Get ring buffer overflow count (diagnostic)
- *
- * Returns the number of bytes dropped because the ring buffer was full.
- * Should be 0 in normal operation. Non-zero indicates the consumer
- * (Core 1) isn't draining fast enough.
- *
- * @return overflow byte count since init
- */
+// Returns the number of bytes dropped because the ring buffer was full.
+// Should be 0 in normal operation. Non-zero indicates the consumer
+// (Core 1) isn't draining fast enough.
 [[nodiscard]] uint32_t gps_uart_get_overflow_count(void);
 
-/**
- * @brief Reinitialize UART GPS (staleness recovery)
- *
- * Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ.
- * Blocks for up to 2s during presence detection.
- * Call only when GPS has been stale for an extended period.
- *
- * @return true if GPS re-detected and reinitialized
- */
+// Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ.
+// Blocks for up to 2s during presence detection.
+// Call only when GPS has been stale for an extended period.
 [[nodiscard]] bool gps_uart_reinit(void);
 
 #endif // ROCKETCHIP_GPS_UART_H
