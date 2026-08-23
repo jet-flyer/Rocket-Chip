@@ -26,7 +26,8 @@ extern "C" {
 #include "qp_port.h"
 }
 #else
-// Host test stubs
+// HOST_TEST: same fusion TU without Pico/QP. time_us_32 is 0 — fusion
+// math still runs; timing/logger/publish paths are omitted.
 static inline uint32_t time_us_32() { return 0; }
 #endif
 

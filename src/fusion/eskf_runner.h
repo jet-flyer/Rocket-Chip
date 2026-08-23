@@ -43,8 +43,8 @@ static_assert(sizeof(eskf_state_snap_t) == kEskfStateSnapBytes,
               "ESKF snap size changed");
 
 // ============================================================================
-// GPS outdoor session stats — accumulated while GPS is active.
-// Printed on reconnect via 's'. Lets user verify movement gates.
+// Live GPS session diagnostics for Hardware Status (`s`):
+// movement distance and GPS NIS extrema while GPS updates run.
 // ============================================================================
 struct gps_session_stats_t {
     float max_dist_from_origin_m;    // Furthest ESKF position from origin (10m gate)

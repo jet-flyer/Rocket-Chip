@@ -386,22 +386,22 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 ---
 
-## Test / inject / debug in the flight tree (10) — LABELED 2026-08-21
+## Test / inject / debug in the flight tree (10) — SITTING 11 IN PROGRESS 2026-08-23
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 11. All REMEDIATE (sequester vs keep-with-why is that sitting).
+**Sitting:** Phase 3 sitting 11. Keep-with-why vs R-25 Approach A (inject/debug in the flight ELF, runtime-gated). Walk bucket is grouping, not a re-home. Groups of 2–4 (R-10).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-118 | REMEDIATE | labeled | pending Phase 3 — GPS session stats one-shot vs API |
-| WN-129 | REMEDIATE | labeled | pending Phase 3 — `ROCKETCHIP_HOST_TEST` sequestration |
-| WN-252 | REMEDIATE | labeled | pending Phase 3 — health_monitor `DBG_PRINT` |
-| WN-258 | REMEDIATE | labeled | pending Phase 3 — `fault_inject` in flight tree |
-| WN-259 | REMEDIATE | labeled | pending Phase 3 — fault_inject comment/history |
-| WN-260 | REMEDIATE | labeled | pending Phase 3 — station_fault_inject in flight tree |
-| WN-261 | REMEDIATE | labeled | pending Phase 3 — station inject comment/history |
-| WN-262 | REMEDIATE | labeled | pending Phase 3 — `test_mode` in flight tree |
-| WN-270 | REMEDIATE | labeled | pending Phase 3 — pio_backup HOST_TEST stubs |
-| WN-326 | REMEDIATE | labeled | pending Phase 3 — debug sub-menu vs test rework |
+| WN-118 | REMEDIATE | closed | live `s` GPS session diagnostics; not one-shot test scaffolding |
+| WN-129 | REMEDIATE | closed | HOST_TEST is host compile of the same TU (no Pico/QP), not sequestration |
+| WN-252 | REMEDIATE | labeled | pending sitting 11 group B |
+| WN-258 | REMEDIATE | labeled | pending sitting 11 group C |
+| WN-259 | REMEDIATE | labeled | pending sitting 11 group C |
+| WN-260 | REMEDIATE | labeled | pending sitting 11 group C |
+| WN-261 | REMEDIATE | labeled | pending sitting 11 group C |
+| WN-262 | REMEDIATE | labeled | pending sitting 11 group D |
+| WN-270 | REMEDIATE | labeled | pending sitting 11 group E |
+| WN-326 | REMEDIATE | labeled | pending sitting 11 group D |
 
 ---
 
