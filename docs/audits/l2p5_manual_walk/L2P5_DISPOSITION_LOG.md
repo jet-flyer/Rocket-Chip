@@ -441,7 +441,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-239 | REMEDIATE | labeled | pending Phase 3 — `src/station/` folder-for-one |
 | WN-240 | REMEDIATE | labeled | pending Phase 3 — station_idle_tick size |
 | WN-246 | REMEDIATE | labeled | pending Phase 3 — anomalous_boot placement |
-| WN-249 | REMEDIATE | labeled | pending Phase 3 — flight_in_progress sentinel TU |
+| WN-249 | REMEDIATE | closed | folded sentinel into `crash_record.cpp`; HOST_TEST stubs AIRCR so host FD still links |
 | WN-264 | REMEDIATE | labeled | pending Phase 3 — core1_i2c_pause standalone (W-5: KEEP) |
 | WN-276 | REMEDIATE | labeled | pending Phase 3 — `src/core1/` folder-for-one (W-5: KEEP pair) |
 | WN-277 | REMEDIATE | labeled | pending Phase 3 — sensor_core1.h comment ratio |

@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// crash_record — preserved-SRAM record for fault-handler capture-and-reset.
+// crash_record — preserved-SRAM record + flight-in-progress sentinel.
 // See crash_record.h for design rationale.
+// HOST_TEST: capture() is a stub so host FD tests can link the sentinel
+// without Pico SCB/AIRCR.
 
 #include "safety/crash_record.h"
+
+#ifndef ROCKETCHIP_HOST_TEST
 #include "hardware/structs/scb.h"
+#endif
 
 namespace rc {
 
+#ifndef ROCKETCHIP_HOST_TEST
 // The preserved record lives in .uninitialized_data — NOLOAD region per the
 // Pico SDK linker script. SRAM contents survive NVIC_SystemReset() but not
 // power-off. On clean boot the magic field is whatever garbage the SRAM
@@ -21,9 +27,28 @@ namespace rc {
 __attribute__((section(".uninitialized_data"), used))
 CrashRecord g_crash_record;
 
+__attribute__((section(".uninitialized_data"), used))
+static volatile uint32_t g_flightInProgressMagic;
+
+#define CRASH_DSB() __asm volatile ("dsb" ::: "memory")
+#define FLIGHT_SENTINEL_DSB() __asm volatile ("dsb" ::: "memory")
+#else
+CrashRecord g_crash_record{};
+static volatile uint32_t g_flightInProgressMagic = 0U;
+#define CRASH_DSB() ((void)0)
+#define FLIGHT_SENTINEL_DSB() __asm volatile ("" ::: "memory")
+#endif
+
 [[noreturn]] void crash_record_capture(CrashReason reason,
                                        uint32_t stacked_pc,
                                        uint32_t stacked_lr) {
+#ifdef ROCKETCHIP_HOST_TEST
+    (void)reason;
+    (void)stacked_pc;
+    (void)stacked_lr;
+    while (true) {
+    }
+#else
     // Read fault-status registers via the SDK's scb_hw pointer (resolves to
     // 0xE000ED00 + offsets). CFSR at 0x28, HFSR at 0x2C per ARMv8-M ARM.
     g_crash_record.cfsr       = scb_hw->cfsr;
@@ -38,8 +63,7 @@ CrashRecord g_crash_record;
     // record (no magic) and the boot proceeds without a phantom report.
     g_crash_record.magic = kCrashRecordMagic;
 
-    // Memory barrier ensures the writes complete before reset.
-    __asm volatile ("dsb" ::: "memory");
+    CRASH_DSB();
 
     // ARMv8-M software reset: AIRCR write with VECTKEY (0x05FA) and
     // SYSRESETREQ (bit 2). Per ARMv8-M ARM, this requests a system reset.
@@ -50,14 +74,32 @@ CrashRecord g_crash_record;
     while (true) {
         __asm volatile ("wfi");
     }
+#endif
 }
 
 bool crash_record_consume_prior(CrashRecord* out) {
     const bool took = crash_record_take(g_crash_record, out);
     if (took) {
-        __asm volatile ("dsb" ::: "memory");
+        CRASH_DSB();
     }
     return took;
+}
+
+void flight_in_progress_set() {
+    g_flightInProgressMagic = kFlightInProgressMagic;
+    FLIGHT_SENTINEL_DSB();
+}
+
+void flight_in_progress_clear() {
+    g_flightInProgressMagic = 0;
+    FLIGHT_SENTINEL_DSB();
+}
+
+bool flight_in_progress_was_set() {
+    const bool was_set = (g_flightInProgressMagic == kFlightInProgressMagic);
+    g_flightInProgressMagic = 0;
+    FLIGHT_SENTINEL_DSB();
+    return was_set;
 }
 
 } // namespace rc

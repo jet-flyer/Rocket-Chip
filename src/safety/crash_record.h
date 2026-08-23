@@ -117,8 +117,8 @@ bool crash_record_consume_prior(CrashRecord* out);
 // ============================================================================
 // Flight-in-progress sentinel
 //
-// Independent of the crash record above — a single magic word in
-// .uninitialized_data that is set when the system transitions kIdle -> kArmed
+// Independent of the crash record above (same TU, separate magic word in
+// .uninitialized_data). Set when the system transitions kIdle -> kArmed
 // and cleared when the system reaches kLanded with no abort latched. If the
 // sentinel is present at boot, the firmware was armed/airborne when something
 // reset it (whether internally-issued or external like brownout / RUN-pin /
