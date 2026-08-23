@@ -64,14 +64,14 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: Phases 0–2 closed; sitting 4 on `main` (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag closed (`a97d46c` / `1ac0add` / `f9757a2`) except WN-010/067 (R-9); sitting 8 HAB `1d4c443`; sitting 9 safety/ops SSOT closed (g1–g4). **Next:** sitting 10 fusion/math/cal. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition sittings 4–5 + 7–9 on `main` (`2026-08-22-003`, `2026-08-23-001`). Sitting 6 RF skipped (WN-100). **Next:** sitting 10 fusion/math/cal on worktree `grok/l2p5-disposition`. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
 
 ## L2-P5 disposition resume (OPEN) (2026-08-23 wrap)
 
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. **Do not work this on `main`.** Feature not merged.
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Sittings 5+7+8+9 merged to `main` (`2026-08-23-001`). Keep worktree for sitting 10 — **do not start sitting 10 on `main`.**
 
 **Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-7–R-9, R-11–R-14).
 
