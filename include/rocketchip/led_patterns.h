@@ -1,27 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// LED Pattern Constants — Single Source of Truth
-//
-// NeoPixel override values used by calibration, RX overlay, and flight
-// phase subsystems. Replaces duplicate definitions in main.cpp and rc_os.cpp.
-//
-// Values are uint8_t pattern codes posted as LedPatternEvt or LedOverrideEvt
-// to AO_LedEngine. The LED engine maps each code to a (mode, color) pair.
-//
-// Value ranges:
-//   0       = no override (normal status logic)
-//   1-8     = calibration overlays
-//   9-11    = RX link quality overlays
-//   12-18   = Stage L beacon-overlay composed patterns (flight phase + white;
-//             fault + white — preserves fault color for recovery triage)
-//   20-27   = flight phase overlays (match LedPhaseValue in action_executor.h)
-//   28-29   = Stage L: pre-arm fail (28), boot init rainbow (29)
-//   30-36   = sensor status
-//   41-46   = faults
-//
-// Stage 13 AO Architecture: Phase 0B extraction.
-// Stage L: beacon overlay codes + AP-parity color swaps (ARMED, cal gyro/level).
+// LED pattern codes posted to AO_LedEngine (mode + color).
+// 0 off; 1-8 cal; 9-11 RX; 12-18 beacon overlays (base + white);
+// 20-27 flight phase; 28-29 pre-arm fail / boot; 30-36 sensors; 41-46 faults.
 //============================================================================
 #ifndef ROCKETCHIP_LED_PATTERNS_H
 #define ROCKETCHIP_LED_PATTERNS_H
@@ -35,8 +17,8 @@ namespace led {
 // Calibration overlays (set by CLI calibration wizards)
 // ============================================================================
 static constexpr uint8_t kOff         = 0;  // Normal NeoPixel behavior
-static constexpr uint8_t kCalGyro     = 1;  // Yellow blink (AP parity, Stage L — was blue breathe)
-static constexpr uint8_t kCalLevel    = 2;  // Yellow blink (AP parity, Stage L — was blue breathe)
+static constexpr uint8_t kCalGyro     = 1;  // Yellow blink
+static constexpr uint8_t kCalLevel    = 2;  // Yellow blink
 static constexpr uint8_t kCalBaro     = 3;  // Cyan breathe (sampling)
 static constexpr uint8_t kCalAccelWait   = 4;  // Yellow blink (position board)
 static constexpr uint8_t kCalAccelSample = 5;  // Yellow solid (hold still)
@@ -52,15 +34,9 @@ static constexpr uint8_t kRxGap       = 10;  // Yellow blink (>1s gap)
 static constexpr uint8_t kRxLost      = 11;  // Red blink fast (>5s gap)
 
 // ============================================================================
-// Beacon-overlay composed patterns (Stage L)
-// Two-color 2Hz alternation — base-state color swapped with white every 250ms.
-// Posted by AO_Notify's resolver when NotifyState.beacon_auto is true; the
-// resolver preserves the base color so a recovery crew sees good / fault /
-// safe-mode at a glance. beacon_manual (CLI `findme` or GCS beacon command)
-// is a separate case that forces pure-white 2Hz (kFdBeacon) regardless of
-// state — maximum physical visibility.
-// kFaultSafeMode (code 45) is already blue+white alt and doesn't need a
-// separate beacon overlay code (its base visual is already recovery-ready).
+// Beacon overlays: base color + white, 2 Hz. Auto keeps the base color
+// (good / fault / safe-mode). Manual (`findme` / GCS) is white 2 Hz.
+// kFaultSafeMode (45) is already blue+white — no extra overlay code.
 // ============================================================================
 static constexpr uint8_t kFdLandedBeacon        = 12;  // Green   + White alt 2Hz
 static constexpr uint8_t kFdAbortBeacon         = 13;  // Red     + White alt 2Hz
@@ -109,7 +85,7 @@ static constexpr uint8_t kFaultPioWdt     = 41;  // Orange solid (PIO watchdog f
 static constexpr uint8_t kFaultBaroFail   = 42;  // Orange fast blink (baro fault)
 static constexpr uint8_t kFaultEskfFail   = 43;  // Red blink (ESKF fault)
 static constexpr uint8_t kFaultImuFail    = 44;  // Red fast blink (IMU fault)
-static constexpr uint8_t kFaultSafeMode   = 45;  // Blue + White alt 2Hz (Stage L — was red solid; already recovery-visible, no separate beacon overlay)
+static constexpr uint8_t kFaultSafeMode   = 45;  // Blue + White alt 2Hz
 static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalled)
 
 } // namespace led

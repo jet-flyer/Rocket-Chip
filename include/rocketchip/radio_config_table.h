@@ -1,23 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// radio_config_table.h — Stage T IVP-T5.5: RadioConfig whitelist
-//
-// **Canonical** list of valid `{bw_khz, nav_rate_hz, sf, cr, power_dbm}`
-// tuples. The SET_RADIO_CONFIG dispatcher rejects any incoming config not
-// in this table with denied-ACK. The (deferred) channel-find scanner will
-// also iterate this list in order.
-//
-// Code is authoritative; docs/RADIO_TELEMETRY_STATUS.md references THIS
-// header (not vice versa) — prevents doc-vs-code drift.
-//
-// Design rules (correctness-council edit #2):
-//   - Every tuple must be a combination the firmware is tested to
-//     operate at without silent-RX regressions.
-//   - Entries that are merely "legal on the SX1276 datasheet" but untested
-//     in this project must NOT appear here.
-//   - Keep the list small. ≤10 entries is the target so channel-find scan
-//     stays under ~30 s (or ~1-2 s with CAD acceleration).
+// RadioConfig whitelist — SET_RADIO_CONFIG denies anything not listed.
+// Only tuples this firmware has been tested to run. Code is canonical
+// (docs/RADIO_TELEMETRY_STATUS.md points here, not the reverse).
 //============================================================================
 #ifndef ROCKETCHIP_RADIO_CONFIG_TABLE_H
 #define ROCKETCHIP_RADIO_CONFIG_TABLE_H
@@ -35,19 +21,13 @@ struct RadioConfigEntry {
     uint8_t  power_dbm;     // 2-20 (SX1276 legal range)
 };
 
-// Whitelist of valid runtime-SET config tuples.
-// Ordered to match the future channel-find scanner's sweep order:
-// most-common/default first, then the Stage T T6 sweep candidates.
+// Tested runtime-SET tuples. Default first, then higher-rate / wider-BW,
+// then lower-rate fallbacks.
 inline constexpr RadioConfigEntry kRadioConfigTable[] = {
-    // Default: the compile-time kDefaultRocketRadioConfig baseline.
     { .bw_khz = 125, .nav_rate_hz = 5,  .sf = 7, .cr = 5, .power_dbm = 20 },
-
-    // Stage T IVP-T6 sweep candidates (in sweep order):
-    { .bw_khz = 125, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },  // C0-equivalent at 10 Hz
-    { .bw_khz = 250, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },  // C1
-    { .bw_khz = 500, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },  // C2 primary candidate
-
-    // Lower-rate fallbacks (useful for long-range or degraded-link recovery):
+    { .bw_khz = 125, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },
+    { .bw_khz = 250, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },
+    { .bw_khz = 500, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 20 },
     { .bw_khz = 125, .nav_rate_hz = 2,  .sf = 7, .cr = 5, .power_dbm = 20 },
     { .bw_khz = 250, .nav_rate_hz = 5,  .sf = 7, .cr = 5, .power_dbm = 20 },
 };

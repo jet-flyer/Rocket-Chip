@@ -1,17 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Sensor Seqlock — Cross-Core Data Sharing
-//
-// Shared sensor data struct and lock-free seqlock protocol for Core 1
-// (sensor sampling at ~1kHz) to publish calibrated sensor data to Core 0
-// (ESKF fusion at 200Hz, AOs, CLI).
-//
-// Per SEQLOCK_DESIGN.md (council-approved). Explicit __dmb() required
-// because memory_order_release only orders the atomic store itself,
-// not the non-atomic memcpy data.
-//
-// Extracted from main.cpp for AO Architecture.
+// Seqlock: Core 1 (~1 kHz) publishes calibrated SI samples to Core 0.
+// __dmb() is required — memory_order_release does not order the memcpy.
+// See SEQLOCK_DESIGN.md.
 //============================================================================
 #ifndef ROCKETCHIP_SENSOR_SEQLOCK_H
 #define ROCKETCHIP_SENSOR_SEQLOCK_H
@@ -28,9 +20,8 @@ static inline void __dmb() {}
 #endif
 
 // ============================================================================
-// Shared Sensor Data (per SEQLOCK_DESIGN.md, council-approved)
-// All values calibration-applied, body frame, SI units.
-// Written by Core 1, read by Core 0 via seqlock.
+// Shared sensor data — cal-applied, body frame, SI.
+// Core 1 writes, Core 0 reads via seqlock.
 // ============================================================================
 
 struct shared_sensor_data_t {
@@ -89,10 +80,8 @@ struct shared_sensor_data_t {
     uint32_t gps_error_count;
     uint32_t core1_loop_count;              // For watchdog/stall detection
 
-    // MCU die temperature (8 bytes) — Stage 16C IVP-142a
-    // On-die sensor (RP2350 §12.4.6). Captured ~1 Hz from vehicle Core 1
-    // loop and station idle-bridge tick. Sentinel kMcuTempSentinelC
-    // (-999.0) means not yet captured; 0 °C is a real pad reading.
+    // MCU die temp (RP2350 §12.4.6), ~1 Hz. Sentinel kMcuTempSentinelC
+    // means not yet captured; 0 °C is a real pad reading.
     float mcu_die_temp_c;
     uint32_t mcu_temp_read_count;           // Monotonic for soak gates
 };
@@ -159,8 +148,5 @@ extern std::atomic<bool> g_calReloadPending;
 extern std::atomic<bool> g_core1PauseI2C;
 extern std::atomic<bool> g_core1I2CPaused;
 extern std::atomic<bool> g_core1LockoutReady;
-
-// g_calNeoPixelOverride removed. CLI uses AO_LedEngine_post_override(),
-// FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.
 
 #endif // ROCKETCHIP_SENSOR_SEQLOCK_H

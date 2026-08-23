@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Telemetry encoders — CCSDS Space Packet and MAVLink v2
-// Strategy interface: Mission Profile selects encoder at boot.
-// Both encoders always compiled; only one active at runtime.
-// CCSDS Space Packet (primary):
-// 6B primary header (big-endian per CCSDS 133.0-B-2 S4.1.1)
-// 4B secondary header (MET ms, big-endian)
-// 42B nav payload (TelemetryState subset, already packed)
-// 2B CRC-16-CCITT
-// = 54 bytes total
-// MAVLink v2 (secondary, via c_library_v2):
-// HEARTBEAT + SYS_STATUS + ATTITUDE + GLOBAL_POSITION_INT
-// = ~144 bytes total (4 messages per tick)
+// Telemetry encoders — CCSDS Space Packet (primary) and MAVLink v2.
+// Mission profile selects at boot; both compiled, one active.
+// CCSDS: 6B primary + 4B MET + 42B nav + 2B CRC-16-CCITT = 54B
+// (CCSDS 133.0-B-2 S4.1.1). MAVLink: HEARTBEAT + SYS_STATUS +
+// ATTITUDE + GLOBAL_POSITION_INT.
 
 #ifndef ROCKETCHIP_TELEMETRY_ENCODER_H
 #define ROCKETCHIP_TELEMETRY_ENCODER_H
