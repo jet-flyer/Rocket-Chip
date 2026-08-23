@@ -46,8 +46,9 @@ extern gps_transport_t g_gpsTransport;
 
 // IMU handle (not seqlock-protected). Core 0 inits before
 // g_startSensorPhase; Core 1 reads at 1 kHz (may re-init on consecutive
-// fail). CLI print_direct_sensors still reads this after handoff and
-// does not take the I2C pause.
+// fail). After handoff, Core 0 does not icm20948_read this handle:
+// CLI 's' uses the seqlock; HW-status config dump is skipped when
+// rc_os_i2c_scan_allowed is false (vehicle after Core 1 launch).
 extern icm20948_t g_imu;
 
 // Sensor seqlock (Core 1 writer, Core 0 reader)

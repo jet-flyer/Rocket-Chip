@@ -73,13 +73,15 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Sittings 5+7+8+9 merged to `main` (`2026-08-23-001`). Keep worktree for Phase 4 — **do not start Phase 4 `src/` on `main`.**
 
-**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-8–R-9, R-11–R-14; R-7 erased sitting 13).
+**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-8–R-9, R-11–R-14; R-1/R-3/R-7 erased).
 
 **Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops closed (`0a17613` / `7a7dfcb` / `ad0cb25` / `cba82ba`): GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14). Sitting 6 RF skipped (WN-100 DEFER). Sitting 10 fusion/math/cal closed on worktree (`90432f2` A comments; `1670c41` B ESKF switch/labels; `3c2477e` C cal rates / P10-4 / MCU sentinel). Sitting 11 test/inject/debug closed on worktree (keep-with-why; first-flight prod strip is its own WB row).
 
 **Done (sitting 12):** earn-rent folds on worktree — A `6fcff57` job_capabilities→job.h + unused kWatchdogTimeoutMs; B `62e21eb` flight_in_progress→crash_record (HOST_TEST AIRCR stub); C `30088b4` core1_i2c_pause→shared_state; D `921f329` eskf_brake→eskf_runner.h inline. Can re-split later if a file earns it. Flag: `docs/SCAFFOLDING.md` still lists `job_capabilities.h`; `docs/IVP.md` IVP-142c names the old header; `docs/PROBLEM_REPORTS.md` R-17 names `core1_i2c_pause.{h,cpp}`.
 
 **Done (sitting 13):** process archaeology 118/118 closed. A `a4a0c74` no fake ARM ACK, flash constexprs; B–G comment bins; H `9353a90` leftovers (FD/cal/encoder/AO/main). ARM live path is `AO_Telemetry` `dispatch_command` → `SIG_ARM`. Starcom leftover: WN-235 `DO_SET_MODE`. SAD §9.3 still stale (hard-protected).
+
+**Done (owner leftover rows):** WN-051 deleted lying DEPRECATED health aliases; WN-002 Core 0 does not `icm20948_read*` after handoff; WN-045 parked ACCEPT; WN-004 SPDX log closed (`f1c6f83`). Rem WB R-1 / R-3 erased. R-9 version bump still owner-scheduled.
 
 **Next:** Phase 4 Grok chunk `GWF-001–498`. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`. First-flight prod strip (omit test/inject TUs from the ELF) is a separate WB row.
 
@@ -97,7 +99,7 @@ Current `build_flight` ELF **is still development firmware.** Approach A (inject
 
 Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
-**Concerns:** Probe residual power (E2) if the board looks dead after SWD. R-3 Core 0 `icm20948_read` vs Core 1 still open (WN-002 not fully closed).
+**Concerns:** Probe residual power (E2) if the board looks dead after SWD.
 
 ---
 

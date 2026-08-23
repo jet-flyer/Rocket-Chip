@@ -53,10 +53,6 @@ static_assert(sizeof(TelemetryState) == 45, "TelemetryState must be 45 bytes");
 // Flags byte definitions
 static constexpr uint8_t kFlagsZuptActive = (1U << 0);
 
-// Aliases — same 2-bit health encoding.
-static constexpr uint8_t kHealthEskfHealthy = (1U << 0);  // DEPRECATED
-static constexpr uint8_t kHealthZuptActive  = (1U << 1);   // DEPRECATED
-
 // Enables MET-to-wall-clock reconstruction:
 // UTC = anchor_UTC + (frame_MET - met_at_gps_epoch_ms)
 // If met_at_gps_epoch_ms == 0, no GPS fix was acquired — MET is boot-relative.

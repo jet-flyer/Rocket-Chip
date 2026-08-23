@@ -240,7 +240,7 @@ Commit cited is on `grok/l2p5-disposition`.
 ## Starcom / radio-telem supersession (22) — LABELED 2026-08-21
 
 **Sitting:** owner chunk, Phase 2 labels. **Code:** none this plan (DEFER sitting).
-**Policy:** DEFER polish to Starcom/CCSDS post–Stage-17. Owner exception: **WN-051 REMEDIATE** (DEPRECATED aliases, zero consumers — dead-symbol delete).
+**Policy:** DEFER polish to Starcom/CCSDS post–Stage-17. Owner exception: **WN-051** dead-symbol delete — closed.
 **DEFER safety (21):** Live vehicle radio stays the current SX1276/MAVLink/PCM path until Starcom/CCSDS; these notes are naming/packaging/comment polish on surfaces that will be replaced. RF legality is WN-100 (separate bucket). ARM no-op is WN-234 (archaeology, already labeled).
 
 | WN | Label | State | Close |
@@ -252,7 +252,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-046 | DEFER | labeled | Starcom — telemetry public trio replaceable |
 | WN-048 | DEFER | labeled | Starcom — `telemetry_encoder.h` Doxygen density |
 | WN-049 | DEFER | labeled | Starcom — mavlink_rx SAFETY CONTRACT re-check with replacement |
-| WN-051 | REMEDIATE | labeled | pending Phase 3 — DEPRECATED aliases, zero consumers |
+| WN-051 | REMEDIATE | closed | deleted unused `kHealthEskfHealthy` / `kHealthZuptActive` (wrong bits; zupt is `kFlagsZuptActive`) |
 | WN-058 | DEFER | labeled | Starcom — PCM layout notes → design docs with replacement |
 | WN-059 | DEFER | labeled | Starcom — PCM-onboard logging shape vs new log |
 | WN-097 | DEFER | labeled | Starcom — RFM95W/LoRa non-critical driver polish |
@@ -289,11 +289,13 @@ four wait on the existing WB **codegen audit**.
 
 ---
 
-## SPDX / third-party license inventory (1) — LABELED 2026-08-21
+## SPDX / third-party license inventory (1) — SITTING CLOSED 2026-08-22
+
+**Sitting:** Phase 3 with P10-9. **Code:** `f1c6f83`. Merged `3b31b0b` / CHANGELOG `2026-08-22-001`.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-004 | REMEDIATE | labeled | pending Phase 3 — SPDX / third-party attribution pass |
+| WN-004 | REMEDIATE | closed | 184/184 authored SPDX; `THIRD_PARTY_LICENSES.md` ETL/QP/MAVLink + NOAA WMM2025 (`f1c6f83`) |
 
 ---
 
@@ -328,14 +330,14 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 ## Early-impl / design re-eval (25) — LABELED 2026-08-21
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** none this plan except already-pulled WN-002 / WN-045.
+**Sitting:** owner chunk, Phase 2 labels. **Code:** WN-002 / WN-045 closed (header + CLI bus skip / parked file). Rest DEFER.
 **Policy:** DEFER to named rework. No seqlock / I²C / ICM / PCM / quat rewrites. Owner: **WN-267 is not ACCEPT** — flesh-out to a proper PIO backup-timer system (main WB early-impl row; rem WB **R-5**).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-002 | REMEDIATE | labeled | header landed `ae31f44`; rem WB **R-3** I2C race still open |
+| WN-002 | REMEDIATE | closed | `g_imu` contract in header; after handoff Core 0 does not `icm20948_read*` (`cal_read_accel` gone; CLI 's' seqlock; HW-status config dump skipped when Core 1 owns bus) |
 | WN-042 | DEFER | labeled | WB early-impl — seqlock still the right path? |
-| WN-045 | REMEDIATE | labeled | parked `parked/sensor_snapshot.h`; rem WB **R-1** protected-doc tidy |
+| WN-045 | ACCEPT | closed | prod header gone; parked at `docs/audits/l2p5_manual_walk/parked/sensor_snapshot.h`. IVP/ADVANCED_SETTINGS still name IVP-55 until those files are named |
 | WN-062 | DEFER | labeled | WB early-impl — flash layout map, low priority |
 | WN-066 | DEFER | labeled | after RC_OS rework — `station_output_mode.h` |
 | WN-079 | DEFER | labeled | WB early-impl — i2c PA keep used-only |

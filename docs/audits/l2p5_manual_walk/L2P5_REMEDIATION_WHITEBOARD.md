@@ -210,34 +210,6 @@ L2-P5 disposition closes (pattern should be in the log close-out / Plan-3
 if still needed). WN-035 code fold is the first application.
 **Blocking?** No
 
-### R-1 — Parked `SensorSnapshot` (prod header removed)
-
-**Surfaced:** 2026-08-20 · DF-001 / WN-045; owner: out of prod, not destroyed
-
-**What:** Layout parked at
-`docs/audits/l2p5_manual_walk/parked/sensor_snapshot.h`. Removed from
-`include/rocketchip/` and from `test/test_data_model.cpp` sizeof assert.
-IVP.md / ADVANCED_SETTINGS.md / RADIO_TELEMETRY_STATUS.md still mention
-IVP-55 / “raw sensors” — those files are protected.
-
-**Disposition target:** Erase when WN-045 is labeled in the log as parked
-(not a live prod ICD). Protected-doc tidy when owner names those files.
-**Blocking?** No
-
-### R-3 — Core 0 post-handoff `icm20948_read` vs Core 1 (WN-002 follow-on)
-
-**Surfaced:** 2026-08-20 · writing the WN-002 contract
-
-**What:** `cal_read_accel` and `print_direct_sensors` use `g_imu` on Core 0
-after sensor phase start. Pause primitive exists for flash; not used here.
-Options later: pause around those reads, or read seqlock like mag, or document
-as accepted bench-only race.
-
-**Disposition target:** Owner pick; then code or ACCEPT with safety one-liner
-on the log. Not an agent-chunk UART item.
-**Blocking?** No for continuing other buckets; yes for calling WN-002 *fully*
-closed.
-
 ### R-4 — Codegen A/B (2026-08-21) — do not silent-regen
 
 **Surfaced:** 2026-08-21 · Phase 2 generated-files labels. Owner: labels only this
