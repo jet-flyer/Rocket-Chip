@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_FlightDirector — Flight Director Active Object (IVP-78, Phase 3)
-//
-// Owns the FlightDirector QHsm instance, guard evaluation tick, and
-// CLI-facing command dispatch. Receives SIG_FD_TICK time events at 100Hz.
-//
-// Phase 3 migration: g_director, init logic, tick body, CLI callbacks
-// moved here from main.cpp. eskf_runner.cpp accesses flight state via
-// AO_FlightDirector_get_director() / AO_FlightDirector_is_initialized().
+// AO_FlightDirector — owns the FD QHsm, 100 Hz tick, CLI command dispatch.
 //============================================================================
 #ifndef ROCKETCHIP_AO_FLIGHT_DIRECTOR_H
 #define ROCKETCHIP_AO_FLIGHT_DIRECTOR_H

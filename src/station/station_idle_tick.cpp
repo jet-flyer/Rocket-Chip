@@ -1,30 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Station Idle Tick — GPS poll via reused vehicle infrastructure
-//
-// Stage 16C IVP-141: wires station GPS polling into qv_idle_bridge() by
-// reusing the existing vehicle GPS path unchanged. No new GPS code:
-//   - g_gpsTransport is set at boot (vehicle: init_sensors(); station
-//     Fruit Jam: ultra-early in init_early_hw() per GPS-fix 21d4eb1).
-//     UART on Feather/Pico 2, I2C PA1010D on Fruit Jam. core1_read_gps()
-//     switches on that enum and calls the driver by name.
-//   - core1_read_gps() is the shared reader, promoted from file-static
-//     so both the vehicle Core 1 loop and this station idle-bridge tick
-//     call the same body.
-//   - seqlock_write on the shared shared_sensor_data_t is the same
-//     primitive vehicle uses; same-core writer/reader on station is
-//     memory-order correct without additional sync.
-//
-// Rate limit: ~10 Hz at the outer gate (kStationGpsTickIntervalUs).
-// Matches vehicle Core 1 kCore1GpsDivider cadence (1 kHz loop / 100 =
-// ~10 Hz). Vehicle's own inter-poll floor inside core1_read_gps
-// (kGpsMinIntervalUs=2ms) remains as a secondary throttle.
-//
-// Execution context: qv_idle_bridge() — NOT an AO handler. LL Entry 32's
-// no-blocking-in-AO rule does not apply. Worst-case GPS I2C cost on
-// Fruit Jam (~6 ms for a full MT3333 buffer read) is safe here; bounded
-// by picotool-flash experience and the 5 s watchdog (800x margin).
+// Station GPS poll — same core1_read_gps() / seqlock_write as vehicle.
+// ~10 Hz. Not an AO (LL 32 does not apply). GPS I2C ~6 ms is OK here.
 //============================================================================
 #include "station/station_idle_tick.h"
 

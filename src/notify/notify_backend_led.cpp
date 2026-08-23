@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Notification LED Backend (Stage 14, IVP-115/116)
-//
-// Priority resolver: maps NotifyState to a single rc::led::k* pattern code.
-// Iterates categories in order: Fault > Cal > Flight > Radio > Sensor > Idle.
-// First non-kNone category wins.
-//
-// notify_backend_led_update() calls the resolver then posts the resolved
-// pattern to AO_LedEngine via AO_LedEngine_post_pattern(). Wired from
-// AO_Notify's 33 Hz tick (IVP-116).
+// LED backend: Fault > Cal > Flight > Radio > Sensor > Idle.
+// First non-kNone wins. Posted to AO_LedEngine from AO_Notify's 33 Hz tick.
 //============================================================================
 
 #include "notify_resolver.h"

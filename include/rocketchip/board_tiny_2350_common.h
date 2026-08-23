@@ -66,7 +66,7 @@ inline constexpr bool    kUartGpsAvailable = false;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
-// --- Capability flags (Stage 16C IVP-143) ---
+// --- Capability flags ---
 // kPsramAvailable is variant-specific — NOT defined here. Plus variant
 // overrides to true; base variant keeps false. kBoardName is also
 // variant-specific.

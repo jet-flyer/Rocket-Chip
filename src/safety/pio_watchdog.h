@@ -3,16 +3,8 @@
 #ifndef ROCKETCHIP_SAFETY_PIO_WATCHDOG_H
 #define ROCKETCHIP_SAFETY_PIO_WATCHDOG_H
 
-// PIO-based heartbeat watchdog (IVP-88).
-//
-// Runs on PIO2, independent of both ARM cores. Monitors TX FIFO for
-// heartbeat writes. If ARM cores stop feeding, PIO sets IRQ flag 0.
-// No GPIO pins used — fault state read via PIO IRQ register.
-//
-// Three-layer safety architecture:
-//   Layer 1: Smart Path (ESKF + FD)
-//   Layer 2: PIO Heartbeat (this module)
-//   Layer 3: PIO Backup Timers (IVP-89)
+// PIO2 heartbeat watchdog, independent of both ARM cores.
+// Starve the TX FIFO → IRQ flag 0. No GPIO. Backup timers are separate.
 
 #include <cstdint>
 

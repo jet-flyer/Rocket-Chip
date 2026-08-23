@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Shared fault protection and MPU stack guard for both cores.
-// Extracted per OPT-IVP-01 to eliminate duplication between main.cpp and
-// sensor_core1.cpp. Provides no-stack fault handler and PMSAv8 MPU setup.
+// Shared MPU stack guard and no-stack fault handler (both cores).
 
 #ifndef ROCKETCHIP_FAULT_PROTECTION_H
 #define ROCKETCHIP_FAULT_PROTECTION_H
@@ -23,17 +21,7 @@ extern "C" {
 
 static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region at bottom of stack
 
-// R-3 (audit 2026-05-07): the kFaultBlink* / kFaultFastBlinks LED-blink
-// constants that lived here were used by the pre-R-3 halt-forever handler.
-// Fault-recovery 2026-05-14 (commit b/3): handler is now phase-aware —
-// captures crash state, then either (a) triggers SYSRESETREQ via AIRCR
-// after a brief visible-signal delay (only when phase==kIdle), or (b)
-// transitions to kFault and busy-loops while PIO backup timers continue
-// running (any flight phase). The blink loop is gone; the visible signal
-// is the serial banner plus a future raw-GPIO LED toggle (placeholder
-// pending safe-from-fault-context pin write sequence verification).
-// See plan parsed-soaring-popcorn.md sections B.1/B.2/B.3/B.7 +
-// standards/HW_GATE_DISCIPLINE.md Rule 6 for the safe-mode integration model.
+// kIdle: capture then AIRCR reset. In flight: kFault, PIO timers keep running.
 
 // ============================================================================
 // Public API

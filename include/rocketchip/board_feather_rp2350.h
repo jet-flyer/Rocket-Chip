@@ -68,7 +68,7 @@ inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
-// --- Capability flags (Stage 16C IVP-143) ---
+// --- Capability flags ---
 // Peripheral presence flags consumed by role-agnostic shared code
 // (health monitor, CLI, telemetry). Let call sites branch on capability
 // rather than board identity — makes future board ports (Tiny 2350,

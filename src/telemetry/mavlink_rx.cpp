@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// MAVLink v2 GCS command receiver — secondary interface
-// Parses incoming MAVLink v2 frames and generates protocol responses.
-// This is MAVLink GCS compatibility for QGC/Mission Planner, NOT the
-// primary telemetry protocol (CCSDS over LoRa).
-// IVP-62: Bidirectional MAVLink Commands (Stage 7)
+// MAVLink v2 GCS ACK factory. Does not execute ARM/pyro/mode.
 
 #include "rocketchip/mavlink_rx.h"
 #include "rocketchip/mavlink_rx.h"  // double-include guard test

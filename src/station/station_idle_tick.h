@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Station Idle Tick — Core 0 periodic work for station role (Stage 16C IVP-140)
-//
-// Runs from qv_idle_bridge() under `if constexpr (kRadioModeRx)`. NOT an AO
-// handler — LL Entry 32's no-blocking-in-AO rule does not apply. Safe to
-// call ~6ms-worst-case GPS I2C here.
-//
-// IVP-140: scaffolding only. Tick body is a no-op. GPS poll lands in IVP-141.
+// Station idle tick — Core 0 GPS poll from qv_idle_bridge (not an AO).
+// Blocking GPS I2C is OK here (LL 32 is AO-only).
 //============================================================================
 #ifndef ROCKETCHIP_STATION_IDLE_TICK_H
 #define ROCKETCHIP_STATION_IDLE_TICK_H

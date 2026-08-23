@@ -1,22 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Frame-level ring buffer with crash recovery header
-// Memory-agnostic: works over PSRAM (target) or malloc'd buffer (host tests).
-// Single-writer design — no locking required.
-// Layout:
-// [RingHeader 16B][frame 0][frame 1]...[frame N-1]
-// Crash recovery (firmware crash with Vcc sustained):
-// RingHeader is synced to backing memory every header_sync_div frames
-// using a seqlock pattern (odd seq = writing, even = consistent).
-// On reboot, ring_recover() reads the header and restores write state.
-// IMPORTANT: PSRAM is volatile. Power loss erases all data.
-// The flash flight table is the durable record.
-// This crash recovery only protects against watchdog resets and
-// software faults where Vcc is maintained.
-// Council req. #1: On target, write the crash recovery header via the
-// uncached PSRAM alias (XIP_NOCACHE_BASE + offset) to avoid XIP cache
-// coherency issues. The ring_buffer itself is cache-agnostic — the
-// caller provides the memory pointer.
+// Frame ring + crash-recovery header. Single writer. PSRAM is volatile —
+// flash flight table is durable. Header via uncached PSRAM alias on
+// target (XIP_NOCACHE_BASE) so XIP cache cannot hide a torn write.
 
 #ifndef ROCKETCHIP_RING_BUFFER_H
 #define ROCKETCHIP_RING_BUFFER_H

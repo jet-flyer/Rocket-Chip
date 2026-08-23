@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Notify — Notification Hub Active Object (Stage 14, IVP-114)
-//
-// AP_Notify-style intent layer. Sits between state producers and output
-// consumers. Maintains per-category intent state, resolves priority,
-// dispatches to output backends at 33Hz.
-//
-// Council-reviewed: 4 personas, unanimous GO. See NOTIFY_CONTRACT.md.
+// AO_Notify — intent hub, 33 Hz, backends. See NOTIFY_CONTRACT.md.
 //============================================================================
 #ifndef ROCKETCHIP_AO_NOTIFY_H
 #define ROCKETCHIP_AO_NOTIFY_H

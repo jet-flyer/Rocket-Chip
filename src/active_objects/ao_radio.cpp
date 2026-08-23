@@ -7,9 +7,7 @@
 // Protocol-agnostic: posts SIG_RADIO_RX with raw bytes, receives
 // SIG_RADIO_TX with encoded packets.
 //
-// Tick rate: 100Hz fixed [C3-R1]. No-op when idle (~10µs).
-// TX-busy policy: drop and log [C3-A2].
-// TX timeout → kRxWindow (not kIdle) [C3-A3].
+// 100 Hz. Idle ~10 µs. TX-busy: drop and log. TX timeout → kRxWindow.
 // IRQ register for TX completion, not GPIO DIO0 [C3-R3].
 //============================================================================
 

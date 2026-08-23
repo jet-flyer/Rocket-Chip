@@ -10,7 +10,7 @@
 
 #include "ao_logger.h"
 #include "rocketchip/ao_signals.h"
-#include "safety/health_monitor.h"       // IVP-107: health_primary in FusedState
+#include "safety/health_monitor.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/fused_state.h"
 #include "rocketchip/pcm_frame.h"

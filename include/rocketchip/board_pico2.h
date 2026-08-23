@@ -67,7 +67,7 @@ inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
-// --- Capability flags (Stage 16C IVP-143) ---
+// --- Capability flags ---
 inline constexpr bool    kPsramAvailable       = false;  // no onboard PSRAM
 inline constexpr bool    kDvmAvailable         = false;  // no DVI
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD

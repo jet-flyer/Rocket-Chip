@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// CRC-16-CCITT (CCSDS convention) — header-only, C++20 constexpr
-// Polynomial: 0x1021 (CCITT)
-// Init: 0xFFFF
-// Final XOR: none (CCSDS convention)
-// Bit order: MSB-first
-// 256-entry lookup table (512B in .rodata, zero runtime init).
-// Suitable for per-frame integrity in PCM data streams.
-// IVP-49: Data Model & ICD (Stage 6: Data Logging)
+// CRC-16-CCITT (poly 0x1021, init 0xFFFF, MSB-first, no final XOR).
+// Header-only constexpr table.
 
 #ifndef ROCKETCHIP_CRC16_CCITT_H
 #define ROCKETCHIP_CRC16_CCITT_H

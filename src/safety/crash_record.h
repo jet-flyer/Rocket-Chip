@@ -1,28 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// crash_record — preserved-SRAM record for fault-handler capture-and-dispatch.
-//
-// R-3 (audit 2026-05-07): replaces the prior memmanage_fault_handler() halt-
-// forever pattern with industry-standard capture-state-then-reset. The
-// handler writes a record into the .uninitialized_data section (NOLOAD,
-// survives reset). On the next boot, health_monitor_init() consumes the
-// record and sets a HealthCritical bit so the existing safe-mode /
-// FAULT-health-state pivot owns the recovery path.
-//
-// Fault-recovery 2026-05-14 (commit b/3): the handler that writes this
-// record is now phase-aware. In kIdle the handler still triggers AIRCR
-// reset (capture-then-reset); in any flight phase it transitions to
-// kFault and busy-loops without resetting. The crash_record_consume_prior
-// path is unchanged — if it finds a record on next boot, it surfaces the
-// kHealthCriticalPriorHardfault latch regardless of which dispatch path
-// wrote the record. See safety/fault_protection.cpp +
-// plan parsed-soaring-popcorn.md sections B.1/B.2/B.3/B.7.
-//
-// References:
-//   - ArduPilot watchdog crash dump: https://ardupilot.org/copter/docs/common-watchdog.html
-//   - Memfault firmware watchdog best practices:
-//     https://interrupt.memfault.com/blog/firmware-watchdog-best-practices
+// Preserved-SRAM crash record (.uninitialized_data, survives AIRCR).
+// kIdle: capture then reset. In flight: kFault, no reset, PIO timers keep
+// running. Next boot: health_monitor_init consumes and latches
+// kHealthCriticalPriorHardfault.
 //============================================================================
 #ifndef ROCKETCHIP_SAFETY_CRASH_RECORD_H
 #define ROCKETCHIP_SAFETY_CRASH_RECORD_H

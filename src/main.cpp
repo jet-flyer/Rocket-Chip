@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// RocketChip main entry point
-// Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
-// Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
-// See git history for prior IVP gate checks and test dispatchers.
+// RocketChip entry: HW init, Core 1 sensors, Core 0 CLI, watchdog, MPU.
 
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
-#include "rocketchip/rc_log.h"           // R-5 Unit B POC instrumentation
+#include "rocketchip/rc_log.h"
 #include "rocketchip/sensor_seqlock.h"
-#include "rocketchip/shared_state.h"   // OPT-IVP-02: all globals centralized here
+#include "rocketchip/shared_state.h"
 #include "core1/sensor_core1.h"
 #include "station/station_idle_tick.h"
 #include "rocketchip/led_patterns.h"

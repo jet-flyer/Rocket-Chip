@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Health Monitor — Centralized System Health (Stage 13, IVP-104)
-//
-// 2-bit per-subsystem encoding with sliding window degraded detection.
-// Council-reviewed: fault latch during ARMED→DESCENT, auto-recover in
-// IDLE/LANDED. Fault-to-healthy transitions emit log event.
-//
-// Called from AO_HealthMonitor at 10Hz.
+// Health monitor — 2-bit subsystems, 10 Hz from AO_HealthMonitor.
+// Latch faults ARMED→DESCENT; auto-recover IDLE/LANDED.
 //============================================================================
 
 #include "safety/health_monitor.h"

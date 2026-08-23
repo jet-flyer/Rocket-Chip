@@ -53,7 +53,7 @@ static_assert(sizeof(TelemetryState) == 45, "TelemetryState must be 45 bytes");
 // Flags byte definitions
 static constexpr uint8_t kFlagsZuptActive = (1U << 0);
 
-// Legacy aliases — remove after all consumers migrated (IVP-107)
+// Aliases — same 2-bit health encoding.
 static constexpr uint8_t kHealthEskfHealthy = (1U << 0);  // DEPRECATED
 static constexpr uint8_t kHealthZuptActive  = (1U << 1);   // DEPRECATED
 

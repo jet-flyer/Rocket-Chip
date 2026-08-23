@@ -1216,18 +1216,8 @@ void AO_RCOS_start_cal_wizard() {
     g_rcosAo.wizard_failed = 0;
     g_rcosAo.wizard_skipped = 0;
 
-    // Start from step 0 by entering kWizardNext which increments then dispatches
-    // But step 0 is gyro, and kWizardNext increments first. So set to 255 so it wraps to 0.
-    // Actually, kWizardNext does me->cal_wizard_step++ first. So set step to max-1 = kWizardGyro - 1.
-    // kWizardGyro = 0. So we need to set step to 255 (wraps to 0). But uint8_t 255+1 = 0. That works.
-    // Hmm, but step >= kWizardDone (4) would fire immediately on 255. Let me rethink.
-    // Better: set step to 0, but handle step 0 as the first transition.
-    // Actually simplest: don't increment, just dispatch based on current step.
-    // Let me refactor kWizardNext to check current step, not post-increment.
-    // No wait, the current code does me->cal_wizard_step++ FIRST. So if step starts at 0,
-    // after increment it becomes 1 (kWizardLevel). That skips gyro.
-    // Fix: initialize to UINT8_MAX so increment wraps to 0.
-    g_rcosAo.cal_wizard_step = UINT8_MAX;  // kWizardNext increments to 0 (kWizardGyro)
+    // kWizardNext pre-increments; UINT8_MAX wraps to gyro (0).
+    g_rcosAo.cal_wizard_step = UINT8_MAX;
     g_rcosAo.cal_ui_state = CalUiState::kWizardNext;
 }
 

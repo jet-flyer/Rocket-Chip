@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
+// PIO2 heartbeat watchdog implementation (see header).
 #include "pio_watchdog.h"
 
 #ifndef ROCKETCHIP_HOST_TEST

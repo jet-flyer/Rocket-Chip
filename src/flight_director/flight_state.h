@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flight State — Phase Tracking and Event Markers
-//
-// IVP-68: QEP Integration + Phase Skeleton (Stage 8: Flight Director)
-//
-// FlightPhase enum defines the 8 flight phases (7 nominal + ABORT).
-// FlightState struct tracks the current phase, phase entry timestamps,
-// and event markers used by logging and telemetry.
-//
-// The DESCENT phase is split into DROGUE_DESCENT and MAIN_DESCENT as
-// sub-phases under a logical DESCENT superstate in the QEP hierarchy.
-// The enum values are contiguous for array indexing and wire encoding.
+// Flight phases (7 nominal + ABORT). DROGUE/MAIN are DESCENT sub-phases.
+// Enum is contiguous for arrays and the wire.
 //============================================================================
 #ifndef ROCKETCHIP_FLIGHT_STATE_H
 #define ROCKETCHIP_FLIGHT_STATE_H

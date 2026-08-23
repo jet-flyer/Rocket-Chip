@@ -43,15 +43,13 @@ struct MissionProfile {
     char name[16];                      // Human-readable name for CLI/logs
 
     // --- Timing ---
-    uint32_t armed_timeout_ms;          // Auto-disarm if no launch (Amendment #5)
+    uint32_t armed_timeout_ms;          // Auto-disarm if no launch
     uint32_t abort_timeout_ms;          // ABORT → LANDED auto-transition
-    uint32_t coast_timeout_ms;          // Missed apogee fallback (Amendment #7)
+    uint32_t coast_timeout_ms;          // Missed apogee fallback
 
     // --- Guard thresholds ---
-    // ⚠️  ALL values below are PRELIMINARY — sourced from ArduPilot patterns
-    // and engineering estimates. Must be validated with real flight data
-    // before any flight that depends on automatic detection.
-    // See ACCEPTED_STANDARDS_DEVIATIONS.md if deploying unvalidated.
+    // Thresholds from ArduPilot patterns / estimates. Validate on flight
+    // data before depending on automatic detection.
     float launch_accel_threshold;       // Body-Z accel for launch detect (m/s^2)
     uint32_t launch_sustain_ms;         // Sustain time for launch accel
 
@@ -69,21 +67,18 @@ struct MissionProfile {
     float landing_velocity_threshold;   // Velocity norm for stationary (m/s)
     uint32_t landing_sustain_ms;
 
-    // --- Baro-stationary landing detection (IVP-120, ESKF-independent) ---
+    // --- Baro-stationary landing (ESKF-independent) ---
     float baro_landing_rate_threshold_mps;  // |alt rate| threshold for stationary (m/s)
     uint32_t baro_landing_sustain_ms;       // Sustain window for baro-stationary guard
-    uint32_t descent_max_duration_ms;       // Last-resort backstop (IVP-121), 0=disabled
+    uint32_t descent_max_duration_ms;       // Last-resort backstop, 0=disabled
 
-    // --- Safety lockouts (Council A1) ---
-    // Protects parachute from high dynamic pressure deployment.
-    // Phase gating (COAST/DROGUE only) is primary powered-flight protection.
-    // ⚠️  PRELIMINARY — tune per parachute rated deployment speed.
+    // --- Safety lockouts ---
+    // Phase gating (COAST/DROGUE only) is primary. Tune velocity vs chute rating.
     float deploy_lockout_mps;           // Velocity lockout for deployment (m/s)
     uint32_t apogee_lockout_ms;         // Min time after launch before apogee
 
-    // --- Timer backups (Council A6) ---
-    // Tuned for HPR (H+ motors). HAB/low-power profiles need different values.
-    // ⚠️  PRELIMINARY
+    // --- Timer backups ---
+    // HPR (H+) defaults. HAB/low-power profiles need different values.
     uint32_t burnout_backup_ms;         // Max time in BOOST before forced COAST
     uint32_t main_backup_ms;            // Max time in DROGUE before forced MAIN
 

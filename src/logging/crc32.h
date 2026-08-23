@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// CRC-32 (IEEE 802.3) — header-only, C++20 constexpr
-// Polynomial: 0xEDB88320 (reflected form of 0x04C11DB7)
-// Init: 0xFFFFFFFF
-// Final XOR: 0xFFFFFFFF
-// 256-entry lookup table (1024B in .rodata, zero runtime init).
-// Used for flight log table and entry integrity (per-entry + per-table CRC).
+// CRC-32 IEEE 802.3 (poly 0xEDB88320, init/final 0xFFFFFFFF).
+// Header-only constexpr table. Flight log table + per-entry.
 
 #ifndef ROCKETCHIP_CRC32_H
 #define ROCKETCHIP_CRC32_H
