@@ -10,8 +10,8 @@
 // Stage 13 AO Architecture: Phase 8 extraction from main.cpp.
 // R-17/R-18 (2026-05-07 audit): the cal-specific cal_pre_hook was removed
 // (it was dead code — defined here but never called). The Core 1 I2C
-// pause/resume primitive that lived in cal_pre_hook was extracted to
-// src/safety/core1_i2c_pause.{h,cpp} and is now invoked directly by every
+// pause/resume primitive that lived in cal_pre_hook now lives with the
+// pause atomics in shared_state and is invoked directly by every
 // flash_safe_execute callsite.
 //============================================================================
 #ifndef ROCKETCHIP_CAL_HOOKS_H

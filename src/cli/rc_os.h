@@ -89,7 +89,7 @@ extern std::atomic<bool> rc_os_mag_cal_active;
 // function-pointer table removed. Accel 6-pos samples come from Core 1;
 // mag cal calls cal_read_mag() / cal_reset_mag_staleness() directly
 // from ao_rcos.cpp. R-17/R-18 already removed rc_os_cal_pre_hook /
-// rc_os_cal_post_hook the same way (I2C-pause in core1_i2c_pause;
+// rc_os_cal_post_hook the same way (I2C-pause in shared_state;
 // cal_post_hook() called directly from ao_rcos.cpp).
 
 #endif // ROCKETCHIP_RC_OS_H

@@ -15,7 +15,6 @@
 // ============================================================================
 
 static constexpr uint32_t kMagDiagPrintModulus = 200;      // Print every N mag failures
-// kCore1PauseAckMaxMs moved to src/safety/core1_i2c_pause.cpp during R-17/R-18.
 
 // ============================================================================
 // Mag read staleness tracking
@@ -73,9 +72,9 @@ bool cal_read_mag(float* mx, float* my, float* mz) {
 // Post-Calibration Hook
 // ============================================================================
 // Signal Core 1 to reload calibration data after a successful save. The
-// I2C-pause primitive that used to live here (cal_pre_hook) was extracted
-// to src/safety/core1_i2c_pause.{h,cpp} during R-17 of the 2026-05-07
-// audit and is now invoked directly by every flash_safe_execute callsite.
+// I2C-pause primitive that used to live here (cal_pre_hook) now lives
+// with the pause atomics in shared_state (R-17) and is invoked directly
+// by every flash_safe_execute callsite.
 // cal_pre_hook is gone (R-18 cleanup); only the cal-specific reload-pending
 // signal remains here, called from ao_rcos.cpp cal_save_to_flash().
 

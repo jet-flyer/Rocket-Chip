@@ -73,4 +73,12 @@ extern std::atomic<bool> g_core1LockoutReady;
 // Sensor phase flag (Core 0 write, Core 0/Core 1 read for gating)
 extern bool g_sensorPhaseActive;
 
+// Cooperative pause of Core 1 I2C around flash_safe_execute (R-17 / LL 31).
+// Distinct from g_calReloadPending (cal-only). May return after ~100 ms
+// without an ack; callers still run post-flash i2c_bus_reset().
+namespace rc {
+void core1_i2c_pause();
+void core1_i2c_resume();
+}
+
 #endif  // ROCKETCHIP_SHARED_STATE_H

@@ -11,9 +11,8 @@
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
 #include "rocketchip/version.h"
-#include "rocketchip/shared_state.h"
+#include "rocketchip/shared_state.h"     // g_* + core1_i2c_pause/resume (R-17)
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
-#include "safety/core1_i2c_pause.h"       // R-17 audit 2026-05-07: cooperative pause around flash ops
 #include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"

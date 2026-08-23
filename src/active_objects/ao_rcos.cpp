@@ -27,7 +27,7 @@
 #include "calibration/calibration_manager.h"
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
-#include "safety/core1_i2c_pause.h"
+#include "rocketchip/shared_state.h"  // core1_i2c_pause/resume (R-17)
 #include "safety/inject_arm_gate.h"  // R-25-exec step 11: magic-observed -> kMenu
 #include "ao_logger.h"
 #include "logging/flight_table.h"

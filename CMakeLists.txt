@@ -410,7 +410,6 @@ else()
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset + flight-in-progress sentinel
         src/safety/anomalous_boot.cpp    # Fault-recovery 2026-05-14: confidence gate at boot
-        src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/inject_arm_gate.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
         src/safety/station_fault_inject.cpp  # R-25-exec step 6: migrated from src/dev/, gated by test_mode (no-op on vehicle role)
@@ -573,7 +572,6 @@ else()
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset + flight-in-progress sentinel
         src/safety/anomalous_boot.cpp    # Fault-recovery 2026-05-14: confidence gate at boot
-        src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/inject_arm_gate.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
         src/safety/station_fault_inject.cpp  # R-25-exec step 6: migrated from src/dev/, gated by test_mode

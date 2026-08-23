@@ -4,6 +4,7 @@
 // Single translation unit keeps cross-core state in one place for review and linking.
 
 #include "rocketchip/shared_state.h"
+#include "pico/stdlib.h"
 
 bool g_neopixelInitialized = false;
 bool g_i2cInitialized = false;
@@ -37,3 +38,39 @@ std::atomic<bool> g_core1I2CPaused{false};
 std::atomic<bool> g_core1LockoutReady{false};
 
 bool g_sensorPhaseActive = false;
+
+namespace rc {
+
+namespace {
+constexpr uint32_t kPauseAckMaxMs = 100;  // Matches prior cal_hooks kCore1PauseAckMaxMs.
+}
+
+void core1_i2c_pause() {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+    if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_core1PauseI2C.store(true, std::memory_order_release);
+    for (uint32_t i = 0; i < kPauseAckMaxMs; i++) {
+        if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+            return;
+        }
+        sleep_ms(1);
+    }
+    // Timeout: continue; post-flash i2c_bus_reset() is the backup (LL 31).
+}
+
+void core1_i2c_resume() {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+    // Clear both flags so a subsequent pause() doesn't observe a stale
+    // paused-ack. Without this, Core 1 might not run between back-to-back
+    // pause calls, leaving paused-ack stuck true.
+    g_core1I2CPaused.store(false, std::memory_order_release);
+    g_core1PauseI2C.store(false, std::memory_order_release);
+}
+
+}  // namespace rc
