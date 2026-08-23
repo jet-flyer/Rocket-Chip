@@ -48,7 +48,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN | Label | State | Close |
 |----|-------|-------|-------|
 | WN-036 | REMEDIATE | closed | `notify_intents.h` — short role + NOTIFY_CONTRACT pointer |
-| WN-054 | ACCEPT | closed | `.h` 15–25% carve-out stays mechanical; Doxygen was never the reason to keep essays. No CODING_STANDARDS edit (owner). |
+| WN-054 | REMEDIATE | closed | KEEP mechanical `.h` 15–25% carve-out; Doxygen dropped in authored tree. No CODING_STANDARDS “don’t use Doxygen” line — absence of a requirement is the rule (sitting 5). |
 | WN-081 | REMEDIATE | closed | Drop Doxygen in authored `src/`+`include/`; short `//` contracts. Recipe on rem WB **R-7**. |
 | WN-095 | REMEDIATE | closed | `rfm95w.h` `@` walls → contracts; Stage-T timeout essay trimmed |
 | WN-131 | REMEDIATE | closed | `eskf.h` banner/mag/ZUPT essays compressed; council RF tags dropped |
