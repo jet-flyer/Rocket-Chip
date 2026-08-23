@@ -1,21 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// rc_os_debug — operator Debug sub-menu (`q` from main).
-//
-// R-25-exec step 2 of 13 (per docs/decisions/BENCH_TIER_DEPRECATION_
-// 2026-05-13.md, council-APPROVED Approach A): migrated from
-// src/dev/dev_cli.cpp. No longer #ifdef-gated by ROCKETCHIP_INCLUDES_
-// DEV_DIAGNOSTICS — lives in the single flight binary always. State-
-// mutating commands (digit-key radio-config set, LED test pattern
-// force) are runtime-gated by test_mode_active(); diagnostic reads
-// (sensors, HW status, I2C scan, ESKF live, diag dump, pyro log)
-// work always (observational, no safety risk).
+// Debug sub-menu (`q`). Reads always; mutators gated by test_mode_active().
 
 #include "cli/rc_os_debug.h"
-// R-25-exec step 5 (2026-05-13): src/dev/replay_inject.h removed.
-// R-25-exec step 6 (2026-05-13): src/dev/station_replay.h removed.
-// Replay coverage moved host-side per council amendment #4.
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
 #include "safety/inject_arm_gate.h"

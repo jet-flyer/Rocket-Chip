@@ -8,11 +8,8 @@
 #include "flight_director/flight_state.h"
 
 #ifdef ROCKETCHIP_HOST_TEST
-// Host test build: no Pico SDK. Section attributes are no-ops; the
-// global becomes a plain variable that host tests can read/write
-// directly via rc::g_test_mode_arm_magic. The boot-time-window check
-// uses a static counter that defaults to 0 ms (tests can advance via
-// the test fixture if needed).
+// HOST_TEST: no Pico SDK. Magic word is a plain global. Boot time is
+// pinned at 0, so the arm-window expiry branch is not host-testable.
 static inline uint32_t test_mode_boot_ms() { return 0U; }
 #define TEST_MODE_SRAM_ATTR
 #else

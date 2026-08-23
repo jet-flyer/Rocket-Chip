@@ -1,17 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// rc_os_debug — operator Debug sub-menu (`q` from main).
-//
-// R-25-exec step 2 (2026-05-13, per council-APPROVED Approach A in
-// docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md): migrated from
-// src/dev/dev_cli.h. No longer #ifdef-gated by ROCKETCHIP_INCLUDES_
-// DEV_DIAGNOSTICS — lives in the single flight binary always.
-//
-// State-mutating commands (digit-key radio config, LED test, replay
-// trigger) are runtime-gated by rc::test_mode_active() at the entry
-// points; diagnostic reads (sensors, HW status, etc.) are always
-// available.
+// Debug sub-menu (`q`). Reads always available.
+// Mutating keys require rc::test_mode_active().
+// Usage: docs/FAULT_INJECTION.md.
 #ifndef ROCKETCHIP_CLI_RC_OS_DEBUG_H
 #define ROCKETCHIP_CLI_RC_OS_DEBUG_H
 
@@ -19,9 +11,7 @@
 #include <stdint.h>
 
 // Enter the debug sub-menu. Prints the menu banner. Returns true if
-// the menu was entered (always true in Approach A — the menu lives in
-// the flight binary; gating is at the per-command level via
-// test_mode_active(), not at the menu-entry level).
+// the menu was entered (gating is per mutating command, not at entry).
 bool dev_debug_menu_enter();
 
 // Dispatch a single key in the debug sub-menu. Returns true if the

@@ -1,44 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// inject_arm_gate — probe-armed gate for fault-injection / debug
-// affordances in the *flight* binary (R-25-exec, 2026-05-13).
+// inject_arm_gate — probe-armed gate for fault_force_* / debug mutators
+// in the flight ELF. Not host ctest; not a CLI "test mode."
 //
-// Not host unit tests, not a project-wide "test mode." Only the
-// three-condition AND that opens inject/debug entry points
-// (fault_inject, debug submenu, etc.).
-//
-// Replaces the parallel bench-tier build that caused R-23,
-// F-2026-05-13-004, and R-22 (DC-2026-05-13).
-//
-// Design (council-approved 2026-05-13 unanimous: NASA/JPL + Prof +
-// ArduPilot + Cubesat) per docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md
-// "Approach A":
-//
-//   - Single binary; test affordances coexist with flight code.
-//   - g_test_mode_enabled flag gates every test entry point.
-//   - Three-condition AND gate to arm:
-//       (a) Debug probe writes kTestModeMagic to .uninitialized_data SRAM
-//           (probe-only physical-presence signal; adversary cannot reach
-//           over LoRa, in-flight stray cannot reach without bench access).
-//       (b) Current flight phase == kIdle (state-machine condition).
-//       (c) millis() < kTestModeArmWindowMs (boot-time window closes
-//           the arming opportunity after init settles).
-//   - Two clearing gates (Therac-25 precedent — single gate is
-//     insufficient):
-//       (a) Any state transition out of kIdle clears the flag.
-//       (b) Flight Director refuses to enter kArmed if flag is set.
-//   - No persistence across power-on reset (.uninitialized_data
-//     survives AIRCR/warm-reboot but operator MUST re-arm each session;
-//     clearing on any boot path is intentional defense-in-depth).
-//   - No CLI fallback for arming (CSE council amendment — CLI
-//     fallbacks get normalized into routine ops use, defeating the
-//     physical-presence guarantee).
-//
-// PX4 SYS_FAILURE_EN is the IRL precedent: failure injection lives in
-// the flight binary, parameter-gated, default off. RocketChip's twist
-// is the three-condition AND + probe-only arming, suited to a single-
-// developer hobbyist project without an authenticated MAVLink link.
+// Arm (all three): probe writes kTestModeMagic to g_test_mode_arm_magic
+// AND phase is kIdle AND boot time is inside kTestModeArmWindowMs.
+// Clear: any leave-IDLE, and FD refuses kArmed while the flag is set.
+// No CLI arm. Usage: docs/FAULT_INJECTION.md.
 //============================================================================
 #ifndef ROCKETCHIP_SAFETY_INJECT_ARM_GATE_H
 #define ROCKETCHIP_SAFETY_INJECT_ARM_GATE_H
