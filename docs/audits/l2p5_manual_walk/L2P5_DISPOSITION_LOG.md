@@ -386,7 +386,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 ---
 
-## Test / inject / debug in the flight tree (10) — SITTING 11 IN PROGRESS 2026-08-23
+## Test / inject / debug in the flight tree (10) — SITTING CLOSED 2026-08-23
 
 **Sitting:** Phase 3 sitting 11. Keep-with-why vs R-25 Approach A (inject/debug in the flight ELF, runtime-gated). Walk bucket is grouping, not a re-home. Groups of 2–4 (R-10).
 
@@ -400,7 +400,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-260 | REMEDIATE | closed | keep station inject in flight ELF; same gate |
 | WN-261 | REMEDIATE | closed | station inject banner slimmed (rides WN-260) |
 | WN-262 | REMEDIATE | closed | keep inject_arm_gate; slim wall; HOST_TEST boot window is pinned at 0 |
-| WN-270 | REMEDIATE | labeled | pending sitting 11 group E |
+| WN-270 | REMEDIATE | closed | HOST_TEST PIO stubs are RAM flags, never hardware expiry |
 | WN-326 | REMEDIATE | closed | keep Debug `q` menu; reads free, mutators gated |
 
 ---

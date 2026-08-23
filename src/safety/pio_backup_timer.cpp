@@ -171,6 +171,8 @@ bool pio_backup_timer_armed(BackupTimerId id) {
 }  // namespace rc
 
 #else  // ROCKETCHIP_HOST_TEST
+// HOST_TEST: no PIO. armed/fired are RAM flags only — never a hardware
+// expiry. init() succeeds; fired() stays false unless a test pokes it.
 
 namespace rc {
 
