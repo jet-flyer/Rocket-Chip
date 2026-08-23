@@ -11,7 +11,7 @@
 #include <stdbool.h>
 
 // ============================================================================
-// Magic Numbers and Version
+// Flash signature and schema version
 // ============================================================================
 
 constexpr uint32_t kCalibrationMagic   = 0x52434341;  // "RCCA" - RocketChip Calibration

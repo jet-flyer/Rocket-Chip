@@ -478,22 +478,22 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 
 ---
 
-## Fusion / math / cal live invariants (10) — LABELED 2026-08-21
+## Fusion / math / cal live invariants (10) — SITTING 10 IN PROGRESS 2026-08-23
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 10. All REMEDIATE.
+**Sitting:** Phase 3 sitting 10. All REMEDIATE. Groups of 2–4 (R-10).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-075 | REMEDIATE | labeled | pending Phase 3 — `mat.h` host-purity / float authority |
-| WN-132 | REMEDIATE | labeled | pending Phase 3 — `ESKF_USE_BIERMAN` kept-on comment |
-| WN-133 | REMEDIATE | labeled | pending Phase 3 — ESKF noise/init prototype-HW |
-| WN-134 | REMEDIATE | labeled | pending Phase 3 — defaults for one mission shape |
-| WN-153 | REMEDIATE | labeled | pending Phase 3 — cal “Magic Numbers” section |
-| WN-157 | REMEDIATE | labeled | pending Phase 3 — cal sample counts vs sensor Hz |
-| WN-191 | REMEDIATE | labeled | pending Phase 3 — SI units on profile |
-| WN-203 | REMEDIATE | labeled | pending Phase 3 — `kRingMagic` vs magic-number rule |
-| WN-280 | REMEDIATE | labeled | pending Phase 3 — JSF AV Rule 1 on Core1SensorCycle |
-| WN-281 | REMEDIATE | labeled | pending Phase 3 — MCU temp sentinel must not be 0 °C |
+| WN-075 | REMEDIATE | closed | `mat.h` banner: host-build / float32 / no heap; not eternal law |
+| WN-132 | REMEDIATE | labeled | pending sitting 10 group B — `ESKF_USE_BIERMAN` dead switch |
+| WN-133 | REMEDIATE | labeled | pending sitting 10 group B — ESKF noise/init prototype-HW |
+| WN-134 | REMEDIATE | labeled | pending sitting 10 group B — defaults for one mission shape |
+| WN-153 | REMEDIATE | closed | cal section renamed “Flash signature and schema version”; fourCC kept |
+| WN-157 | REMEDIATE | labeled | pending sitting 10 group C — cal sample counts vs sensor Hz |
+| WN-191 | REMEDIATE | closed | profile comment: SI for m/m/s/m/s^2; timeouts are `*_ms` |
+| WN-203 | REMEDIATE | closed | `kRingMagic` comment is fourCC signature, not a JSF-151 carve-out |
+| WN-280 | REMEDIATE | labeled | pending sitting 10 group C — JSF AV Rule 1 on Core1SensorCycle |
+| WN-281 | REMEDIATE | labeled | pending sitting 10 group C — MCU temp sentinel must not be 0 °C |
 
 ---
 

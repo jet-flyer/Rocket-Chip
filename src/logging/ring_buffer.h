@@ -25,7 +25,7 @@
 
 namespace rc {
 
-// Magic value for crash recovery header: "RCLG" (RocketChip LoG)
+// Crash-recovery header signature: fourCC "RCLG" (RocketChip LoG).
 static constexpr uint32_t kRingMagic = 0x52434C47U;
 
 // Written periodically (every header_sync_div frames) with seqlock:

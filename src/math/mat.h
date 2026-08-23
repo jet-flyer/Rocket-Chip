@@ -4,9 +4,7 @@
 #define ROCKETCHIP_MATH_MAT_H
 
 // Mat<R,C>: Compile-time sized matrix for sensor fusion.
-// Pure C++ — no Pico SDK dependencies. Must compile on any host.
-//
-// All float, no double. Static storage, no heap allocation.
+// Host-build, float32, no heap. No Pico SDK.
 // Reference: Sola (2017) for ESKF matrix operations.
 
 #include <cmath>

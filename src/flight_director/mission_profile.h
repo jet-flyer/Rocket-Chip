@@ -35,7 +35,7 @@ enum class ProfileId : uint8_t {
 // ============================================================================
 // Mission Profile — flight configuration data
 //
-// All thresholds use SI units (m, m/s, m/s^2, ms).
+// Lengths/speeds/accels are SI (m, m/s, m/s^2); timeouts are milliseconds (*_ms).
 // Profile is boot-locked: read from flash at boot, immutable for session.
 // ============================================================================
 struct MissionProfile {
