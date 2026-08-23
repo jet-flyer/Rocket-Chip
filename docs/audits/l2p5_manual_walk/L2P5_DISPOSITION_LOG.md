@@ -394,7 +394,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 |----|-------|-------|-------|
 | WN-118 | REMEDIATE | closed | live `s` GPS session diagnostics; not one-shot test scaffolding |
 | WN-129 | REMEDIATE | closed | HOST_TEST is host compile of the same TU (no Pico/QP), not sequestration |
-| WN-252 | REMEDIATE | labeled | pending sitting 11 group B |
+| WN-252 | REMEDIATE | closed | DBG_PRINT stays; compiles out without DEBUG (rc_debug.h) |
 | WN-258 | REMEDIATE | labeled | pending sitting 11 group C |
 | WN-259 | REMEDIATE | labeled | pending sitting 11 group C |
 | WN-260 | REMEDIATE | labeled | pending sitting 11 group C |
