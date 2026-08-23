@@ -459,19 +459,19 @@ call sites; `pcm_frame` uses `kFirmwareVersion`. Rem WB **R-8** / **R-9**.
 |----|-------|-------|-------|
 | WN-007 | REMEDIATE | closed | `RC_ASSERT` deleted with `config.h` (0 callers) |
 | WN-008 | REMEDIATE | closed | unused assert left the prod header with the file |
-| WN-009 | REMEDIATE | labeled | pending — version SSOT wording (R-9, not this commit) |
+| WN-009 | REMEDIATE | closed | `version.h` is canonical constants home, not tree-wide identity SSOT |
 | WN-010 | REMEDIATE | labeled | pending — stale version numbers (R-9 DEFER) |
-| WN-011 | REMEDIATE | labeled | pending — phantom `version_string()` (R-9) |
+| WN-011 | REMEDIATE | closed | phantom `version_string()` dropped; callers use `kFirmwareVersion` |
 | WN-012 | REMEDIATE | closed | unused `TIER_*` / `FEATURE_*` dropped with `config.h` |
 | WN-013 | REMEDIATE | closed | `using job::kRadioModeRx` gone; callers use `job::` |
 | WN-015 | REMEDIATE | closed | grab-bag deleted; filename free (R-8) |
 | WN-016 | REMEDIATE | closed | `DBG_*` live in `rc_debug.h` |
 | WN-018 | REMEDIATE | labeled | pending — `DBG_*` rename macros still in `rc_debug.h` |
 | WN-067 | REMEDIATE | labeled | pending — version bump process (R-9, not this sitting) |
-| WN-092 | REMEDIATE | labeled | pending — hypsometric SSOT (not this commit) |
+| WN-092 | REMEDIATE | closed | ISA/hypsometric constants in `isa_atmosphere.h`; baro + cal consume |
 | WN-126 | REMEDIATE | closed | `eskf_runner` baro tick is on `baro_read_count`, not a fusion Hz |
 | WN-183 | REMEDIATE | labeled | pending Phase 3 — guard sustain/managed not sole SSOT |
-| WN-286 | REMEDIATE | labeled | pending Phase 3 — ao_health_monitor pub/sub claims |
+| WN-286 | REMEDIATE | closed | pub/sub verified vs `AO_ARCHITECTURE.md`; banners are one-line pointers |
 
 ---
 

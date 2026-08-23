@@ -104,6 +104,21 @@ the header wording must not claim a process that does not exist.
 process exists (checklist named, or hook, or explicit “git hash only”).
 **Blocking?** No for rest of sitting 7.
 
+### R-10 — Test remaining dispositions in groups of 2–4
+
+**Surfaced:** 2026-08-22 · after `config.h` `a97d46c`. Owner: do not let a
+bucket’s edits pile up untested.
+
+**What:** Rest of sitting 7 and later Phase 3 sittings: pick **2–4 WNs**,
+explain, edit, host ctest + firmware build, HW gate if the paths need it,
+commit that group. Then the next group. Do not finish a 10–15 WN bucket in
+the tree and gate once. Comment-only groups still get a host build; they
+skip 3-boot only when the change is pure-software.
+
+**Disposition target:** Erase when L2-P5 disposition closes (process for
+this pass).
+**Blocking?** No
+
 ### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
 
 **Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`

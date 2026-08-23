@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Single source of truth for firmware version strings.
-// All print sites must use version_string() or the constants below.
-// See docs/audits/VERSION_STRING_AUDIT.md for the full audit.
+// Canonical home for firmware version *constants* (semver + RC_OS string).
+// Git hash is CMake-injected. Board/job identity is board:: / job::, not here.
+// There is no version_string() helper — use kFirmwareVersion / kGitHash.
+// Numbers are manual; kGitHash is the live discriminant. No bump process
+// is wired (WN-010/067; rem WB R-9).
+// See docs/audits/VERSION_STRING_AUDIT.md.
 #ifndef ROCKETCHIP_VERSION_H
 #define ROCKETCHIP_VERSION_H
 
