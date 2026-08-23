@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// System-Wide Active Object Signal Catalog
-//
-// Council-reviewed 2026-03-27 (Amendment A7: renamed from FlightSignal)
-//
-// All QP/C event signals for the RocketChip system. Signals are contiguous
-// uint16_t values starting at Q_USER_SIG (4). Flight Director signals
-// (SIG_TICK through SIG_RESET) retain their original values for backward
-// compatibility.
+// System-wide AO signal catalog. Contiguous from Q_USER_SIG (4).
+// FD signals SIG_TICK..SIG_RESET keep their original values.
 //
 // Convention:
 //   - SIG_* prefix for all signals
@@ -80,25 +74,21 @@ enum RcSignal : uint16_t {
     SIG_SENSOR_DATA = SIG_FD_MAX,   // 14: Sensor snapshot ready (eskf_tick → AOs)
     SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Notify, Logger, HealthMon)
     SIG_LED_PATTERN,                 // 16: LED pattern request (Notify → LedEngine)
-    SIG_BEACON_ACTIVE,               // 17: Post-landing beacon activated (FD ABORT timeout → Notify) [IVP-113]
-                                     //     Sets NotifyState.beacon_auto — state-color + white overlay [Stage L]
-    // Historically 17-18 held LOG_FRAME/TELEM_FRAME (removed — direct API used)
-    SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger via callback)
-    SIG_LED_OVERRIDE,                // 20: LEGACY — unused after IVP-116 (calibration now via AO_Notify_post_cal_intent)
-    SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD, synchronous)
-    // Historically 22 held HEALTH_CHECK (removed — HealthMonitor promoted to AO, Stage 13)
+    SIG_BEACON_ACTIVE,               // 17: FD ABORT timeout → Notify (beacon_auto)
+    SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger)
+    SIG_LED_OVERRIDE,                // 20: unused (cal via AO_Notify_post_cal_intent)
+    SIG_CLI_COMMAND,                 // 21: CLI → FD, synchronous
 
     // --- Radio Module ---
     SIG_RADIO_TX,                    // 22: Encoded packet ready for TX (Telem → Radio)
     SIG_RADIO_RX,                    // 23: Raw packet received (Radio → Telem)
     SIG_RADIO_STATUS,                // 24: Link quality update (Radio → Notify)
-    SIG_GCS_CMD,                     // 25: Uplink command from GCS (Telem → FD) [C3-A4]
+    SIG_GCS_CMD,                     // 25: Uplink command from GCS (Telem → FD)
     SIG_HEALTH_STATUS,               // 26: Health flags changed (HealthMonitor → Notify, Logger, Telemetry)
     SIG_PYRO_FIRED,                  // 27: Pyro channel fired (FD/PIO → Logger)
-    SIG_BEACON_MANUAL,               // 28: Manual CLI `findme` or GCS beacon command (RCOS/Telem → Notify) [Stage L]
-                                     //     Sets NotifyState.beacon_manual — pure-white 2Hz (wins over beacon_auto)
+    SIG_BEACON_MANUAL,               // 28: findme / GCS beacon (white 2 Hz)
 
-    // --- Stage T IVP-T5.5: runtime radio config push signals ---
+    // --- Runtime radio config ---
     SIG_RADIO_CONFIG_APPLY,          // 29: Apply pending config to SX1276 (Telem → Radio, after TxDone)
     SIG_RADIO_CONFIG_REVERT,         // 30: Revert to prev_config (LOS watchdog timeout / safety)
     SIG_RADIO_QUERY_CONFIG,          // 31: Synchronous probe — vehicle reports current config in ACK
@@ -144,10 +134,7 @@ struct SensorDataEvt {
 // Allocated from QP/C dynamic event pool [C3-A1]
 struct RadioTxEvt {
     QEvt super;
-    uint8_t buf[256];    // Encoded packet — CCSDS 54B, MAVLink multi-msg ~140B,
-                         // future CCSDS+CLCW 58B. 256 matches EncodeResult.buf
-                         // and SX1276 255-byte FIFO. (Stage T IVP-T5: was 128,
-                         // overrunning on MAVLink encode_nav per findings.)
+    uint8_t buf[256];    // CCSDS 54B / MAVLink ~140B; matches EncodeResult + FIFO
     uint8_t len;         // SX1276 FIFO is 255B — uint8_t is sufficient.
                          // Callers must clamp len <= sizeof(buf) before memcpy.
 };
@@ -185,7 +172,7 @@ struct HealthStatusEvt {
 };
 
 // Pyro fired confirmation (FD smart path or PIO backup → Logger)
-// [Council C-A1]: includes channel and source for diagnostics
+// Channel and source for diagnostics.
 struct PyroFiredEvt {
     QEvt super;
     uint8_t channel;        // 0=drogue, 1=main (matches PyroChannel enum)

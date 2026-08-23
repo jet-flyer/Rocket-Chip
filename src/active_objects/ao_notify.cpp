@@ -8,9 +8,7 @@
 // typed intents. At 33Hz, runs the priority resolver and dispatches to
 // registered output backends (LED, future audio).
 //
-// Priority: 5 (between HealthMonitor=6 and Logger=4 after IVP-114 reshuffle)
-// Queue depth: 16
-// Tick rate: 33Hz (every 3 ticks at 100Hz base)
+// Priority 5, queue 16, 33 Hz (every 3 ticks at 100 Hz).
 //============================================================================
 
 #include "ao_notify.h"

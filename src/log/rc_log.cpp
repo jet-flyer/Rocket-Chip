@@ -1,30 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// rc_log implementation — hand-rolled printf-subset formatter dispatching
-// to etl::to_string for the actual digit-by-digit conversion.
+// rc_log — printf-subset via etl::to_string (one parser, format(printf)
+// attribute). Specs: docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md
 //
-// Council decision (2026-05-15, 3-persona focused review — NASA/JPL,
-// Professor, ArduPilot, unanimous Approach A): transcript at
-// C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-b7c34e2af19a8b3d2.md
-//
-// Reasoning summary:
-//   - One parser to debug, not two (rejects B's printf→{} translator).
-//   - GCC __attribute__((format(printf,1,2))) on rc_log.h header works
-//     naturally with this implementation.
-//   - Smaller unowned surface — depends on etl::to_string (~150 LOC stable)
-//     not etl::format_to (~2200 LOC, larger drift surface on ETL upgrades).
-//
-// Supported format specs (per Unit A's STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md):
+// Supported:
 //   %s, %d, %u, %lu, %llu, %zu, %c, %%
 //   %02x, %02X, %04X, %08lx, %08lX, %02lX (hex variants)
 //   %.Nf, %N.Mf (float with precision/width)
 //   width specifiers: %6lu, %3u, %-8s, %-10s, %-20s, %6s, etc.
 //   flags: '-' (left-align), '0' (zero-pad), '+' (force sign), ' ' (space-pad-sign)
 //
-// Not supported (zero usage in inventory):
-//   %e, %g, %a, %p, %n, %i (alias for %d)
-//   Octal %o is single-callsite; investigate per inventory finding before migration.
+// Not supported (zero inventory use): %e %g %a %p %n %i.
 
 #include "rocketchip/rc_log.h"
 

@@ -10,7 +10,7 @@
 //   10 Hz internal tick drives deadman + idle-drift + forced-ACQ checks that
 //   fire on absence of RX, not on RX events.
 //
-// Design doc: docs/plans/STAGE_T_T14_DESIGN.md (Round 2 final).
+// Design: docs/plans/STAGE_T_T14_DESIGN.md
 //============================================================================
 
 #include "ao_rf_manager.h"
