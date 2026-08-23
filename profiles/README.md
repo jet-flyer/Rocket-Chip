@@ -112,10 +112,9 @@ oscillation or wind gusts.
 |-------|---------|-------------|------------|
 | `DEPLOY_LOCKOUT_MPS` | 80.0 m/s | No chute deploy above this speed | 10.0-200.0 |
 | `APOGEE_LOCKOUT_MS` | 3000 ms | Min time after launch before apogee | 1000-10000 |
-| `EMERG_DEPLOY` | 0 | Skip lockouts for emergency? | 0 or 1 |
 
-**WARNING:** `EMERG_DEPLOY = 1` bypasses speed lockouts. Only use for vehicles
-that never exceed safe deployment speed (HAB, low-power rockets).
+Lockouts always apply. A HAB lockout-skip (`EMERG_DEPLOY`) is not implemented
+(WN-195). Do not add that key; the generator rejects it.
 
 ### Pyrotechnic Channels
 

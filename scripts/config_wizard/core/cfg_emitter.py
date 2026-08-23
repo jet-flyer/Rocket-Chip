@@ -54,7 +54,6 @@ SECTIONS = [
     ("SAFETY LOCKOUTS", [
         ("DEPLOY_LOCKOUT_MPS", "m/s — max speed for chute deploy"),
         ("APOGEE_LOCKOUT_MS", "Min time after launch before apogee"),
-        ("EMERG_DEPLOY", "1=skip lockouts (HAB), 0=respect (rockets)"),
     ]),
     ("PYROTECHNIC CHANNELS", [
         ("HAS_PYRO", "1=pyro channels available, 0=no pyro"),

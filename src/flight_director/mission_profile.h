@@ -90,11 +90,6 @@ struct MissionProfile {
     // --- Combinator config ---
     bool apogee_require_both;           // true=AND (vel+baro), false=OR
 
-    // --- Emergency override ---
-    // HAB: emergency chute always available (skip lockouts for ABORT pyro)
-    // Rocket: ABORT respects lockout gates
-    bool emergency_deploy_anytime;
-
     // --- Abort behavior ---
     bool abort_fires_drogue_from_boost; // ABORT-from-BOOST fires drogue
     bool abort_fires_drogue_from_coast; // ABORT-from-COAST fires drogue

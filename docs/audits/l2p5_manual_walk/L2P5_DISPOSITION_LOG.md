@@ -274,7 +274,9 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ## Generated files / codegen hygiene (5) — LABELED 2026-08-21
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** WN-195 only this plan; the other four wait on the existing WB **codegen audit**.
+**Sitting:** owner chunk, Phase 2 labels. **Code:** WN-195 only this plan
+(`emergency_deploy_anytime` removed; HAB later, rem WB **R-11**). The other
+four wait on the existing WB **codegen audit**.
 **A/B (2026-08-21, no overwrite):** `python scripts/generate_profile.py profiles/rocket.cfg --output <temp>`. `rocket.cfg` sha256 prefix still `e1c22265fc444258`. Committed `mission_profile_data.h` differs by exactly the two Stage-T post-gen edits the WB already names: (1) `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch, (2) IVP-T6 sweep comment. Regenerating in place would **delete the MAVLink switch** (plan: no silent regen). HAB generator **failed** (missing `BARO_LAND_*`, `DESCENT_MAX_MS`, `DROGUE_TIMER_S`, `MAIN_TIMER_S`); `test/test_hab_profile_data.h` not compared. `generate_fpft.py` not re-run (writes `eskf_codegen.cpp` in place and stamps a date).
 
 | WN | Label | State | Close |
@@ -282,7 +284,7 @@ Commit cited is on `grok/l2p5-disposition`.
 | WN-137 | DEFER | labeled | Codegen audit — eskf vs codegen / verify / non-core aids |
 | WN-141 | DEFER | labeled | Codegen audit — `eskf_state.h` banner / state table |
 | WN-152 | DEFER | labeled | Codegen audit — `phase_qr.h` council cite + density |
-| WN-195 | REMEDIATE | labeled | pending Phase 3 — `emergency_deploy_anytime` override scrutiny |
+| WN-195 | REMEDIATE | closed | field/cfg/wizard removed; generator rejects `EMERG_DEPLOY`; HAB later (R-11) |
 | WN-196 | DEFER | labeled | Codegen audit — A/B: two Stage-T hand-edits still in `mission_profile_data.h`; do not regen this pass |
 
 **DEFER safety (WN-137/141/152/196):** No post-gen hand-edits *this* pass and no silent regen. The two Stage-T edits are intentional radio-path switches, not random drift; a later regen without absorbing them into `generate_profile.py` would drop MAVLink compile-flag behavior. Flight profile *values* match the generator. HAB fixture is stale (generator now errors) — audit must fix generator or fixture before HAB profile work.

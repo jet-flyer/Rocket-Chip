@@ -119,6 +119,25 @@ skip 3-boot only when the change is pure-software.
 this pass).
 **Blocking?** No
 
+### R-11 — HAB lockout-skip (`EMERG_DEPLOY`) not implemented
+
+**Surfaced:** 2026-08-22 · sitting 8 / WN-195. Owner: no first rocket flight
+yet; a speculative HAB bypass of deploy lockouts is a critical failure
+point — take the code out, keep the feature logged.
+
+**What was removed:** `MissionProfile::emergency_deploy_anytime`, generator
+field `EMERG_DEPLOY`, wizard emit, `.cfg` keys. The combinator never read
+the flag; docs claimed it skipped lockouts. Generator now **rejects** the
+key if someone puts it back.
+
+**When HAB is scheduled:** re-add as a profile bit **and** wire
+`guard_combinator` lockouts (tests: rocket still locked; HAB skip explicit).
+Do not restore a stored-but-unread flag.
+
+**Disposition target:** Erase when HAB lockout-skip is implemented and
+tested, or when HAB is dropped as a product.
+**Blocking?** No
+
 ### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
 
 **Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`

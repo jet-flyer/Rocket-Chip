@@ -228,12 +228,9 @@ def _apply_vehicle_overrides(answers: dict[str, str],
     # Mag cal: always required if available (built into ICM-20948)
     params["REQUIRE_MAG"] = "0"
 
-    # --- Emergency deploy (HAB skips lockouts, rockets don't) ---
+    # HAB lockout-skip (EMERG_DEPLOY) is not implemented (WN-195 / rem WB R-11).
     if cat == VehicleCategory.BALLOON.value:
-        params["EMERG_DEPLOY"] = "1"
         params["HAS_PYRO"] = "0"
-    else:
-        params["EMERG_DEPLOY"] = "0"
 
     # --- Abort behavior ---
     if has_pyro:
@@ -254,18 +251,15 @@ def _apply_vehicle_overrides(answers: dict[str, str],
     if cat == VehicleCategory.GROUND.value:
         params["HAS_PYRO"] = "0"
         params["DEPLOY_LOCKOUT_MPS"] = "1000.0"
-        params["EMERG_DEPLOY"] = "0"
 
     # --- Aircraft: disable pyro, different dynamics ---
     if cat == VehicleCategory.AIRCRAFT.value:
         params["HAS_PYRO"] = "0"
-        params["EMERG_DEPLOY"] = "0"
         params["REQUIRE_GPS"] = "1"
 
     # --- Passive logger: everything off ---
     if cat == VehicleCategory.PASSIVE_LOGGER.value:
         params["HAS_PYRO"] = "0"
-        params["EMERG_DEPLOY"] = "0"
         params["ABORT_DROGUE_BOOST"] = "0"
         params["ABORT_DROGUE_COAST"] = "0"
 
