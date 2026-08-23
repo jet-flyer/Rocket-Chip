@@ -55,7 +55,6 @@ if(BUILD_TESTS)
         src/fusion/mahony_ahrs.cpp
         src/fusion/innovation_monitor.cpp
         src/fusion/confidence_gate.cpp
-        src/fusion/eskf_brake.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
@@ -388,7 +387,6 @@ else()
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/eskf_runner.cpp
-        src/fusion/eskf_brake.cpp
 
         # IVP-44: WMM declination lookup table
         src/fusion/wmm_tables.cpp
@@ -558,7 +556,6 @@ else()
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/eskf_runner.cpp
-        src/fusion/eskf_brake.cpp
         src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp

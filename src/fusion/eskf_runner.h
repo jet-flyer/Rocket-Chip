@@ -123,19 +123,37 @@ uint8_t eskf_runner_get_wmm_source();
 // loop. kEskfMaxFailCycles=5 caps consecutive divergence events in one
 // session; after that, the filter stays disabled until eskf_reenable()
 // is called from CLI. Runtime-only — no persistence across power cycle.
+// C++17 inline state so host tests link this header without compiling
+// eskf_runner.cpp (board.h pulls Pico). Can re-split if the brake grows.
 // ============================================================================
 
+namespace eskf_brake_state {
+inline constexpr uint8_t kMaxFailCycles = 5;  // ArduPilot EKF3 coreSetupRequired
+inline uint8_t fail_count = 0;
+inline bool disabled = false;
+}
+
 // True when the runaway-restart brake has disabled ESKF.
-bool eskf_is_disabled();
+inline bool eskf_is_disabled() { return eskf_brake_state::disabled; }
 
 // Re-enable ESKF after the brake has tripped. CLI-callable.
 // Resets the consecutive-fail counter and clears the disabled flag.
-void eskf_reenable();
+inline void eskf_reenable() {
+    eskf_brake_state::fail_count = 0;
+    eskf_brake_state::disabled = false;
+}
 
 // Record one ESKF divergence event. Increments the consecutive-fail
 // counter; sets disabled=true when the counter reaches the threshold.
 // Called internally from eskf_runner.cpp on CR-1 reset paths.
-void eskf_note_divergence();
+inline void eskf_note_divergence() {
+    if (eskf_brake_state::fail_count < UINT8_MAX) {
+        eskf_brake_state::fail_count++;
+    }
+    if (eskf_brake_state::fail_count >= eskf_brake_state::kMaxFailCycles) {
+        eskf_brake_state::disabled = true;
+    }
+}
 
 // Force ESKF + Mahony back into the uninitialized state so the next tick
 // attempts a fresh stationary init. Also clears the divergence brake.

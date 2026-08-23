@@ -682,5 +682,4 @@ void eskf_runner_get_bench_full_tick(uint32_t* avg, uint32_t* min_us,
     if (count != nullptr) { *count = g_eskfBenchFullCount; }
 }
 
-// Runaway-restart brake implementation lives in eskf_brake.cpp so host
-// tests can link it without pulling eskf_runner's SDK dependencies.
+

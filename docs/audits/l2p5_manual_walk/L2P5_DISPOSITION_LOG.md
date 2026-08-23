@@ -421,7 +421,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-074 | REMEDIATE | labeled | pending Phase 3 — rename `mat.h` |
 | WN-099 | REMEDIATE | labeled | pending Phase 3 — RFM JSF-151 section banner |
 | WN-113 | REMEDIATE | labeled | pending Phase 3 — `ws2812_status` name vs notify |
-| WN-140 | REMEDIATE | labeled | pending Phase 3 — `eskf_brake.cpp` own TU (W-5: KEEP) |
+| WN-140 | REMEDIATE | closed | brake folded into `eskf_runner.h` (inline C++17 state); host tests keep linking without Pico `board.h` |
 | WN-154 | REMEDIATE | labeled | pending Phase 3 — CRC-16 insider comment |
 | WN-160 | REMEDIATE | labeled | pending Phase 3 — cal manager Phase/Stage labels |
 | WN-164 | REMEDIATE | labeled | pending Phase 3 — cal storage Doxygen / sparse |
