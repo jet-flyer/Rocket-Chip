@@ -64,7 +64,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 3 NOLINT + P10-9 + SPDX + sitting 4 HW-agnostic/leakage on `main` 2026-08-22-003**). **FIRST next sitting:** Phase 3 sitting 5 — Doxygen inventory, then policy (WN-054/081; name `CODING_STANDARDS.md` for the policy edit). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: Phases 0–2 closed; sitting 4 on `main` (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag closed (`a97d46c` / `1ac0add` / `f9757a2`) except WN-010/067 (R-9); sitting 8 HAB `1d4c443`; sitting 9 safety/ops SSOT closed (g1–g4). **Next:** sitting 10 fusion/math/cal. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -73,11 +73,11 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. **Do not work this on `main`.**
 
-**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-1, R-3, R-4, R-5). R-2 erased (header landed).
+**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-7–R-9, R-11–R-14).
 
-**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT; P10-9; SPDX WN-004; sitting 4 HW-agnostic rule + leakage A–D merged (`2026-08-22-003`).
+**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops: GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14).
 
-**Next (tomorrow):** Phase 3 sitting 5 — Doxygen inventory first (no mass delete), then WN-054/081 policy. Skip RF (WN-100 DEFER). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`.
+**Next:** sitting 10 fusion/math/cal — do not start until opened. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`.
 
 **Handoff 2026-08-22 wrap:** Sitting 4 closed. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up. Probe OpenOCD may still be on `:3333` (extra GDB reset glitched USB; do not treat as E2). Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. WN-110 kept thin `mcu_temp`. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
 
@@ -87,17 +87,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ---
 
-## Comment / Doxygen work — order (OPEN) (landed from walk WB W-10; W-6 folded into WNs)
 
-**Tomorrow's sitting.** Inventory first. Policy edit needs `CODING_STANDARDS.md` named.
-
-**Do not start mass comment cleanup or the density/Doxygen policy edit until the inventory exists.** Already agreed; W-10 was the inventory so WN-081 would not grow a file list.
-
-1. **Inventory** production headers/sources with Doxygen markup (`@file`/`@brief`/`@param`/`@return` / `/** … */` API blocks). Grep; include/exclude rules at the time (public API vs all `src/`). Seeds: `gps_pa1010d.h`, `i2c_bus.h`, `icm20948.h`, `baro_dps310.h`, `rfm95w.h`.
-2. **Then** policy: header density exemption (**WN-054**) + Doxygen keep-consistently-or-drop (**WN-081**).
-3. **Then** process-archaeology / “dev comment” cleanup — **WN-085** and the per-file comment WNs (W-6/W-16 were only the theme pointer; 79 WNs already cite W-6). Keep live invariants; IVP/Stage/session essays belong in docs.
-
----
 
 ## Safety/ops criticality inventory (OPEN) (landed from walk WB W-15)
 

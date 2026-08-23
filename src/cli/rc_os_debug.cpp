@@ -41,7 +41,7 @@ static constexpr uint32_t kEskfLivePeriodUs = 1000000;
 bool dev_debug_menu_enter() {
     rc::rc_log("\n--- Debug ---\n");
     rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-    rc::rc_log("y-Pyro log  r-Replay  d-Diag stats  l-LED test  h-Help  z-Back\n");
+    rc::rc_log("y-Pyro log (WIP)  r-Replay  d-Diag stats  l-LED test  h-Help  z-Back\n");
     return true;
 }
 
@@ -188,7 +188,7 @@ bool dev_debug_menu_dispatch(int c) {
         case 'h': case 'H': case '?':
             rc::rc_log("\n--- Debug Menu ---\n");
             rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            rc::rc_log("y-Pyro log  r-Replay inject  d-Diag stats  l-LED test  z-Back\n");
+            rc::rc_log("y-Pyro log (WIP)  r-Replay inject  d-Diag stats  l-LED test  z-Back\n");
             rc::rc_log("0..5 = local radio cfg (0:BW125/5 1:BW125/10 2:BW250/10\n");
             rc::rc_log("                        3:BW500/10 4:BW125/2 5:BW250/5)\n");
             break;

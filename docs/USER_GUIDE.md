@@ -131,6 +131,10 @@ NO-GO NO RX YET` and can still be `VERDICT: GO`.
 **PIO watchdog** is not a Go/No-Go station. It still needs a dedicated
 rework; a green preflight is not “PIO WDT proven.”
 
+**Pyro edge logger (WIP).** Debug menu `q` then `y`. Not armed at flight
+boot. GPIO 12/13 are PIO backup-timer **bench** pins, not pyro hardware.
+Not a flight-log / forensic path. Do not treat a dump as post-flight proof.
+
 ---
 
 ## Safety State Model

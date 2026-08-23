@@ -32,7 +32,6 @@
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
-#include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
 #include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
 #include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
@@ -314,7 +313,9 @@ static void init_pio_safety() {
     if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
-    rc::pyro_edge_logger_init(board::kPyroDroguePin, board::kPyroMainPin);
+    // pyro_edge_logger_init() is WIP (WN-274 / rem WB R-14). Do not arm the
+    // GPIO IRQ from flight boot until pyro HW is on these pins and a real
+    // log consumer exists.
 }
 
 // Vehicle: signal Core 1 to start sensor phase + wait for lockout.

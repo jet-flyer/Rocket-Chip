@@ -165,6 +165,20 @@ stop offering software ARM on vehicle-only images.
 (no GNG software ARM) or station-only ARM is the only path.
 **Blocking?** No for sitting 9 groups 2–4.
 
+### R-14 — Pyro edge logger WIP, not armed at boot
+
+**Surfaced:** 2026-08-22 · sitting 9 group 4 / WN-274. Owner: option 1
+(honest WIP) **and** not active in flight boot until finished.
+
+**What:** `pyro_edge_logger_init()` removed from `init_pio_safety()`.
+Banner/USER_GUIDE/debug `y`: bench GPIO capture on PIO timer pins, 64-slot
+fill-and-stop, not forensic. Re-arm only when pyro HW is on those pins
+**and** a PCM/flight-log consumer exists.
+
+**Disposition target:** Erase when that sitting lands, or when the files
+are deleted.
+**Blocking?** No
+
 ### R-7 — Sitting 13 comment bins (from sitting 5 Doxygen apply)
 
 **Surfaced:** 2026-08-22 · Phase 3 sitting 5. Owner: drop Doxygen; short `//`
