@@ -81,7 +81,6 @@ STATION_SCOPE = re.compile(
     r'|src/active_objects/ao_radio'
     r'|src/safety/health_monitor'
     r'|src/drivers/mcu_temp'
-    r'|include/rocketchip/job_capabilities'
     r'|include/rocketchip/board_fruit_jam'
     r')'
 )

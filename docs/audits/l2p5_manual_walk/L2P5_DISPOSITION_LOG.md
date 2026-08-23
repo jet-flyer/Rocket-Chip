@@ -405,15 +405,15 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 
 ---
 
-## File earn-rent / naming / packaging (37) — LABELED 2026-08-21
+## File earn-rent / naming / packaging (37) — SITTING 12 IN PROGRESS 2026-08-23
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 12, after W-5 (closed). All REMEDIATE. Apply `L2P5_W5_W2_2026-08-20.md` keep/fold; do not copy folds across “same class” thin headers.
+**Sitting:** Phase 3 sitting 12. Rule: fold thin files; they can re-split later if they earn it. W-5 is include-count evidence, not the verdict. Groups of 2–4 (R-10).
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
 | WN-030 | REMEDIATE | labeled | pending Phase 3 — `job.h` name / scaffold |
 | WN-031 | REMEDIATE | labeled | pending Phase 3 — DeviceRole mutually exclusive |
-| WN-032 | REMEDIATE | labeled | pending Phase 3 — `job_capabilities.h` own header? (W-5: 1 consumer) |
+| WN-032 | REMEDIATE | closed | folded `kRoleSamplesCore1` / `kRoleRunsLogger` into `job.h`; deleted `job_capabilities.h` |
 | WN-034 | REMEDIATE | labeled | pending Phase 3 — job packs three files (W-5: KEEP selector packs) |
 | WN-057 | REMEDIATE | labeled | pending Phase 3 — `k*Neo*` compat aliases |
 | WN-065 | REMEDIATE | labeled | pending Phase 3 — `prearm_fail_ticks.h` (W-5: KEEP) |
@@ -447,7 +447,7 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-277 | REMEDIATE | labeled | pending Phase 3 — sensor_core1.h comment ratio |
 | WN-297 | REMEDIATE | labeled | pending Phase 3 — ao_radio “T5.5 prereq #1” |
 | WN-306 | REMEDIATE | labeled | pending Phase 3 — `shared_state.cpp` what/where |
-| WN-308 | REMEDIATE | labeled | pending Phase 3 — leftover watchdog constant in `main.cpp` |
+| WN-308 | REMEDIATE | closed | deleted unused `kWatchdogTimeoutMs` in `main.cpp` and `rc_os_commands.cpp` (watchdog is `pio_watchdog`) |
 
 ---
 

@@ -96,8 +96,6 @@ FIXTURES = [
      ['src/safety/health_monitor.cpp'], False, True),
     ('mcu_temp driver',
      ['src/drivers/mcu_temp.cpp'], False, True),
-    ('job_capabilities header',
-     ['include/rocketchip/job_capabilities.h'], False, True),
     ('board_fruit_jam header',
      ['include/rocketchip/board_fruit_jam.h'], False, True),
 

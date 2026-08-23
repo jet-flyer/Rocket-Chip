@@ -80,9 +80,7 @@
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 
-// Watchdog (moved to pio_watchdog; see OPT-IVP-01 for fault protection extraction)
-static constexpr uint32_t kWatchdogTimeoutMs = 5000;            // 5 second timeout
-
+// Watchdog timeout/feed lives in pio_watchdog (OPT-IVP-01).
 
 // Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
 static constexpr uint32_t kSensorSettleMs = 200;
@@ -469,8 +467,9 @@ static void start_active_objects() {
     }
     // Stage 16C IVP-142c: HealthMonitor runs on every role that has a
     // health pipeline to populate. Station's AO uses capability-masked
-    // paths (see job_capabilities.h) so Core1/Flash bits aren't stuck off,
-    // and un-installed sensors report kHealthAbsent cleanly.
+    // paths (job.h kRoleSamplesCore1 / kRoleRunsLogger) so Core1/Flash
+    // bits aren't stuck off, and un-installed sensors report
+    // kHealthAbsent cleanly.
     // Relay stays out — it's link-layer only.
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify

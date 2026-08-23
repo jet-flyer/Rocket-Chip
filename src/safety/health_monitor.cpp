@@ -30,7 +30,7 @@
 #include "flight_director/flight_director.h"  // flight_director_launch_abort()
 #include "fusion/eskf_runner.h"           // eskf_is_disabled()
 #include "rocketchip/rc_debug.h"  // DBG_PRINT compiles out without DEBUG
-#include "rocketchip/job_capabilities.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
+#include "rocketchip/job.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
 
 // ============================================================================
 // Extern declarations -- globals owned by main.cpp (global namespace)

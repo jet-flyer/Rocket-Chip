@@ -791,9 +791,6 @@ void cli_print_hw_status() {
 // Boot Banner
 // ============================================================================
 
-// Watchdog timeout constant — must match main.cpp
-static constexpr uint32_t kWatchdogTimeoutMs = 5000;
-
 // Count HW init pass/fail for boot summary
 static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     pass = 0;

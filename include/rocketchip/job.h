@@ -45,6 +45,17 @@ inline constexpr const char* kJobRoleName =
     (kRole == DeviceRole::kStation) ? "station" :
     (kRole == DeviceRole::kRelay)   ? "relay"   : "vehicle";
 
+// Role-scoped "does this role do X?" — mask shared paths without
+// scattering `if (kRole == ...)` (IVP-142c). Peripheral presence is a
+// board property (board_*.h), not a role property.
+// Vehicle samples Core 1 at 1 kHz; station/relay launch Core 1 but idle
+// on g_startSensorPhase. Consumer: health_monitor Core1 vitality.
+inline constexpr bool kRoleSamplesCore1 = (kRole == DeviceRole::kVehicle);
+
+// Vehicle runs AO_Logger with the flight table in flash; station/relay
+// do not. Consumer: health_monitor kHealthFlashOk.
+inline constexpr bool kRoleRunsLogger = (kRole == DeviceRole::kVehicle);
+
 } // namespace job
 
 #endif // ROCKETCHIP_JOB_H
