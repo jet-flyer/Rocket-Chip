@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "safety/health_monitor.h"
+#include "safety/crash_record.h"
 #include "rocketchip/telemetry_state.h"
 
 using namespace rc;
@@ -396,4 +397,26 @@ TEST(CriticalFaultPersistence, SingleRecoveryClearsAccumulatedTicks) {
     EXPECT_EQ(ctr, 4);
     ctr = critical_fault_ticks_next(ctr, kHealthOk);
     EXPECT_EQ(ctr, 0);
+}
+
+TEST(CrashRecordTake, RejectsWrongMagic) {
+    CrashRecord rec{};
+    rec.magic = 0xDEADBEEF;
+    rec.reason = kCrashReasonMemManage;
+    CrashRecord out{};
+    EXPECT_FALSE(crash_record_take(rec, &out));
+    EXPECT_EQ(rec.magic, 0xDEADBEEFU);
+}
+
+TEST(CrashRecordTake, CopiesThenZerosMagic) {
+    CrashRecord rec{};
+    rec.magic = kCrashRecordMagic;
+    rec.reason = kCrashReasonMemManage;
+    rec.stacked_pc = 0x10000100;
+    CrashRecord out{};
+    EXPECT_TRUE(crash_record_take(rec, &out));
+    EXPECT_EQ(out.reason, static_cast<uint32_t>(kCrashReasonMemManage));
+    EXPECT_EQ(out.stacked_pc, 0x10000100U);
+    EXPECT_EQ(rec.magic, 0U);
+    EXPECT_FALSE(crash_record_take(rec, &out));
 }

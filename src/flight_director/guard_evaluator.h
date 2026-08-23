@@ -24,17 +24,12 @@ enum class GuardId : uint8_t {
     kBaroPeak        = 3,
     kMainDeploy      = 4,
     kStationary      = 5,
-    kBaroStationary  = 6,  // IVP-120: raw baro alt rate near zero (ESKF-independent)
+    kBaroStationary  = 6,  // raw baro alt rate near zero (ESKF-independent)
     kCount           = 7,
 };
 
-// Compile-time managed flag (Council A4).
-// Managed guards track sustain but don't auto-dispatch — the combinator
-// layer reads their sustained status and decides when to fire.
-// Unmanaged guards auto-dispatch on first sustain.
-//
-// DO NOT modify at runtime. This array is the contract between the
-// evaluator and the combinator.
+// constexpr contract with the combinator. Managed: combinator fires.
+// Unmanaged: evaluator auto-dispatches on first sustain.
 inline constexpr bool kGuardManaged[static_cast<uint8_t>(GuardId::kCount)] = {
     false,  // kLaunchAccel    — unmanaged (single guard, no combinator)
     false,  // kBurnoutAccel   — unmanaged (single guard)
@@ -42,8 +37,16 @@ inline constexpr bool kGuardManaged[static_cast<uint8_t>(GuardId::kCount)] = {
     true,   // kBaroPeak       — managed (AND combinator with velocity)
     true,   // kMainDeploy     — managed (lockout-gated)
     false,  // kStationary     — unmanaged (single guard, long sustain)
-    false,  // kBaroStationary — unmanaged (ESKF-independent landing detect, IVP-120)
+    false,  // kBaroStationary — unmanaged (ESKF-independent landing detect)
 };
+
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kLaunchAccel)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kBurnoutAccel)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kApogeeVelocity)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kBaroPeak)]);
+static_assert(kGuardManaged[static_cast<uint8_t>(GuardId::kMainDeploy)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kStationary)]);
+static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kBaroStationary)]);
 
 // Per-guard runtime state
 struct GuardState {

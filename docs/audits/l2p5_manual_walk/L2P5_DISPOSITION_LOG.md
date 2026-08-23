@@ -320,9 +320,9 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-176 | REMEDIATE | closed | FIRE_PYRO transition-only; test_action_executor.cpp is the check |
 | WN-179 | REMEDIATE | closed | two-tier model on `go_nogo_checks.h`; ARM = `all_go` (Tier 1) |
 | WN-182 | REMEDIATE | closed | fill = `health_monitor_fill_go_nogo`; evaluate SSOT; CLI/ARM same poll |
-| WN-184 | REMEDIATE | labeled | pending Phase 3 — kGuardManaged “DO NOT” only in comments |
+| WN-184 | REMEDIATE | closed | constexpr + static_assert + host test lock combinator pattern |
 | WN-188 | REMEDIATE | closed | LED → USER_GUIDE; FAULT entry = no pyro, PIO timers independent |
-| WN-257 | REMEDIATE | labeled | pending Phase 3 — crash_record consume/latch |
+| WN-257 | REMEDIATE | closed | consume is one-shot `crash_record_take`; only capture re-arms magic |
 | WN-274 | REMEDIATE | labeled | pending Phase 3 — pyro_edge_logger role / untested |
 | WN-323 | REMEDIATE | closed | preflight prints evaluate stations; VERDICT is `all_go` not health-byte subset |
 

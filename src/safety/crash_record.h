@@ -95,6 +95,20 @@ struct CrashRecord {
 // the fault handler). The storage definition is in crash_record.cpp.
 extern CrashRecord g_crash_record;
 
+// One-shot consume of a record in SRAM (or a host fixture). True iff magic
+// matched; copies to *out then zeros magic. Only crash_record_capture()
+// (or the inlined handler stores) re-arms by writing magic last.
+inline bool crash_record_take(CrashRecord& rec, CrashRecord* out) {
+    if (rec.magic != kCrashRecordMagic) {
+        return false;
+    }
+    if (out != nullptr) {
+        *out = rec;
+    }
+    rec.magic = 0;
+    return true;
+}
+
 // Consume any prior-boot crash record. Called once from health_monitor_init().
 // Returns true and fills *out if a valid record was present (clears the
 // magic so the next clean boot doesn't re-report). Returns false otherwise.
