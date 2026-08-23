@@ -202,11 +202,6 @@ static void handle_command_long(MavlinkRxState* state,
         break;
     }
 
-    case MAV_CMD_COMPONENT_ARM_DISARM:
-        // Pre-Flight Director: ACK but no-op. IVP-67 wires to real ARM.
-        emit_command_ack(state, result, cmd.command, MAV_RESULT_ACCEPTED);
-        break;
-
     case MAV_CMD_PREFLIGHT_CALIBRATION:
         emit_command_ack(state, result, cmd.command, MAV_RESULT_UNSUPPORTED);
         break;

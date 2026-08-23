@@ -1,24 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flash Layout — portable addresses derived from PICO_FLASH_SIZE_BYTES
-//
-// Regions are anchored from the TOP of flash downward so the layout
-// follows whatever size the board header provides. That is "some flash,"
-// not a Feather-era 8 MB product map (WN-063).
-// Host tests use 8 MB only as a compile default when no board header is
-// present — a test default, not a SKU contract.
-// kFlashFirmwareReserve (512 KB) is firmware-image policy, independent
-// of total flash size.
-//
-// Layout (offsets from flash base, top-down):
-//   [FLASH_SIZE - 8KB ]  Calibration storage (dual-sector, 8KB)
-//   [FLASH_SIZE - 16KB]  Flight table (dual-sector, 8KB)
-//   [FLASH_SIZE - 20KB]  Flash-safe test sector (4KB)
-//   [512KB .. table-20KB] Flight log data
-//   [0 .. 512KB]          Firmware
-//
-// Council C-A4: boot validation ensures regions don't overlap firmware.
+// Flash region offsets — derived from PICO_FLASH_SIZE_BYTES, top-down.
+// The constexprs below are the layout. Host 8 MB is a test default, not a SKU.
 //============================================================================
 #ifndef ROCKETCHIP_FLASH_LAYOUT_H
 #define ROCKETCHIP_FLASH_LAYOUT_H
@@ -62,8 +46,7 @@ static constexpr uint32_t kFlashTableSectorA =
 static constexpr uint32_t kFlashTableSectorB =
     kFlashCalSectorA - 1U * FLASH_SECTOR_SIZE;
 
-// Stage T IVP-T5.5: radio config storage — next 8KB below flight table.
-// Dual-sector wear leveling, same pattern as calibration.
+// Radio config: next 8KB below flight table (dual-sector, same as cal).
 static constexpr uint32_t kFlashRadioCfgSectorA =
     kFlashTableSectorA - 2U * FLASH_SECTOR_SIZE;
 static constexpr uint32_t kFlashRadioCfgSectorB =
@@ -79,13 +62,7 @@ static constexpr uint32_t kFlashLogEnd   = kFlashSafeTestOffset;
 static constexpr uint32_t kFlashLogSize  = kFlashLogEnd - kFlashLogStart;
 static constexpr uint32_t kFlashLogSectors = kFlashLogSize / FLASH_SECTOR_SIZE;
 
-// ============================================================================
-// Boot validation [Council C-A4]
-// ============================================================================
-
-// Call from init to verify layout doesn't overlap firmware binary.
-// binary_end: address of last byte of firmware (from linker symbol).
-// Returns true if layout is valid.
+// Compile-time overlap checks (not a runtime init call).
 static constexpr bool flash_layout_valid() {
     // Table must be above firmware reserve
     static_assert(kFlashTableSectorA >= kFlashFirmwareReserve,

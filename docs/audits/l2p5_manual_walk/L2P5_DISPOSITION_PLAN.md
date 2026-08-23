@@ -6,6 +6,8 @@ Replace the prelim skeleton with a real plan. Finding packs stay frozen. Work li
 
 **Session unit:** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). First disposition-prep step after walk-WB close. One theme per sitting: all comments together; other related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks.
 
+**Progress docs (whole disposition):** `AGENT_WHITEBOARD.md`, `L2P5_DISPOSITION_LOG.md` sitting rows, and this file’s **Progress** line update **when a bucket sitting closes**, not after each R-10 group. Code still commits in groups of 2–4 WNs. Do not restamp sitting progress mid-bucket. Unexpected blockers still go on the rem WB; that is not a progress restamp.
+
 Appendix C (gate → foundations → behavior → cleanup) does **not** rank buckets. It was written for small mostly-automated audit PR lists. **Inside a bucket**, that order still applies when rows conflict.
 
 This plan is owner/agent-chunk disposition, not Stage-17, Starcom execution, RC_OS rework, QP/C++, or L2-P10.
@@ -159,7 +161,7 @@ Do-now code sittings:
 12. Earn-rent / packaging
 13. Process archaeology comments (all 118 in this sitting)
 
-Inside a bucket, if rows conflict: gate-honesty → shared mechanism → behavior (flight-critical → support → ground) → comment/doc. Pattern-shared: one commit per file. A bug **revealed** by verifying PR-X rides with PR-X; coincident bugs split.
+Inside a bucket, if rows conflict: gate-honesty → shared mechanism → behavior (flight-critical → support → ground) → comment/doc. Pattern-shared: one commit per file. A bug **revealed** by verifying PR-X rides with PR-X; coincident bugs split. Log/WB/PLAN progress line: sitting close only (see **Progress docs** above).
 
 Verification: per-commit host ctest + the change’s own signal. **Flight-critical paths (FD, ESKF, pyro, fault, Go/No-Go): `bench_sim` with an observed positive-control.** “ctest was green” is not that signal. Do not run a six-hour audit suite per comment file.
 

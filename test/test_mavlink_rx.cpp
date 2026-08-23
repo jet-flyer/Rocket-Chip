@@ -337,7 +337,8 @@ TEST_F(MavlinkRxTest, CommandSetModeIdle) {
 }
 
 // ============================================================================
-// Test 9: CommandArmDisarm — COMPONENT_ARM_DISARM → ACCEPTED (no-op)
+// Test 9: CommandArmDisarm — this TU does not ARM (UNSUPPORTED).
+// Live ARM is AO_Telemetry dispatch_command → SIG_ARM.
 // ============================================================================
 
 TEST_F(MavlinkRxTest, CommandArmDisarm) {
@@ -354,7 +355,7 @@ TEST_F(MavlinkRxTest, CommandArmDisarm) {
     uint16_t offset = 0;
     mavlink_command_ack_t ack;
     ASSERT_TRUE(decode_command_ack(offset, ack));
-    EXPECT_EQ(ack.result, MAV_RESULT_ACCEPTED);
+    EXPECT_EQ(ack.result, MAV_RESULT_UNSUPPORTED);
 }
 
 // ============================================================================
@@ -486,7 +487,7 @@ TEST_F(MavlinkRxTest, BackToBackFrames) {
     ASSERT_TRUE(decode_command_ack(offset, ack2));
 
     EXPECT_EQ(ack1.command, MAV_CMD_COMPONENT_ARM_DISARM);
-    EXPECT_EQ(ack1.result, MAV_RESULT_ACCEPTED);
+    EXPECT_EQ(ack1.result, MAV_RESULT_UNSUPPORTED);
 
     EXPECT_EQ(ack2.command, MAV_CMD_PREFLIGHT_CALIBRATION);
     EXPECT_EQ(ack2.result, MAV_RESULT_UNSUPPORTED);

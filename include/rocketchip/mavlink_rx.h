@@ -1,16 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// MAVLink v2 GCS command receiver — secondary interface
-// Parses incoming MAVLink v2 frames from USB CDC and generates protocol-
-// level responses (parameter values, command ACKs, mission count).
-// This is MAVLink GCS compatibility — NOT the primary telemetry protocol
-// (that is CCSDS over LoRa).
-// SAFETY CONTRACT: This handler is a dispatcher only. It parses GCS
-// commands and returns protocol-level acknowledgments. It does NOT
-// execute safety-critical state transitions (ARM, pyro, mode changes).
-// All such transitions must be gated by the Flight Director state
-// machine (IVP-67) and hardware interlocks (IVP-73).
-// IVP-62: Bidirectional MAVLink Commands (Stage 7: Radio & Telemetry)
+// MAVLink v2 GCS command receiver — protocol ACKs only (params, mission
+// count). Not the primary telemetry path (CCSDS over LoRa).
+// Does not execute ARM / pyro / mode changes. Those go through
+// AO_Telemetry → Flight Director (`dispatch_command`).
 
 #ifndef ROCKETCHIP_MAVLINK_RX_H
 #define ROCKETCHIP_MAVLINK_RX_H
