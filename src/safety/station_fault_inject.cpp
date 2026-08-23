@@ -1,19 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Station-side fault injection (IVP-132a).
-//
-// R-25-exec step 6 of 13 (per docs/decisions/BENCH_TIER_DEPRECATION_
-// 2026-05-13.md, council-APPROVED Approach A): migrated from
-// src/dev/station_fault_inject.cpp. No longer #ifdef-gated. Every
-// fault_force_station_* entry checks rc::test_mode_active() and
-// returns early if not armed (SWE-133 partitioning principle).
-//
-// Hook points are wired in ao_telemetry.cpp (RX path) and
-// drivers/gps_uart.cpp (GPS valid flag). Call from GDB via
-// `call fault_force_station_*()`. Only meaningful when
-// ROCKETCHIP_JOB_STATION=1; vehicle builds inherit dead branches
-// guarded by the runtime test_mode gate.
+// Station GDB inject. Flight ELF; fis_test_mode_gate at each entry.
+// Wired from ao_telemetry RX and gps_uart. Vehicle builds keep the
+// symbols; they no-op without test_mode. Usage: docs/FAULT_INJECTION.md.
 
 #include "safety/station_fault_inject.h"
 #include "safety/inject_arm_gate.h"

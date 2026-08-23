@@ -1,16 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Fault injection hooks (IVP-129).
-//
-// R-25-exec step 3 of 13 (per docs/decisions/BENCH_TIER_DEPRECATION_
-// 2026-05-13.md, council-APPROVED Approach A): migrated from
-// src/dev/fault_inject.cpp. No longer #ifdef-gated. Every
-// fault_force_* entry checks rc::test_mode_active() and returns
-// early if not armed (SWE-133 partitioning principle).
-//
-// Callable via GDB `call fault_force_*()` from debug probe.
-// See docs/FAULT_INJECTION.md for usage.
+// GDB fault_force_* hooks. Flight ELF; gated by fi_test_mode_gate.
+// Usage: docs/FAULT_INJECTION.md.
 
 #include "safety/fault_inject.h"
 #include "safety/inject_arm_gate.h"

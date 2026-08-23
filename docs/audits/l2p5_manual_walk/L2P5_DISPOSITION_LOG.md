@@ -395,10 +395,10 @@ Owner special: DEFER to Starcom (sole operator knows legal knobs). Plan default 
 | WN-118 | REMEDIATE | closed | live `s` GPS session diagnostics; not one-shot test scaffolding |
 | WN-129 | REMEDIATE | closed | HOST_TEST is host compile of the same TU (no Pico/QP), not sequestration |
 | WN-252 | REMEDIATE | closed | DBG_PRINT stays; compiles out without DEBUG (rc_debug.h) |
-| WN-258 | REMEDIATE | labeled | pending sitting 11 group C |
-| WN-259 | REMEDIATE | labeled | pending sitting 11 group C |
-| WN-260 | REMEDIATE | labeled | pending sitting 11 group C |
-| WN-261 | REMEDIATE | labeled | pending sitting 11 group C |
+| WN-258 | REMEDIATE | closed | keep in flight ELF; slim banner to test_mode gate + FAULT_INJECTION.md |
+| WN-259 | REMEDIATE | closed | inject R-25 essay slimmed (rides WN-258) |
+| WN-260 | REMEDIATE | closed | keep station inject in flight ELF; same gate |
+| WN-261 | REMEDIATE | closed | station inject banner slimmed (rides WN-260) |
 | WN-262 | REMEDIATE | labeled | pending sitting 11 group D |
 | WN-270 | REMEDIATE | labeled | pending sitting 11 group E |
 | WN-326 | REMEDIATE | labeled | pending sitting 11 group D |
