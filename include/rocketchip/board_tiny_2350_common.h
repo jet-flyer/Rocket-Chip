@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// WIP shared pins for Pimoroni Tiny 2350+ (unsupported until allowlisted)
+// WIP shared pins for Pimoroni Tiny 2350 (unsupported until allowlisted)
 // Datasheet-sourced guesses. There is no board_tiny_2350.h (base variant
-// not packed). Plus header gates on TINY_2350_BRINGUP_OK (WN-028).
-// Pack merge (one Tiny file + PSRAM flag) is later, not this sitting.
+// not packed). Pack merge (one Tiny file + PSRAM flag) is later.
 
 #ifndef ROCKETCHIP_BOARD_TINY_2350_COMMON_H
 #define ROCKETCHIP_BOARD_TINY_2350_COMMON_H
+
+#ifndef TINY_2350_BRINGUP_OK
+#error "Tiny 2350 is WIP/unsupported. Define TINY_2350_BRINGUP_OK only after a documented pin-map allowlist."
+#endif
 
 #include "hardware/i2c.h"
 #include "hardware/spi.h"
@@ -67,9 +70,7 @@ inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
 // --- Capability flags ---
-// kPsramAvailable is variant-specific — NOT defined here. Plus variant
-// overrides to true; base variant keeps false. kBoardName is also
-// variant-specific.
+// kPsramAvailable and kBoardName are variant-specific — not defined here.
 inline constexpr bool    kDvmAvailable       = false;
 inline constexpr bool    kSdCardAvailable    = false;
 inline constexpr bool    kI2cStemmaAvailable = false;  // external breakout needed

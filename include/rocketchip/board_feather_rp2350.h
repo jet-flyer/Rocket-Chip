@@ -72,7 +72,7 @@ inline constexpr uint8_t kUartGpsRxPin     = 1;
 // Compile-time presence. Call sites branch on these (e.g. kPsramAvailable),
 // not on board identity.
 inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
-inline constexpr bool    kDvmAvailable         = false;  // HSTX not wired
+inline constexpr bool    kDvmAvailable         = false;  // HSTX connector present; DVI/DVM not in this firmware
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
 
