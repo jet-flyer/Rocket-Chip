@@ -11,11 +11,11 @@
 // with DIRECT_CSR.EN set, the AHB XIP window is disconnected; a fetch
 // generates a bus fault. pico-sdk hardware_flash.h: unsafe if handlers
 // or the vector table live in flash — they do. Both detect and configure
-// take the same fence; configure is not exempt because today's caller
-// looks "early." init_gps_early() already ran sleep_ms, which arms the
-// default alarm-pool TIMER IRQ (pico_time; handler always enabled)
-// before psram_init. Compute timing, including clock_get_hz and any
-// libgcc helpers, before EN (Arduino-Pico discussion 3431).
+// take the same fence; configure is not exempt because a flash-resident
+// IRQ may already be armed (exception handlers at boot; later sleep_ms
+// arms the default alarm-pool TIMER IRQ). Compute timing, including
+// clock_get_hz and any libgcc helpers, before EN (Arduino-Pico
+// discussion 3431).
 
 #include "psram_init.h"
 #include "rocketchip/flash_layout.h"

@@ -104,8 +104,9 @@ void bind_gps_i2c_backend() {
 
 // Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
 static void init_gps() {
-    // UART GPS when the pack exposes it (board::kUartGpsAvailable).
-    // I2C fallback otherwise. UART has no I2C bus contention (LL 24).
+    // Transport-agnostic bring-up, after IMU bypass is up (LL 20).
+    // UART when the pack exposes it (no shared-bus contention, LL 24);
+    // I2C probe+init otherwise, or if UART init failed.
     if (board::kUartGpsAvailable) {
         g_gpsInitAttempted = true;
         if (gps_uart_init()) {
@@ -196,18 +197,6 @@ static void init_fault_recovery() {
     rc::test_mode_init();
 }
 
-// Aggressive early GPS bring-up. MT3333 has a brief I2C slave window after
-// cold boot; init_sensors() later misses it by hundreds of ms. Grok triage.
-static void init_gps_early() {
-    g_i2cInitialized = i2c_bus_init();
-    if (!g_i2cInitialized) { return; }
-    g_gpsInitAttempted = true;
-    if (gps_pa1010d_init()) {
-        g_gpsInitialized.store(true, std::memory_order_release);
-        bind_gps_i2c_backend();
-    }
-}
-
 static void init_early_hw() {
     init_fault_recovery();
 
@@ -216,8 +205,6 @@ static void init_early_hw() {
 
     // Pack may release a shared peripheral RESET before I2C (no-op on Feather).
     board::board_release_peripheral_reset();
-
-    init_gps_early();
 
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                 board::kNeoPixelCount);
@@ -271,10 +258,9 @@ static void init_hardware() {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
     }
 
-    // I2C bus init (before USB per LL Entry 4/12)
-    if (!g_i2cInitialized) {
-        g_i2cInitialized = i2c_bus_init();
-    }
+    // I2C bus init (before USB per LL Entry 4/12), then IMU/baro/GPS.
+    // GPS I2C is inside init_sensors after IMU bypass (LL 20).
+    g_i2cInitialized = i2c_bus_init();
     if (g_i2cInitialized) {
         init_sensors();
     }
