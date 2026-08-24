@@ -519,3 +519,18 @@ Next: **Phase 3 sitting 2 — P10-9** (NOLINT sitting 1 already closed `75a80b5`
 
 Plan (resume here): `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`  
 Log: this file. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md`.
+
+---
+
+## Phase 4 — Combined Grok+Claude
+
+Per remaining item: summary + suggested label before `src/`. No auto-ACCEPT.
+
+### PSRAM init / QMI window — CLOSED 2026-08-23
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-311 / CW-B26-05 | REMEDIATE | IRQ fence on configure EN window (`7889e14`) |
+| GWF-309 / CW-B26-03 | REMEDIATE | comments: erase-only; datasheet erase≡program QMI path |
+| GWF-310 / CW-B26-04 | REMEDIATE | `psram_self_test` via uncached alias |
+| CW-X5-05 | REMEDIATE | PSRAM ring requires self-test AND flash-safe |

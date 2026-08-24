@@ -64,7 +64,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk disposition (Phase 3 do-now) on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100). **Next:** combined Grok+Claude remaining buckets (`L2P5_GROK_CLAUDE_OVERLAY.md`), not sequential Grok-then-Claude. Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk disposition (Phase 3 do-now) on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100). **Next:** dashboard / station CLI display lies (combined overlay remaining). Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -75,7 +75,7 @@ Owner-chunk Phase 3 do-now is on `main` (`2026-08-23-002`). Owner walk stays sep
 
 **Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-4–R-6, R-8–R-14).
 
-**Test in groups of 2–4** (R-10). Overlay **cleared** → skip. **defer-home** → same owner DEFER homes. **QMI GWF-311 vs CW-B26-05 settled:** fence configure with detect (Grok; Claude “no IRQ” misses GPS `sleep_ms`). Do not silent-regen `mission_profile_data.h` (R-4). First-flight prod strip is its own WB row. Do not auto-ACCEPT.
+**Test in groups of 2–4** (R-10). Overlay **cleared** → skip. **defer-home** → same owner DEFER homes. Per remaining item: summary + suggestion before `src/` (plan Phase 4). QMI fenced; remaining PSRAM bucket closed. **Next: dashboard / station CLI display lies.** Do not silent-regen `mission_profile_data.h` (R-4). First-flight prod strip is its own WB row. Do not auto-ACCEPT.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named.
 

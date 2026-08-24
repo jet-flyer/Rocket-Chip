@@ -252,9 +252,10 @@ bool psram_self_test(size_t size) {
         return false;
     }
 
-    // Test 3 addresses: start, middle, end
+    // Uncached alias: cached 0x11… readback can be an XIP-cache hit
+    // (datasheet §4.4.1) and would not prove a PSRAM transaction.
     volatile uint32_t* base =
-        reinterpret_cast<volatile uint32_t*>(kPsramCachedBase);
+        reinterpret_cast<volatile uint32_t*>(kPsramUncachedBase);
 
     static constexpr uint32_t kPattern1 = 0xDEADBEEFU;
     static constexpr uint32_t kPattern2 = 0xCAFEBABEU;
@@ -309,10 +310,11 @@ size_t psram_get_size() {
 // Flash-safe PSRAM integrity test
 // ============================================================================
 
-// Write a known pattern to PSRAM, perform a flash erase+program cycle,
-// then verify PSRAM data is byte-for-byte intact. This validates the SDK's
-// QMI M1 save/restore in flash_safe_execute() for our case (CS1 not in
-// FLASH_DEVINFO → timing/rcmd/rfmt restored, wfmt/wcmd untouched).
+// Write a known pattern to PSRAM, flash_safe_execute() erase of the
+// dedicated test sector, then verify PSRAM byte-for-byte. Validates SDK
+// QMI M1 save/restore for CS1-not-in-FLASH_DEVINFO (timing/rcmd/rfmt
+// restored, wfmt/wcmd untouched). Erase is the QMI disturbance; program
+// uses the same direct-mode/restore sequence (datasheet §5.4.8.10/11).
 
 static constexpr uint32_t kFlashTestOffset = rc::kFlashSafeTestOffset;
 static constexpr uint32_t kFlashSafeTimeoutMs = 1000U;

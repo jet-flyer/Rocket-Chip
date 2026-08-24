@@ -678,7 +678,8 @@ static void print_psram_status() {
 
 static void print_logging_status() {
     if (AO_Logger_is_initialized()) {
-        bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed);
+        bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
+                         g_psramFlashSafePassed);
         uint32_t rate = is_psram ? 50U : 25U;
         const rc::RingBuffer* ring = AO_Logger_get_ring();
         rc::rc_log("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
@@ -1019,7 +1020,8 @@ static void cmd_flush_log() {
         return;
     }
 
-    bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed);
+    bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
+                     g_psramFlashSafePassed);
     uint8_t rate = is_psram ? 50U : 25U;
 
     rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);

@@ -372,7 +372,11 @@ process.
 
 Inside a bucket: skip `cleared`, park `defer-home`, re-read `affected`,
 do-now = `untouched` + surviving `affected`. Test in groups of 2–4
-(R-10). QMI stays in `disagree-stop` until the owner settles.
+(R-10). **QMI disagree settled** (fence configure with detect).
+
+**Per remaining item:** one-line summary of the claim + a suggested
+label (REMEDIATE / re-read skip / DEFER-home) before `src/` in that
+group. Do not auto-ACCEPT. See plan Phase 4.
 
 | n remaining | Bucket | Later sitting |
 |--:|--------|---------------|

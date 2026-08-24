@@ -32,7 +32,7 @@ extern bool g_imuInitAttempted;
 extern bool g_baroInitAttempted;
 extern bool g_gpsInitAttempted;
 
-// PSRAM state
+// PSRAM state. Ring uses PSRAM only if size > 0 and both tests pass.
 extern size_t g_psramSize;
 extern bool g_psramSelfTestPassed;
 extern bool g_psramFlashSafePassed;

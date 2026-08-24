@@ -28,8 +28,9 @@ struct shared_sensor_data_t;
 
 extern QActive * const AO_Logger;
 
-// After PSRAM init and flight_table_load(). psram_size 0 if absent.
-void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passed);
+// After PSRAM init, flash-safe test, and flight_table_load().
+// psram_ok: self-test AND flash-safe (else SRAM ring).
+void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_ok);
 
 // Read-only access to the ring buffer (Council A6).
 // Used by CLI commands (cmd_flush_log, print_logging_status).

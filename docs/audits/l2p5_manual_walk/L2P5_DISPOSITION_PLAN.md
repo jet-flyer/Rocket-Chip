@@ -2,7 +2,7 @@
 
 Replace the prelim skeleton with a real plan. Finding packs stay frozen. Work lives on a dedicated worktree and is removed when this workstream is done.
 
-**Progress (2026-08-23 combined overlay):** Phase 0–2 closed. Phase 3 owner do-now closed and on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100 DEFER). Owner walk stays a **separate** chunk. Grok+Claude packs are combined: `L2P5_GROK_CLAUDE_OVERLAY.md` (generator `_gen_grok_claude_overlay.py`). **Next: Phase 4 remaining-bucket sittings** from that overlay (skip cleared, park defer-home). Keep worktree `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · `grok/l2p5-disposition`. Do not start those `src/` edits on `main`.
+**Progress (2026-08-23):** Phase 0–2 closed. Phase 3 owner do-now on `main` (`2026-08-23-002`). Combined overlay paper landed. QMI 1-vs-1 fenced. Remaining PSRAM bucket (self-test uncached, erase-only comments, flash-safe gates the ring) closed this sitting. **Next: dashboard / station CLI display lies.** Per remaining item: summary + suggestion before `src/`. Keep worktree `grok/l2p5-disposition`. Do not start those `src/` edits on `main`.
 
 **Session unit (owner chunk, closed):** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). **Session unit (agent chunk):** the remaining buckets in `L2P5_GROK_CLAUDE_OVERLAY.md`. One theme per sitting; related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks. Do not merge GWF/CW IDs with WNs.
 
@@ -181,6 +181,8 @@ Owner pack stays out of this queue. Work from `L2P5_GROK_CLAUDE_OVERLAY.md`:
 6. **Unique** — still sit in the same buckets when the theme matches.
 
 Then remediate remaining (affected + untouched) **by overlay bucket**, same sitting style as the owner 16. No new WNs by default. No fourth taxonomy. Test in groups of 2–4 (R-10). Do not silent-regen `mission_profile_data.h` (R-4).
+
+**Per remaining item (required):** before `src/` edits in that group, name each ID with (1) a one-line summary of the claim against the current tree and (2) a suggested label — REMEDIATE (what), re-read skip, or DEFER-home. Do not auto-ACCEPT. A 1-vs-1 or a design fork stops for the owner even if the rest of the bucket is obvious.
 
 Default remaining live rows: REMEDIATE. Do not auto-ACCEPT.
 

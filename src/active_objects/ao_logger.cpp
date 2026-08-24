@@ -250,8 +250,8 @@ void AO_Logger_log_event(rc::LogEventId id,
 
 static void init_logging_ring() {
     // Initialize logging ring buffer.
-    // Uses PSRAM if available (8MB at 50Hz = ~48 min), SRAM fallback otherwise
-    // (200KB at 25Hz = ~145 sec). Ring buffer init writes header to memory.
+    // PSRAM ring if size > 0 and psram_ok (self-test AND flash-safe).
+    // Else SRAM fallback (200KB at 25Hz).
     uint8_t* ring_mem = nullptr;
     uint32_t ring_size = 0;
     uint32_t dec_ratio = kDecimationSram;
@@ -385,10 +385,10 @@ static QState logger_ao_running(LoggerAo * const me, QEvt const * const e) {
 
 QActive * const AO_Logger = &g_loggerAo.super;
 
-void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passed) {
+void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_ok) {
     // Store PSRAM parameters for init_logging_ring()
     g_loggerPsramSize = psram_size;
-    g_loggerPsramSelfTestPassed = psram_self_test_passed;
+    g_loggerPsramSelfTestPassed = psram_ok;
 
     // Initialize ring buffer and decimator
     init_logging_ring();

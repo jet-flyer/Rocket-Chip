@@ -473,7 +473,10 @@ static void start_active_objects() {
     }
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_Notify_start(5U);         // 33Hz — notification intent hub
-        AO_Logger_start(4U, g_psramSize, g_psramSelfTestPassed);  // 50Hz
+        // PSRAM ring only if addressing self-test AND flash-safe (QMI
+        // restore across erase) both passed. Else SRAM fallback.
+        AO_Logger_start(4U, g_psramSize,
+                        g_psramSelfTestPassed && g_psramFlashSafePassed);
     }
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
