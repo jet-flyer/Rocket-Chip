@@ -39,7 +39,7 @@ struct MavParam {
 struct MavlinkRxState {
     // c_library_v2 parser state — opaque, managed by mavlink_parse_char()
     // Actual storage allocated in .cpp (avoids mavlink.h include in header)
-    uint8_t            parser_buf[320]; // sizeof(mavlink_message_t) + sizeof(mavlink_status_t) + padding
+    uint8_t            parser_buf[320]; // overlay size: static_assert in mavlink_rx.cpp
     MavlinkEncoder*    encoder;         // Borrowed — for encoding responses
     uint8_t            gcs_sysid;       // Captured from first GCS heartbeat
     uint8_t            gcs_compid;

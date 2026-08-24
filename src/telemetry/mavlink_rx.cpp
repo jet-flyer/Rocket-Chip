@@ -18,6 +18,10 @@ extern "C" {
 }
 #pragma GCC diagnostic pop
 
+static_assert(sizeof(rc::MavlinkRxState::parser_buf) >=
+                  sizeof(mavlink_message_t) + sizeof(mavlink_status_t),
+              "parser_buf too small for mavlink_message_t + mavlink_status_t");
+
 namespace rc {
 
 // ============================================================================
