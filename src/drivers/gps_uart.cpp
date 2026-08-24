@@ -29,6 +29,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "pico/time.h"
+#include <atomic>
 #include <string.h>
 
 // ============================================================================
@@ -125,19 +126,17 @@ static_assert(sizeof(kPmtk2205HzSentence) - 1 == 17,
 // SPSC (single-producer single-consumer) lock-free ring buffer.
 //
 // Producer: gps_uart_rx_isr() on Core 0 (UART0 IRQ)
-//   - Writes g_rxBuf[head], then advances g_rxHead
-//   - Reads g_rxTail to check if buffer is full
+//   - Writes g_rxBuf[head], then release-stores g_rxHead
+//   - Acquire-loads g_rxTail to check if buffer is full
 //
 // Consumer: gps_uart_drain() on Core 1 (polled at 10Hz+)
-//   - Snapshots g_rxHead, reads g_rxBuf[tail..head], then advances g_rxTail
+//   - Acquire-loads g_rxHead, reads g_rxBuf[tail..head], then release-stores
+//     g_rxTail
 //
 // Thread safety:
-//   - volatile uint32_t for head/tail — ARM Cortex-M33 naturally-aligned
-//     32-bit writes are atomic (ARMv8-M architecture guarantee)
-//   - ISR writes buffer entry BEFORE advancing head; consumer reads head
-//     BEFORE reading buffer entries
-//   - RP2350 SRAM is cache-coherent across cores (no L1 data caches on
-//     Cortex-M33) — volatile is sufficient, no __dmb() needed
+//   - std::atomic head/tail with release on publish / acquire on consume.
+//     Payload stores/loads are ordered by those operations (MULTICORE_RULES:
+//     volatile is not a cross-core barrier; same shape as the sensor seqlock).
 //   - lwGPS state (g_gps, g_data) only touched by Core 1 — no cross-core
 //     access on parser state
 //
@@ -153,10 +152,10 @@ constexpr uint32_t kRxBufSize = 512;
 constexpr uint32_t kRxBufMask = kRxBufSize - 1;
 static_assert((kRxBufSize & kRxBufMask) == 0, "Ring buffer size must be power of 2");
 
-static uint8_t           g_rxBuf[kRxBufSize];
-static volatile uint32_t g_rxHead     = 0;  // Written by ISR, read by consumer
-static volatile uint32_t g_rxTail     = 0;  // Written by consumer, read by ISR
-static volatile uint32_t g_rxOverflow = 0;  // Overflow counter (diagnostic)
+static uint8_t              g_rxBuf[kRxBufSize];
+static std::atomic<uint32_t> g_rxHead{0};      // ISR producer, Core 1 consumer
+static std::atomic<uint32_t> g_rxTail{0};      // Core 1 producer of free space
+static std::atomic<uint32_t> g_rxOverflow{0};  // Overflow counter (diagnostic)
 
 // ============================================================================
 // Private State
@@ -179,15 +178,15 @@ static void gps_uart_rx_isr() {
     while (uart_is_readable(GPS_UART_INST)) {
         uint8_t byte = static_cast<uint8_t>(uart_get_hw(GPS_UART_INST)->dr);
 
-        uint32_t head = g_rxHead;
+        uint32_t head = g_rxHead.load(std::memory_order_relaxed);
         uint32_t next = (head + 1) & kRxBufMask;
+        uint32_t tail = g_rxTail.load(std::memory_order_acquire);
 
-        if (next == g_rxTail) {
-            // Buffer full — drop byte, count overflow
-            g_rxOverflow = g_rxOverflow + 1;
+        if (next == tail) {
+            g_rxOverflow.fetch_add(1U, std::memory_order_relaxed);
         } else {
             g_rxBuf[head] = byte;
-            g_rxHead = next;
+            g_rxHead.store(next, std::memory_order_release);
         }
     }
 }
@@ -343,9 +342,9 @@ bool gps_uart_init() {
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
 
-    g_rxHead = 0;
-    g_rxTail = 0;
-    g_rxOverflow = 0;
+    g_rxHead.store(0, std::memory_order_relaxed);
+    g_rxTail.store(0, std::memory_order_relaxed);
+    g_rxOverflow.store(0, std::memory_order_relaxed);
 
     if (!acquire_at_target_baud()) {
         return false;
@@ -374,10 +373,9 @@ void gps_uart_drain() {
         return;
     }
 
-    // Snapshot head (written by ISR on Core 0) then read bytes up to that point.
-    // After reading, advance tail. This is the SPSC consumer path.
-    uint32_t head = g_rxHead;
-    uint32_t tail = g_rxTail;
+    // Snapshot head (release-published by ISR on Core 0) then read bytes.
+    uint32_t head = g_rxHead.load(std::memory_order_acquire);
+    uint32_t tail = g_rxTail.load(std::memory_order_relaxed);
 
     if (head == tail) {
         return;  // Ring buffer empty
@@ -396,7 +394,7 @@ void gps_uart_drain() {
         }
     }
 
-    g_rxTail = head;
+    g_rxTail.store(head, std::memory_order_release);
 }
 
 bool gps_uart_update() {
@@ -426,7 +424,7 @@ bool gps_uart_has_fix() {
 }
 
 uint32_t gps_uart_get_overflow_count() {
-    return g_rxOverflow;
+    return g_rxOverflow.load(std::memory_order_relaxed);
 }
 
 bool gps_uart_reinit() {
@@ -439,9 +437,9 @@ bool gps_uart_reinit() {
 
     uart_deinit(GPS_UART_INST);
 
-    g_rxHead = 0;
-    g_rxTail = 0;
-    g_rxOverflow = 0;
+    g_rxHead.store(0, std::memory_order_relaxed);
+    g_rxTail.store(0, std::memory_order_relaxed);
+    g_rxOverflow.store(0, std::memory_order_relaxed);
 
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
