@@ -65,10 +65,9 @@ extern icm20948_t g_imu;
 // Sensor phase flag. Core 0 write, Core 0 read (pause, ESKF tick, cal_hooks).
 extern bool g_sensorPhaseActive;
 
-// Cooperative pause of Core 1 I2C around flash_safe_execute (R-17 / LL 31).
-// Distinct from g_calReloadPending (cal-only). Not nestable: a second
-// pause while already paused returns immediately. May return after ~100 ms
-// without an ack; callers still run post-flash i2c_bus_reset().
+// Pause Core 1 I2C around runtime flash_safe_execute (R-17 / LL 31).
+// Not nestable. May return after ~100 ms without ack; callers still i2c_bus_reset().
+// Wrapped: cal save (including AO_RCOS_start_cal_save), flight erase/download.
 namespace rc {
 void core1_i2c_pause();
 void core1_i2c_resume();

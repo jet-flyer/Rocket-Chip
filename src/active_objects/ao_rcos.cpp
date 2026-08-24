@@ -1278,6 +1278,7 @@ void AO_RCOS_start_cal_reset() {
 void AO_RCOS_start_cal_save() {
     if (AO_RCOS_cal_active()) { return; }
     rc::rc_log("\nSaving calibration to flash...");
+    rc::core1_i2c_pause();
     cal_result_t result = calibration_save();
     if (result == CAL_RESULT_OK) {
         rc::rc_log(" OK!\n");
@@ -1287,9 +1288,8 @@ void AO_RCOS_start_cal_save() {
     } else {
         rc::rc_log(" FAILED (%d)\n", static_cast<int>(result));
     }
-    // Note: calibration_save() calls flash_safe_execute() which blocks
-    // ~100-500ms. At 100Hz tick rate with queue depth 32, the 320ms
-    // headroom is tight but sufficient for typical flash writes (~200ms).
+    rc::core1_i2c_resume();
+    cal_post_hook();
 }
 
 #else
