@@ -103,6 +103,16 @@ Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 ---
 
+## Re-run SPIN / formal models after L2-P5 remediates (OPEN) (2026-08-24)
+
+Pre-commit `bench_sim` ran on firmware commits. **SPIN did not.** Overlay remediates on `grok/l2p5-disposition` changed FD (phase bitmask, pyro cancel), flash pause (`AO_RCOS_start_cal_save`), health seqlock fail-closed, fault capture, MPU read-back.
+
+**Sitting:** run the master SPIN gate (`tools/spin/`, Cygwin, README Quick Start — last recorded `SPIN_OK_31` / 6 models). At least: `rocketchip_fd.pml`, `rocketchip_flash_protocol.pml` (`p_no_i2c_during_flash`). If a model is now a lie vs firmware, update the `.pml` in the same sitting (R-13 ride-along). Not a license to invent new models.
+
+**Disposition target:** erase when the gate is green (or a model fix lands) on this branch.
+
+---
+
 
 
 ## Safety/ops criticality inventory (OPEN) (landed from walk WB W-15)

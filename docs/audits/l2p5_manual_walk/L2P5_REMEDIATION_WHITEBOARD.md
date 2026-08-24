@@ -193,6 +193,19 @@ empty. At 50 Hz that is ~2.7 years; high-rate logging makes it closer.
 counter if this ring survives. Comment on the field until then.
 **Blocking?** No
 
+### R-16 — Re-run SPIN after overlay remediates
+
+**Surfaced:** 2026-08-24 · owner. bench_sim ran; SPIN did not.
+
+**What:** Master SPIN gate (`tools/spin/`, last `SPIN_OK_31` / 6 models)
+on `grok/l2p5-disposition` after FD bitmask/pyro, flash pause, health
+seqlock, fault capture, MPU read-back. Prefer `rocketchip_fd.pml` +
+`rocketchip_flash_protocol.pml`. Model lie vs firmware → `.pml` in the
+same sitting (R-13). Same row: `AGENT_WHITEBOARD.md`.
+
+**Disposition target:** Erase when the gate is green or a model fix lands.
+**Blocking?** No
+
 ### R-6 — Thin-file / hopeful-future nameplates (seeded WN-035)
 
 **Surfaced:** 2026-08-21 · WN-035 (`notify_backend.h`) — not a public-vs-private
