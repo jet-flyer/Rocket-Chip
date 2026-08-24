@@ -179,9 +179,6 @@ struct PyroFiredEvt {
     uint8_t source;         // 0=primary (FD-commanded), 1=PIO backup timeout
 };
 
-// Signal name lookup (extends flight_signal_name for system-wide signals)
-const char* rc_signal_name(uint16_t sig);
-
 } // namespace rc
 
 #endif // ROCKETCHIP_AO_SIGNALS_H

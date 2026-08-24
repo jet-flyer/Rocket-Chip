@@ -239,7 +239,7 @@ Checks: >
   # SKIPPED: clang-analyzer-optin.mpi.* — no MPI
 
 # Only report warnings in our source files, not SDK/third-party headers
-HeaderFilterRegex: '.*(src|include)/rocketchip/.*'
+HeaderFilterRegex: '.*(src/.+\.(h|hpp)|include/rocketchip/.*)'
 
 CheckOptions:
 
