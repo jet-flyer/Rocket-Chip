@@ -75,17 +75,24 @@ struct CrashRecord {
 // memmanage_fault_handler() to bypass the function-call path entirely (see
 // crash_record_capture comment above for why a function call is unsafe in
 // the fault handler). The storage definition is in crash_record.cpp.
-extern CrashRecord g_crash_record;
+extern volatile CrashRecord g_crash_record;
 
 // One-shot consume of a record in SRAM (or a host fixture). True iff magic
 // matched; copies to *out then zeros magic. Only crash_record_capture()
 // (or the inlined handler stores) re-arms by writing magic last.
-inline bool crash_record_take(CrashRecord& rec, CrashRecord* out) {
+inline bool crash_record_take(volatile CrashRecord& rec, CrashRecord* out) {
     if (rec.magic != kCrashRecordMagic) {
         return false;
     }
     if (out != nullptr) {
-        *out = rec;
+        out->magic = rec.magic;
+        out->reason = rec.reason;
+        out->cfsr = rec.cfsr;
+        out->hfsr = rec.hfsr;
+        out->stacked_pc = rec.stacked_pc;
+        out->stacked_lr = rec.stacked_lr;
+        out->reserved[0] = rec.reserved[0];
+        out->reserved[1] = rec.reserved[1];
     }
     rec.magic = 0;
     return true;

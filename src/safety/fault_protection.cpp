@@ -77,25 +77,48 @@ static inline void fault_emit_visible_signal() {
     fault_trigger_reset();
 }
 
-// MemManage / HardFault handler — phase-aware capture-then-dispatch.
-// Capture is no-stack-push. Design: docs/decisions/FAULT_HANDLER_DESIGN.md.
-// Function-size: capture-then-dispatch stays in one handler (no-stack-push).
-// Design record: docs/decisions/FAULT_HANDLER_DESIGN.md. No FH-1 row in
-// ACCEPTED_STANDARDS_DEVIATIONS.md — do not cite a missing register ID.
-
-__attribute__((used))
-void memmanage_fault_handler(void) {
+__attribute__((always_inline)) static inline void fault_begin() {
     __asm volatile ("cpsid i" ::: "memory");
-
-    // Reentrance guard
     if (g_inFaultHandler) {
         while (true) {
             __asm volatile ("wfe");
         }
     }
     g_inFaultHandler = true;
+}
 
-    rc::CrashRecord * const rec = &rc::g_crash_record;
+__attribute__((always_inline)) static inline void fault_store_record(
+    uint32_t cfsr, uint32_t hfsr, uint32_t stacked_pc, uint32_t stacked_lr,
+    uint32_t reason) {
+    volatile rc::CrashRecord* const rec = &rc::g_crash_record;
+    rec->cfsr        = cfsr;
+    rec->hfsr        = hfsr;
+    rec->stacked_pc  = stacked_pc;
+    rec->stacked_lr  = stacked_lr;
+    rec->reason      = reason;
+    rec->reserved[0] = 0U;
+    rec->reserved[1] = 0U;
+    __asm volatile ("dsb" ::: "memory");
+    rec->magic = rc::kCrashRecordMagic;
+    __asm volatile ("dsb" ::: "memory");
+}
+
+__attribute__((always_inline)) static inline void fault_dispatch_by_phase() {
+    const rc::FlightPhase phase = rc::flight_phase_observable_get();
+    if (phase == rc::FlightPhase::kIdle) {
+        fault_reset_with_visible_signal();
+    }
+    fault_degrade_in_place();
+}
+
+// MemManage / HardFault handler — phase-aware capture-then-dispatch.
+// always_inline helpers keep this path call-free (no-stack-push).
+// Design: docs/decisions/FAULT_HANDLER_DESIGN.md.
+
+__attribute__((used))
+void memmanage_fault_handler(void) {
+    fault_begin();
+
     uint32_t cfsr;
     uint32_t hfsr;
     __asm volatile (
@@ -110,88 +133,23 @@ void memmanage_fault_handler(void) {
     uint32_t stacked_pc = 0;
     uint32_t stacked_lr = 0;
     if (msp != 0U) {
-        // Exception frame layout (ARMv8-M ARM Table B3-9): MSP+20=LR, MSP+24=PC.
         stacked_lr = *reinterpret_cast<volatile uint32_t*>(msp + 20U);
         stacked_pc = *reinterpret_cast<volatile uint32_t*>(msp + 24U);
     }
-    rec->cfsr        = cfsr;
-    rec->hfsr        = hfsr;
-    rec->stacked_pc  = stacked_pc;
-    rec->stacked_lr  = stacked_lr;
-    rec->reason      = static_cast<uint32_t>(rc::kCrashReasonMemManage);
-    rec->reserved[0] = 0U;
-    rec->reserved[1] = 0U;
-    __asm volatile ("dsb" ::: "memory");
-    rec->magic = rc::kCrashRecordMagic;  // magic last so torn writes reject on consume
-    __asm volatile ("dsb" ::: "memory");
-
-    // Phase-aware dispatch. Corrupted phase byte → kFault (fail closed).
-    const rc::FlightPhase phase = rc::flight_phase_observable_get();
-    if (phase == rc::FlightPhase::kIdle) {
-        // Pad: visible signal + reset; latch gates pre-arm after reboot.
-        fault_reset_with_visible_signal();
-    }
-    // Any flight phase, or corrupted phase (kFault) → degrade in place.
-    fault_degrade_in_place();
+    fault_store_record(cfsr, hfsr, stacked_pc, stacked_lr,
+                       static_cast<uint32_t>(rc::kCrashReasonMemManage));
+    fault_dispatch_by_phase();
 }
-
-// ============================================================================
-// QP/C Assertion Handler
-// ============================================================================
-// Called by QEP when a state machine invariant is violated (null state handler,
-// nesting depth overflow, etc.). Routes through the same phase-aware dispatch
-// as memmanage_fault_handler — in flight, degrade in place; on pad, capture
-// + visible signal + reset.
-//
-// No SDK watchdog auto-reset. Halt-forever on pad is wrong; this
-// path uses the same phase-aware capture as memmanage_fault_handler.
 
 extern "C" Q_NORETURN Q_onError(
     char const * const module,
     int_t const id)
 {
-    __asm volatile("cpsid i" ::: "memory");
-
-    // Reentrance guard (shared with memmanage_fault_handler)
-    if (g_inFaultHandler) {
-        while (true) {
-            __asm volatile ("wfe");
-        }
-    }
-    g_inFaultHandler = true;
-
-    // Capture into the crash record so the post-reset (or post-degrade
-    // diagnostic readout) consumer sees a record. Reason code reuses
-    // kCrashReasonNone since there's no dedicated QP-assert reason yet
-    // (future enum addition); the module string + id are lost to the
-    // crash record but printed live to serial below.
-    rc::CrashRecord * const rec = &rc::g_crash_record;
-    rec->cfsr        = 0U;
-    rec->hfsr        = 0U;
-    rec->stacked_pc  = 0U;
-    rec->stacked_lr  = 0U;
-    rec->reason      = static_cast<uint32_t>(rc::kCrashReasonNone);
-    rec->reserved[0] = 0U;
-    rec->reserved[1] = 0U;
-    __asm volatile ("dsb" ::: "memory");
-    rec->magic = rc::kCrashRecordMagic;
-    __asm volatile ("dsb" ::: "memory");
-
-    // Best-effort live print — USB CDC may or may not still drain after
-    // interrupts-disabled, depending on whether the assertion came from
-    // a context that already had USB infrastructure healthy. If it doesn't
-    // make it out the wire, the captured crash record will surface on
-    // next boot. rc_log writes to the ring buffer non-blocking; drain
-    // happens later from qv_idle_bridge drain or via the
-    // visible-signal delay before AIRCR.
+    fault_begin();
+    fault_store_record(0U, 0U, 0U, 0U,
+                       static_cast<uint32_t>(rc::kCrashReasonNone));
     rc::rc_log("[QP ASSERT] module=%s, id=%d\n", module, id);
-
-    // Phase-aware dispatch — same as memmanage_fault_handler.
-    const rc::FlightPhase phase = rc::flight_phase_observable_get();
-    if (phase == rc::FlightPhase::kIdle) {
-        fault_reset_with_visible_signal();
-    }
-    fault_degrade_in_place();
+    fault_dispatch_by_phase();
 }
 
 // ============================================================================

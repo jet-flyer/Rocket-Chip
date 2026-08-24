@@ -25,7 +25,7 @@ namespace rc {
 // function-call stack-push during fault handling (which would risk
 // fault-on-fault → lockup if the stack is near the MPU guard region).
 __attribute__((section(".uninitialized_data"), used))
-CrashRecord g_crash_record;
+volatile CrashRecord g_crash_record;
 
 __attribute__((section(".uninitialized_data"), used))
 static volatile uint32_t g_flightInProgressMagic;
@@ -33,7 +33,7 @@ static volatile uint32_t g_flightInProgressMagic;
 #define CRASH_DSB() __asm volatile ("dsb" ::: "memory")
 #define FLIGHT_SENTINEL_DSB() __asm volatile ("dsb" ::: "memory")
 #else
-CrashRecord g_crash_record{};
+volatile CrashRecord g_crash_record{};
 static volatile uint32_t g_flightInProgressMagic = 0U;
 #define CRASH_DSB() ((void)0)
 #define FLIGHT_SENTINEL_DSB() __asm volatile ("" ::: "memory")
