@@ -30,7 +30,8 @@ void ud_to_dense(const UD24& ud, float P[eskf::kStateSize][eskf::kStateSize]);
 // Returns false if P is not positive-definite (any D[i] <= 0).
 bool ud_factorize(UD24& ud, const float P[eskf::kStateSize][eskf::kStateSize]);
 
-// In-place scalar update. H has one nonzero at hIdx (any hValue). Core 0 only.
+// In-place scalar update. H has one nonzero at hIdx in [0, kStateSize).
+// Core 0 only. Out-of-range hIdx is a no-op (debug abort).
 
 void bierman_scalar_update(UD24& ud, int32_t hIdx, float hValue,
                            float innovation, float r, float dx[eskf::kStateSize]);

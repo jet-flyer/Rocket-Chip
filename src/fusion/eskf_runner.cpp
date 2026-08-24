@@ -303,7 +303,7 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
             save_wmm_position(lat, lon);
         } else if ((cal->cal_flags & CAL_STATUS_WMM_SET) != 0) {
             init_wmm_field(cal->wmm_lat_deg, cal->wmm_lon_deg, WmmSource::kStored);
-        } else if (g_profile->has_default_location) {
+        } else if (g_profile != nullptr && g_profile->has_default_location) {
             init_wmm_field(g_profile->default_lat_deg, g_profile->default_lon_deg,
                            WmmSource::kDefault);
         } else {
@@ -347,11 +347,16 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
         const calibration_store_t* cal = calibration_manager_get();
         float expected_mag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
                             ? cal->mag.expected_radius : 0.0F;
-        float lat_deg = g_profile->default_lat_deg;
-        float lon_deg = g_profile->default_lon_deg;
+        float lat_deg;
+        float lon_deg;
         if (snap.gps_valid && snap.gps_fix_type >= 2) {
             lat_deg = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
             lon_deg = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
+        } else if (g_profile != nullptr) {
+            lat_deg = g_profile->default_lat_deg;
+            lon_deg = g_profile->default_lon_deg;
+        } else {
+            return;
         }
         float declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
         g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);

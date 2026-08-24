@@ -9,6 +9,9 @@
 
 #include <cmath>
 #include <cstring>
+#ifndef NDEBUG
+#include <cstdlib>
+#endif
 
 namespace rc {
 
@@ -149,6 +152,12 @@ static void bierman_forward_pass(UD24& ud, float r) {
 __attribute__((section(".time_critical.bierman")))
 void bierman_scalar_update(UD24& ud, int32_t h_idx, float h_value,
                            float innovation, float r, float dx[kN]) {
+    if (h_idx < 0 || h_idx >= kN) {
+#ifndef NDEBUG
+        std::abort();
+#endif
+        return;
+    }
     bierman_compute_fg(ud, h_idx, h_value);
     bierman_forward_pass(ud, r);
 

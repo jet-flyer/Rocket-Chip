@@ -9,6 +9,9 @@
 
 #include <cmath>
 #include <cstdint>
+#ifndef NDEBUG
+#include <cstdlib>
+#endif
 
 namespace rc {
 
@@ -17,8 +20,18 @@ struct Mat {
     float data[Rows][Cols]{};
 
     // Element access
-    float& operator()(int32_t r, int32_t c) { return data[r][c]; }
-    const float& operator()(int32_t r, int32_t c) const { return data[r][c]; }
+    float& operator()(int32_t r, int32_t c) {
+#ifndef NDEBUG
+        if (r < 0 || r >= Rows || c < 0 || c >= Cols) { std::abort(); }
+#endif
+        return data[r][c];
+    }
+    const float& operator()(int32_t r, int32_t c) const {
+#ifndef NDEBUG
+        if (r < 0 || r >= Rows || c < 0 || c >= Cols) { std::abort(); }
+#endif
+        return data[r][c];
+    }
 
     // Addition
     Mat operator+(const Mat& rhs) const {
@@ -186,6 +199,9 @@ using Vec24 = Mat<24, 1>;
 // Extract 3×3 block starting at (rb, cb)
 template <int32_t N>
 Mat3 block3(const Mat<N, N>& m, int32_t rb, int32_t cb) {
+#ifndef NDEBUG
+    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
+#endif
     Mat3 blk;
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
@@ -198,6 +214,9 @@ Mat3 block3(const Mat<N, N>& m, int32_t rb, int32_t cb) {
 // Set 3×3 block at (rb, cb)
 template <int32_t N>
 void set_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
+#ifndef NDEBUG
+    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
+#endif
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
             m.data[rb + r][cb + c] = blk.data[r][c];
@@ -208,6 +227,9 @@ void set_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
 // Accumulate: m[rb..rb+2, cb..cb+2] += blk
 template <int32_t N>
 void add_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
+#ifndef NDEBUG
+    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
+#endif
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
             m.data[rb + r][cb + c] += blk.data[r][c];
