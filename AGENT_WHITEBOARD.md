@@ -77,17 +77,13 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## L2-P5 agent-chunk resume (OPEN) (2026-08-24)
 
-Handoff. Overlay paper through phantom/missing symbols closed on this branch (`cc2b38a`). **Keep this worktree.** **Do not start remaining overlay `src/` on `main`.**
+Overlay remediates closed (`33da2d7`). SPIN_OK_31 on this branch. Rem WB drained. **Keep this worktree** until merge. **Do not start leftover overlay `src/` on `main`.**
 
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-4–R-6, R-8–R-15). CHANGELOG `2026-08-24-001` is on `origin/main`.
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`.
 
-**In progress:** Class-design / published guts. Summaries already posted; **wait for owner sign-off / amendments before any `src/`.** Do-now (if signed): Pico2 `kPsramCsPin`; WS2812 max-LED clamp + period 0; MAVLink `parser_buf` static_assert; drop unused `rc_signal_name`; widen `.clang-tidy` HeaderFilterRegex to `src/**/*.h`. Park if signed: AO guts / P10-9 leftovers.
+**Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Codegen audit, Early-impl table.
 
-**DEFER (not a stop):** same homes as the owner walk — WN-100, Starcom, RC_OS structure, early-impl rewrites, codegen hygiene. Not a stop on other remediates. Overlay leftovers in those homes stay DEFER-home even in a do-now bucket. Dashboard display lies are not RC_OS structure. Debug-menu inventory is. A Starcom *touch later* is not a reason to skip a live lie (CW-B28-03 field-equality). R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
-
-**Concerns:** untracked `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (leave; not SSOT). Do not silent-regen `mission_profile_data.h` (R-4). Do not auto-ACCEPT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
-
-**Test in groups of 2–4** (R-10). Overlay **cleared** → skip. **defer-home** → same owner DEFER homes. Per remaining item: summary + suggestion before `src/`; auto-show next summaries after a bucket closes. After class-design: comment-disagrees-with-body, HW leakage leftovers, safety/ops, fusion, one-off.
+**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites / codegen hygiene. Version bump not invented (was rem WB R-9). Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not silent-regen `mission_profile_data.h`. Untracked `_grok_claude_overlay.json` — leave; not SSOT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 
@@ -113,17 +109,16 @@ Also in that sitting: USER_GUIDE Armed still says yellow; `kLedPhaseFault` dropp
 
 ---
 
-## Re-run SPIN / formal models after L2-P5 remediates (OPEN) (2026-08-24)
+## L2-P5 leftover sittings (OPEN) (2026-08-24)
 
-Pre-commit `bench_sim` ran on firmware commits. **SPIN did not.** Overlay remediates on `grok/l2p5-disposition` changed FD (phase bitmask, pyro cancel), flash pause (`AO_RCOS_start_cal_save`), health seqlock fail-closed, fault capture, MPU read-back.
+Homes for rem WB rows that had no other project-WB row. Erase a bullet when that sitting lands.
 
-**Sitting:** run the master SPIN gate (`tools/spin/`, Cygwin, README Quick Start — last recorded `SPIN_OK_31` / 6 models). At least: `rocketchip_fd.pml`, `rocketchip_flash_protocol.pml` (`p_no_i2c_during_flash`). If a model is now a lie vs firmware, update the `.pml` in the same sitting (R-13 ride-along). Not a license to invent new models.
-
-**Disposition target:** erase when the gate is green (or a model fix lands) on this branch.
+- **HAB `EMERG_DEPLOY`** — unread flag removed. When HAB is scheduled: profile bit **and** combinator lockout skip (rocket still locked; HAB skip tested).
+- **PIO WDT** — not Tier 1 Go/No-Go. Dedicated sitting: role vs ARM, CLI, whether a PIO WDT fault is pad-blocking.
+- **Estes vs station ARM** — Go/No-Go is station pad control. Vehicle USB ARM is bring-up, not the Estes wire-arm procedure.
+- **Tiny 2350 pin map (GWF-038 / GWF-039)** — I2C SCL and PSRAM CS both GPIO 21; `board_led_set` ignores polarity. Live hazard gated. Legal QMI CS1: 0 / 8 / 19 / 47. Do not invent a pin.
 
 ---
-
-
 
 ## Safety/ops criticality inventory (OPEN) (landed from walk WB W-15)
 
@@ -170,9 +165,9 @@ together, not in isolation.
 | **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
 | **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
 | **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
-| **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? | L2-P5 **WN-059** (`pcm_frame` + log path) |
+| **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? `frame_count` is uint32; after wrap `stored_count` looks empty (~2.7 y at 50 Hz). Saturating counter if this ring survives. | L2-P5 **WN-059** (`pcm_frame` + log path) |
 | **Flash layout map** | Early feature; re-eval after multi-board / storage evolution (low priority) | L2-P5 **WN-062** (`flash_layout.h`) |
-| **PIO backup pyro timers** | Flesh-out to a proper system (not “why does this exist” — recent deliberate IVP-130). Quality / lifecycle / LL-42 residuals wait on that sitting. Shared **PIO budget**. | L2-P5 **WN-267**; `src/safety/pio_backup_timer.*`; rem WB **R-5** |
+| **PIO backup pyro timers** | Flesh-out to a proper system (not “why does this exist” — recent deliberate IVP-130). Quality / lifecycle / LL-42 residuals wait on that sitting. Shared **PIO budget**. `pyro_edge_logger` is WIP — not in `init_pio_safety()` until pyro HW is on those pins **and** a PCM/flight-log consumer exists. | L2-P5 **WN-267** / **WN-274**; `src/safety/pio_backup_timer.*` |
 | **Radio / telem surfaces** | Many are **Starcom-gated** supersession candidates (not pure “early code smell”) | **WN-041**, **WN-046**, **WN-097** (RFM95W defer), Starcom / CCSDS rework rows |
 | **CCSDS TC + COP-1** | Command reliability layer rework — deferred post–Stage-17 (council) | Project status line; high-priority deferred radio items |
 

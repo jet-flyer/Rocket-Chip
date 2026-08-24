@@ -777,6 +777,22 @@ Last overlay leftover sitting. Four domain commits. Tiny 038/039 wait R-17 allow
 | ID | Label | Close |
 |----|-------|-------|
 | GWF-038 / GWF-039 | park | rem WB R-17 Tiny allowlist |
+
+### Rem WB drain + SPIN — CLOSED 2026-08-24
+
+Master SPIN gate on `grok/l2p5-disposition`: **SPIN_OK_31** (6 models, all `errors: 0`). No model/firmware mismatch. Did not re-run on `main`.
+
+`L2P5_REMEDIATION_WHITEBOARD.md` deleted.
+
+| Rem WB | Close |
+|--------|-------|
+| R-16 SPIN | done — SPIN_OK_31 |
+| R-10 / R-6 | pass-complete (process / nameplate pattern) |
+| R-4 codegen | already Codegen audit row |
+| R-5 PIO backup / R-14 pyro edge | Early-impl PIO backup row |
+| R-8 config.h docs / R-9 version bump | L2-P5 resume DEFER line |
+| R-15 PCM wrap | Early-impl PCM row |
+| R-11 HAB / R-12 PIO WDT / R-13 Estes ARM / R-17 Tiny | leftover sittings on AGENT_WHITEBOARD |
 | GWF-027 / GWF-103 / GWF-165 | previously resolved | Feather LED; version job/board; ws2812 clamp |
 | CW-B14-02 / CW-B18-05 / CW-B19-02 / CW-L043 / CW-L044 / CW-L045 | REMEDIATE | mag3d latch; unread mag-diag; LM bounds; drop block3 |
 | CW-B20-06 / CW-L001 / CW-B21-04 / CW-L002 / CW-B22-03 / GWF-252 / GWF-255 / CW-B23-05 / CW-L003 / GWF-267 / GWF-246 | REMEDIATE | FD ctor/action/guard/table contracts |
