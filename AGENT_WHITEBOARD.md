@@ -64,30 +64,20 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition sittings 4–5 + 7–9 on `main` (`2026-08-22-003`, `2026-08-23-001`). Sitting 6 RF skipped (WN-100). Sittings 10–13 on worktree `grok/l2p5-disposition`. **Next:** Phase 4 Grok chunk **GWF-001–498**. Claude `CW-` aligned pack is Phase 5. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk disposition (Phase 3 do-now) on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100). **Next:** Phase 4 Grok `GWF-001–498`, then Phase 5 Claude. Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
 
-## L2-P5 disposition resume (OPEN) (2026-08-23 wrap)
+## L2-P5 agent-chunk resume (OPEN) (2026-08-23)
 
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Sittings 5+7+8+9 merged to `main` (`2026-08-23-001`). Keep worktree for Phase 4 — **do not start Phase 4 `src/` on `main`.**
+Owner-chunk Phase 3 do-now is on `main` (`2026-08-23-002`). **Keep this worktree** for Phase 4 Grok `GWF-001–498` then Phase 5 Claude. **Do not start those `src/` edits on `main`.**
 
-**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-8–R-9, R-11–R-14; R-1/R-3/R-7 erased).
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Plan: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-4–R-6, R-8–R-14).
 
-**Done:** Phase 0–2; NOLINT; P10-9; SPDX WN-004; sitting 4 merged (`2026-08-22-003`); sitting 5 Doxygen `0cab2ea`; sitting 7 grab-bag `a97d46c` / `1ac0add` / `f9757a2` (R-8; filename free). Version bump process **not** invented (R-9). Sitting 8 HAB `EMERG_DEPLOY` out (`1d4c443`, R-11). Sitting 9 safety/ops closed (`0a17613` / `7a7dfcb` / `ad0cb25` / `cba82ba`): GNG SSOT, station vs wire-arm, `kGuardManaged`, crash consume, pyro logger WIP not armed at boot (R-12/13/14). Sitting 6 RF skipped (WN-100 DEFER). Sitting 10 fusion/math/cal closed on worktree (`90432f2` A comments; `1670c41` B ESKF switch/labels; `3c2477e` C cal rates / P10-4 / MCU sentinel). Sitting 11 test/inject/debug closed on worktree (keep-with-why; first-flight prod strip is its own WB row).
+**Test in groups of 2–4** (R-10). Covered-by-a-closed-WN → skip. **QMI GWF-311:** stop; owner settles with SDK. Do not silent-regen `mission_profile_data.h` (R-4). First-flight prod strip is its own WB row.
 
-**Done (sitting 12):** earn-rent folds on worktree — A `6fcff57` job_capabilities→job.h + unused kWatchdogTimeoutMs; B `62e21eb` flight_in_progress→crash_record (HOST_TEST AIRCR stub); C `30088b4` core1_i2c_pause→shared_state; D `921f329` eskf_brake→eskf_runner.h inline. Can re-split later if a file earns it. Flag: `docs/SCAFFOLDING.md` still lists `job_capabilities.h`; `docs/IVP.md` IVP-142c names the old header; `docs/PROBLEM_REPORTS.md` R-17 names `core1_i2c_pause.{h,cpp}`.
-
-**Done (sitting 13):** process archaeology 118/118 closed. A `a4a0c74` no fake ARM ACK, flash constexprs; B–G comment bins; H `9353a90` leftovers (FD/cal/encoder/AO/main). ARM live path is `AO_Telemetry` `dispatch_command` → `SIG_ARM`. Starcom leftover: WN-235 `DO_SET_MODE`. SAD §9.3 still stale (hard-protected).
-
-**Done (owner leftover rows):** WN-051 deleted lying DEPRECATED health aliases; WN-002 Core 0 does not `icm20948_read*` after handoff; WN-045 parked (REMEDIATE, not ACCEPT); WN-004 SPDX log closed (`f1c6f83`). Rem WB R-1 / R-3 erased. R-9 version bump still owner-scheduled.
-
-**Next:** Phase 4 Grok chunk `GWF-001–498`. Skip RF (WN-100 DEFER). **Test in groups of 2–4** (R-10). Worktree log-on-`main` is in `docs/agents/WORKTREE.md`. First-flight prod strip (omit test/inject TUs from the ELF) is a separate WB row.
-
-**Sitting 10 (2026-08-23):** fusion/math/cal 10/10 closed on worktree. Vehicle on COM5 last verified `bench_sim` 2/2, LED/CDC up, `vehicle flight v0.16.0 (kmenu)`. Keep worktree. DEFER leftovers from sitting 4: WN-023 no-op hook pattern, WN-028 Tiny pack merge, WN-109 `spi_bus` file rename, WN-320/325 RC_OS/display. Do not silent-regen `mission_profile_data.h`. GWF-311/CW-B26-05 still owner-settle in chunk 2.
-
-**Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 4 `src/` on `main`.
+**Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named.
 
 ---
 

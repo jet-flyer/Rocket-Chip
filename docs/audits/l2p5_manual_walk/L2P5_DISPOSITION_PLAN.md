@@ -2,7 +2,7 @@
 
 Replace the prelim skeleton with a real plan. Finding packs stay frozen. Work lives on a dedicated worktree and is removed when this workstream is done.
 
-**Progress (2026-08-23 sitting 13 close):** Phase 0–2 closed. Phase 3 owner sittings 1–5 + 7–13 closed on worktree `grok/l2p5-disposition` (sittings 5+7+8+9 already on `main`). Sitting 6 RF skipped (WN-100 DEFER). **Next: Phase 4 Grok chunk `GWF-001–498`.** Do not start Phase 4 `src/` on `main`. Worktree `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition`.
+**Progress (2026-08-23 owner-chunk land):** Phase 0–2 closed. Phase 3 owner do-now closed and on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100 DEFER). **Next: Phase 4 Grok `GWF-001–498`**, then Phase 5 Claude. Keep worktree `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · `grok/l2p5-disposition`. Do not start Phase 4 `src/` on `main`.
 
 **Session unit:** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). First disposition-prep step after walk-WB close. One theme per sitting: all comments together; other related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks.
 
