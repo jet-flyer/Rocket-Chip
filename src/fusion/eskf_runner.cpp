@@ -648,6 +648,7 @@ bool eskf_runner_is_mahony_initialized() {
 void eskf_runner_request_reinit() {
     g_eskfInitialized = false;
     g_mahonyInitialized = false;
+    g_mag3dEnabled = false;
     eskf_reenable();
     publish_probably_flying();
 }

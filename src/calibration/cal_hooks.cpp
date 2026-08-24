@@ -19,10 +19,7 @@ static constexpr uint32_t kMagDiagPrintModulus = 200;      // Print every N mag 
 // ============================================================================
 
 static uint32_t g_lastMagReadCount = 0;
-static uint32_t g_magDiagSeqlockFail = 0;
 static uint32_t g_magDiagNotValid = 0;
-static uint32_t g_magDiagStale = 0;
-static uint32_t g_magDiagLastSeenCount = 0;
 
 // ============================================================================
 // Mag Read Callback (for compass calibration via CLI)
@@ -31,19 +28,14 @@ static uint32_t g_magDiagLastSeenCount = 0;
 
 void cal_reset_mag_staleness() {
     g_lastMagReadCount = 0;
-    g_magDiagSeqlockFail = 0;
     g_magDiagNotValid = 0;
-    g_magDiagStale = 0;
-    g_magDiagLastSeenCount = 0;
 }
 
 bool cal_read_mag(float* mx, float* my, float* mz) {
     shared_sensor_data_t snap = {};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        g_magDiagSeqlockFail++;
         return false;
     }
-    g_magDiagLastSeenCount = snap.mag_read_count;
     if (!snap.mag_valid) {
         g_magDiagNotValid++;
         if (g_magDiagNotValid == 1 || g_magDiagNotValid % kMagDiagPrintModulus == 0) {
@@ -54,7 +46,6 @@ bool cal_read_mag(float* mx, float* my, float* mz) {
         return false;
     }
     if (snap.mag_read_count == g_lastMagReadCount) {
-        g_magDiagStale++;
         return false;
     }
     g_lastMagReadCount = snap.mag_read_count;

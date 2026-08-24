@@ -192,52 +192,6 @@ using Mat24 = Mat<24, 24>;
 using Vec24 = Mat<24, 1>;
 
 // ============================================================================
-// 3×3 block accessors for NxN matrices
-// Parameters rb/cb are element indices (0, 3, 6, ...) matching kIdx* constants.
-// ============================================================================
-
-// Extract 3×3 block starting at (rb, cb)
-template <int32_t N>
-Mat3 block3(const Mat<N, N>& m, int32_t rb, int32_t cb) {
-#ifndef NDEBUG
-    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
-#endif
-    Mat3 blk;
-    for (int32_t r = 0; r < 3; ++r) {
-        for (int32_t c = 0; c < 3; ++c) {
-            blk.data[r][c] = m.data[rb + r][cb + c];
-        }
-    }
-    return blk;
-}
-
-// Set 3×3 block at (rb, cb)
-template <int32_t N>
-void set_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
-#ifndef NDEBUG
-    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
-#endif
-    for (int32_t r = 0; r < 3; ++r) {
-        for (int32_t c = 0; c < 3; ++c) {
-            m.data[rb + r][cb + c] = blk.data[r][c];
-        }
-    }
-}
-
-// Accumulate: m[rb..rb+2, cb..cb+2] += blk
-template <int32_t N>
-void add_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
-#ifndef NDEBUG
-    if (rb < 0 || cb < 0 || rb + 2 >= N || cb + 2 >= N) { std::abort(); }
-#endif
-    for (int32_t r = 0; r < 3; ++r) {
-        for (int32_t c = 0; c < 3; ++c) {
-            m.data[rb + r][cb + c] += blk.data[r][c];
-        }
-    }
-}
-
-// ============================================================================
 // ESKF-specific free functions
 // ============================================================================
 
@@ -262,6 +216,7 @@ struct ScalarUpdateResult {
     float nis;            // innovation^2 / S, or 0 when S <= 1e-30
 };
 
+// N is a compile-time size (host tests use 2/3/15; not the flight UD path).
 template <int32_t N>
 ScalarUpdateResult<N> scalar_update(
     const Mat<N, N>& P,
@@ -300,6 +255,7 @@ ScalarUpdateResult<N> scalar_update(
 }
 
 // Cholesky A = L L^T into L. false on a non-positive pivot (L left partial).
+// N is compile-time (host tests 2/3).
 template <int32_t N>
 bool cholesky(const Mat<N, N>& A, Mat<N, N>& L) {
     L = Mat<N, N>::zeros();

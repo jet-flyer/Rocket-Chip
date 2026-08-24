@@ -48,6 +48,7 @@ void lm_accumulate_jtj(const float (*samples)[3], uint16_t numSamples,
                        const float* params, uint8_t numParams,
                        float* jtj, float* jtfi,
                        ResFn residualFn, JacFn jacobianFn) {
+    if (numParams == 0 || numParams > kLmMaxParams) { return; }
     float jacob[kLmMaxParams];
     memset(jtj, 0, numParams * numParams * sizeof(float));
     memset(jtfi, 0, numParams * sizeof(float));
@@ -76,6 +77,7 @@ void lm_solve(const float (*samples)[3], uint16_t numSamples,
               uint8_t numParams, uint8_t maxIter,
               float* jtj, float* jtjInv,
               ResFn residualFn, JacFn jacobianFn) {
+    if (numParams == 0 || numParams > kLmMaxParams) { return; }
     float lambda = kMagLmLambdaInit;
     float jtfi[kLmMaxParams];
     for (uint8_t iter = 0; iter < maxIter; iter++) {

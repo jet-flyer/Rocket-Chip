@@ -193,6 +193,20 @@ empty. At 50 Hz that is ~2.7 years; high-rate logging makes it closer.
 counter if this ring survives. Comment on the field until then.
 **Blocking?** No
 
+### R-17 — Tiny 2350 pin-map allowlist (GWF-038 / GWF-039)
+
+**Surfaced:** 2026-08-24 · overlay one-off. Not this sitting.
+
+**What:** `board_tiny_2350_common.h` still binds I2C SCL and PSRAM CS both
+to GPIO 21, and `board_led_set` ignores `kLedActiveHigh`. Live hazard is
+already gated (`TINY_2350_BRINGUP_OK` + Plus `kPsramAvailable = false`).
+Same sitting as leftover `CW-B02-03` map nits. Needs Pimoroni schematic
+and a legal QMI CS1 (0 / 8 / 19 / 47) — do not invent a pin here.
+
+**Disposition target:** Tiny allowlist sitting. Erase when the map is
+allowlisted or the pack is dropped.
+**Blocking?** No
+
 ### R-16 — Re-run SPIN after overlay remediates
 
 **Surfaced:** 2026-08-24 · owner. bench_sim ran; SPIN did not.
