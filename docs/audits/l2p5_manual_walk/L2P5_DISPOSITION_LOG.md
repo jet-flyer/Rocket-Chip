@@ -577,3 +577,16 @@ Print/path bugs. Not RC_OS menu structure (WN-313–327 DEFER).
 | GWF-291 | park | rem WB **R-15** — Starcom/CCSDS or saturating count |
 | GWF-018 | skip | `config.h` gone |
 | CW-B43-02 | park | download `frame_size`; not this ring |
+
+### GPS UART / PMTK / wrong-core NVIC — CLOSED 2026-08-24
+
+GSV stays off (vendor SSOT). Core 1 does not call `gps_uart_reinit()`.
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-125 / GWF-132 / CW-B09-07 | REMEDIATE comments | PMTK314 = RMC+GGA+GSA; field 6 GSV=0 (`9c2f06d`) |
+| CW-B09-04 / GWF-135 barrier | REMEDIATE | acquire/release head/tail (`93048a0`) |
+| CW-B09-03 / GWF-135 NVIC / CW-B36-03 | REMEDIATE | Core 1 `gps_uart_request_reinit`; Core 0 idle takes + reinit (`e41551f`) |
+| CW-B09-05 / GWF-402 | REMEDIATE comments | dual-baud two-window budget; `core1_read_gps` side effects |
+| CW-B14-05 / CW-B36-01 / CW-L041 / GWF-405 | REMEDIATE | `eskf_runner_probably_flying()` atomic; drop Core 1 `g_eskf` (`409d890`) |
+| GWF-008 | skip pointers; REMEDIATE comment | function-pointer table already gone (P10-9); `g_gpsTransport` frozen before `g_startSensorPhase` |
