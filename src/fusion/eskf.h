@@ -307,6 +307,8 @@ struct ESKF {
     bool init(const Vec3& accelMeas, const Vec3& gyroMeas);
 
     // Propagate (predict) step: integrate IMU measurements forward by dt.
+    // dt in seconds; must be finite and > 0 (non-finite / <=0 is a no-op).
+    // Runner keeps dt in 1 ms .. 100 ms (kEskfMinDtUs / kEskfMaxDtUs).
     // Codegen FPFT after ensure_dense(); then optional phase-Q delta. Solà §5.3.
     void predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
@@ -390,7 +392,7 @@ struct ESKF {
     // NaN/Inf, enabled D/P_ii > 0, unit quat, bias limits, vel sentinel. No P upper bound.
     bool healthy() const;
 
-    // Reconstruct dense P from UD. Firmware inspect sites do not call this.
+    // Reconstruct dense P from UD (same as ensure_dense).
     void sync_dense_covariance();
 
     // After externally writing P while UD factors may be active, mark dense P
@@ -398,8 +400,9 @@ struct ESKF {
     void invalidate_ud_factors();
 
     // P-diagonal growth rate check — catch slow ESKF divergence.
-    // Returns false if position or velocity P diagonals grew >10× in 30s,
-    // or if reset cycling is detected (>2 resets in 5 min → degraded).
+    // ensure_dense() first so UD-lazy P is live. Returns false if
+    // position or velocity P diagonals grew >10× in 30s, or if reset
+    // cycling is detected (>2 resets in 5 min → degraded).
     // Caller should trigger CR-1 reset on false.
     //
     // Threshold math: Q_pos ≈ 0.01 m²/s², so normal 30s growth from

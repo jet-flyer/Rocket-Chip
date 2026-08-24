@@ -185,14 +185,15 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
 }
 
 // ESKF predict step with benchmark + state buffer write.
-static void eskf_run_predict(const shared_sensor_data_t& snap) {
+// false: dt out of range (skip rest of cycle) or filter diverged.
+static bool eskf_run_predict(const shared_sensor_data_t& snap) {
     // Compute dt from IMU timestamps (unsigned subtraction handles 32-bit wrap)
     uint32_t dt_us = snap.imu_timestamp_us - g_lastEskfTimestampUs;
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-3: always update timestamp
 
     // Sanity-check dt — reject if too fast or too slow
     if (dt_us < kEskfMinDtUs || dt_us > kEskfMaxDtUs) {
-        return;
+        return false;
     }
 
     float dt = static_cast<float>(dt_us) * kUsToSec;
@@ -208,7 +209,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     if (!g_eskf.healthy()) {
         g_eskfInitialized = false;
         eskf_note_divergence();  // backoff (runaway-restart brake)
-        return;
+        return false;
     }
 
     uint32_t elapsed = time_us_32() - t0;
@@ -232,6 +233,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     if (g_eskfBufferCount < kEskfBufferSamples) {
         g_eskfBufferCount++;
     }
+    return true;
 }
 
 // ============================================================================
@@ -490,7 +492,8 @@ static void eskf_tick_phase_and_confidence() {
     if (g_eskf.innov_gps_pos_.alpha > max_alpha) max_alpha = g_eskf.innov_gps_pos_.alpha;
     if (g_eskf.innov_gps_vel_.alpha > max_alpha) max_alpha = g_eskf.innov_gps_vel_.alpha;
     ci.max_innov_ratio = max_alpha;
-    // Max P diagonal for attitude and velocity
+    // Max P diagonal for attitude and velocity (UD-lazy P is stale after Bierman)
+    g_eskf.ensure_dense();
     ci.p_att_max = g_eskf.P(0, 0);
     for (int32_t i = 1; i < 3; ++i) {
         if (g_eskf.P(i, i) > ci.p_att_max) ci.p_att_max = g_eskf.P(i, i);
@@ -520,14 +523,16 @@ static void eskf_tick_phase_and_confidence() {
 #endif
 }
 
-// One fused cycle. Predict skip/diverge still updates then publishes;
-// P-growth CR-1 returns first. Split so `eskf_runner_tick` stays in size limits.
+// One fused cycle. dt-skip / diverge / P-growth fail skip measurements + publish.
+// Split so `eskf_runner_tick` stays in size limits.
 static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
 #ifndef ROCKETCHIP_HOST_TEST
     const uint32_t t_fusion = time_us_32();
 #endif
 
-    eskf_run_predict(snap);
+    if (!eskf_run_predict(snap)) {
+        return;
+    }
 
     // P-growth check: catch slow divergence before velocity hits 500 m/s
     if (!g_eskf.check_p_growth(time_us_32())) {

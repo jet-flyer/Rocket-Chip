@@ -342,6 +342,9 @@ static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat
 // ensure_dense, no phase-Q delta).
 // ============================================================================
 void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
+    if (!std::isfinite(dt) || dt <= 0.0F) {
+        return;
+    }
     const Vec3 accel_body = accel_meas - accel_bias;
     const Vec3 gyro_body = gyro_meas - gyro_bias;
 
@@ -1588,6 +1591,7 @@ bool ESKF::check_p_growth(uint32_t now_us) {
     if (p_growth_degraded_) {
         return false;
     }
+    ensure_dense();
 
     if (!p_growth_baseline_set_) {
         snapshot_p_growth_baseline();
