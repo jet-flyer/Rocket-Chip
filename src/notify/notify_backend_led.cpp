@@ -116,9 +116,8 @@ static uint8_t apply_beacon_overlay(uint8_t base, const NotifyState& s) {
 }
 
 // ============================================================================
-// Priority resolver — pure function
-// Iterates categories in order: Fault > Cal > Flight > Radio > Sensor > Idle.
-// First non-zero result wins. Beacon overlay applied after resolution.
+// Priority resolver — Fault > Cal > Flight > Radio > Sensor.
+// First non-zero pattern wins. Idle is not a winner; miss → kSensorNoGps.
 // ============================================================================
 uint8_t resolve_led_pattern(const NotifyState& s) {
     uint8_t p = 0;

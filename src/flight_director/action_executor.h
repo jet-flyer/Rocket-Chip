@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include "flight_state.h"
+#include "rocketchip/led_patterns.h"
 
 namespace rc {
 
@@ -31,23 +32,21 @@ enum class ActionType : uint8_t {
 };
 
 // ============================================================================
-// LED Phase Values — NeoPixel override codes for flight phases.
-// Canonical overlay table is led_patterns.h (cal 0-8, rx 9-11, FD 20+).
+// LED phase codes — aliases of led_patterns.h (SSOT).
+// kLedPhaseFault is unused SET_LED (FD never enter_phase kFault).
+// Numeric 28 in the SSOT is kFdPreArmFail, not a FAULT-phase overlay.
 // ============================================================================
 enum LedPhaseValue : uint8_t {
-    kLedPhaseIdle           = 0,    // No flight override (normal status logic)
-    kLedPhaseArmed          = 20,   // Amber solid
-    kLedPhaseBoost          = 21,   // Red solid
-    kLedPhaseCoast          = 22,   // Yellow solid
-    kLedPhaseDrogueDescent  = 23,   // Red blink
-    kLedPhaseMainDescent    = 24,   // Red blink
-    kLedPhaseLanded         = 25,   // Green slow blink
-    kLedPhaseAbort          = 26,   // Red fast blink
-    kLedPhaseBeacon         = 27,   // White blink (post-landing locator)
-    kLedPhaseFault          = 28,   // Magenta blink — fault-recovery 2026-05-14:
-                                    //   distinct from Abort (red) so operator can
-                                    //   tell "ARM/safety state lost integrity"
-                                    //   apart from "operator-commanded abort"
+    kLedPhaseIdle           = rc::led::kOff,
+    kLedPhaseArmed          = rc::led::kFdArmed,
+    kLedPhaseBoost          = rc::led::kFdBoost,
+    kLedPhaseCoast          = rc::led::kFdCoast,
+    kLedPhaseDrogueDescent  = rc::led::kFdDrogue,
+    kLedPhaseMainDescent    = rc::led::kFdMain,
+    kLedPhaseLanded         = rc::led::kFdLanded,
+    kLedPhaseAbort          = rc::led::kFdAbort,
+    kLedPhaseBeacon         = rc::led::kFdBeacon,
+    kLedPhaseFault          = rc::led::kFdPreArmFail,
 };
 
 // ============================================================================

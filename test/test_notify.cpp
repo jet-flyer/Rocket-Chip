@@ -70,7 +70,7 @@ TEST(NotifyIntentZero, DefaultStateAllNone) {
 
 TEST(NotifyResolver, FaultBeatsPhase) {
     NotifyState s{};
-    s.phase = PhaseIntent::kArmed;   // Would normally show amber solid
+    s.phase = PhaseIntent::kArmed;   // Would normally show red solid
     s.fault = FaultIntent::kImuFail; // Fault overrides
     EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFail);
 }

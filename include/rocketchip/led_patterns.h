@@ -47,8 +47,8 @@ static constexpr uint8_t kFaultPioWdtBeacon     = 17;  // Orange  + White alt 2H
 static constexpr uint8_t kFaultCore1StallBeacon = 18;  // Magenta + White alt 2Hz (Core 1 stall)
 
 // ============================================================================
-// Flight phase overlays (set by Flight Director actions)
-// Values match LedPhaseValue enum in action_executor.h
+// Flight phase overlays (set by Flight Director actions).
+// LedPhaseValue in action_executor.h aliases these codes.
 // ============================================================================
 static constexpr uint8_t kFdArmed     = 20;  // Red solid (AP parity, Stage L — was amber)
 static constexpr uint8_t kFdBoost     = 21;  // Red solid

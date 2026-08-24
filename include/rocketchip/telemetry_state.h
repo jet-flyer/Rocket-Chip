@@ -64,8 +64,10 @@ struct FlightMetadata {
     uint8_t  utc_minute;
     uint8_t  utc_second;
     uint8_t  gps_fix_at_anchor;      // Fix quality when anchor was set
-    uint8_t  _pad[2];                // Align to 14 bytes
+    uint8_t  _pad[2];                // Tail pad; sizeof is 16 (do not pack — flash schema)
 };
+static_assert(sizeof(FlightMetadata) == 16,
+              "FlightMetadata is 14 named bytes; uint32_t align → 16");
 
 // User-configurable display: max (default), min, average.
 // Updated on every frame during an active flight.

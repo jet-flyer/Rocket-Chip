@@ -5,8 +5,8 @@
 //
 // Production API for the notify implementation TUs and AO_Notify:
 //   - resolve_led_pattern: LED priority resolver (Fault > Cal > Flight >
-//     Radio > Sensor > Idle). Called from notify_backend_led_update on
-//     the 33 Hz tick. Not a test double.
+//     Radio > Sensor; idle miss → kSensorNoGps). Called from
+//     notify_backend_led_update on the 33 Hz tick. Not a test double.
 //   - decode_health_faults: used by AO_Notify to map health bytes to
 //     FaultIntent.
 //   - notify_backend_*_update: LED and audio backends. One production

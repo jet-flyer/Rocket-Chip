@@ -26,7 +26,7 @@ inline constexpr ActionEntry kIdleEntry[] = {
 // No exit actions for IDLE
 
 // ============================================================================
-// ARMED — Entry: amber LED. Exit: none.
+// ARMED — Entry: red LED. Exit: none.
 // ============================================================================
 inline constexpr ActionEntry kArmedEntry[] = {
     {ActionType::kSetLed, kLedPhaseArmed},
