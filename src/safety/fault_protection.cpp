@@ -249,14 +249,15 @@ void mpu_setup_stack_guard(uintptr_t stack_bottom) {
     // Region 0: Stack guard. RO-Privileged, Execute-Never. Stack-overflow
     // writes trip a MemManage fault.
     mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stack_bottom & kMpuAddrAlignMask)
+    const uint32_t rbar = (stack_bottom & kMpuAddrAlignMask)
                   | (kMpuShareNonShareable << kMpuRbarShShift)
                   | (kMpuApRoPrivileged << kMpuRbarApShift)
                   | kMpuRbarXnBit;
-
-    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & kMpuAddrAlignMask)
+    const uint32_t rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & kMpuAddrAlignMask)
                   | (0U << kMpuRlarAttrIdxShift)
                   | kMpuRlarEnBit;
+    mpu_hw->rbar = rbar;
+    mpu_hw->rlar = rlar;
 
     // MAIR0 attr 0 = Device-nGnRnE (strictest, no caching)
     mpu_hw->mair[0] = 0;
@@ -264,6 +265,14 @@ void mpu_setup_stack_guard(uintptr_t stack_bottom) {
     mpu_hw->ctrl = kMpuCtrlPrivdefenaBit | kMpuCtrlEnableBit;
     __dsb();
     __isb();
+
+#ifndef ROCKETCHIP_HOST_TEST
+    if (mpu_hw->rbar != rbar || mpu_hw->rlar != rlar ||
+        (mpu_hw->ctrl & (kMpuCtrlPrivdefenaBit | kMpuCtrlEnableBit)) !=
+            (kMpuCtrlPrivdefenaBit | kMpuCtrlEnableBit)) {
+        rc::crash_record_capture(rc::kCrashReasonMpuConfigFail, 0, 0);
+    }
+#endif
 
     scb_hw->shcsr |= kScbShcsrMemFaultEna;
     __dsb();
