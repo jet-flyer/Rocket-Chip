@@ -4,8 +4,8 @@
 // Mission Profile — Flight Configuration Data
 //
 // MissionProfile is the configuration data that feeds the Flight Director.
-// It defines thresholds, timeouts, guard parameters, and abort behavior
-// for a specific vehicle type. The Flight Director reads from a
+// Boot uses rc::kDefaultRocketProfile (compile-time). Flash profile
+// selection is not implemented. The Flight Director reads a
 // const MissionProfile* — it never modifies the profile.
 //
 // Distinct from job.h (device role: vehicle vs station). A vehicle always

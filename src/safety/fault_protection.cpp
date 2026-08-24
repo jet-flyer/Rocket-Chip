@@ -91,7 +91,9 @@ static inline void fault_emit_visible_signal() {
 
 // MemManage / HardFault handler — phase-aware capture-then-dispatch.
 // Capture is no-stack-push. Design: docs/decisions/FAULT_HANDLER_DESIGN.md.
-// Function-size deviation: standards/ACCEPTED_STANDARDS_DEVIATIONS.md (FH-1).
+// Function-size: capture-then-dispatch stays in one handler (no-stack-push).
+// Design record: docs/decisions/FAULT_HANDLER_DESIGN.md. No FH-1 row in
+// ACCEPTED_STANDARDS_DEVIATIONS.md — do not cite a missing register ID.
 
 __attribute__((used))
 void memmanage_fault_handler(void) {

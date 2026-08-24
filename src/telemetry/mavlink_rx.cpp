@@ -199,6 +199,7 @@ static void handle_command_long(MavlinkRxState* state,
     }
 
     case MAV_CMD_PREFLIGHT_CALIBRATION:
+        // Not a live calibration path — ACK is UNSUPPORTED, not ACCEPTED.
         emit_command_ack(state, result, cmd.command, MAV_RESULT_UNSUPPORTED);
         break;
 

@@ -36,7 +36,7 @@ bool dev_debug_menu_enter() {
 // Stage L IVP-L1 HW verify: force a specific LED pattern code for visual check.
 // Blocking input is unsafe in a handler — it would overflow AO event queues
 // (LL Entry 32). Instead, set a "LED test pending" flag; the next keypress
-// received by the main dispatcher falls through to dev_led_test_poll().
+// received by the main dispatcher is fed via dev_led_test_feed().
 static bool g_ledTestPending = false;
 
 static void dev_led_test_force(uint8_t code) {

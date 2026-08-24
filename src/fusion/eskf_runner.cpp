@@ -57,9 +57,6 @@ static constexpr double kGpsCountsToDegrees = 1e-7;
 static constexpr uint32_t kEskfMinDtUs = 1000;     // 1ms
 static constexpr uint32_t kEskfMaxDtUs = 100000;    // 100ms
 
-// ESKF state buffer: 200Hz x 5s = 1000 samples x 68B = 68KB (SRAM)
-static constexpr uint32_t kEskfBufferSamples = 1000;
-
 // GPS session NIS sentinel (larger than any valid NIS)
 static constexpr float kGpsNisSentinel = 1e9F;
 

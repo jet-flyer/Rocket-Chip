@@ -59,9 +59,9 @@ void ws2812_set_pixel_rgb(uint8_t index, uint8_t r, uint8_t g, uint8_t b);
 
 void ws2812_show(void);
 
-// Maps RSSI value (-120 to -40 dBm) to 1-5 lit pixels.
-// Strong (>-70): green. Marginal (-70 to -90): yellow. Weak (<-90): red.
-// No signal: all off with slow red pulse.
+// Maps RSSI to 1–N lit pixels (N = strip length, typically 5).
+// Thresholds in the .cpp: >= -60 all lit, then -70/-80/-95 steps.
+// no_signal: pixel 0 dim red, rest off. Not a pulse.
 void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
 
 // Single lit pixel walks back and forth across the strip at a fixed cadence,

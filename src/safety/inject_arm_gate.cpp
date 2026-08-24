@@ -106,9 +106,8 @@ void test_mode_clear_on_idle_exit() {
     // First clearing gate (per council amendment #2): any state
     // transition out of kIdle force-clears the flag. Once cleared
     // this way, the flag cannot re-arm without a fresh boot + probe
-    // write — because s_magic_observed_at_boot was cleared on the
-    // single-use init read and test_mode_evaluate() observes that
-    // as a hard fail-closed.
+    // write — this function clears g_magicObservedAtBoot. Init sets it
+    // true when the SRAM magic matches; evaluate() will not re-arm.
     g_magicObservedAtBoot = false;
     g_test_mode_enabled = false;
 #ifndef ROCKETCHIP_HOST_TEST

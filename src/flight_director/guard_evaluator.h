@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Guard sustain evaluator: fire after N consecutive true ticks; one false
 // tick resets the count. Unmanaged guards auto-dispatch; managed ones only
-// set sustained[] for the combinator. Inactive in a phase → skip and reset.
+// set GuardState.sustained for the combinator. Inactive in a phase → skip and reset.
 // Model also in docs/IVP.md IVP-71 / IVP-120 and
 // docs/plans/STAGE8_FLIGHT_DIRECTOR.md — this header is not the sole SSOT.
 

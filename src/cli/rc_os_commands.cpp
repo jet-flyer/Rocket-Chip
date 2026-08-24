@@ -155,8 +155,7 @@ static constexpr float kGpsCountsToDegrees = 1.0F / static_cast<float>(kGpsCoord
 static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
-// ESKF state buffer size — must match main.cpp kEskfBufferSamples
-static constexpr uint32_t kEskfBufferSamples = 1000;
+
 
 // I2C alternate addresses for device identification
 static constexpr uint8_t kI2cAddrIcm20948Alt = 0x68;
@@ -736,9 +735,6 @@ static void print_gps_status_boot() {
     }
 }
 
-// Build tag constant — must match main.cpp
-// Build tag from version.h (single source of truth)
-
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
     rc::rc_log("  Build: %s-%s-%s (%s %s)\n",
@@ -886,7 +882,7 @@ void cli_print_boot_summary() {
     }
 }
 
-// Full boot status — called by cli_print_boot_status() and 'b' key
+// Full boot status — 'b' key / connect banner.
 void cli_print_boot_status() {
     cli_print_boot_summary();
     rc::rc_log("\n");

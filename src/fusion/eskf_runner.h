@@ -39,6 +39,9 @@ static constexpr uint32_t kEskfStateSnapBytes = 68U;  // 4+16+12+12+12+12
 static_assert(sizeof(eskf_state_snap_t) == kEskfStateSnapBytes,
               "ESKF snap size changed");
 
+// Circular buffer depth: 200 Hz × 5 s. Single named size (CLI uses this).
+static constexpr uint32_t kEskfBufferSamples = 1000;
+
 // ============================================================================
 // Live GPS session diagnostics for Hardware Status (`s`):
 // movement distance and GPS NIS extrema while GPS updates run.

@@ -93,7 +93,7 @@ static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalle
 
 // ============================================================================
 // Live aliases (non-namespaced). Canonical names are rc::led::k*.
-// Callers: ao_rcos.cpp, ao_led_engine.cpp. Not a dead-compat layer.
+// Callers: ao_rcos.cpp, ao_led_engine.cpp, action_executor.h.
 // ============================================================================
 static constexpr uint8_t kCalNeoOff         = rc::led::kOff;
 static constexpr uint8_t kCalNeoGyro        = rc::led::kCalGyro;

@@ -80,7 +80,7 @@ static_assert(kCmdAckPayloadLen == 10, "CommandAckPayload layout changed");
 // Packet sizes
 constexpr uint8_t kPrimaryHeaderLen   = 6;
 constexpr uint8_t kSecondaryHeaderLen = 4;    // MET ms (big-endian uint32)
-constexpr uint8_t kNavPayloadLen      = 42;   // TelemetryState subset (no _reserved, no met_ms)
+constexpr uint8_t kNavPayloadLen      = 42;   // first 40 B of TelemetryState + 2 pad; no met_ms, no flags
 constexpr uint8_t kCrcLen             = 2;
 constexpr uint8_t kNavPacketLen       = kPrimaryHeaderLen + kSecondaryHeaderLen
                                       + kNavPayloadLen + kCrcLen;  // = 54

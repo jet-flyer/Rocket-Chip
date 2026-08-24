@@ -17,6 +17,12 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## GPS bus-and-transport rule (OPEN) (2026-08-24)
+
+Encode as a standing rule (not only `init_gps()` comments): shared-bus physics first (no I2C GPS on the IMU/baro bus until ICM bypass is up — LL 20), then pack transport capability (UART if the pack exposes it — LL 24; else I2C probe). Closest homes: `docs/SENSOR_ARCHITECTURE.md` (unprotected) or a named edit of `standards/CODING_STANDARDS.md` / `docs/SAD.md`. Not a license to write those files until scheduled.
+
+---
+
 ## Skills to add (OPEN)
 
 Wanted skills — not written yet. Not a license to author them until scheduled.

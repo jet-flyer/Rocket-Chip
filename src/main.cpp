@@ -378,8 +378,8 @@ static void init_application() {
 // ============================================================================
 // Main Loop Tick Functions
 // ============================================================================
-// Each tick function manages one subsystem. nowMs is computed once per loop
-// iteration and passed to all ticks to prevent temporal skew.
+// Idle-path helpers. QV_onIdle does not pass a shared nowMs; each
+// caller that needs time samples it (e.g. AO_Telemetry_cmd_retry_tick).
 
 // PIO watchdog feed replaces SDK watchdog. The PIO heartbeat is
 // the sole health monitor — sets an IRQ flag on timeout, never resets

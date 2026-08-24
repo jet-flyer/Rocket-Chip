@@ -3,8 +3,8 @@
 // CCSDS and MAVLink telemetry encoders
 // CCSDS primary header is big-endian per CCSDS 133.0-B-2 Section 4.1.1.
 // Secondary header contains MET in big-endian uint32.
-// Nav payload is the TelemetryState struct minus met_ms and _reserved
-// (those are in the secondary header or dropped).
+// Nav payload is first 40 B of TelemetryState + 2 pad bytes. met_ms is
+// the secondary header; flags is not transmitted on this 42 B payload.
 // CRC-16-CCITT covers primary header + secondary header + payload
 // (same polynomial as PCM frames).
 
@@ -93,7 +93,7 @@ static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
 // TelemetryState layout:
 //   bytes  0-39: q_w through battery_mv  (40 bytes)
 //   bytes 40-43: met_ms                  (4 bytes — in secondary header)
-//   byte  44:    _reserved               (1 byte — dropped)
+//   byte  44:    flags                   (1 byte — not on this 42 B nav payload)
 static uint8_t* write_nav_payload_42(uint8_t* p, const TelemetryState& telem) {
     const uint8_t* telem_bytes = reinterpret_cast<const uint8_t*>(&telem);
     memcpy(p, telem_bytes, kTelemPayloadBytes);
@@ -176,7 +176,7 @@ void CcsdsEncoder::encode_nav_with_config(const TelemetryState& telem,
 
 // Flight state → MAV_STATE mapping
 // IDLE/LANDED=STANDBY, ARMED/BOOST/COAST/DESCENT=ACTIVE, ERROR=CRITICAL, other=BOOT
-// Wire-format flight state values (telemetry_state.h encoding)
+// Wire-format flight_state bytes used by this encoder (not a table in telemetry_state.h).
 static constexpr uint8_t kFlightStateLanded = 5;
 static constexpr uint8_t kFlightStateError  = 6;
 

@@ -2,8 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Station role — ground receiver configuration
 // RX telemetry reception, CCSDS decode, MAVLink re-encode over USB serial.
-// Sensors and ESKF are inert if hardware is absent (same binary,
-// just different behavioral defaults).
+// Compile-time job pack (ROCKETCHIP_JOB_STATION), not a runtime switch
+// in the vehicle binary. Sensors/ESKF are not started on this role.
 // "Job" = device role, distinct from "MissionProfile" (flight profile data).
 
 #ifndef ROCKETCHIP_JOB_STATION_H

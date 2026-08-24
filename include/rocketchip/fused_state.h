@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // ESKF-internal float32 snapshot — full-precision for local logging
 // FusedState captures the complete ESKF output at a single time step.
-// Populated by eskf_to_fused_state() on Core 0 after each propagation.
+// Populated on Core 0 in AO_Logger after each ESKF epoch (inline copy).
 // Source data: ESKF nominal state + shared_sensor_data_t seqlock fields.
 
 #ifndef ROCKETCHIP_FUSED_STATE_H

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Relay role — range extender
-// RX, validate CCSDS CRC, re-TX. Link-layer only — no payload decode,
+// RX continuous and re-TX. Link-layer only — no payload decode,
 // no AO_Telemetry, no ESKF, no Flight Director.
 
 #ifndef ROCKETCHIP_JOB_RELAY_H
