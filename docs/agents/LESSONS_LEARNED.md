@@ -1797,3 +1797,23 @@ GDB `target extended-remote` **stops the cores** (OpenOCD halt-on-connect) befor
 - `docs/FLASHING.md` Debug probe + E2 troubleshooting (process vs errata).
 - `docs/PIO/PIO_WATCHDOG.md` already wanted a post-flash `reset halt` + `resume` for PIO.
 - 2026-08-20 E2 log row remains the last *counted* E2 incident (picotool `-f` + no extra reboot).
+
+---
+
+## Entry 47: Host ctest Green Is Not a Pico Firmware Compile
+
+**Date:** 2026-08-24
+**Context:** L2-P5 overlay merge to `main`. Worktree commits had passed host ctest 860/860. First post-merge `cmake --build build_flight` failed.
+**Severity:** High-process — a green host gate hid two `-Werror` failures that exist only in the target ELF.
+
+### Problem
+`eskf_runner.cpp` called private `ESKF::ensure_dense()`. Public API is `sync_dense_covariance()`. Host tests compile the runner under `ROCKETCHIP_HOST_TEST` without the Pico `-Werror` set that the flight ELF uses, so the private-access error never fired on ctest. Same sitting: `Q_onError` is `Q_NORETURN` but `fault_dispatch_by_phase()` was not marked `[[noreturn]]` even though both branches call noreturn helpers.
+
+### Prevention
+1. Station/vehicle `cmake --build build_flight` / `build_station_flight` before a firmware merge/push (checklist item 6) — do not infer ELF compile from host ctest.
+2. Prefer the public wrapper (`sync_dense_covariance`) over a private representation helper.
+3. If a function is `Q_NORETURN` / `[[noreturn]]`, every path it calls that cannot return must be marked the same, or the compiler reports "noreturn function does return."
+
+### Related
+- LL 43 — a green static gate is negative evidence the check applied.
+- CHANGELOG `2026-08-24-003`; fix SHA `d6a937d`.

@@ -1,18 +1,23 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-08-17 (L2-P5 walk WB drained; formal walk close — see CHANGELOG)
+**Last Updated:** 2026-08-24 (L2-P5 Cycle 4 overlay remediates closed and merged — see CHANGELOG)
 
-## L2-P5 manual standards walk (Cycle 4) — itinerary COMPLETE; walk WB CLOSED
+## L2-P5 Cycle 4 — itinerary COMPLETE; walk WB CLOSED; overlay remediates MERGED
 
 Owner-led file-by-file semantic walk of in-scope `src/` + `include/` firmware
 (**121 / 121** itinerary leaves). Observations **WN-001–WN-327** in
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. **Reviewed, not certified.**
 
-**Walk WB closed 2026-08-17:** `L2P5_WALK_WHITEBOARD.md` deleted after per-row landing
-(not a bulk park). Active leftovers are on `AGENT_WHITEBOARD.md` (agent re-walk checks,
-P10-9 sites, comment/Doxygen order, HW-agnostic rule, safety/ops inventory). **Next:**
-WN cluster index, then disposition / Plan-3; L2-P10 CLA-RBM when scheduled. L2-P5
-problem-report itself stays open until Cycle-4 remediation closes it.
+**Walk WB closed 2026-08-17.** **Disposition Phases 3–4 closed 2026-08-24** on `main`
+(CHANGELOG `2026-08-23-002` owner-chunk; `2026-08-24-002` Grok+Claude overlay;
+wrap `2026-08-24-003`). Combined overlay: `L2P5_GROK_CLAUDE_OVERLAY.md`. Log:
+`L2P5_DISPOSITION_LOG.md`. Rem WB deleted. Worktree `grok/l2p5-disposition` removed.
+
+**Still open (later sittings, on `AGENT_WHITEBOARD.md`):** first-flight prod strip of
+test/inject, Notify/LED overhaul, leftover sittings (HAB `EMERG_DEPLOY`, PIO WDT,
+Estes vs station ARM, Tiny 2350 pin map), codegen audit, early-impl table. Sitting 6
+RF skipped (WN-100). **Next:** those rows when scheduled; Stage 17 tapered buildup;
+L2-P10 CLA-RBM when scheduled.
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 

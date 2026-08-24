@@ -191,7 +191,7 @@ rocketchip/
 │
 ├── include/
 │   └── rocketchip/                # Public headers
-│       ├── config.h               # Build configuration, feature flags
+│       ├── board.h / job.h / version.h / rc_debug.h  # grab-bag config.h removed (L2-P5)
 │       ├── pins.h                 # GPIO assignments (from HARDWARE.md)
 │       └── features.h             # Tier feature detection
 │

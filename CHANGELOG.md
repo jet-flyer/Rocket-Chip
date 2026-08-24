@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-24-003 | Grok 4.6 (Build CLI) | documentation, process
+
+**L2-P5 Cycle 4 overlay merged to `main`; worktree torn down; milestone wrap.** Fast-forward `grok/l2p5-disposition` then `d6a937d` (target compile: public `sync_dense_covariance`, `Q_onError` noreturn — host ctest does not build the Pico ELF). Rem WB deleted by the merge. Join dump tracked as `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json`. Next: WB leftover sittings / first-flight prod strip / Stage 17. Verified: host ctest 859/859; vehicle + station `rocketchip.elf` both link; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; SPIN_OK_31; full-tree clang-tidy clean.
+
 ### 2026-08-24-002 | Grok 4.6 (Build CLI) | refactor, bugfix, standards
 
 **L2-P5 Phase 4 Grok+Claude overlay remainder closed on `grok/l2p5-disposition` (not merged yet).** After `2026-08-24-001`: class-design, comment-contract, HW-leakage leftovers, safety/ops, test/inject comments, earn-rent LED/`FlightMetadata`, version/`RadioConfig`, fusion/math/cal, P10-9 leftover comments, one-off (44). Combined overlay lists are the sitting unit; labels in `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Rem WB drained (survivors on `AGENT_WHITEBOARD.md`). Tiny 038/039 wait allowlist sitting. Verified: host ctest 860/860; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; master SPIN **SPIN_OK_31** (6 models); station skipped (not on bus).

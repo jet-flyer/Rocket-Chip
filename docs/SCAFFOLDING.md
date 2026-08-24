@@ -101,18 +101,18 @@ rocketchip/
 │
 ├── include/
 │   └── rocketchip/
-│       ├── config.h               # DBG_* macros, build-type config, feature flags
 │       ├── board.h                # Compile-time board selector (Feather/FruitJam/Tiny/Pico2)
 │       ├── board_feather_rp2350.h # Feather RP2350 HSTX pin config
 │       ├── board_fruit_jam.h      # Fruit Jam pin config (I2C0, SPI1, 5 NeoPixels)
 │       ├── board_tiny_2350_common.h  # Pimoroni Tiny 2350 family shared pin map (scaffolding)
 │       ├── board_tiny_2350_plus.h    # Tiny 2350+ variant overrides (gated by TINY_2350_BRINGUP_OK)
 │       ├── board_pico2.h          # Raspberry Pi Pico 2 pin map (gated by PICO2_BRINGUP_OK)
-│       ├── job.h                  # Device role selector (Vehicle/Station/Relay)
+│       ├── job.h                  # Device role selector + capability predicates (Vehicle/Station/Relay)
 │       ├── job_vehicle.h          # Vehicle role constants
 │       ├── job_station.h          # Station role constants
 │       ├── job_relay.h            # Relay role constants
-│       ├── job_capabilities.h     # Role-scoped capability predicates (IVP-142c)
+│       ├── version.h              # kFirmwareVersion / RC_VERSION_* trio
+│       ├── rc_debug.h             # DBG_* macros
 │       ├── rc_log.h               # Log channel (rc_log) + buffer formatter (rc_snprintf) + strbuf (R-5, 2026-05-17)
 │       ├── ao_signals.h           # System-wide AO signal catalog + event structs
 │       ├── radio_scheduler.h      # Half-duplex TX-priority state machine
