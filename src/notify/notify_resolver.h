@@ -28,7 +28,9 @@ namespace rc {
 namespace notify {
 
 // Resolve the highest-priority active intent in NotifyState and return
-// its corresponding rc::led::k* pattern code.
+// its corresponding rc::led::k* pattern code. Beacon overlay
+// (beacon_manual / beacon_auto) is applied after that resolution —
+// see apply_beacon_overlay in notify_backend_led.cpp.
 uint8_t resolve_led_pattern(const NotifyState& state);
 
 void notify_backend_led_update(const NotifyState& state);

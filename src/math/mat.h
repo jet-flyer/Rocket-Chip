@@ -219,8 +219,8 @@ void add_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
 // ESKF-specific free functions
 // ============================================================================
 
-// Dense F*P*F^T — used as verification path against sparse version.
-// P must be square NxN, F must be NxN.
+// Dense F*P*F^T for host tests (test_mat.cpp). Flight sparse check is
+// dense_fpft_add in eskf.cpp, not this helper.
 template <int32_t N>
 Mat<N, N> fpft_dense(const Mat<N, N>& F, const Mat<N, N>& P) {
     // Compute F*P first, then (F*P)*F^T

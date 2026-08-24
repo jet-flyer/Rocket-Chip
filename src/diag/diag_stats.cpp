@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
 // Soak dump. t0_preconditions: identity + RegVersion (Frankenstein catch).
-// dump/msp_tick: read-only, no test_mode gate.
+// dump: read-only. msp_tick: writes MSP watermarks from QV idle.
 
 // -------------------------------------------------------------------
 // ALWAYS-ON block: T=0 preconditions for soak procedures

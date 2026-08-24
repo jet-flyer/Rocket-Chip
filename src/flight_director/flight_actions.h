@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flight Actions — constexpr entry/exit/transition lists per phase.
+// Flight Actions — constexpr entry and transition lists per phase.
+// QEP handlers run entry + transition lists via action_execute_list().
+// Exit table is reserved (all count 0); no Q_EXIT_SIG dispatch.
 // FIRE_PYRO only on transitions (test_action_executor.cpp).
 // LED codes: LedPhaseValue; operator colors: docs/USER_GUIDE.md.
 //============================================================================
@@ -128,10 +130,6 @@ inline constexpr ActionEntry kFaultEntry[] = {
 struct PhaseActions {
     const ActionEntry* entries;
     uint32_t count;
-};
-
-inline constexpr ActionEntry kEmptyActions[] = {
-    {ActionType::kReportState, 0},  // Placeholder — never executed with count=0
 };
 
 // Entry actions indexed by FlightPhase enum value

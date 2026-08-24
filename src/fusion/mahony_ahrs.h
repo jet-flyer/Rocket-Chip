@@ -86,7 +86,7 @@ struct MahonyAHRS {
     // Returns the minimum rotation angle to align a to b.
     static float divergence_rad(const Quat& a, const Quat& b);
 
-    // Health check: NaN/Inf detection in quaternion components.
+    // False if not initialized. Else NaN/Inf check on quaternion components.
     bool healthy() const;
 
     // End startup boost immediately (called on ARM transition).

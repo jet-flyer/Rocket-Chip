@@ -98,8 +98,7 @@ void bind_gps_i2c_backend() {
 }  // namespace
 
 // ============================================================================
-// Init: Hardware (fault handlers, MPU, GPIO, NeoPixel, Core 1, I2C, sensors)
-// Returns true if previous reboot was caused by watchdog.
+// Init helpers (fault handlers, MPU, GPIO, NeoPixel, Core 1, I2C, sensors).
 // ============================================================================
 
 // Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
@@ -212,7 +211,7 @@ static void init_early_hw() {
         g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                     board::kNeoPixelCount);
     }
-    (void)rc::mcu_temp_init();
+    (void)rc::mcu_temp_init();  // always true; ADC enable has no fail return
 }
 
 static void init_peripherals() {

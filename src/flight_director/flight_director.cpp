@@ -4,8 +4,8 @@
 // Flight Director — QEP State Machine Implementation
 //
 // Nine state handler functions implementing the flight phase statechart.
-// Each handler processes QEP signals (Q_ENTRY_SIG, Q_EXIT_SIG, user signals)
-// and returns Q_HANDLED(), Q_TRAN(), or Q_SUPER().
+// Each handler processes QEP signals (Q_ENTRY_SIG, user signals).
+// No Q_EXIT_SIG dispatch. Returns Q_HANDLED(), Q_TRAN(), or Q_SUPER().
 //
 // ABORT: BOOST/COAST fire drogue; DESCENT is no-op (chutes already out).
 // Pad abort timeout → IDLE. In-flight abort stays in ABORT (beacon, no LANDED).

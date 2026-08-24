@@ -148,7 +148,7 @@ float MahonyAHRS::divergence_rad(const Quat& a, const Quat& b) {
 }
 
 // ============================================================================
-// healthy: NaN/Inf check on quaternion components
+// healthy: uninitialized first, then NaN/Inf on quaternion components
 // ============================================================================
 bool MahonyAHRS::healthy() const {
     if (!initialized_) {

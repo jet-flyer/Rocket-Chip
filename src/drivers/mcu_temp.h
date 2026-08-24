@@ -20,11 +20,11 @@ inline constexpr float kMcuTempSentinelC = -999.0F;
 inline constexpr float kMcuTempAbsentBelowC = -100.0F;
 
 // Initialize ADC + enable on-die temp sensor. Idempotent.
-// Returns true on success (ADC block came up). Safe to call even if
-// ADC is later used by other consumers — this just enables the sensor.
+// Always returns true (SDK adc_init / adc_set_temp_sensor_enabled are
+// void). available() means init ran, not that a sample was verified.
 bool mcu_temp_init();
 
-// Returns true after mcu_temp_init() has succeeded.
+// True after mcu_temp_init() has run. Not an ADC self-test.
 bool mcu_temp_available();
 
 // Read one temperature sample in degrees Celsius. Returns
