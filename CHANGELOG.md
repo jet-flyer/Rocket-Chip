@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-24-002 | Grok 4.6 (Build CLI) | refactor, bugfix, standards
+
+**L2-P5 Phase 4 Grok+Claude overlay remainder closed on `grok/l2p5-disposition` (not merged yet).** After `2026-08-24-001`: class-design, comment-contract, HW-leakage leftovers, safety/ops, test/inject comments, earn-rent LED/`FlightMetadata`, version/`RadioConfig`, fusion/math/cal, P10-9 leftover comments, one-off (44). Combined overlay lists are the sitting unit; labels in `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Rem WB drained (survivors on `AGENT_WHITEBOARD.md`). Tiny 038/039 wait allowlist sitting. Verified: host ctest 860/860; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; master SPIN **SPIN_OK_31** (6 models); station skipped (not on bus).
+
 ### 2026-08-24-001 | Grok 4.6 (Build CLI) | refactor, bugfix, standards, hardware
 
 **L2-P5 Phase 4 combined overlay through phantom/missing symbols, still on `grok/l2p5-disposition` (not merged).** Closed sittings: QMI IRQ fence (GWF-311), PSRAM remaining, dashboard display lies, log-ring failed-init, GPS UART (Core-0 reinit, ring atomics, flying gate; deleted `init_gps_early`), cross-core atomics/`sensor_seqlock.h` SSOT, phantom comment pack. `standards/RP2350_ERRATA.md` added to hard-protect. Next: Class-design / published guts — summaries posted, wait owner labels before `src/`. GPS bus-and-transport standing-rule home still OPEN on the WB. Detail: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` / `L2P5_DISPOSITION_PLAN.md`. Verified: host ctest via pre-commit (859/859 at QMI fence); vehicle 3-boot `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
