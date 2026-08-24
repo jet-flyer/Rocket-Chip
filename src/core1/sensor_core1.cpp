@@ -211,7 +211,7 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
             baro_dps310_start_continuous();
             g_baroReinitAttempts++;
         } else {
-            g_baroInitialized = false;  // Declare baro dead
+            g_baroInitialized.store(false, std::memory_order_release);  // Declare baro dead
         }
         g_baroConsecFail = 0;
     } else if (g_baroConsecFail >= kCore1ConsecFailBusRecover
@@ -413,13 +413,15 @@ static void core1_sensor_pass(shared_sensor_data_t* local_data,
     }
 
     cyc->baroCycle++;
-    if (cyc->baroCycle >= kCore1BaroDivider && g_baroInitialized) {
+    if (cyc->baroCycle >= kCore1BaroDivider &&
+        g_baroInitialized.load(std::memory_order_acquire)) {
         cyc->baroCycle = 0;
         core1_read_baro(local_data);
     }
 
     cyc->gpsCycle++;
-    if (cyc->gpsCycle >= kCore1GpsDivider && g_gpsInitialized
+    if (cyc->gpsCycle >= kCore1GpsDivider &&
+        g_gpsInitialized.load(std::memory_order_acquire)
         && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
         cyc->gpsCycle = 0;
         core1_read_gps(local_data, &cyc->lastGpsReadUs);

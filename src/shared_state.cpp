@@ -9,9 +9,9 @@
 bool g_neopixelInitialized = false;
 bool g_i2cInitialized = false;
 bool g_imuInitialized = false;
-bool g_baroInitialized = false;
+std::atomic<bool> g_baroInitialized{false};
 bool g_baroContinuous = false;
-bool g_gpsInitialized = false;
+std::atomic<bool> g_gpsInitialized{false};
 bool g_spiInitialized = false;
 
 bool g_imuInitAttempted = false;
@@ -49,6 +49,7 @@ void core1_i2c_pause() {
     if (!g_sensorPhaseActive) {
         return;
     }
+    // Not nestable: already-paused is success, not a stacked session.
     if (g_core1I2CPaused.load(std::memory_order_acquire)) {
         return;
     }
@@ -66,9 +67,8 @@ void core1_i2c_resume() {
     if (!g_sensorPhaseActive) {
         return;
     }
-    // Clear both flags so a subsequent pause() doesn't observe a stale
-    // paused-ack. Without this, Core 1 might not run between back-to-back
-    // pause calls, leaving paused-ack stuck true.
+    // Clear both flags so a later pause() doesn't observe a stale ack.
+    // Not nestable — there is no session count.
     g_core1I2CPaused.store(false, std::memory_order_release);
     g_core1PauseI2C.store(false, std::memory_order_release);
 }

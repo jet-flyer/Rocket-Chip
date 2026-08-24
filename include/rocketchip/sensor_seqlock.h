@@ -141,7 +141,14 @@ inline bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
 
 extern sensor_seqlock_t g_sensorSeqlock;
 
-// Cross-core signaling (atomic flags - FIFO reserved by multicore_lockout)
+// Cross-core signaling (atomic flags — FIFO reserved by multicore_lockout).
+// Declaration home for these six; shared_state.h includes this header.
+// g_startSensorPhase: Core 0 release-store after init; Core 1 waits
+// g_sensorPhaseDone: unused (handshake is g_startSensorPhase)
+// g_calReloadPending: Core 0/hooks set; Core 1 consume+clear
+// g_core1PauseI2C: Core 0 pause request; Core 1 observes
+// g_core1I2CPaused: Core 1 ack; Core 0 waits / clears on resume
+// g_core1LockoutReady: Core 1 set; Core 0 waits at boot
 extern std::atomic<bool> g_startSensorPhase;
 extern std::atomic<bool> g_sensorPhaseDone;
 extern std::atomic<bool> g_calReloadPending;

@@ -109,7 +109,7 @@ static void init_gps() {
     if (board::kUartGpsAvailable) {
         g_gpsInitAttempted = true;
         if (gps_uart_init()) {
-            g_gpsInitialized = true;
+            g_gpsInitialized.store(true, std::memory_order_release);
             bind_gps_uart_backend();
             return;
         }
@@ -125,7 +125,7 @@ static void init_gps() {
     // bytes are deliberately discarded (LL 20). (void) is the honest marker.
     (void)i2c_bus_read(kGpsPa1010dAddr, gps_drain, sizeof(gps_drain));
     if (gps_pa1010d_init()) {
-        g_gpsInitialized = true;
+        g_gpsInitialized.store(true, std::memory_order_release);
         bind_gps_i2c_backend();
     }
 }
@@ -157,13 +157,14 @@ static void init_sensors() {
 
     if (baro_detected) {
         g_baroInitAttempted = true;
-        g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
-        if (g_baroInitialized) {
+        g_baroInitialized.store(baro_dps310_init(kBaroDps310AddrDefault),
+                                std::memory_order_release);
+        if (g_baroInitialized.load(std::memory_order_acquire)) {
             g_baroContinuous = baro_dps310_start_continuous();
         }
     }
 
-    if (!g_gpsInitialized) {
+    if (!g_gpsInitialized.load(std::memory_order_acquire)) {
         init_gps();
     }
 }
@@ -202,7 +203,7 @@ static void init_gps_early() {
     if (!g_i2cInitialized) { return; }
     g_gpsInitAttempted = true;
     if (gps_pa1010d_init()) {
-        g_gpsInitialized = true;
+        g_gpsInitialized.store(true, std::memory_order_release);
         bind_gps_i2c_backend();
     }
 }
@@ -338,9 +339,19 @@ static void init_baro_auto_zero() {
     if (!g_baroContinuous) { return; }
     const rc::BootVerdict boot_verdict = rc::anomalous_boot_verdict();
     if (boot_verdict == rc::BootVerdict::kProbablyOnPad) {
+        // kBaroCalSamples = 50 at ~31 Hz ≈ 1.6 s (calibration_manager.cpp).
+        static constexpr uint32_t kBaroAutoZeroMaxMs = 5000;  // ~3× that window
         calibration_start_baro();
-        while (calibration_is_active()) {
+        uint32_t waited_ms = 0;
+        while (calibration_is_active() && waited_ms < kBaroAutoZeroMaxMs) {
             sleep_ms(50);
+            waited_ms += 50;
+        }
+        if (calibration_is_active()) {
+            calibration_reset_state();
+            DBG_PRINT("BOOT: auto-zero-baro TIMEOUT after %lu ms — skipped",
+                      static_cast<unsigned long>(waited_ms));
+            return;
         }
         calibration_reset_state();
         return;
@@ -362,8 +373,13 @@ static void init_application() {
     init_core1_role();
 
     // PSRAM flash-safe test (deferred until Core 1 lockout is ready).
+    // Pause Core 1 I2C first — lockout halt does not drain an in-flight
+    // transaction (LL 31 / R-17), same wrapping as flight-log flush.
     if (g_psramSize > 0 && g_psramSelfTestPassed) {
+        rc::core1_i2c_pause();
         g_psramFlashSafePassed = rc::psram_flash_safe_test();
+        (void)i2c_bus_reset();
+        rc::core1_i2c_resume();
     }
 
     init_baro_auto_zero();
@@ -415,7 +431,7 @@ extern "C" void qv_idle_bridge(void) {
 
     if (gps_uart_take_reinit_request()) {
         if (!gps_uart_reinit()) {
-            g_gpsInitialized = false;
+            g_gpsInitialized.store(false, std::memory_order_release);
         }
     }
 

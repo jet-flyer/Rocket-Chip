@@ -353,7 +353,7 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
                        snap.gps_lon_1e7 / kGpsCoordScale);
             }
         }
-    } else if (g_gpsInitialized) {
+    } else if (g_gpsInitialized.load(std::memory_order_acquire)) {
         rc::rc_log("GPS (%s): initialized, no reads yet\n", gps_label);
     } else {
         rc::rc_log("GPS: not detected\n");
@@ -617,11 +617,11 @@ static void print_imu_status() {
 }
 
 static void print_baro_status() {
-    if (g_baroInitialized && g_baroContinuous) {
+    if (g_baroInitialized.load(std::memory_order_acquire) && g_baroContinuous) {
         rc::rc_log("[PASS] DPS310 init OK, continuous mode active\n");
         return;
     }
-    if (g_baroInitialized) {
+    if (g_baroInitialized.load(std::memory_order_acquire)) {
         rc::rc_log("[WARN] DPS310 init OK, continuous mode failed\n");
         return;
     }
@@ -630,7 +630,7 @@ static void print_baro_status() {
 }
 
 static void print_gps_status() {
-    if (g_gpsInitialized) {
+    if (g_gpsInitialized.load(std::memory_order_acquire)) {
         rc::rc_log(g_gpsTransport == GPS_TRANSPORT_UART
                    ? "[PASS] GPS init (UART on GPIO0/1, 57600 baud)\n"
                    : "[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
@@ -718,7 +718,7 @@ static void print_gps_status_boot() {
                g_bestGpsFix.lat_1e7 / kGpsCoordScale,
                g_bestGpsFix.lon_1e7 / kGpsCoordScale,
                (double)g_bestGpsFix.alt_msl_m);
-    } else if (g_gpsInitialized) {
+    } else if (g_gpsInitialized.load(std::memory_order_acquire)) {
         rc::rc_log("  Best GPS: no fix acquired yet\n");
     }
 
@@ -814,8 +814,10 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
         if (initialized) { ++pass; } else { ++fail; }
     };
     check_sensor(g_imuInitAttempted, g_imuInitialized);   // ICM-20948
-    check_sensor(g_baroInitAttempted, g_baroInitialized); // DPS310
-    check_sensor(g_gpsInitAttempted, g_gpsInitialized);   // GPS
+    check_sensor(g_baroInitAttempted,
+                 g_baroInitialized.load(std::memory_order_acquire)); // DPS310
+    check_sensor(g_gpsInitAttempted,
+                 g_gpsInitialized.load(std::memory_order_acquire));   // GPS
     // Same predicate as print_hw_failures: radio only if SPI came up.
     if (g_spiInitialized) {
         check(AO_Radio_get_state()->initialized);
@@ -832,8 +834,14 @@ static void print_hw_failures() {
     if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
     if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
     if (g_imuInitAttempted  && !g_imuInitialized)  { rc::rc_log("  [FAIL] ICM-20948 IMU\n"); }
-    if (g_baroInitAttempted && !g_baroInitialized) { rc::rc_log("  [FAIL] DPS310 barometer\n"); }
-    if (g_gpsInitAttempted  && !g_gpsInitialized)  { rc::rc_log("  [FAIL] GPS\n"); }
+    if (g_baroInitAttempted &&
+        !g_baroInitialized.load(std::memory_order_acquire)) {
+        rc::rc_log("  [FAIL] DPS310 barometer\n");
+    }
+    if (g_gpsInitAttempted &&
+        !g_gpsInitialized.load(std::memory_order_acquire)) {
+        rc::rc_log("  [FAIL] GPS\n");
+    }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
         rc::rc_log("  [FAIL] Radio\n");
     }
@@ -1310,7 +1318,7 @@ static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
 
 static void cmd_station_gps() {
     if constexpr (!job::kRadioModeRx) { return; }
-    if (!g_gpsInitialized) {
+    if (!g_gpsInitialized.load(std::memory_order_acquire)) {
         rc::rc_log("Station GPS: not connected\n");
         return;
     }
@@ -1343,7 +1351,8 @@ static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
 
 static void cmd_station_distance() {
     if constexpr (!job::kRadioModeRx) { return; }
-    if (!g_gpsInitialized || g_bestGpsFix.fix_type < 2) {
+    if (!g_gpsInitialized.load(std::memory_order_acquire) ||
+        g_bestGpsFix.fix_type < 2) {
         rc::rc_log("Distance: station GPS has no fix\n");
         return;
     }

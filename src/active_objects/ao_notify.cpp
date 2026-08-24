@@ -124,7 +124,7 @@ static void notify_evaluate_sensor_status(NotifyAo * const me,
         me->state.sensor = SensorIntent::kTimeout;
     } else if (!eskf_runner_is_initialized()) {
         me->state.sensor = SensorIntent::kEskfInit;
-    } else if (g_gpsInitialized) {
+    } else if (g_gpsInitialized.load(std::memory_order_acquire)) {
         if (snap->gps_fix_type >= 3) {
             me->state.sensor = SensorIntent::kGps3d;
         } else if (snap->gps_fix_type == 2) {

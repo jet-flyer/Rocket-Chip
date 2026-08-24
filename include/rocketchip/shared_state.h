@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Cross-core and CLI-visible globals. Core 0 initializes; Core 1 reads
-// most sensor flags and g_gpsTransport; CLI reads status.
+// Cross-core and CLI-visible globals. Definitions in shared_state.cpp.
+// Seqlock + signaling atomics are declared in sensor_seqlock.h (included
+// below) — do not re-extern them here.
 
 #ifndef ROCKETCHIP_SHARED_STATE_H
 #define ROCKETCHIP_SHARED_STATE_H
@@ -18,26 +19,35 @@
 // Global State
 // ============================================================================
 
-// Sensor initialization flags
-extern bool g_neopixelInitialized;      // Core 1 reads
-extern bool g_i2cInitialized;           // CLI reads
-extern bool g_imuInitialized;           // Core 1 reads
-extern bool g_baroInitialized;          // Core 1 reads/writes
-extern bool g_baroContinuous;           // Core 1 reads
-extern bool g_gpsInitialized;           // Core 1 reads/writes
-extern bool g_spiInitialized;           // CLI reads
+// Sensor initialization flags. Core 0 writes during bring-up.
+// g_neopixelInitialized / g_i2cInitialized / g_spiInitialized / g_baroContinuous:
+//   Core 0 write, Core 0 CLI/status read — not a Core 1 object.
+// g_imuInitialized: Core 0 write before g_startSensorPhase; Core 1 reads after.
+extern bool g_neopixelInitialized;
+extern bool g_i2cInitialized;
+extern bool g_imuInitialized;
+extern bool g_baroContinuous;
+extern bool g_spiInitialized;
+
+// Live after handoff (two cores). Release-store / acquire-load.
+// g_baroInitialized: Core 0 init; Core 1 may store false (device dead).
+// g_gpsInitialized: Core 0 init and UART-reinit fail; Core 1 reads.
+extern std::atomic<bool> g_baroInitialized;
+extern std::atomic<bool> g_gpsInitialized;
 
 // Distinguishes "attempted and failed" from "not present on this role".
+// Core 0 write, Core 0 CLI/boot-summary read.
 extern bool g_imuInitAttempted;
 extern bool g_baroInitAttempted;
 extern bool g_gpsInitAttempted;
 
-// PSRAM state. Ring uses PSRAM only if size > 0 and both tests pass.
+// PSRAM state. Core 0 write during boot; logger/CLI read. Ring uses PSRAM
+// only if size > 0 and both tests pass.
 extern size_t g_psramSize;
 extern bool g_psramSelfTestPassed;
 extern bool g_psramFlashSafePassed;
 
-// Calibration storage
+// Calibration storage. Core 0 write at boot, Core 0 read.
 extern bool g_calStorageInitialized;
 
 // GPS transport. Core 0 writes once in init_sensors() before releasing
@@ -52,22 +62,12 @@ extern gps_transport_t g_gpsTransport;
 // rc_os_i2c_scan_allowed is false (vehicle after Core 1 launch).
 extern icm20948_t g_imu;
 
-// Sensor seqlock (Core 1 writer, Core 0 reader)
-extern sensor_seqlock_t g_sensorSeqlock;
-
-// Cross-core synchronization atomics
-extern std::atomic<bool> g_startSensorPhase;
-extern std::atomic<bool> g_sensorPhaseDone;
-extern std::atomic<bool> g_calReloadPending;
-extern std::atomic<bool> g_core1PauseI2C;
-extern std::atomic<bool> g_core1I2CPaused;
-extern std::atomic<bool> g_core1LockoutReady;
-
-// Sensor phase flag (Core 0 write, Core 0/Core 1 read for gating)
+// Sensor phase flag. Core 0 write, Core 0 read (pause, ESKF tick, cal_hooks).
 extern bool g_sensorPhaseActive;
 
 // Cooperative pause of Core 1 I2C around flash_safe_execute (R-17 / LL 31).
-// Distinct from g_calReloadPending (cal-only). May return after ~100 ms
+// Distinct from g_calReloadPending (cal-only). Not nestable: a second
+// pause while already paused returns immediately. May return after ~100 ms
 // without an ack; callers still run post-flash i2c_bus_reset().
 namespace rc {
 void core1_i2c_pause();

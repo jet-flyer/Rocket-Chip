@@ -170,7 +170,7 @@ static HealthLevel evaluate_imu(const shared_sensor_data_t& snap) {
 // ============================================================================
 
 static HealthLevel evaluate_baro(const shared_sensor_data_t& snap) {
-    if (!g_baroInitialized) {
+    if (!g_baroInitialized.load(std::memory_order_acquire)) {
         return kHealthAbsent;
     }
 
@@ -248,7 +248,7 @@ static HealthLevel evaluate_mcu_temp(const shared_sensor_data_t& snap) {
 // ============================================================================
 
 static HealthLevel evaluate_gps(const shared_sensor_data_t& snap) {
-    if (!g_gpsInitialized) {
+    if (!g_gpsInitialized.load(std::memory_order_acquire)) {
         return kHealthAbsent;
     }
 
@@ -751,7 +751,7 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     gng->prior_brownout_clear  = !g_priorBrownoutLatched;
 
     // Tier 2: Profile -- GPS needs fresh snapshot
-    gng->gps_has_lock = g_gpsInitialized &&
+    gng->gps_has_lock = g_gpsInitialized.load(std::memory_order_acquire) &&
                         snap.gps_fix_type >= 2 &&
                         snap.gps_satellites >= 4;
 

@@ -47,23 +47,18 @@ void station_idle_tick_init() {
 }
 
 void station_idle_tick() {
-    if (!g_gpsInitialized) {
-        return;
-    }
-
     const uint32_t now_us = time_us_32();
     if ((now_us - g_lastTickUs) < kStationGpsTickIntervalUs) {
         return;
     }
     g_lastTickUs = now_us;
 
-    // Shared helper: polls the bound GPS driver, applies the I2C SDA
-    // settling delay when transport is I2C, runs the hold-on-valid
-    // pattern for burst-then-silent NMEA cadence, and updates the
-    // best-fix diagnostic.
-    core1_read_gps(&g_localData, &g_lastGpsReadUs);
+    // GPS poll is optional; MCU-temp still runs without a GPS (CW-B30-02).
+    if (g_gpsInitialized.load(std::memory_order_acquire)) {
+        core1_read_gps(&g_localData, &g_lastGpsReadUs);
+    }
 
-    // MCU temp at ~1 Hz (every 10th GPS tick at 10 Hz).
+    // MCU temp at ~1 Hz (every 10th outer tick at 10 Hz).
     g_mcuTempCycle++;
     if (g_mcuTempCycle >= kStationMcuTempDivider && mcu_temp_available()) {
         g_mcuTempCycle = 0;
