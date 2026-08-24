@@ -1,513 +1,538 @@
 #!/usr/bin/env python3
 """
-RocketChip Computational Load Analysis (CLA) Data Collection Script
+CLA snapshot: measured clock/load from a running vehicle.
 
-Collects timing and performance data from a running RocketChip device via:
-  1. Serial CLI commands ('s' for sensor status, 'e' for ESKF status)
-  2. GDB/OpenOCD memory reads for stack high-water marks and internal counters
+Replaces the Stage-7 superloop soak (periodic main-menu 's'/'e' + optional
+GDB). After the AO/QV migration those keys live under the debug menu, 'e'
+is a 1 Hz stream we do not need ('s' already prints predict/full-tick and
+NIS), and Windows GDB extended-remote is not the stack path (diag 'd' MSP).
 
-Requirements:
-  - pyserial: pip install pyserial
-  - Device connected via USB (COM7)
-  - For stack analysis: OpenOCD running with debug probe connected
+Method (idle window, no CLI spam during the wait):
+  1. kMenu -> debug ('q')
+  2. 's' at T=0  (sensor counts + ESKF bench already compiled in)
+  3. wait --duration seconds with no keys
+  4. 's' at T=end (rate = delta counts / dt)
+  5. 'd' once    (T=0 identity, AO queues, MSP depth, rc_log high-water)
+  6. 'z' back to main
+
+Duration default 60 s: same window the 2026-03-08 CLA used to validate that
+predict avg was within 3% of the 270 s run (COMPUTATIONAL_LOAD_ANALYSIS.md
+§3.2). Pass --duration 270 to match that longer soak.
+
+ESKF epoch: idle-bridge runs every kEskfImuDivider=5 IMU samples → 200 Hz
+at 1 kHz IMU (src/fusion/eskf_runner.cpp). Duty% = avg_us / 5000 * 100.
 
 Usage:
-  python scripts/cla_collect.py                       # CLI-only collection
-  python scripts/cla_collect.py --duration 60          # 60s soak with periodic sampling
-  python scripts/cla_collect.py --gdb                  # Include GDB stack/memory analysis
-  python scripts/cla_collect.py --output cla_data.md   # Save to file
-  python scripts/cla_collect.py --compare prev.md      # Compare against baseline
-
-The script is non-destructive and requires no firmware changes.
+  python scripts/cla_collect.py
+  python scripts/cla_collect.py --duration 60 --output docs/audits/cla_rbm/cla_2026-08-24.md
+  python scripts/cla_collect.py --port COM5 --duration 270
 """
 
+from __future__ import annotations
+
 import argparse
+import os
 import re
-import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-import os
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 from _rc_test_common import (  # noqa: E402
     Banner,
+    enter_cli_menu,
     find_target_port,
     open_classified_port,
     rc_test,
     TARGET_VEHICLE_FLIGHT,
 )
 
-try:
-    import serial
-except ImportError:
-    print("ERROR: pyserial required. Install with: pip install pyserial")
-    sys.exit(1)
+# 200 Hz ESKF epoch at 1 kHz IMU / divider 5 (eskf_runner.cpp).
+ESKF_EPOCH_US = 5000
+# Core 1 loop target (CLA 2026-03-08 §4; sensor_core1 1 ms cycle).
+CORE1_PERIOD_US = 1000
 
-# --- Configuration ---
-BAUD = 115200
-GDB_PATH = '/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe'
-ELF_PATH = 'build/rocketchip.elf'
-OPENOCD_PORT = 3333
-
-# --- Serial helpers ---
+# Host-side USB wait: 's' dump is ~2 KB via rc_log idle drain; 'd' is ~1.3 KB
+# (diag_stats.cpp). Same order as other scripts' 1.5–2.5 s waits, padded.
+READ_TIMEOUT_S = 4.0
+IDLE_GAP_S = 0.35
 
 
-def serial_cmd(port, cmd, wait=1.0, bufsize=8192):
-    """Send a CLI key and collect response."""
-    port.write(cmd.encode() if isinstance(cmd, str) else cmd)
-    time.sleep(wait)
-    return port.read(bufsize).decode('utf-8', errors='replace')
+def _read_quiet(ser, timeout_s: float) -> str:
+    """Accumulate until `IDLE_GAP_S` of silence or timeout."""
+    deadline = time.time() + timeout_s
+    chunks: list[bytes] = []
+    last_data = time.time()
+    while time.time() < deadline:
+        n = ser.in_waiting
+        if n:
+            chunks.append(ser.read(n))
+            last_data = time.time()
+        elif chunks and (time.time() - last_data) >= IDLE_GAP_S:
+            break
+        else:
+            time.sleep(0.05)
+    return b''.join(chunks).decode('utf-8', errors='replace')
 
 
-def serial_stop_streaming(port):
-    """Stop any active streaming mode (ESKF live, etc.) by sending a neutral key."""
-    port.write(b'\n')  # Any key stops ESKF live
-    time.sleep(0.3)
-    port.read(4096)  # Drain stop message
+def _send_key(ser, key: bytes, timeout_s: float = READ_TIMEOUT_S) -> str:
+    try:
+        ser.reset_input_buffer()
+    except (OSError, Exception):
+        pass
+    ser.write(key)
+    ser.flush()
+    return _read_quiet(ser, timeout_s)
 
 
-def serial_collect_sensor_status(port):
-    """Collect sensor status ('s') output cleanly."""
-    serial_stop_streaming(port)
-    port.read(4096)  # Drain any remaining output
-    return serial_cmd(port, 's', wait=1.5, bufsize=8192)
+def _enter_debug(ser) -> str:
+    text = _send_key(ser, b'q', timeout_s=2.0)
+    if '--- Debug ---' in text or 's-Sensors' in text:
+        return text
+    raise RuntimeError(
+        'did not reach debug menu after q '
+        f'(got {len(text)} chars, snippet={text[-200:]!r})')
 
 
-def serial_collect_eskf_status(port):
-    """Collect ESKF status. 'e' starts 1Hz streaming; collect ~2s then stop."""
-    serial_stop_streaming(port)
-    port.read(4096)  # Drain
-    port.write(b'e')
-    time.sleep(2.5)  # Collect 2 samples at 1Hz
-    data = port.read(8192).decode('utf-8', errors='replace')
-    # Stop streaming
-    port.write(b'\n')
-    time.sleep(0.3)
-    port.read(4096)  # Drain stop message
-    return data
+def parse_sensor_status(text: str) -> dict:
+    """Parse debug-menu 's' / cli_print_sensor_status()."""
+    data: dict = {}
 
-
-# --- Parsers ---
-
-def parse_sensor_status(text):
-    """Parse 's' command output for timing/count data.
-
-    Expected format:
-      Reads: I=12345 M=678 B=901 G=234  Errors: I=0 B=0 G=0
-      Log: 500 frames stored, 1000 capacity
-    """
-    data = {}
-
-    # Sensor read counts: "Reads: I=NNN M=NNN B=NNN G=NNN"
-    m = re.search(r'Reads:\s+I=(\d+)\s+M=(\d+)\s+B=(\d+)\s+G=(\d+)', text)
+    m = re.search(
+        r'Reads:\s+I=(\d+)\s+M=(\d+)\s+B=(\d+)\s+G=(\d+)\s+'
+        r'Errors:\s+I=(\d+)\s+B=(\d+)\s+G=(\d+)',
+        text)
     if m:
         data['imu_reads'] = int(m.group(1))
         data['mag_reads'] = int(m.group(2))
         data['baro_reads'] = int(m.group(3))
         data['gps_reads'] = int(m.group(4))
+        data['imu_errors'] = int(m.group(5))
+        data['baro_errors'] = int(m.group(6))
+        data['gps_errors'] = int(m.group(7))
 
-    # Sensor error counts: "Errors: I=NNN B=NNN G=NNN"
-    m = re.search(r'Errors:\s+I=(\d+)\s+B=(\d+)\s+G=(\d+)', text)
-    if m:
-        data['imu_errors'] = int(m.group(1))
-        data['baro_errors'] = int(m.group(2))
-        data['gps_errors'] = int(m.group(3))
-
-    # Log frames: "Log: NNN frames stored, NNN capacity"
-    m = re.search(r'Log:\s+(\d+)\s+frames\s+stored,\s+(\d+)\s+capacity', text)
-    if m:
-        data['log_frames'] = int(m.group(1))
-        data['log_capacity'] = int(m.group(2))
-
-    # ESKF predict timing (also appears in 's' output)
-    m = re.search(r'predict:\s+(\d+)us\s+avg,\s+(\d+)us\s+min,\s+(\d+)us\s+max\s+\((\d+)\s+calls\)',
-                  text)
+    m = re.search(
+        r'predict:\s+(\d+)us avg,\s+(\d+)us min,\s+(\d+)us max \((\d+) calls\)',
+        text)
     if m:
         data['predict_avg_us'] = int(m.group(1))
         data['predict_min_us'] = int(m.group(2))
         data['predict_max_us'] = int(m.group(3))
         data['predict_calls'] = int(m.group(4))
 
-    # ESKF gate counters: "gate: bA=8106/10615 mA=58083/58083 mR=0 gA=0/0 zA=107472/115202"
-    m = re.search(r'gate:\s+bA=(\d+)/(\d+)\s+mA=(\d+)/(\d+)\s+mR=(\d+)\s+gA=(\d+)/(\d+)\s+zA=(\d+)/(\d+)',
-                  text)
+    m = re.search(
+        r'full-tick:\s+(\d+)us avg,\s+(\d+)us min,\s+(\d+)us max \((\d+) calls\)',
+        text)
+    if m:
+        data['full_avg_us'] = int(m.group(1))
+        data['full_min_us'] = int(m.group(2))
+        data['full_max_us'] = int(m.group(3))
+        data['full_calls'] = int(m.group(4))
+
+    m = re.search(
+        r'gate:\s+bA=(\d+)/(\d+)\s+mA=(\d+)/(\d+)\s+mR=(\d+)\s+'
+        r'gA=(\d+)/(\d+)\s+zA=(\d+)/(\d+)',
+        text)
     if m:
         data['baro_accepts'] = int(m.group(1))
         data['baro_total'] = int(m.group(2))
         data['mag_accepts'] = int(m.group(3))
         data['mag_total'] = int(m.group(4))
-        data['mag_rejects'] = int(m.group(5))
+        data['mag_resets'] = int(m.group(5))
         data['gps_accepts'] = int(m.group(6))
         data['gps_total'] = int(m.group(7))
         data['zupt_accepts'] = int(m.group(8))
         data['zupt_total'] = int(m.group(9))
 
-    return data
-
-
-def parse_eskf_status(text):
-    """Parse 'e' command output for ESKF timing and health."""
-    data = {}
-
-    # FPFT predict timing
-    m = re.search(r'predict:\s+(\d+)us\s+avg,\s+(\d+)us\s+min,\s+(\d+)us\s+max\s+\((\d+)\s+calls\)',
-                  text)
-    if m:
-        data['predict_avg_us'] = int(m.group(1))
-        data['predict_min_us'] = int(m.group(2))
-        data['predict_max_us'] = int(m.group(3))
-        data['predict_calls'] = int(m.group(4))
-
-    # Health indicators
-    m = re.search(r'bNIS=([0-9.]+)', text)
+    m = re.search(r'bNIS=([0-9.]+)\s+mNIS=([0-9.]+)', text)
     if m:
         data['bNIS'] = float(m.group(1))
-
-    m = re.search(r'mNIS=([0-9.]+)', text)
-    if m:
-        data['mNIS'] = float(m.group(1))
-
-    m = re.search(r'Mdiv=([0-9.]+)', text)
-    if m:
-        data['mahony_div_deg'] = float(m.group(1))
-
-    # qnorm
+        data['mNIS'] = float(m.group(2))
     m = re.search(r'qnorm=([0-9.]+)', text)
     if m:
         data['qnorm'] = float(m.group(1))
+    m = re.search(r'Mdiv=([0-9.]+)\s+deg', text)
+    if m:
+        data['mahony_div_deg'] = float(m.group(1))
+    m = re.search(r'conf=([YN])', text)
+    if m:
+        data['confident'] = m.group(1) == 'Y'
 
     return data
 
 
-# --- GDB helpers ---
+def parse_diag(text: str) -> dict:
+    """Parse debug-menu 'd' / diag_stats_dump()."""
+    data: dict = {}
+    m = re.search(r'fw_version=(\S+)', text)
+    if m:
+        data['fw_version'] = m.group(1)
+    m = re.search(r'build_config=(\S+)', text)
+    if m:
+        data['build_config'] = m.group(1)
+    m = re.search(r'job_role=(\S+)', text)
+    if m:
+        data['job_role'] = m.group(1)
+    m = re.search(r'board=(.+)$', text, re.M)
+    if m:
+        data['board'] = m.group(1).strip()
+    m = re.search(r'git=(\S+)\s+build_tag=(\S+)', text)
+    if m:
+        data['git'] = m.group(1)
+        data['build_tag'] = m.group(2)
+    m = re.search(r'RegVersion=(0x[0-9a-fA-F]+)', text)
+    if m:
+        data['reg_version'] = m.group(1)
+    m = re.search(r'\[SPI\] error_count=(\d+)', text)
+    if m:
+        data['spi_errors'] = int(m.group(1))
+    m = re.search(
+        r'\[MSP\] initial=(0x[0-9a-fA-F]+) min=(0x[0-9a-fA-F]+) depth=(\d+) bytes',
+        text)
+    if m:
+        data['msp_initial'] = m.group(1)
+        data['msp_min'] = m.group(2)
+        data['msp_depth_bytes'] = int(m.group(3))
 
-def gdb_read_variable(var_name):
-    """Read a static variable via GDB batch mode. Returns string value or None."""
-    cmd = [
-        GDB_PATH, ELF_PATH, '-batch',
-        '-ex', f'target extended-remote localhost:{OPENOCD_PORT}',
-        '-ex', 'monitor halt',
-        '-ex', f'print {var_name}',
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        # Parse GDB output: "$1 = 12345"
-        m = re.search(r'\$\d+\s*=\s*(.+)', result.stdout)
-        if m:
-            return m.group(1).strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
-    return None
+    queues = re.findall(
+        r'^\s+(\S+)\s+depth=(\d+)\s+use=(\d+)\s+high=(\d+)',
+        text, re.M)
+    if queues:
+        data['ao_queues'] = [
+            {'name': n, 'depth': int(d), 'use': int(u), 'high': int(h)}
+            for n, d, u, h in queues
+        ]
 
-
-def gdb_read_memory(addr, count_words):
-    """Read memory words via GDB. Returns list of uint32 values."""
-    cmd = [
-        GDB_PATH, ELF_PATH, '-batch',
-        '-ex', f'target extended-remote localhost:{OPENOCD_PORT}',
-        '-ex', 'monitor halt',
-        '-ex', f'x/{count_words}xw {addr}',
-        '-ex', 'monitor resume',
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        values = []
-        for m in re.finditer(r'0x([0-9a-fA-F]+)', result.stdout):
-            values.append(int(m.group(1), 16))
-        return values
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
-
-
-def gdb_stack_hwm(stack_symbol, stack_size_bytes, sentinel=0xDEADBEEF):
-    """
-    Scan stack for high-water mark using GDB.
-
-    The Pico SDK paints stacks with 0 when PICO_USE_STACK_GUARDS=1.
-    We scan from the bottom for zero words (unpainted = used).
-
-    Returns (used_bytes, total_bytes) or None on failure.
-    """
-    # Get stack bottom address
-    cmd = [
-        GDB_PATH, ELF_PATH, '-batch',
-        '-ex', f'target extended-remote localhost:{OPENOCD_PORT}',
-        '-ex', 'monitor halt',
-        '-ex', f'print &{stack_symbol}',
-        '-ex', 'monitor resume',
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        m = re.search(r'0x([0-9a-fA-F]+)', result.stdout)
-        if not m:
-            return None
-        bottom_addr = int(m.group(1), 16)
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-    # Read first 256 words from stack bottom (scan for zeros = unpainted)
-    scan_words = min(stack_size_bytes // 4, 256)
-    words = gdb_read_memory(hex(bottom_addr), scan_words)
-    if not words:
-        return None
-
-    # Count zero words from bottom (SDK initializes stack to 0)
-    unpainted = 0
-    for w in words:
-        if w != 0:
-            break
-        unpainted += 1
-
-    used = stack_size_bytes - (unpainted * 4)
-    return (used, stack_size_bytes)
-
-
-def collect_gdb_data():
-    """Collect data via GDB memory reads."""
-    data = {}
-
-    print("  Reading ESKF benchmark variables via GDB...")
-    for var in ['g_eskfBenchMin', 'g_eskfBenchMax', 'g_eskfBenchSum', 'g_eskfBenchCount']:
-        val = gdb_read_variable(var)
-        if val:
-            data[var] = val
-
-    print("  Reading stack high-water marks...")
-    c0 = gdb_stack_hwm('__StackBottom', 0x1000)
-    if c0:
-        data['core0_stack_used'], data['core0_stack_total'] = c0
-        data['core0_stack_margin_pct'] = round(
-            100 * (c0[1] - c0[0]) / c0[1], 1)
-
-    c1 = gdb_stack_hwm('__StackOneBottom', 0x1000)
-    if c1:
-        data['core1_stack_used'], data['core1_stack_total'] = c1
-        data['core1_stack_margin_pct'] = round(
-            100 * (c1[1] - c1[0]) / c1[1], 1)
-
+    m = re.search(r'go_nogo=(\S+)', text)
+    if m:
+        data['go_nogo'] = m.group(1)
+    m = re.search(r'core1 loops=(\d+)', text)
+    if m:
+        data['core1_loops'] = int(m.group(1))
+    m = re.search(r'\[RcLog\] dropped=(\d+) bytes\s+high_water=(\d+) bytes', text)
+    if m:
+        data['rclog_dropped'] = int(m.group(1))
+        data['rclog_high_water'] = int(m.group(2))
+    m = re.search(r'\[Uptime\] (\d+) ms', text)
+    if m:
+        data['uptime_ms'] = int(m.group(1))
+    m = re.search(
+        r'tx=(\d+) rx=(\d+) rx_crc_err=(\d+) tx_consec_fail=(\d+)',
+        text)
+    if m:
+        data['radio_tx'] = int(m.group(1))
+        data['radio_rx'] = int(m.group(2))
+        data['radio_crc'] = int(m.group(3))
+        data['radio_tx_fail'] = int(m.group(4))
     return data
 
 
-# --- Soak test ---
-
-def run_soak(port, duration_s, sample_interval_s=10):
-    """Run a timed soak, sampling CLI stats at intervals."""
-    samples = []
-    start = time.time()
-    sample_num = 0
-
-    print(f"Starting {duration_s}s soak (sampling every {sample_interval_s}s)...")
-
-    while time.time() - start < duration_s:
-        elapsed = time.time() - start
-        sample_num += 1
-
-        print(f"  Sample {sample_num} at t={elapsed:.0f}s...")
-
-        s_out = serial_collect_sensor_status(port)
-        e_out = serial_collect_eskf_status(port)
-
-        sample = {
-            'time_s': round(elapsed, 1),
-            'sensor': parse_sensor_status(s_out),
-            'eskf': parse_eskf_status(e_out),
-            'raw_s': s_out,
-            'raw_e': e_out,
-        }
-        samples.append(sample)
-
-        # Wait for next interval
-        next_sample = start + sample_num * sample_interval_s
-        wait = next_sample - time.time()
-        if wait > 0:
-            time.sleep(wait)
-
-    return samples
+def _duty_pct(avg_us: int, period_us: int) -> float:
+    return round(100.0 * avg_us / period_us, 2)
 
 
-# --- Output ---
-
-def compute_rates(samples):
-    """Compute per-second rates from first/last samples."""
-    if len(samples) < 2:
-        return {}
-
-    first = samples[0]
-    last = samples[-1]
-    dt = last['time_s'] - first['time_s']
+def _rate(v0: int, v1: int, dt: float) -> float | None:
     if dt <= 0:
-        return {}
-
-    rates = {}
-    for key in ['imu_reads', 'mag_reads', 'baro_reads', 'gps_reads', 'core1_loops']:
-        v0 = first['sensor'].get(key, 0)
-        v1 = last['sensor'].get(key, 0)
-        if v0 and v1:
-            rates[f'{key}_per_s'] = round((v1 - v0) / dt, 1)
-
-    return rates
+        return None
+    return round((v1 - v0) / dt, 1)
 
 
-def format_markdown(samples, gdb_data=None, rates=None):
-    """Format collected data as markdown."""
-    lines = []
-    lines.append(f"# CLA Data Collection — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    lines.append("")
-    lines.append(f"**Duration:** {samples[-1]['time_s']:.0f}s soak, "
-                 f"{len(samples)} samples")
-    lines.append(f"**Device:** COM7 USB CDC")
-    lines.append("")
+def format_markdown(port: str, duration_s: int, banner: Banner,
+                    t0: dict, t1: dict, diag: dict,
+                    raw_s0: str, raw_s1: str, raw_d: str,
+                    dt: float) -> str:
+    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    lines = [
+        f'# CLA snapshot — {now}',
+        '',
+        'Two debug-menu `s` samples with an idle wait, then one `d`. '
+        'No `e` live stream. No GDB. Method: `scripts/cla_collect.py` '
+        '(2026-08 rewrite).',
+        '',
+        f'**Duration:** {duration_s}s idle ({dt:.1f}s between `s` samples)',
+        f'**Device:** {port}',
+        f'**Banner:** `{banner.short_summary()}`',
+        '',
+        '## Identity (`d` T=0 block)',
+        '',
+    ]
+    if diag:
+        lines += [
+            '| Field | Value |',
+            '|-------|-------|',
+        ]
+        for k in ('fw_version', 'build_config', 'job_role', 'board',
+                  'git', 'build_tag', 'reg_version', 'go_nogo', 'uptime_ms'):
+            if k in diag:
+                lines.append(f'| {k} | {diag[k]} |')
+        lines.append('')
+        if diag.get('reg_version') and diag['reg_version'].lower() != '0x12':
+            lines.append(
+                f'**WARN:** RegVersion {diag["reg_version"]} (expect 0x12).')
+            lines.append('')
 
-    # ESKF Predict Timing — prefer 's' output (has call count), fall back to 'e'
-    last_sensor = samples[-1].get('sensor', {})
-    eskf = samples[-1].get('eskf', {})
-    predict_src = last_sensor if 'predict_avg_us' in last_sensor else eskf
-    if 'predict_avg_us' in predict_src:
-        lines.append("## ESKF Predict Timing (codegen FPFT)")
-        lines.append("")
-        lines.append("| Metric | Value | Source |")
-        lines.append("|--------|-------|--------|")
-        lines.append(f"| avg | {predict_src['predict_avg_us']} µs | MEASURED-SOAK |")
-        lines.append(f"| min | {predict_src['predict_min_us']} µs | MEASURED-SOAK |")
-        lines.append(f"| max | {predict_src['predict_max_us']} µs | MEASURED-SOAK |")
-        lines.append(f"| calls | {predict_src['predict_calls']} | MEASURED-SOAK |")
-        lines.append("")
+    s1 = t1
+    if 'predict_avg_us' in s1 or 'full_avg_us' in s1:
+        lines += [
+            '## ESKF bench (idle-bridge, compiled-in counters)',
+            '',
+            'Epoch 200 Hz (`kEskfImuDivider=5` at 1 kHz IMU). '
+            f'Duty% = avg_us / {ESKF_EPOCH_US} × 100.',
+            '',
+            '| Counter | avg µs | min | max | calls | duty % |',
+            '|---------|--------|-----|-----|-------|--------|',
+        ]
+        if 'predict_avg_us' in s1:
+            lines.append(
+                f"| predict | {s1['predict_avg_us']} | {s1['predict_min_us']} | "
+                f"{s1['predict_max_us']} | {s1['predict_calls']} | "
+                f"{_duty_pct(s1['predict_avg_us'], ESKF_EPOCH_US)} |")
+        if 'full_avg_us' in s1:
+            lines.append(
+                f"| full-tick | {s1['full_avg_us']} | {s1['full_min_us']} | "
+                f"{s1['full_max_us']} | {s1['full_calls']} | "
+                f"{_duty_pct(s1['full_avg_us'], ESKF_EPOCH_US)} |")
+        lines.append('')
+        lines.append(
+            'predict = codegen FPFT (+ UD housekeep when pending). '
+            'full-tick = one idle-bridge `eskf_runner_tick()` wall time '
+            '(replaces the Stage-7 `eskf_tick()` row). '
+            'min/avg/max/calls are **since-boot** (counters never reset); '
+            'only the sensor-rate table is the idle-window delta.')
+        lines.append('')
 
-    # Sensor rates
-    if rates:
-        lines.append("## Sensor Rates (measured)")
-        lines.append("")
-        lines.append("| Sensor | Rate (Hz) | Source |")
-        lines.append("|--------|-----------|--------|")
-        for key, val in sorted(rates.items()):
-            name = key.replace('_per_s', '').replace('_', ' ')
-            lines.append(f"| {name} | {val} | MEASURED-SOAK |")
-        lines.append("")
+    lines += [
+        '## Sensor rates (delta over idle window)',
+        '',
+        '| Sensor | T=0 | T=end | Hz | errors T=end |',
+        '|--------|-----|-------|----|--------------|',
+    ]
+    for name, rk, ek in (
+            ('IMU', 'imu_reads', 'imu_errors'),
+            ('mag', 'mag_reads', None),
+            ('baro', 'baro_reads', 'baro_errors'),
+            ('GPS', 'gps_reads', 'gps_errors'),
+    ):
+        v0 = t0.get(rk)
+        v1 = t1.get(rk)
+        hz = _rate(v0, v1, dt) if v0 is not None and v1 is not None else None
+        err = t1.get(ek, '—') if ek else '—'
+        lines.append(
+            f'| {name} | {v0 if v0 is not None else "?"} | '
+            f'{v1 if v1 is not None else "?"} | '
+            f'{hz if hz is not None else "?"} | {err} |')
+    lines.append('')
+    imu_hz = _rate(t0.get('imu_reads', 0), t1.get('imu_reads', 0), dt) if (
+        'imu_reads' in t0 and 'imu_reads' in t1) else None
+    if imu_hz:
+        lines.append(
+            f'Core 1 effective IMU rate **{imu_hz} Hz** vs 1000 Hz target '
+            f'({CORE1_PERIOD_US} µs cycle).')
+        lines.append('')
 
-    # Error counts
-    last_sensor = samples[-1].get('sensor', {})
-    if last_sensor:
-        lines.append("## Sensor Error Counts")
-        lines.append("")
-        lines.append("| Sensor | Reads | Errors | Error Rate |")
-        lines.append("|--------|-------|--------|------------|")
-        for sensor in ['imu', 'baro', 'gps']:
-            reads = last_sensor.get(f'{sensor}_reads', 0)
-            errors = last_sensor.get(f'{sensor}_errors', 0)
-            rate = f"{100*errors/reads:.3f}%" if reads > 0 else "N/A"
-            lines.append(f"| {sensor.upper()} | {reads} | {errors} | {rate} |")
-        lines.append("")
+    if any(k in s1 for k in ('bNIS', 'mNIS', 'qnorm', 'mahony_div_deg', 'confident')):
+        lines += [
+            '## Filter health (final `s`)',
+            '',
+            '| Metric | Value |',
+            '|--------|-------|',
+        ]
+        for k in ('bNIS', 'mNIS', 'qnorm', 'mahony_div_deg', 'confident'):
+            if k in s1:
+                lines.append(f'| {k} | {s1[k]} |')
+        lines.append('')
 
-    # Health
-    if eskf:
-        lines.append("## Filter Health")
-        lines.append("")
-        lines.append("| Metric | Value |")
-        lines.append("|--------|-------|")
-        for key in ['bNIS', 'mNIS', 'mahony_div_deg', 'qnorm']:
-            if key in eskf:
-                lines.append(f"| {key} | {eskf[key]} |")
-        lines.append("")
+    if 'baro_accepts' in s1:
+        lines += [
+            '## Gate counts (final `s`)',
+            '',
+            '| Update | accept / total |',
+            '|--------|----------------|',
+            f"| baro | {s1['baro_accepts']}/{s1['baro_total']} |",
+            f"| mag | {s1['mag_accepts']}/{s1['mag_total']} "
+            f"(resets {s1['mag_resets']}) |",
+            f"| GPS | {s1['gps_accepts']}/{s1['gps_total']} |",
+            f"| ZUPT | {s1['zupt_accepts']}/{s1['zupt_total']} |",
+            '',
+        ]
 
-    # GDB data
-    if gdb_data:
-        lines.append("## Stack High-Water Marks")
-        lines.append("")
-        lines.append("| Core | Used | Total | Margin |")
-        lines.append("|------|------|-------|--------|")
-        if 'core0_stack_used' in gdb_data:
-            lines.append(f"| Core 0 | {gdb_data['core0_stack_used']} B "
-                         f"| {gdb_data['core0_stack_total']} B "
-                         f"| {gdb_data['core0_stack_margin_pct']}% |")
-        if 'core1_stack_used' in gdb_data:
-            lines.append(f"| Core 1 | {gdb_data['core1_stack_used']} B "
-                         f"| {gdb_data['core1_stack_total']} B "
-                         f"| {gdb_data['core1_stack_margin_pct']}% |")
-        lines.append("")
+    if 'msp_depth_bytes' in diag:
+        lines += [
+            '## Core 0 stack (MSP watermark from QV idle, not GDB)',
+            '',
+            f"initial {diag['msp_initial']}, min {diag['msp_min']}, "
+            f"depth **{diag['msp_depth_bytes']} B** "
+            '(vs 4096 B `PICO_STACK_SIZE`). `diag_stats_msp_tick()` samples '
+            'MSP from QV idle, so this is idle-pointer not handler WCET. '
+            'Core 1 HWM is not in this dump.',
+            '',
+        ]
+    if 'ao_queues' in diag:
+        lines += [
+            '## AO queue high-water (`d`)',
+            '',
+            '| AO | depth | use now | high |',
+            '|----|-------|---------|------|',
+        ]
+        for q in diag['ao_queues']:
+            lines.append(
+                f"| {q['name']} | {q['depth']} | {q['use']} | {q['high']} |")
+        lines.append('')
+        lines.append(
+            '`AO_RfManager` is not printed by `diag_stats_dump()` '
+            '(gap vs 9-AO inventory).')
+        lines.append('')
+    if 'rclog_high_water' in diag:
+        lines += [
+            '## rc_log / radio (`d`)',
+            '',
+            f"rc_log dropped={diag.get('rclog_dropped')} B, "
+            f"high_water={diag.get('rclog_high_water')} B.",
+            '',
+        ]
+        if 'radio_tx' in diag:
+            lines.append(
+                f"radio tx={diag['radio_tx']} rx={diag['radio_rx']} "
+                f"crc_err={diag['radio_crc']} tx_consec_fail="
+                f"{diag['radio_tx_fail']}.")
+            lines.append('')
+        if 'spi_errors' in diag:
+            lines.append(f"SPI error_count={diag['spi_errors']}.")
+            lines.append('')
+        if 'core1_loops' in diag and 'uptime_ms' in diag and diag['uptime_ms']:
+            hz = round(diag['core1_loops'] / (diag['uptime_ms'] / 1000.0), 1)
+            lines.append(
+                f"core1_loops={diag['core1_loops']} over uptime "
+                f"{diag['uptime_ms']} ms → **{hz} Hz** (boot-to-now, "
+                'not soak-window).')
+            lines.append('')
 
-    # Raw final sample for reference
-    lines.append("## Raw CLI Output (final sample)")
-    lines.append("")
-    lines.append("### Sensor Status ('s')")
-    lines.append("```")
-    lines.append(samples[-1].get('raw_s', '(no data)').strip())
-    lines.append("```")
-    lines.append("")
-    lines.append("### ESKF Status ('e')")
-    lines.append("```")
-    lines.append(samples[-1].get('raw_e', '(no data)').strip())
-    lines.append("```")
-    lines.append("")
-
+    lines += [
+        '## Not measured this sitting',
+        '',
+        '- Per-AO handler WCET / QV coincidence (would need new probes).',
+        '- ESKF period jitter (σ of epoch spacing).',
+        '- Core 1 stack HWM.',
+        '- Station `station_idle_tick` (vehicle snapshot only).',
+        '',
+        '## Raw dumps',
+        '',
+        '### `s` at T=0',
+        '',
+        '```',
+        raw_s0.strip() or '(empty)',
+        '```',
+        '',
+        '### `s` at T=end',
+        '',
+        '```',
+        raw_s1.strip() or '(empty)',
+        '```',
+        '',
+        '### `d` at T=end',
+        '',
+        '```',
+        raw_d.strip() or '(empty)',
+        '```',
+        '',
+    ]
     return '\n'.join(lines)
 
 
-# --- Main ---
-
 @rc_test(target=TARGET_VEHICLE_FLIGHT)
-def main():
-    parser = argparse.ArgumentParser(description='RocketChip CLA Data Collection')
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description='Vehicle CLA snapshot (debug s, idle, s, d)')
     parser.add_argument('--port', default=None,
-                        help='Serial port (auto-detect RocketChip vehicle bench USB CDC if omitted)')
-    parser.add_argument('--duration', type=int, default=60,
-                        help='Soak duration in seconds (default: 60)')
-    parser.add_argument('--interval', type=int, default=10,
-                        help='Sample interval in seconds (default: 10)')
-    parser.add_argument('--gdb', action='store_true',
-                        help='Include GDB stack/memory analysis (requires OpenOCD)')
-    parser.add_argument('--output', type=str, default=None,
-                        help='Output file (default: stdout)')
-    parser.add_argument('--compare', type=str, default=None,
-                        help='Compare against baseline file (not yet implemented)')
+                        help='Serial port (auto-detect vehicle CDC if omitted)')
+    parser.add_argument(
+        '--duration', type=int, default=60,
+        help='Idle seconds between s samples (default 60; 270 matches 2026-03 primary)')
+    parser.add_argument(
+        '--output', type=str, default=None,
+        help='Markdown path (default: docs/audits/cla_rbm/cla_YYYY-MM-DD.md)')
     args = parser.parse_args()
+    if args.duration < 5:
+        print('ERROR: --duration must be >= 5 s (need a real idle window)')
+        return 2
 
     port_name, meta = find_target_port(
         TARGET_VEHICLE_FLIGHT, override=args.port, verbose=False)
     if port_name is None:
-        print(f'INFO: no vehicle bench port — {meta}')
-        print('  Use bench vehicle FW or pass --port.')
-        sys.exit(2)
+        print(f'INFO: no vehicle flight port — {meta}')
+        return 2
     if not isinstance(meta, Banner):
-        print('ERROR: internal: expected Banner from find_target_port')
-        sys.exit(2)
+        print('ERROR: expected Banner from find_target_port')
+        return 2
 
-    print(f"Connecting to {port_name} ({meta.short_summary()})...")
+    out = args.output
+    if not out:
+        day = datetime.now().strftime('%Y-%m-%d')
+        out = f'docs/audits/cla_rbm/cla_{day}.md'
 
-    gdb_data = None
+    print(f'CLA snapshot on {port_name} ({meta.short_summary()})')
+    print(f'  idle {args.duration}s → {out}')
 
     try:
         with open_classified_port(port_name, target=TARGET_VEHICLE_FLIGHT,
-                                   baud=BAUD, timeout=2.0) as port:
+                                  baud=115200, timeout=0.1) as ser:
+            if not enter_cli_menu(ser, settle_s=1.0, verify=True):
+                print('ERROR: could not confirm kMenu')
+                return 2
+            _enter_debug(ser)
 
-            # Run soak
-            samples = run_soak(port, args.duration, args.interval)
+            print('  T=0  debug s ...')
+            t_s0 = time.time()
+            raw_s0 = _send_key(ser, b's')
+            s0 = parse_sensor_status(raw_s0)
+            if 'imu_reads' not in s0:
+                print('ERROR: first s did not parse Reads: line')
+                print(raw_s0[-500:])
+                _send_key(ser, b'z', timeout_s=1.0)
+                return 1
+            print(f'    IMU reads={s0["imu_reads"]} predict='
+                  f'{s0.get("predict_avg_us", "?")}us')
 
-            # Compute rates
-            rates = compute_rates(samples)
-    except RuntimeError as e:
-        print(f'ERROR: cannot open {port_name}: {e}')
-        sys.exit(2)
+            print(f'  idle {args.duration}s (no keys) ...')
+            time.sleep(args.duration)
 
-    if args.gdb:
-        print("Running GDB memory analysis...")
-        gdb_data = collect_gdb_data()
+            print('  T=end debug s ...')
+            t_s1 = time.time()
+            raw_s1 = _send_key(ser, b's')
+            s1 = parse_sensor_status(raw_s1)
+            if 'imu_reads' not in s1:
+                print('ERROR: second s did not parse Reads: line')
+                print(raw_s1[-500:])
+                _send_key(ser, b'z', timeout_s=1.0)
+                return 1
 
-    # Format output
-    md = format_markdown(samples, gdb_data, rates)
+            print('  T=end debug d ...')
+            raw_d = _send_key(ser, b'd')
+            diag = parse_diag(raw_d)
 
-    if args.output:
-        outpath = Path(args.output)
-        outpath.write_text(md, encoding='utf-8')
-        print(f"\nData written to {outpath}")
-    else:
-        print("\n" + md)
+            _send_key(ser, b'z', timeout_s=1.0)
+    except RuntimeError as exc:
+        print(f'ERROR: {exc}')
+        return 2
 
+    dt = t_s1 - t_s0
+    md = format_markdown(port_name, args.duration, meta, s0, s1, diag,
+                         raw_s0, raw_s1, raw_d, dt)
+    path = Path(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(md, encoding='utf-8')
+    print(f'wrote {path} ({dt:.1f}s between samples)')
+    if 'full_avg_us' in s1:
+        print(f'  full-tick {s1["full_avg_us"]}us avg, '
+              f'duty {_duty_pct(s1["full_avg_us"], ESKF_EPOCH_US)}%')
+    imu_hz = _rate(s0['imu_reads'], s1['imu_reads'], dt)
+    if imu_hz is not None:
+        print(f'  IMU {imu_hz} Hz over window')
     return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
