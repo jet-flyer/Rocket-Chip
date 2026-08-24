@@ -11,9 +11,9 @@
 // - No padding filter (UART gives clean bytes, no 0x0A padding)
 // - No settling delay (point-to-point, no bus contention)
 // - Interrupt-driven RX with 512-byte ring buffer (no FIFO overflow)
-// - 2-second presence detection timeout at init
+// - Presence detect: 2 s per baud try; acquire tries 57600 then 9600
 // Receive path:
-// GPS module (9600 baud) -> UART0 hardware FIFO (32 bytes)
+// GPS module (57600 operating; 9600 factory) -> UART0 hardware FIFO (32 bytes)
 // -> ISR on Core 0 (drains FIFO -> ring buffer)
 // -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
 // -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
@@ -29,6 +29,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "pico/time.h"
+#include "safety/pio_watchdog.h"
 #include <atomic>
 #include <string.h>
 
@@ -59,6 +60,9 @@ constexpr uint32_t kGpsBaudNegotiateDelayMs = 250;  // ms — module stabilize t
 // Init: presence detection timeout
 // MT3339 outputs NMEA at 1Hz default — 2 seconds guarantees at least one sentence.
 constexpr uint32_t kInitTimeoutUs   = 2000000; // 2 seconds
+// Presence poll can last two windows (~4 s) on Core 0 reinit. Feed the PIO
+// heartbeat (timeout ~2 s, pio_watchdog.h) well inside that window.
+constexpr uint32_t kPresenceWatchdogFeedUs = 100000;  // 100 ms
 
 // ============================================================================
 // R-2 absorbed (R-5 Unit D part 2b, 2026-05-16, council-approved): the PMTK
@@ -164,6 +168,7 @@ static std::atomic<uint32_t> g_rxOverflow{0};  // Overflow counter (diagnostic)
 static bool g_initialized = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
+static std::atomic<bool> g_reinitRequested{false};
 
 // ============================================================================
 // ISR
@@ -171,9 +176,10 @@ static gps_data_t g_data;
 
 // Runs on Core 0 (where gps_uart_init() registered it). Fires on:
 // - UARTRXINTR: RX FIFO reaches threshold (>= 4 bytes, default IFLS)
-// - UARTRTINTR: >= 1 byte and no new bytes for 32 bit periods (~3.3ms at 9600)
-// At 9600 baud, fires at most ~240 times/sec. Each invocation is <1us.
-// Total Core 0 CPU impact: <0.1%.
+// - UARTRTINTR: >= 1 byte and no new bytes for 32 bit periods
+//   (~0.56 ms at 57600 operating baud; ~3.3 ms at factory 9600)
+// At 57600 (~5760 B/s, 4-byte IFLS) fires at most ~1440/s. Each <1us.
+// Total Core 0 CPU impact: <0.2%.
 static void gps_uart_rx_isr() {
     while (uart_is_readable(GPS_UART_INST)) {
         uint8_t byte = static_cast<uint8_t>(uart_get_hw(GPS_UART_INST)->dr);
@@ -289,10 +295,12 @@ static void uart_write_pmtk(const char* sentence, size_t len) {
 
 // Drain UART for up to 2 seconds looking for '$' (NMEA start).
 // MT3339 outputs NMEA at 1Hz by default, so 2 seconds guarantees at
-// least one full sentence cycle if a GPS is connected.
-// This only adds delay when NO UART GPS is connected.
+// least one full sentence cycle if a GPS is talking at this baud.
+// acquire_at_target_baud() may call this twice (57600 then 9600); a
+// factory-9600 module still burns the first window.
 static bool detect_gps_presence() {
     absolute_time_t deadline = make_timeout_time_us(kInitTimeoutUs);
+    uint32_t last_feed_us = time_us_32();
 
     while (!time_reached(deadline)) {
         if (uart_is_readable(GPS_UART_INST)) {
@@ -300,6 +308,11 @@ static bool detect_gps_presence() {
             if (c == kNmeaStart) {
                 return true;
             }
+        }
+        uint32_t now_us = time_us_32();
+        if ((now_us - last_feed_us) >= kPresenceWatchdogFeedUs) {
+            rc::pio_watchdog_feed();
+            last_feed_us = now_us;
         }
     }
     return false;
@@ -432,6 +445,7 @@ bool gps_uart_reinit() {
         return false;
     }
 
+    // irq_set_enabled is per executing core. Caller must be Core 0 (init core).
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), false);
     uart_set_irqs_enabled(GPS_UART_INST, false, false);
 
@@ -460,4 +474,26 @@ bool gps_uart_reinit() {
     uart_set_irqs_enabled(GPS_UART_INST, true, false);
 
     return true;
+}
+
+void gps_uart_request_reinit() {
+    if constexpr (!board::kUartGpsAvailable) {
+        return;
+    }
+    g_reinitRequested.store(true, std::memory_order_release);
+}
+
+bool gps_uart_take_reinit_request() {
+    return g_reinitRequested.exchange(false, std::memory_order_acq_rel);
+}
+
+void gps_uart_request_reinit() {
+    if constexpr (!board::kUartGpsAvailable) {
+        return;
+    }
+    g_reinitRequested.store(true, std::memory_order_release);
+}
+
+bool gps_uart_take_reinit_request() {
+    return g_reinitRequested.exchange(false, std::memory_order_acq_rel);
 }

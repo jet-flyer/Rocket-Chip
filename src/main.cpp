@@ -413,6 +413,12 @@ extern "C" void qv_idle_bridge(void) {
         watchdog_kick_tick();
     }
 
+    if (gps_uart_take_reinit_request()) {
+        if (!gps_uart_reinit()) {
+            g_gpsInitialized = false;
+        }
+    }
+
     eskf_runner_tick();
 
     // Station: command ACK retry + GPS/MCU-temp poll.

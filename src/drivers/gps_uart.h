@@ -7,9 +7,10 @@
 // Receive architecture: UART0 RX interrupt (Core 0) drains hardware FIFO
 // into a 512-byte ring buffer. Application code on Core 1 reads from the
 // ring buffer — zero bytes lost at operating baud rate.
-// Baud rate: init at 9600 (MT3339 factory default), negotiate to 57600
-// during gps_uart_init() before enabling IRQ. Required for 10Hz operation
+// Baud: try 57600 first (CR1220 sticky), fall back to 9600 + PMTK251;
+// leave at 57600 before enabling IRQ. Required for 10Hz operation
 // (9600 baud saturates at ~4.8 NMEA bursts/sec; 57600 gives 2.8x headroom).
+// NVIC / exclusive handler: Core 0 only (the core that ran gps_uart_init).
 // Pin assignment: GPIO0 (TX), GPIO1 (RX) — Feather standard UART0.
 
 #ifndef ROCKETCHIP_GPS_UART_H
@@ -33,9 +34,9 @@ constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
 // API (mirrors gps_pa1010d.h — same contract, different transport)
 // ============================================================================
 
-// Configures UART0 at 9600 baud, drains for up to 2 seconds looking for
-// NMEA '$' start byte. On success, registers RX interrupt handler on
-// Core 0 for background byte capture into ring buffer.
+// Dual-baud presence probe (57600 then 9600), then leave UART at 57600.
+// Worst case two 2 s windows plus 250 ms negotiate. Registers the RX
+// handler and enables NVIC on the calling core (Core 0).
 [[nodiscard]] bool gps_uart_init(void);
 
 [[nodiscard]] bool gps_uart_ready(void);
@@ -60,9 +61,16 @@ void gps_uart_drain(void);
 // (Core 1) isn't draining fast enough.
 [[nodiscard]] uint32_t gps_uart_get_overflow_count(void);
 
-// Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ.
-// Blocks for up to 2s during presence detection.
-// Call only when GPS has been stale for an extended period.
+// Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ
+// on THIS core. Call only from the core that ran gps_uart_init() (Core 0).
+// Blocks up to two presence windows (~4 s) plus 250 ms negotiate.
+// Do not call from Core 1 — use gps_uart_request_reinit() instead.
 [[nodiscard]] bool gps_uart_reinit(void);
+
+// Core 1: request a Core-0 reinit after UART GPS staleness. Non-blocking.
+void gps_uart_request_reinit(void);
+
+// Core 0: consume a pending request. true = caller should run gps_uart_reinit().
+[[nodiscard]] bool gps_uart_take_reinit_request(void);
 
 #endif // ROCKETCHIP_GPS_UART_H

@@ -243,8 +243,9 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* local_data) {
     }
 }
 
-// GPS UART staleness watchdog. Reinits UART if no valid parse for 10s,
-// gated on flight state (don't reinit mid-flight). Blocks up to 2s.
+// GPS UART staleness watchdog. After 10 s with no valid parse, request a
+// Core-0 reinit (do not run gps_uart_reinit on this core — NVIC is per-core).
+// Gated on flight state (don't reinit mid-flight).
 static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
     static uint32_t g_lastValidGpsUs = 0;
 
@@ -267,10 +268,8 @@ static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
         return;
     }
 
-    if (!gps_uart_reinit()) {
-        g_gpsInitialized = false;  // GPS dead -- stop polling
-    }
-    g_lastValidGpsUs = time_us_32();  // Reset timer after attempt
+    gps_uart_request_reinit();
+    g_lastValidGpsUs = time_us_32();  // Reset timer after request
 }
 
 // Direct driver calls from g_gpsTransport (P10-9). false = no backend bound.
