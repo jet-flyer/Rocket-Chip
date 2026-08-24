@@ -44,7 +44,8 @@ enum HealthSecondary : uint8_t {
     kHealthCore1Ok    = (1 << 4),  // IVP-117: Core 1 vitality (primary check)
 };
 
-// Critical bits: 0 = nominal. Display/preflight only — do not auto-transition.
+// Critical bits: 0 = nominal. health_monitor_critical_fault() is true if any
+// bit is set (auto-DISARM while ARMED). Also shown on preflight.
 enum HealthCritical : uint8_t {
     kHealthCriticalMcu              = (1 << 0),  // die temp ≥ kMcuTempSafeModeC
     kHealthCriticalPriorHardfault   = (1 << 1),  // crash_record at boot; latched

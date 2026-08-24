@@ -33,8 +33,7 @@ static void add_station(GoNoGoResult& r, uint8_t tier, const char* name,
     ++r.num_checks;
 }
 
-// RF Link Tier-2 station. GO when link is in kTrack with LQ >= 65%
-// (dashboard glance green). kTrackDegraded (state 3) is warn-yellow.
+// RF Link Tier-2. GO only in kTrack with LQ >= 65%. kTrackDegraded is NO-GO.
 // state: 0=ACQ, 1=Tentative, 2=Track, 3=TrackDegraded
 static void add_rf_link_station(GoNoGoResult& r, const GoNoGoInput& input) {
     const bool link_go = input.rf_anchor_valid &&

@@ -20,11 +20,8 @@
 // (busy-loop / LED-flash / status-print), the second entry observes this
 // flag and routes directly to __WFE() halt. Prevents handler recursion.
 //
-// One-shot: never cleared on successful exit. The only exits from the
-// handler are (a) AIRCR-reset which wipes SRAM-to-the-power-domain (the
-// flag's storage), or (b) busy-loop in kFault, where leaving via reset
-// is the only path forward anyway. Either way, the flag's lifetime ends
-// with the next chip reset.
+// One-shot. BSS, so AIRCR wipes it. crash_record is .uninitialized_data
+// and survives. kFault busy-loop ends only on the next chip reset.
 static volatile bool g_inFaultHandler = false;
 
 // Helper: distinct LED pattern emitted from the fault handler via direct

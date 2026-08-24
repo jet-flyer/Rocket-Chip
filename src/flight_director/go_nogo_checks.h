@@ -53,7 +53,7 @@ struct GoNoGoInput {
 // Individual station poll result
 struct GoNoGoCheck {
     char name[16];              // Station name: "IMU", "GPS", etc.
-    char reason[kGoNoGoReasonLen]; // "GO", "NO-GO: ...", "not monitored"
+    char reason[kGoNoGoReasonLen]; // "GO", "NO-GO ...", or "GO (not monitored)"
     uint8_t tier;               // 1 or 2
     bool go;                    // true = GO, false = NO-GO
 };
