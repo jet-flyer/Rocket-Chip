@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Boot gate: probably mid-flight vs on-pad (veto + 2-of-N). Bias false-positive
-// — a pad false alarm is operator intervention; a miss re-zeros baro in flight.
-// Brownout is a separate health latch (physical inspection), not this verdict.
+// Boot gate: mid-flight if the flight-in-progress sentinel is set.
+// Else 2 corroborators (non-POR + prior uptime). prior_uptime is always 0
+// today, so that 2-of-N path cannot fire. Brownout is a health latch, not this verdict.
 // POWMAN_CHIP_RESET: RP2350 datasheet §6 / hardware/regs/powman.h.
 //============================================================================
 #ifndef ROCKETCHIP_SAFETY_ANOMALOUS_BOOT_H
@@ -15,7 +15,7 @@ namespace rc {
 
 enum class BootVerdict : uint8_t {
     kProbablyOnPad     = 0,  // No mid-flight signals; normal boot proceeds.
-    kProbablyMidFlight = 1,  // Sentinel and/or 2+ corroborating signals fired.
+    kProbablyMidFlight = 1,  // Sentinel, or 2 corroborators (uptime currently 0).
 };
 
 // Snapshot of the raw signals consulted by the gate, captured at boot before

@@ -23,8 +23,7 @@ bool pio_watchdog_init();
 // Call periodically from main loop.
 void pio_watchdog_feed();
 
-// Check if the PIO watchdog has detected a fault.
-// Returns true if IRQ flag 0 is set (ARM stopped feeding).
+// True if PIO IRQ flag 0 is set. Feed/deinit can clear it (not sticky).
 bool pio_watchdog_fault_detected();
 
 // De-initialize (stop PIO SM, release resources).

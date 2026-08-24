@@ -47,10 +47,9 @@ extern volatile uint32_t g_test_mode_arm_magic;
 // called from the main loop / AO tick.
 extern volatile bool g_test_mode_enabled;
 
-// Initialize the module. Reads g_test_mode_arm_magic; if it equals
-// kTestModeMagic, clears it (single-use semantics — re-arm requires
-// a fresh probe write) and starts the boot-time-window timer. Called
-// once from init_hardware() before any AO_FlightDirector start.
+// Reads g_test_mode_arm_magic; if kTestModeMagic, clears it (single-use)
+// and latches magic-observed. Window is to_ms_since_boot vs kTestModeArmWindowMs,
+// not a timer. Called once from init_hardware() before AO_FlightDirector start.
 void test_mode_init();
 
 // FD (and host tests) publish the current phase as data. Until this
@@ -78,11 +77,7 @@ inline bool test_mode_active() {
     return g_test_mode_enabled;
 }
 
-// Was the arm magic observed at boot? Set once during test_mode_init()
-// (single-use read of g_test_mode_arm_magic). Stays true for the whole
-// boot session even after test_mode_clear_on_idle_exit() flips
-// g_test_mode_enabled false — useful for callers that want to know
-// "did the operator arm this boot?" even after the gate clears.
+// Arm magic seen at init. test_mode_clear_on_idle_exit() also clears this.
 //
 // Used by AO_RCOS_start() to choose kMenu output mode on boots where
 // test mode was armed (deterministic output for warm_reboot_audit +

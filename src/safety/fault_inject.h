@@ -19,7 +19,7 @@ void fault_force_launch_abort();
 void fault_force_radio_dropout();
 void fault_force_ao_queue_flood(uint8_t ao_priority, uint16_t count);
 void fault_force_pio_sm_halt();
-void fault_force_hardfault();
+void fault_force_hardfault();  // Gated. Writes MPU guard; no-op if gate closed.
 }
 
 // Checked by QV idle callback — when true, idle spins instead of doing work.

@@ -33,7 +33,7 @@ struct GoNoGoInput {
     bool eskf_healthy;          // ESKF::healthy() == true
     bool flash_available;       // Flight table loaded + space remaining
     bool launch_abort;          // WatchdogRecovery::launch_abort latched
-    bool watchdog_ok;           // No safe-mode, no ESKF disabled
+    bool watchdog_ok;           // kHealthWatchdogOk (ESKF healthy bit)
     bool prior_hardfault_clear; // kHealthCriticalPriorHardfault not latched
     bool prior_brownout_clear;  // kHealthCriticalPriorBrownout not latched
                                 //   (operator-cleared after inspection)
@@ -73,8 +73,8 @@ struct GoNoGoResult {
 // Returns aggregate result. Does not print — caller decides output.
 GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input);
 
-// Print Go/No-Go result to serial via rc::rc_log.
-// Format: [GO/NO-GO] Platform: 6/6 GO | Profile: 3/4 (GPS: NO-GO NO LOCK)
+// Print: [GO/NO-GO] Platform: t1_go/t1_total GO|NO-GO | Profile: t2_go/t2_total GO|WARN
+// then one line per NO-GO station (name + reason).
 void go_nogo_print(const GoNoGoResult& result);
 
 } // namespace rc

@@ -30,8 +30,7 @@ static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region 
 // MemManage / HardFault handler — phase-aware capture-then-dispatch.
 // Must not use stack for the capture portion. Registered for both cores via
 // exception_set_exclusive_handler().
-// In kIdle: captures crash record, emits visible signal (serial banner via
-// prior printf path; future raw-GPIO LED), brief delay, then AIRCR reset
+// In kIdle: captures crash record, 50 ms wait (CDC may not drain; IRQs off), AIRCR reset
 // (operator sees the post-reset prior-hardfault latch and clears via CLI).
 // Any flight phase (or corrupted phase byte): transitions observable phase
 // to kFault and busy-loops. PIO backup timers continue autonomously.

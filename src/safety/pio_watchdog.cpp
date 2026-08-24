@@ -76,7 +76,7 @@ void pio_watchdog_deinit() {
 
 namespace rc {
 
-static bool g_stub_fault = false;
+static bool g_stub_fault = false;  // Host: no PIO. Tests poke this; feed does not clear it.
 
 bool pio_watchdog_init() { return true; }
 void pio_watchdog_feed() {}

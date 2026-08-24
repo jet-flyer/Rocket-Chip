@@ -70,21 +70,9 @@ static inline void fault_emit_visible_signal() {
     }
 }
 
-// Helper: pad reset path. Emit visible signal (serial banner already
-// captured the crash details via stack-stored CFSR/HFSR/PC/LR; we add a
-// brief delay so the operator sees the banner before AIRCR fires), then
-// trigger AIRCR.
+// Pad reset: LED helper is a no-op. 50 ms wait with IRQs off does not drain CDC.
 [[noreturn]] static inline void fault_reset_with_visible_signal() {
     fault_emit_visible_signal();
-    // Brief delay so any in-progress USB CDC transmission of the serial
-    // banner has time to drain before reset. busy_wait_us uses a loop
-    // counter (not a hardware timer callback), so it's safe with
-    // interrupts disabled in the fault handler context. ~50ms is
-    // empirically enough to drain the last few CDC packets on the
-    // RP2350's USB stack without being so long the operator thinks
-    // the chip wedged. See:
-    //   https://cec-code-lab.aps.edu/robotics/resources/pico-c-api/
-    //     group__hardware__sync.html (busy_wait_us semantics)
     busy_wait_us(50000U);
     fault_trigger_reset();
 }

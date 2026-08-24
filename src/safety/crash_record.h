@@ -118,7 +118,7 @@ static constexpr uint32_t kFlightInProgressMagic = 0xF11617A0U;  // "FlIght AO" 
 
 void flight_in_progress_set();    // Called on kIdle -> kArmed transition.
 void flight_in_progress_clear();  // Called on safe LANDED entry.
-bool flight_in_progress_was_set();  // Called once at boot. Clears on read.
+bool flight_in_progress_was_set();  // Consumes sentinel (clears on read).
 
 } // namespace rc
 

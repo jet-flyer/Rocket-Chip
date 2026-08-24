@@ -22,12 +22,10 @@ extern QActive * const AO_FlightDirector;
 // Side effects are named fd_effect_* (including reset_subsystems).
 void AO_FlightDirector_start(uint8_t prio);
 
-// Dispatch a flight signal from CLI (ARM, DISARM, ABORT, RESET, etc.).
-// Replaces cli_dispatch_flight_signal().
+// Posts a FlightSignal with no command_handler_validate.
 void AO_FlightDirector_dispatch_signal(int signal);
 
-// Process a validated flight command (Go/No-Go + dispatch).
-// Replaces cli_process_flight_command().
+// CLI path: command_handler_validate (phase + Go/No-Go + test-mode) then dispatch.
 bool AO_FlightDirector_process_command(int cmd);
 
 // Print flight director status to serial.
