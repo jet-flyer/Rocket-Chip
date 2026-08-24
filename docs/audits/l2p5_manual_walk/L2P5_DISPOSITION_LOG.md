@@ -622,3 +622,35 @@ Previously resolved (GPS sitting): GWF-171 / GWF-404 (`g_eskf` Core 1 read); GWF
 | CW-B32-01 / CW-B31-04 / GWF-368 | safety leftovers |
 | GWF-031 / GWF-123 / GWF-013 | board / log-ring |
 | GWF-425 / GWF-498 / GWF-340–343 | later comment or RC_OS |
+
+### Phantom / missing symbols — CLOSED 2026-08-24
+
+Previously resolved: GWF-011 / CW-B01-04 (`kRcLogRingBytes`); CW-B06-04 (`flash_layout_valid`); CW-B05-13 / CW-X4-10 (sensor_snapshot parked); GWF-045 (`job_capabilities.h` gone); CW-B42-01 (MAVLink input reachable); CW-B10-05 / GWF-409 / CW-B38-06 / GWF-021 / GWF-050 / CW-B03-03 (tree already matched).
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B06-05 / GWF-093 | REMEDIATE comment | `FusedState` filled in AO_Logger, not `eskf_to_fused_state()` |
+| CW-X3-04 | REMEDIATE comment | handler cites `FAULT_HANDLER_DESIGN.md`; no fake FH-1 row |
+| CW-B43-06 | REMEDIATE | `kEskfBufferSamples` in `eskf_runner.h` only |
+| CW-B02-08 / GWF-036 / GWF-037 | REMEDIATE comments | no `board_tiny_2350.h`; Plus is PSRAM+name |
+| GWF-046 / GWF-049 | REMEDIATE comments | relay/station banners match compile-time job packs |
+| GWF-074 / CW-B05-02 / GWF-339 | REMEDIATE comments | nav payload = 40 B + 2 pad; no `_reserved` |
+| GWF-086 / CW-B06-08 | REMEDIATE comments | LED aliases: live callers named |
+| GWF-258 | REMEDIATE comment | combinator reads `GuardState.sustained` |
+| GWF-376 | REMEDIATE comment | `g_magicObservedAtBoot` cleared on idle-exit |
+| GWF-466 | REMEDIATE comment | QV idle has no shared `nowMs` |
+| GWF-496 | REMEDIATE comment | `dev_led_test_feed` |
+| CW-B43-09 | REMEDIATE comments | orphan build-tag header gone; boot-status caller |
+| CW-B12-03 | REMEDIATE comment | RSSI bar matches `.cpp` thresholds |
+| CW-B20-03 | REMEDIATE comment | pyro latch cleared in `FlightState::init()` |
+| CW-B24-01 | REMEDIATE comment | profile is `kDefaultRocketProfile` |
+| CW-B30-04 | REMEDIATE comment | PREFLIGHT_CALIBRATION ACK is UNSUPPORTED |
+
+**Park (not this sitting)**
+
+| ID | Home |
+|----|------|
+| CW-B29-02 | notify audio dead table |
+| CW-B37-04 | FD queue-depth / QP |
+| CW-B39-06 | Starcom / radio TX-fail reinit |
+| CW-B42-06 | RC_OS mag-cal ownership comment |
