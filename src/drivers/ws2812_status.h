@@ -39,6 +39,7 @@ typedef enum {
 // Initialization
 // ============================================================================
 
+// num_leds 0: no-op false. Above 8 (pixels[] capacity): clamp.
 bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds = 1);
 
 void ws2812_status_deinit(void);
@@ -79,8 +80,10 @@ void ws2812_set_sweep_bar(ws2812_rgb_t color);
 
 void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color);
 
+// 0: keep last period (divide-by-zero guard).
 void ws2812_set_breathe_period(uint32_t periodMs);
 
+// 0 on either side: keep last timings.
 void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs);
 
 // Swaps between `a` (primary / baseColor) and `b` (altColor) every

@@ -62,6 +62,12 @@ inline void board_release_peripheral_reset() {
     // no-op on Pico 2
 }
 
+// --- PSRAM ---
+// Required board:: member. Unused — kPsramAvailable is false, so
+// init_hardware skips psram_init. GPIO 0 is UART GPS TX and must not
+// be muxed to CS1.
+inline constexpr uint8_t kPsramCsPin       = 0;  // Unused — guard prevents init
+
 // --- UART GPS (expansion on UART0 GPIO 0/1; not an onboard GPS chip) ---
 inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;

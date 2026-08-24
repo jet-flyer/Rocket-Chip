@@ -486,14 +486,3 @@ void gps_uart_request_reinit() {
 bool gps_uart_take_reinit_request() {
     return g_reinitRequested.exchange(false, std::memory_order_acq_rel);
 }
-
-void gps_uart_request_reinit() {
-    if constexpr (!board::kUartGpsAvailable) {
-        return;
-    }
-    g_reinitRequested.store(true, std::memory_order_release);
-}
-
-bool gps_uart_take_reinit_request() {
-    return g_reinitRequested.exchange(false, std::memory_order_acq_rel);
-}

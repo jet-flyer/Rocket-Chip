@@ -43,6 +43,7 @@ constexpr float    kHueBound180         = kHueBound120 + kHueSector;
 constexpr float    kHueBound240         = kHueBound180 + kHueSector;
 constexpr float    kHueBound300         = kHueBound240 + kHueSector;
 constexpr uint32_t kGrbGreenShift       = 24;         // GRB bit position: green in upper byte
+static constexpr uint8_t kWs2812MaxLeds = 8;          // pixels[] capacity
 
 // ============================================================================
 // Private State
@@ -56,7 +57,7 @@ static struct {
     uint8_t numLeds;       // Number of LEDs in chain (board::kNeoPixelCount)
 
     // Per-pixel buffer for multi-LED patterns (RSSI bar, etc.)
-    ws2812_rgb_t pixels[8];            // Max 8 LEDs per chain
+    ws2812_rgb_t pixels[kWs2812MaxLeds];
 
     // Current mode and color
     ws2812_mode_t mode;
@@ -235,6 +236,12 @@ bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds) {
     if (g_state.initialized) {
         return true;  // Already initialized
     }
+    if (num_leds == 0U) {
+        return false;
+    }
+    if (num_leds > kWs2812MaxLeds) {
+        num_leds = kWs2812MaxLeds;
+    }
 
     // Claim a state machine and load the program
     uint sm = 0;
@@ -252,7 +259,7 @@ bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds) {
     g_state.sm = sm;
     g_state.offset = offset;
     g_state.initialized = true;
-    g_state.numLeds = (num_leds > 0) ? num_leds : 1;
+    g_state.numLeds = num_leds;
     g_state.lastUpdateMs = to_ms_since_boot(get_absolute_time());
     g_state.phaseStartMs = g_state.lastUpdateMs;
 
@@ -347,10 +354,16 @@ void ws2812_set_mode_alternate(ws2812_rgb_t a, ws2812_rgb_t b,
 }
 
 void ws2812_set_breathe_period(uint32_t period_ms) {
+    if (period_ms == 0U) {
+        return;
+    }
     g_state.breathePeriodMs = period_ms;
 }
 
 void ws2812_set_blink_timing(uint32_t on_ms, uint32_t off_ms) {
+    if (on_ms == 0U || off_ms == 0U) {
+        return;
+    }
     g_state.blinkOnMs = on_ms;
     g_state.blinkOffMs = off_ms;
 }
@@ -364,6 +377,9 @@ void ws2812_set_brightness(uint8_t brightness) {
 // ============================================================================
 
 static void update_breathe(uint32_t elapsed) {
+    if (g_state.breathePeriodMs == 0U) {
+        return;
+    }
     float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathePeriodMs);
     float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
     scale = kBreatheMinScale + scale * kBreatheRange;
@@ -373,6 +389,9 @@ static void update_breathe(uint32_t elapsed) {
 
 static void update_blink(uint32_t elapsed, uint32_t on_ms, uint32_t off_ms) {
     uint32_t period = on_ms + off_ms;
+    if (period == 0U) {
+        return;
+    }
     uint32_t phase = elapsed % period;
     bool should_be_on = (phase < on_ms);
 

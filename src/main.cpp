@@ -206,8 +206,12 @@ static void init_early_hw() {
     // Pack may release a shared peripheral RESET before I2C (no-op on Feather).
     board::board_release_peripheral_reset();
 
-    g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
-                                                board::kNeoPixelCount);
+    if (board::kNeoPixelCount == 0) {
+        g_neopixelInitialized = false;
+    } else {
+        g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
+                                                    board::kNeoPixelCount);
+    }
     (void)rc::mcu_temp_init();
 }
 
@@ -240,9 +244,11 @@ static void init_hardware() {
     // flash_safe_test also uses flash_safe_execute() which needs
     // multicore_lockout — safe only after Core 1 is launched. So:
     // init + self-test before Core 1, flash-safe test deferred to after.
-    g_psramSize = rc::psram_init(board::kPsramCsPin);
-    if (g_psramSize > 0) {
-        g_psramSelfTestPassed = rc::psram_self_test(g_psramSize);
+    if (board::kPsramAvailable) {
+        g_psramSize = rc::psram_init(board::kPsramCsPin);
+        if (g_psramSize > 0) {
+            g_psramSelfTestPassed = rc::psram_self_test(g_psramSize);
+        }
     }
 
     // R-19: PSM reset Core 1 before launch (post-AIRCR wedge fix).
