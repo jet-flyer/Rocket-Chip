@@ -33,8 +33,8 @@ enum class ActionType : uint8_t {
 
 // ============================================================================
 // LED phase codes — aliases of led_patterns.h (SSOT).
-// kLedPhaseFault is unused SET_LED (FD never enter_phase kFault).
-// Numeric 28 in the SSOT is kFdPreArmFail, not a FAULT-phase overlay.
+// No FAULT overlay: ArduPilot notify has no hardfault phase LED.
+// Failsafe/EKF live in Notify FaultIntent. 28 is kFdPreArmFail only.
 // ============================================================================
 enum LedPhaseValue : uint8_t {
     kLedPhaseIdle           = rc::led::kOff,
@@ -46,7 +46,6 @@ enum LedPhaseValue : uint8_t {
     kLedPhaseLanded         = rc::led::kFdLanded,
     kLedPhaseAbort          = rc::led::kFdAbort,
     kLedPhaseBeacon         = rc::led::kFdBeacon,
-    kLedPhaseFault          = rc::led::kFdPreArmFail,
 };
 
 // ============================================================================

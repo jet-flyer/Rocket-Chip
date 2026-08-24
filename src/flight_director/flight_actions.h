@@ -114,9 +114,10 @@ inline constexpr ActionEntry kAbortEntry[] = {
 // ============================================================================
 // FAULT — table slot for kFault. FD HSM never enter_phase(kFault);
 // fault_protection writes the observable pair and does not run this list.
+// No SET_LED: 28 is AP pre-arm fail, not a FAULT overlay.
 // ============================================================================
 inline constexpr ActionEntry kFaultEntry[] = {
-    {ActionType::kSetLed, kLedPhaseFault},
+    {ActionType::kReportState, 0},
 };
 // No exit actions for FAULT
 

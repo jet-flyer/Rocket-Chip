@@ -714,3 +714,16 @@ Owner sitting 11 closed. Leftover agent P. Standing filter: `cli/rc_os*` / Starc
 | GWF-413 | REMEDIATE comment | header names `test_mode_evaluate()` on the 10 Hz tick |
 | GWF-493 | DEFER-home | RC_OS structure — replay-trigger inventory in `rc_os_debug.h` |
 | GWF-494 | DEFER-home | RC_OS structure — handled-or-not bool in `rc_os_debug.h` |
+
+### Overlay leftover — File earn-rent / naming / packaging — CLOSED 2026-08-24
+
+Owner sitting 12 closed KEEP/fold. Leftover agent P. No RC_OS / Starcom in this bucket.
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-079 / CW-B05-11 | REMEDIATE | `static_assert(sizeof(FlightMetadata)==16)`; pad comment; not packed |
+| GWF-087 / CW-B21-01 | REMEDIATE | `LedPhaseValue` aliases `rc::led::kFd*`. No `kLedPhaseFault` — 28 is AP pre-arm fail only |
+| GWF-176 | previously resolved | `predict()` / `predict_dense()` comments already match |
+| GWF-220 | previously resolved | `@file calibration_data.c` already gone |
+| GWF-273 | REMEDIATE comment | ARMED entry is red, not amber |
+| GWF-326 | REMEDIATE comment | Idle is not a resolver winner; miss → `kSensorNoGps` |
