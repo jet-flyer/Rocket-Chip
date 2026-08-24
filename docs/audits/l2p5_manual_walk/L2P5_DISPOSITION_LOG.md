@@ -704,3 +704,13 @@ Previously resolved: GWF-011 / CW-B01-04 (`kRcLogRingBytes`); CW-B06-04 (`flash_
 | GWF-202 | REMEDIATE comments | `healthy()` fails if not initialized, then NaN/Inf |
 | GWF-321 | REMEDIATE comment | `msp_tick` writes watermarks |
 | GWF-461 | REMEDIATE comment | `init_hardware` is void; drop watchdog-return banner |
+
+### Overlay leftover — Test / inject / debug — CLOSED 2026-08-24
+
+Owner sitting 11 closed. Leftover agent P. Standing filter: `cli/rc_os*` / Starcom leaves stay DEFER-home even if they sit in a do-now overlay bucket. Dashboard display lies stay (not structure).
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-413 | REMEDIATE comment | header names `test_mode_evaluate()` on the 10 Hz tick |
+| GWF-493 | DEFER-home | RC_OS structure — replay-trigger inventory in `rc_os_debug.h` |
+| GWF-494 | DEFER-home | RC_OS structure — handled-or-not bool in `rc_os_debug.h` |

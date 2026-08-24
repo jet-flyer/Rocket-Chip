@@ -83,7 +83,7 @@ Handoff. Overlay paper through phantom/missing symbols closed on this branch (`c
 
 **In progress:** Class-design / published guts. Summaries already posted; **wait for owner sign-off / amendments before any `src/`.** Do-now (if signed): Pico2 `kPsramCsPin`; WS2812 max-LED clamp + period 0; MAVLink `parser_buf` static_assert; drop unused `rc_signal_name`; widen `.clang-tidy` HeaderFilterRegex to `src/**/*.h`. Park if signed: AO guts / P10-9 leftovers.
 
-**Blocked:** class-design `src/` until owner labels. WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
+**Blocked:** class-design `src/` until owner labels. WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. Overlay leftover rows on `cli/rc_os*` or Starcom leaves stay **DEFER-home** even if they sit in a do-now bucket (GWF-493/494 parked). Dashboard display lies stay (not structure). Debug-menu inventory is RC_OS structure. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
 
 **Concerns:** untracked `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (leave; not SSOT). Do not silent-regen `mission_profile_data.h` (R-4). Do not auto-ACCEPT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
