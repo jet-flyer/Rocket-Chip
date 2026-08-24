@@ -95,7 +95,8 @@ static_assert(nmea_checksum_constexpr(kPmtk25157600Body) == 0x2C,
 static_assert(sizeof(kPmtk25157600Sentence) - 1 == 19,
               "PMTK251,57600 sentence byte length mismatch");
 
-// PMTK314 — enable RMC + GGA + GSA + GSV sentences (rest disabled).
+// PMTK314 — enable RMC + GGA + GSA (rest disabled). Field 6 is GSV=0.
+// Field order GLL,RMC,VTG,GGA,GSA,GSV: standards/VENDOR_GUIDELINES.md.
 // Same literal as gps_pa1010d's kPmtk314Sentence; kept separate per the
 // council Tier 2 surgical-scope principle (don't share constants between
 // driver TUs to avoid hidden coupling).

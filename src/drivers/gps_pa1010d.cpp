@@ -40,7 +40,8 @@ constexpr uint8_t nmea_checksum_constexpr(const char* body) {
     return c;
 }
 
-// PMTK314 — enable RMC + GGA + GSA + GSV sentences (rest disabled).
+// PMTK314 — enable RMC + GGA + GSA (rest disabled). Field 6 is GSV=0.
+// Field order GLL,RMC,VTG,GGA,GSA,GSV: standards/VENDOR_GUIDELINES.md.
 // Sent twice during init per the cold-boot window discovery (see init()).
 constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
 constexpr char kPmtk314Sentence[] =
