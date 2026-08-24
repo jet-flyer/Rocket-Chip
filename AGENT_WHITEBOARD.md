@@ -83,7 +83,7 @@ Handoff. Overlay paper through phantom/missing symbols closed on this branch (`c
 
 **In progress:** Class-design / published guts. Summaries already posted; **wait for owner sign-off / amendments before any `src/`.** Do-now (if signed): Pico2 `kPsramCsPin`; WS2812 max-LED clamp + period 0; MAVLink `parser_buf` static_assert; drop unused `rc_signal_name`; widen `.clang-tidy` HeaderFilterRegex to `src/**/*.h`. Park if signed: AO guts / P10-9 leftovers.
 
-**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites wait for those homes — they do not stop other remediates. Overlay leftover rows on `cli/rc_os*` or Starcom leaves stay DEFER-home even if they sit in a do-now bucket (GWF-493/494 parked). Debug-menu inventory is RC_OS structure. Dashboard display lies are not structure (already closed). R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
+**DEFER (not a stop):** same homes as the owner walk — WN-100, Starcom, RC_OS structure, early-impl rewrites, codegen hygiene. Not a stop on other remediates. Overlay leftovers in those homes stay DEFER-home even in a do-now bucket. Dashboard display lies are not RC_OS structure. Debug-menu inventory is. A Starcom *touch later* is not a reason to skip a live lie (CW-B28-03 field-equality). R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
 
 **Concerns:** untracked `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (leave; not SSOT). Do not silent-regen `mission_profile_data.h` (R-4). Do not auto-ACCEPT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
@@ -100,6 +100,16 @@ Current `build_flight` ELF **is still development firmware.** Approach A (inject
 Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Concerns:** Probe residual power (E2) if the board looks dead after SWD.
+
+---
+
+## Notify / LED system overhaul (OPEN) (2026-08-24)
+
+AO_Notify + `led_patterns.h` + AO_LedEngine need a dedicated sitting, not more overlay nits.
+
+**Known split to keep:** Stage L ARMED is **red solid** (APM2 LED A / traffic-light “motors live”). Pixhawk RGB standard is **solid green** with GPS 3D / **solid blue** without. Do not flip ARMED to green in overlay remediates.
+
+Also in that sitting: USER_GUIDE Armed still says yellow; `kLedPhaseFault` dropped (`347f0a4`) — 28 is AP pre-arm yellow double-flash only; failsafe/EKF stay Notify `FaultIntent`.
 
 ---
 

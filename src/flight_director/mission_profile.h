@@ -115,8 +115,7 @@ struct MissionProfile {
 
 } // namespace rc
 
-// Active profile — generated from profiles/*.cfg by scripts/generate_profile.py
-// To change: edit the .cfg file, run the generator, rebuild.
+// Generated profile + kDefaultRocketRadioConfig (R-4: do not silent-regen).
 #include "mission_profile_data.h"
 
 #endif // ROCKETCHIP_MISSION_PROFILE_H

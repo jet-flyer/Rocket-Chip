@@ -226,7 +226,7 @@ bool radio_config_storage_write(const rc::RadioConfig* cfg) {
 
     // If the cached copy matches, skip the write — avoids flash wear from
     // no-op writes (e.g., revert that lands on the same config as last saved).
-    if (g_cachedValid && memcmp(&g_cached, cfg, sizeof(*cfg)) == 0) {
+    if (g_cachedValid && g_cached == *cfg) {
         return true;
     }
 

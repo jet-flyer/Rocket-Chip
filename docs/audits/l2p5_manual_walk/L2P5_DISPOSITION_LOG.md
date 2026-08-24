@@ -727,3 +727,17 @@ Owner sitting 12 closed KEEP/fold. Leftover agent P. No RC_OS / Starcom in this 
 | GWF-220 | previously resolved | `@file calibration_data.c` already gone |
 | GWF-273 | REMEDIATE comment | ARMED entry is red, not amber |
 | GWF-326 | REMEDIATE comment | Idle is not a resolver winner; miss → `kSensorNoGps` |
+
+### Overlay leftover — Version / identity / config.h — CLOSED 2026-08-24
+
+`config.h` gone (R-8). R-9 bump process not invented. Owner-walk DEFER homes apply (not only RC_OS/Starcom).
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B01-06 / GWF-017 / GWF-019 | previously resolved | `config.h` gone |
+| CW-L046 | park | `dbg_print` templates now in `rc_debug.h` — notify/debug overhaul |
+| CW-B02-03 | previously resolved | Tiny PSRAM off + bring-up `#error`; map nits wait allowlist |
+| GWF-104 | REMEDIATE | version trio macros stringify `kFirmwareVersion` |
+| GWF-276 | REMEDIATE comment | profile include also publishes `kDefaultRocketRadioConfig` |
+| GWF-316 | previously resolved | storage header no longer names `kDefaultRocketRadioConfig` |
+| CW-B28-03 | REMEDIATE | `RadioConfig` field-wise `==`; wear skip does not `memcmp` pad |

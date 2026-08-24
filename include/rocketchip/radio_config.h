@@ -35,6 +35,20 @@ struct RadioConfig {
     uint8_t     coding_rate;       // 5-8 (CR 4/x)
 };
 
+// Field-wise — not memcmp. Struct is unpacked (pad before bandwidth_khz).
+constexpr bool operator==(const RadioConfig& a, const RadioConfig& b) {
+    return a.mode == b.mode
+        && a.protocol == b.protocol
+        && a.nav_rate_hz == b.nav_rate_hz
+        && a.power_dbm == b.power_dbm
+        && a.spreading_factor == b.spreading_factor
+        && a.bandwidth_khz == b.bandwidth_khz
+        && a.coding_rate == b.coding_rate;
+}
+constexpr bool operator!=(const RadioConfig& a, const RadioConfig& b) {
+    return !(a == b);
+}
+
 // Default radio config — used when no profile [radio] section exists
 inline constexpr RadioConfig kDefaultRadioConfig = {
     .mode             = RadioRole::kTx,

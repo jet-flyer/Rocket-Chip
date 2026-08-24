@@ -12,10 +12,18 @@
 
 #include <stdint.h>
 
-constexpr uint8_t     kVersionMajor  = 0;
-constexpr uint8_t     kVersionMinor  = 16;
-constexpr uint8_t     kVersionPatch  = 0;
-constexpr const char* kFirmwareVersion = "0.16.0";
+// One trio. String is the stringify of these — do not edit the quoted form.
+#define RC_VERSION_MAJOR 0
+#define RC_VERSION_MINOR 16
+#define RC_VERSION_PATCH 0
+#define RC_VERSION_STR_X(a, b, c) #a "." #b "." #c
+#define RC_VERSION_STR(a, b, c) RC_VERSION_STR_X(a, b, c)
+
+constexpr uint8_t     kVersionMajor  = RC_VERSION_MAJOR;
+constexpr uint8_t     kVersionMinor  = RC_VERSION_MINOR;
+constexpr uint8_t     kVersionPatch  = RC_VERSION_PATCH;
+constexpr const char* kFirmwareVersion =
+    RC_VERSION_STR(RC_VERSION_MAJOR, RC_VERSION_MINOR, RC_VERSION_PATCH);
 
 constexpr const char* kRcOsVersion = "0.5.0";
 
