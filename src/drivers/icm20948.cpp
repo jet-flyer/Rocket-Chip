@@ -94,7 +94,7 @@ namespace bit {
 // ============================================================================
 
 namespace ak09916 {
-    constexpr uint8_t kI2cAddr          = 0x0C;
+    constexpr uint8_t kI2cAddr          = ::kI2cAddrAk09916;
 
     constexpr uint8_t kWia2             = 0x01;  // Device ID (should read 0x09)
     constexpr uint8_t kSt1              = 0x10;  // Status 1 (data ready)

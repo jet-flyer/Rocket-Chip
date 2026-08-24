@@ -8,13 +8,14 @@
 #define ROCKETCHIP_GPS_PA1010D_H
 
 #include "gps.h"
+#include "i2c_bus.h"
 #include <stddef.h>
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-constexpr uint8_t kGpsPa1010dAddr   = 0x10;
+constexpr uint8_t kGpsPa1010dAddr = kI2cAddrPa1010d;
 
 // ============================================================================
 // API

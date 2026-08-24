@@ -157,9 +157,7 @@ static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
 
 
-// I2C alternate addresses for device identification
-static constexpr uint8_t kI2cAddrIcm20948Alt = 0x68;
-static constexpr uint8_t kI2cAddrDps310Alt   = 0x76;
+
 
 // ============================================================================
 // Display Helpers

@@ -12,14 +12,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "i2c_bus.h"
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-// I2C address (0x69 with AD0 high - Adafruit default, 0x68 with AD0 low)
-constexpr uint8_t kIcm20948AddrDefault  = 0x69;
-constexpr uint8_t kIcm20948AddrAlt      = 0x68;
+constexpr uint8_t kIcm20948AddrDefault = kI2cAddrIcm20948;
+constexpr uint8_t kIcm20948AddrAlt     = kI2cAddrIcm20948Alt;
 
 // Device IDs
 constexpr uint8_t kIcm20948WhoAmI       = 0xEA;

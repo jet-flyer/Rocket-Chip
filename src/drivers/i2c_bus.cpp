@@ -15,10 +15,6 @@
 constexpr uint8_t kI2cScanStart        = 0x08;
 constexpr uint8_t kI2cScanEnd          = 0x78;  // Exclusive upper bound
 
-// Known alternate device addresses for bus scan identification
-constexpr uint8_t kI2cAddrIcm20948Alt  = 0x68;  // ICM-20948 with AD0=LOW
-constexpr uint8_t kI2cAddrDps310Alt    = 0x76;  // DPS310 alternate address
-
 // Bus recovery constants (I2C specification)
 constexpr uint8_t  kBusRecoveryCycles  = 9;     // 9 clock pulses per I2C spec
 constexpr uint32_t kBusRecoveryPulseUs = 5;     // Half-period for recovery clock

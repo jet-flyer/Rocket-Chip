@@ -27,13 +27,15 @@ constexpr uint32_t kI2cBusFreqHz    = 400000;   // 400kHz Fast Mode (I2C spec)
 constexpr uint32_t kI2cTimeoutUs    = 10000;
 
 // ============================================================================
-// Known Device Addresses
+// Device addresses — one map (HARDWARE.md / Adafruit strap). Drivers alias these.
 // ============================================================================
 
-constexpr uint8_t kI2cAddrDps310    = 0x77;     // Barometer
-constexpr uint8_t kI2cAddrIcm20948  = 0x69;     // IMU (AD0 high - Adafruit default)
-constexpr uint8_t kI2cAddrAk09916   = 0x0C;     // Magnetometer (inside ICM-20948)
-constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
+constexpr uint8_t kI2cAddrDps310       = 0x77;  // Barometer (SDO high)
+constexpr uint8_t kI2cAddrDps310Alt    = 0x76;  // SDO low
+constexpr uint8_t kI2cAddrIcm20948     = 0x69;  // IMU AD0 high (Adafruit default)
+constexpr uint8_t kI2cAddrIcm20948Alt  = 0x68;  // AD0 low
+constexpr uint8_t kI2cAddrAk09916      = 0x0C;  // Mag, ICM-20948 bypass
+constexpr uint8_t kI2cAddrPa1010d      = 0x10;  // GPS
 
 // ============================================================================
 // Initialization

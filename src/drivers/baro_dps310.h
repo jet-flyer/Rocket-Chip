@@ -8,13 +8,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "i2c_bus.h"
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-constexpr uint8_t kBaroDps310AddrDefault    = 0x77;
-constexpr uint8_t kBaroDps310AddrAlt        = 0x76;
+constexpr uint8_t kBaroDps310AddrDefault = kI2cAddrDps310;
+constexpr uint8_t kBaroDps310AddrAlt     = kI2cAddrDps310Alt;
 
 // Pressure OS/MR and temp OS/MR are the constexprs below.
 // Datasheet OS / meas-time / RMS tables: Infineon DPS310 (not restated here).
