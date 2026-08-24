@@ -184,6 +184,8 @@ Then remediate remaining (affected + untouched) **by overlay bucket**, same sitt
 
 **Per remaining item (required):** before `src/` edits in that group, name each ID with (1) a one-line summary of the claim against the current tree and (2) a suggested label — REMEDIATE (what), re-read skip, **park**, or DEFER-home. Do not auto-ACCEPT. A 1-vs-1 or a design fork stops for the owner even if the rest of the bucket is obvious.
 
+**Graph first (token budget):** `graphify-out/graph.json` exists. For “who calls / where is / what includes” an overlay leaf, run `graphify query` (or `path` / `explain`) **before** a tree-wide grep or a speculative file read. Then open only the files the graph names. After `src/` / `include/` edits, `graphify update .` (AST-only). Mid-sitting the graph can lag this branch — if graph and tree disagree, **the tree wins**. A stale node (deleted symbol, old caller) is not a skip; re-check the file. The graph stays useful after remediates: remaining callers and homes, not a second walk of frozen packs.
+
 **Park** means: not this sitting, and not “skip forever.” The ID moves to a **named later home** (Starcom, RC_OS structure, early-impl, comment-contract, …) and stays on the overlay/log until that home runs. Cleared = work done. DEFER-home = already in an owner DEFER pile. Park = we just assigned the home.
 
 Default remaining live rows: REMEDIATE. Do not auto-ACCEPT.

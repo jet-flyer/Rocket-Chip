@@ -378,6 +378,13 @@ do-now = `untouched` + surviving `affected`. Test in groups of 2–4
 label (REMEDIATE / re-read skip / DEFER-home) before `src/` in that
 group. Do not auto-ACCEPT. See plan Phase 4.
 
+**Graph first:** `graphify query` / `path` / `explain` before a
+tree-wide grep or a speculative read of an overlay leaf. Open only
+the files the graph names. After code edits, `graphify update .`.
+If graph and tree disagree, the tree wins (graph can lag this
+sitting). Stale nodes are not a skip. Plan Phase 4 has the full
+rule.
+
 | n remaining | Bucket | Later sitting |
 |--:|--------|---------------|
 | 1 | Grok vs Claude complete disagree | Stop. Owner settles before any code. |
