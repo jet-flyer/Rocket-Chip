@@ -28,6 +28,7 @@ void ud_to_dense(const UD24& ud, float P[eskf::kStateSize][eskf::kStateSize]);
 // Used for hybrid codegen+Bierman path: codegen updates dense P,
 // then factorize into UD for Bierman measurement update.
 // Returns false if P is not positive-definite (any D[i] <= 0).
+// On false, ud may be a partial factorization (mid-write).
 bool ud_factorize(UD24& ud, const float P[eskf::kStateSize][eskf::kStateSize]);
 
 // In-place scalar update. H has one nonzero at hIdx in [0, kStateSize).

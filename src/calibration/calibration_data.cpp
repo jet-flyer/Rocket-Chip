@@ -100,7 +100,8 @@ bool calibration_validate(const calibration_store_t* cal) {
     }
 
     // Check version
-    if (cal->version > kCalibrationVersion) {
+    // Current layout CRC only — older versions cannot match this sizeof.
+    if (cal->version != kCalibrationVersion) {
         return false;
     }
 

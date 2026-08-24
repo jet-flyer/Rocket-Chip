@@ -279,11 +279,7 @@ static void init_wmm_field(float lat_deg, float lon_deg, WmmSource source) {
 
 // Persist WMM position to cal storage (survives reboot)
 static void save_wmm_position(float lat_deg, float lon_deg) {
-    calibration_store_t* cal =
-        const_cast<calibration_store_t*>(calibration_manager_get());
-    cal->wmm_lat_deg = lat_deg;
-    cal->wmm_lon_deg = lon_deg;
-    cal->cal_flags |= CAL_STATUS_WMM_SET;
+    calibration_set_wmm_position(lat_deg, lon_deg);
     calibration_save();
 }
 

@@ -33,7 +33,7 @@ struct Quat {
     // Conjugate: q* = [w, -x, -y, -z]
     Quat conjugate() const { return {w, -x, -y, -z}; }
 
-    // Inverse: q^-1 = q* / |q|^2  (for unit quaternions, same as conjugate)
+    // Inverse: q^-1 = q* / |q|^2. Near-zero |q| → identity.
     Quat inverse() const;
 
     // Norm

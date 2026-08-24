@@ -3,10 +3,9 @@
 #ifndef ROCKETCHIP_CALIBRATION_LM_SOLVER_H
 #define ROCKETCHIP_CALIBRATION_LM_SOLVER_H
 
-// Levenberg-Marquardt solver used by mag sphere-fit and ellipsoid-fit
-// calibration. Pure-function module: all working state (samples, JtJ buffer,
-// inverse buffer) is passed in by the caller — no file-scope globals. This
-// is what makes the solver host-testable in isolation.
+// Levenberg-Marquardt solver used by mag sphere-fit and ellipsoid-fit.
+// Samples/JtJ/jtjInv are caller-owned. mat_inverse uses a process-lifetime
+// static [A|I] workspace (not a second public API).
 //
 // Template dispatch (not function pointers). Host-testable in isolation.
 
@@ -65,7 +64,9 @@ void lm_accumulate_jtj(const float (*samples)[3], uint16_t numSamples,
 
 // Run LM iterations on params[0..numParams-1] using samples[0..numSamples-1].
 // jtj and jtjInv are caller-owned scratch buffers sized for numParams x numParams.
-// On return, bestParams holds the best fit and *bestFitness holds RMS^2.
+// bestParams / *bestFitness are in-out seeds: only written when a trial
+// RMS^2 is strictly less than the caller-supplied *bestFitness. Unchanged
+// if every invert/step fails or fails to improve.
 // Template parameters: ResFn = float(const float[3], const float*),
 //                      JacFn = void (const float[3], const float*, float*).
 template <typename ResFn, typename JacFn>

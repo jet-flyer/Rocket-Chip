@@ -741,3 +741,19 @@ Owner sitting 12 closed KEEP/fold. Leftover agent P. No RC_OS / Starcom in this 
 | GWF-276 | REMEDIATE comment | profile include also publishes `kDefaultRocketRadioConfig` |
 | GWF-316 | previously resolved | storage header no longer names `kDefaultRocketRadioConfig` |
 | CW-B28-03 | REMEDIATE | `RadioConfig` field-wise `==`; wear skip does not `memcmp` pad |
+
+### Overlay leftover — Fusion / math / cal live invariants — CLOSED 2026-08-24
+
+Early-impl *rewrites* parked. Numerical/contract lies remediates. GWF-106 / GWF-233 / CW-B19-06 / CW-L014 / GWF-197 / GWF-203 header / GWF-228 previously resolved.
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B14-04 / CW-L006 | REMEDIATE | predict skip visible; dt > 0 finite |
+| GWF-173 / GWF-181 | REMEDIATE | `ensure_dense` before P reads |
+| CW-L010 / GWF-175 | REMEDIATE | mag heading needs profile or GPS |
+| CW-B07-05 / CW-L013 / CW-L007 | REMEDIATE | Mat/block3/Bierman index bounds |
+| GWF-178 / CW-L009 / GWF-180 / CW-L042 | REMEDIATE | ZUPT/3-axis/reset-cov contracts |
+| CW-B15-02 / CW-L008 / GWF-192 / GWF-193 | REMEDIATE | confidence null/`now_ms`/hysteresis |
+| CW-B16-07 / GWF-203 | REMEDIATE | `kMagMinNormUt`; dt no-op |
+| GWF-207 / GWF-209 / CW-L012 / GWF-112 | REMEDIATE | UD partial-fail; quat inverse identity |
+| GWF-174 / GWF-215 / GWF-218 / GWF-223 / GWF-231 | REMEDIATE | WMM mutator; flags-only has; version==; progress; LM in-out |

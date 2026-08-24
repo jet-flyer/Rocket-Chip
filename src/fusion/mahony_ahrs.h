@@ -54,6 +54,8 @@ struct MahonyAHRS {
     // Mag gate: reject if magnitude deviates >±15% from expected.
     // Council tightened from ±25%. Set expected_mag=0 to skip check.
     static constexpr float kMagGateFraction = 0.15F;
+    // Init/update skip mag heading when |mag| <= this (µT). Not “zero vector”.
+    static constexpr float kMagMinNormUt = 1.0F;
 
     // Ki spin cutoff: freeze integral above 20°/s.
     // AP/BetaFlight/INAV consensus — prevents integral windup in spin.
@@ -72,7 +74,7 @@ struct MahonyAHRS {
     // mag_body: body-frame calibrated mag reading (µT).
     // expected_mag: calibrated field magnitude (µT). 0 = skip mag gate.
     // mag_cal_valid: if false, skip mag correction entirely (council addition).
-    // dt: time step (s).
+    // dt: seconds; non-finite or <=0 is a no-op.
     void update(const Vec3& accel, const Vec3& gyro,
                 const Vec3& magBody, float expectedMag,
                 bool magCalValid, float dt);

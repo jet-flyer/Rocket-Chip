@@ -199,6 +199,13 @@ const calibration_store_t* calibration_manager_get() {
     return &g_calibration;
 }
 
+void calibration_set_wmm_position(float lat_deg, float lon_deg) {
+    g_calibration.wmm_lat_deg = lat_deg;
+    g_calibration.wmm_lon_deg = lon_deg;
+    g_calibration.cal_flags |= CAL_STATUS_WMM_SET;
+    calibration_update_crc(&g_calibration);
+}
+
 cal_state_t calibration_manager_get_state() {
     return g_calState;
 }

@@ -48,6 +48,9 @@ void calibration_manager_init(void);
 
 const calibration_store_t* calibration_manager_get(void);
 
+// Write WMM lat/lon + CAL_STATUS_WMM_SET on the RAM store (then calibration_save).
+void calibration_set_wmm_position(float latDeg, float lonDeg);
+
 cal_state_t calibration_manager_get_state(void);
 
 // ============================================================================
@@ -87,6 +90,7 @@ void calibration_reset_state(void);
 
 bool calibration_is_active(void);
 
+// 0–100 of gyro/level/baro sample accumulator. Not 6-pos or mag.
 uint8_t calibration_get_progress(void);
 
 cal_result_t calibration_get_result(void);

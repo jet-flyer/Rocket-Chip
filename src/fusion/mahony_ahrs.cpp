@@ -26,7 +26,7 @@ bool MahonyAHRS::init(const Vec3& accel, const Vec3& mag_body) {
 
     // Optional mag yaw. Skip when |mag| <= 1 µT. Skipped path leaves q as
     // from_two_vectors(body_down, ned_down); that is not Euler yaw = 0.
-    if (mag_body.norm() > 1.0F) {
+    if (mag_body.norm() > kMagMinNormUt) {
         // Rotate mag by the full from_two_vectors q (not a zero-yaw tilt-only
         // projection). Horizontal atan2 then replaces that q's Euler yaw.
         const Vec3 mag_ned = q.rotate(mag_body);
@@ -65,7 +65,7 @@ Vec3 MahonyAHRS::compute_accel_error(const Vec3& accel) const {
 // ============================================================================
 Vec3 MahonyAHRS::compute_mag_error(const Vec3& mag_body, float expected_mag,
                                     bool mag_cal_valid) const {
-    if (!mag_cal_valid || mag_body.norm() <= 1.0F) {
+    if (!mag_cal_valid || mag_body.norm() <= kMagMinNormUt) {
         return Vec3();
     }
     // Mag gate: skip if magnitude deviates beyond +/-15%
@@ -97,6 +97,9 @@ void MahonyAHRS::update(const Vec3& accel, const Vec3& gyro,
                         const Vec3& mag_body, float expected_mag,
                         bool mag_cal_valid, float dt) {
     if (!initialized_) {
+        return;
+    }
+    if (!std::isfinite(dt) || dt <= 0.0F) {
         return;
     }
 

@@ -154,6 +154,7 @@ bool calibration_validate(const calibration_store_t* cal);
 
 void calibration_update_crc(calibration_store_t* cal);
 
+// Flags-only (cal_flags). Per-sensor status bytes are a second channel.
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag);
 
 #endif // ROCKETCHIP_CALIBRATION_DATA_H
