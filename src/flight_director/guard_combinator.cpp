@@ -30,8 +30,8 @@ struct CombinatorSpec {
 
 static void init_combinator(GuardCombinator& c, const CombinatorSpec& spec) {
     c.type = spec.type;
-    c.num_guards = spec.n;
-    for (uint8_t i = 0; i < spec.n && i < 4; ++i) { c.guard_ids[i] = spec.ids[i]; }
+    c.num_guards = (spec.n > 4) ? 4 : spec.n;
+    for (uint8_t i = 0; i < c.num_guards; ++i) { c.guard_ids[i] = spec.ids[i]; }
     c.signal = spec.signal;
     c.backup_timeout_ms = spec.backup_ms;
     c.valid_phases = spec.phases;

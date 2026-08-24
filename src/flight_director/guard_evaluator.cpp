@@ -10,6 +10,7 @@ namespace rc {
 
 // Phase bitmask helper
 static constexpr uint16_t phase_bit(FlightPhase p) {
+    // kFault is bit 8 and fits in uint16. No guard lists it.
     return static_cast<uint16_t>(1U << static_cast<uint8_t>(p));
 }
 
@@ -25,6 +26,7 @@ static void init_guard(GuardState& g, uint32_t sustain_ms,
     g.signal = signal;
     g.valid_phases = valid_phases;
     g.fired = false;
+    g.sustained = false;
 }
 
 void guard_evaluator_init(GuardEvaluator* ev,

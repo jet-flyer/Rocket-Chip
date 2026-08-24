@@ -52,7 +52,7 @@ struct GuardState {
     uint32_t sustain_required;  // Ticks required to fire (from profile ms / tick_ms)
     float threshold;            // From MissionProfile where used; kBaroPeak stores 0 unused
     uint16_t signal;            // Signal to emit when sustained
-    uint16_t valid_phases;      // Bitmask: (1 << FlightPhase); uint16 so kFault (8) fits
+    uint16_t valid_phases;      // (1 << FlightPhase); uint16 so kFault (8) fits. No guard lists kFault.
     bool fired;                 // Unmanaged auto-dispatch latch; managed never set
     bool sustained;             // Eligible, not fired, and count >= required
 };

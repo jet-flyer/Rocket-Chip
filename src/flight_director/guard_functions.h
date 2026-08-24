@@ -6,8 +6,6 @@
 #ifndef ROCKETCHIP_GUARD_FUNCTIONS_H
 #define ROCKETCHIP_GUARD_FUNCTIONS_H
 
-#include "rocketchip/fused_state.h"
-
 namespace rc {
 
 // Launch: |accel_z| > threshold.

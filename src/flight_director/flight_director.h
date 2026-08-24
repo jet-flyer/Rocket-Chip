@@ -81,7 +81,7 @@ struct FlightDirector {
     bool guards_enabled;            // Unused after ctor. Enablement is evaluate_guards' phase check.
 };
 
-// Lifecycle
+// Lifecycle. profile must be non-null (Q_REQUIRE + early return).
 void flight_director_ctor(FlightDirector* me, const MissionProfile* profile);
 void flight_director_init(FlightDirector* me);
 

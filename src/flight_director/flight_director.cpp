@@ -186,6 +186,9 @@ const char* flight_signal_name(uint16_t sig) {
 // ============================================================================
 
 void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
+    Q_REQUIRE(me != nullptr);
+    Q_REQUIRE(profile != nullptr);
+    if (me == nullptr || profile == nullptr) { return; }
     QHsm_ctor(&me->super, Q_STATE_CAST(&state_initial));
     me->state.init();
     me->profile = profile;

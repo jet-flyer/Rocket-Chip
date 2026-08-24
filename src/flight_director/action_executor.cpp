@@ -29,13 +29,14 @@ static void set_marker(FlightMarkers* markers, MarkerId id, uint32_t ms) {
 // Execute a single action
 // ============================================================================
 void action_execute(const ActionEntry& action, ActionContext* ctx) {
+    if (ctx == nullptr) { return; }
     switch (action.type) {
         case ActionType::kSetLed:
             fd_effect_set_led(action.param);
             break;
 
         case ActionType::kMarkEvent:
-            if (ctx->markers) {
+            if (ctx->markers != nullptr) {
                 set_marker(ctx->markers, static_cast<MarkerId>(action.param),
                            ctx->now_ms);
             }
@@ -60,6 +61,7 @@ void action_execute(const ActionEntry& action, ActionContext* ctx) {
 // ============================================================================
 void action_execute_list(const ActionEntry* actions, uint32_t count,
                          ActionContext* ctx) {
+    if (ctx == nullptr || (count > 0U && actions == nullptr)) { return; }
     for (uint32_t i = 0; i < count; ++i) {
         action_execute(actions[i], ctx);
     }

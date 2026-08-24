@@ -155,6 +155,13 @@ inline constexpr PhaseActions kPhaseExitActions[] = {
     {nullptr, 0},  // kFault
 };
 
+static_assert((sizeof(kPhaseEntryActions) / sizeof(kPhaseEntryActions[0])) ==
+                  static_cast<unsigned>(FlightPhase::kCount),
+              "kPhaseEntryActions sized to FlightPhase::kCount");
+static_assert((sizeof(kPhaseExitActions) / sizeof(kPhaseExitActions[0])) ==
+                  static_cast<unsigned>(FlightPhase::kCount),
+              "kPhaseExitActions sized to FlightPhase::kCount");
+
 } // namespace rc
 
 #endif // ROCKETCHIP_FLIGHT_ACTIONS_H
