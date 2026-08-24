@@ -534,3 +534,30 @@ Per remaining item: summary + suggested label before `src/`. No auto-ACCEPT.
 | GWF-309 / CW-B26-03 | REMEDIATE | comments: erase-only; datasheet erase≡program QMI path |
 | GWF-310 / CW-B26-04 | REMEDIATE | `psram_self_test` via uncached alias |
 | CW-X5-05 | REMEDIATE | PSRAM ring requires self-test AND flash-safe |
+
+### Dashboard / station CLI display lies — CLOSED 2026-08-23
+
+Print/path bugs. Not RC_OS menu structure (WN-313–327 DEFER).
+
+**Do-now**
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-487 / CW-B44-01 | REMEDIATE | Temp: prints `t.temperature_c` not literal 0 |
+| GWF-488 / CW-B44-02 | REMEDIATE | Alt = MSL `alt_mm`; Baro = AGL `baro_alt_mm` |
+| GWF-481 / CW-B43-01 | REMEDIATE | distance age from `last_rx_ms`, not vehicle MET |
+| GWF-485 / CW-B43-05 | REMEDIATE | FAIL count matches FAIL list (drop AK09916 dup; radio iff SPI) |
+| CW-B44-04 | REMEDIATE | Lost: `RfManager.packets_missed` (14-bit expected peg) |
+| GWF-486 | REMEDIATE | phase colors vs `FlightPhase` 0–8 |
+
+**Park (not this bucket)**
+
+| ID | Home |
+|----|------|
+| CW-B38-01 | RC_OS structure — USB/MAVLink routing |
+| GWF-489 / GWF-490 | RC_OS structure — render contract / pause |
+| CW-L022 | class-design |
+| CW-B39-04 / CW-X2-01 | Starcom / radio-telem |
+| CW-X2-05 | safety-ssot |
+| GWF-269 | comment-contract (guard_functions) |
+| CW-B44-08 / CW-B44-09 / GWF-491 / GWF-492 / CW-X2-08 | comment / helper nits — later |

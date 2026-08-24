@@ -17,6 +17,7 @@
 #include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
 #include "flight_director/flight_state.h"
 #include <string.h>
+#include <stdint.h>
 #include <math.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -52,8 +53,6 @@ static constexpr float kCmsToMs = 0.01F;
 
 static float    g_maxAltM  = 0.0F;
 static float    g_maxVelMs = 0.0F;
-static uint32_t g_firstSeq  = 0;
-static bool     g_firstSeqValid = false;
 static uint8_t  g_prevFlightState = 255;  // for transition detection
 
 // ============================================================================
@@ -61,15 +60,17 @@ static uint8_t  g_prevFlightState = 255;  // for transition detection
 // ============================================================================
 
 static const char* flight_phase_color(uint8_t state) {
-    switch (state) {
-    case 0: return kGreen;   // IDLE
-    case 1: return kYellow;  // ARMED
-    case 2: return kRed;     // BOOST
-    case 3: return kCyan;    // COAST
-    case 4: return kCyan;    // DESCENT
-    case 5: return kGreen;   // LANDED
-    case 6: return kRed;     // ERROR
-    default: return kReset;
+    switch (static_cast<rc::FlightPhase>(state)) {
+    case rc::FlightPhase::kIdle:          return kGreen;
+    case rc::FlightPhase::kArmed:         return kYellow;
+    case rc::FlightPhase::kBoost:         return kRed;
+    case rc::FlightPhase::kCoast:         return kCyan;
+    case rc::FlightPhase::kDrogueDescent: return kCyan;
+    case rc::FlightPhase::kMainDescent:   return kCyan;
+    case rc::FlightPhase::kLanded:        return kGreen;
+    case rc::FlightPhase::kAbort:         return kRed;
+    case rc::FlightPhase::kFault:         return kRed;
+    default:                              return kReset;
     }
 }
 
@@ -122,10 +123,11 @@ static void send_frame(const char* buf, size_t len) {
 
 // Decoded display values — populated by decode_telem_fields()
 struct DisplayFields {
-    float alt_m, vvel, speed, batt_v;
+    float alt_m, baro_m, vvel, speed, batt_v;
     double lat, lon;
     uint32_t lost, age_ms, met_s, met_ds, age_s, age_ds;
     uint8_t fix, sats;
+    int8_t temp_c;
     bool eskf_ok;
     int rssi_pct;
     const char* phase;
@@ -147,7 +149,9 @@ static void decode_telem_fields(const rc::TelemetryState& t,
                                  const RadioAoState* rs,
                                  uint32_t met_ms, uint16_t seq,
                                  DisplayFields& d) {
-    d.alt_m   = static_cast<float>(t.baro_alt_mm) * kMmToM;
+    d.alt_m   = static_cast<float>(t.alt_mm) * kMmToM;       // MSL
+    d.baro_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;  // AGL
+    d.temp_c  = t.temperature_c;
     d.vvel    = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
     float vel_n = static_cast<float>(t.vel_n_cms) * kCmsToMs;
     float vel_e = static_cast<float>(t.vel_e_cms) * kCmsToMs;
@@ -160,8 +164,8 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.lat     = static_cast<double>(t.lat_1e7) * 1e-7;
     d.lon     = static_cast<double>(t.lon_1e7) * 1e-7;
 
-    // Running max
-    if (d.alt_m > g_maxAltM) g_maxAltM = d.alt_m;
+    // Running max AGL
+    if (d.baro_m > g_maxAltM) g_maxAltM = d.baro_m;
     float abs_vel = fabsf(d.vvel);
     if (abs_vel > g_maxVelMs) g_maxVelMs = abs_vel;
     if (t.flight_state == 0 && g_prevFlightState != 0 && g_prevFlightState != 255) {
@@ -170,16 +174,13 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     }
     g_prevFlightState = t.flight_state;
 
-    // Packet loss
-    if (!g_firstSeqValid && rs->rx_count > 0) {
-        g_firstSeq = seq;
-        g_firstSeqValid = true;
-    }
+    // Packet loss: RfManager already counts seq-gap misses (14-bit
+    // CCSDS wrap vs free-running rx_count pegs a local expected to 0).
     d.lost = 0;
-    if (g_firstSeqValid && rs->rx_count > 0) {
-        uint32_t expected = (seq - g_firstSeq + 1) & 0x3FFF;
-        if (expected > rs->rx_count) d.lost = expected - rs->rx_count;
+    if (const rc::RfManagerState* rf = rc::AO_RfManager_get_state()) {
+        d.lost = rf->packets_missed;
     }
+    (void)seq;
 
     // Signal age
 #ifndef ROCKETCHIP_HOST_TEST
@@ -366,7 +367,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         static_cast<double>(d.alt_m),
         static_cast<double>(g_maxAltM), kClrEol,
         static_cast<double>(d.vvel), static_cast<double>(d.speed), kClrEol,
-        static_cast<double>(d.alt_m), d.fix_str,
+        static_cast<double>(d.baro_m), d.fix_str,
         static_cast<unsigned>(d.sats), kClrEol,
         kClrEol);
 
@@ -394,7 +395,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "%s\n"
         "'a' ARM  'D' DISARM  'x' menu%s\n",
         kClrEol,
-        static_cast<double>(d.batt_v), static_cast<int>(0),
+        static_cast<double>(d.batt_v), static_cast<int>(d.temp_c),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,
         static_cast<unsigned>(seq), kClrEol,
         d.lat, d.lon, kClrEol,

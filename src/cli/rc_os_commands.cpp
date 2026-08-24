@@ -814,10 +814,12 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
         if (initialized) { ++pass; } else { ++fail; }
     };
     check_sensor(g_imuInitAttempted, g_imuInitialized);   // ICM-20948
-    check_sensor(g_imuInitAttempted, g_imuInitialized);   // AK09916 (same init)
     check_sensor(g_baroInitAttempted, g_baroInitialized); // DPS310
     check_sensor(g_gpsInitAttempted, g_gpsInitialized);   // GPS
-    check(AO_Radio_get_state()->initialized);       // Radio
+    // Same predicate as print_hw_failures: radio only if SPI came up.
+    if (g_spiInitialized) {
+        check(AO_Radio_get_state()->initialized);
+    }
     check(true);                                    // PSRAM
     check(true);                                    // Logging
     check(true);                                    // Flash
@@ -1350,7 +1352,8 @@ static void cmd_station_distance() {
         return;
     }
 #ifndef ROCKETCHIP_HOST_TEST
-    uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rx->met_ms;
+    const RadioAoState* rs = AO_Radio_get_state();
+    uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
     if (age_ms > 5000) {
         rc::rc_log("Distance: telemetry stale (%lu ms)\n", static_cast<unsigned long>(age_ms));
         return;
