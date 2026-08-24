@@ -18,9 +18,8 @@ struct FlightDirector;
 extern QActive * const AO_FlightDirector;
 
 // Initialize and start the Flight Director AO.
-// Wires LED/pyro callbacks, constructs and inits the QHsm, starts the
-// 100Hz tick timer. Replaces both init_flight_director() and the old
-// AO_FlightDirector_start().
+// Constructs and inits the QHsm, starts the 100 Hz tick timer.
+// Side effects are named fd_effect_* (including reset_subsystems).
 void AO_FlightDirector_start(uint8_t prio);
 
 // Dispatch a flight signal from CLI (ARM, DISARM, ABORT, RESET, etc.).
@@ -42,10 +41,8 @@ const rc::FlightDirector* AO_FlightDirector_get_director();
 // Whether the FlightDirector has been initialized.
 bool AO_FlightDirector_is_initialized();
 
-// Stage T IVP-T5.5: is the FD in a phase where runtime radio config
-// changes are safe? Returns true iff current phase == kIdle. Armed,
-// in-flight, landed, and abort states all return false — operator must
-// DISARM first. Used by SET_RADIO_CONFIG dispatcher + apply handler.
+// SET_RADIO_CONFIG ground gate. True if not yet initialized, or phase
+// is kIdle. LANDED/ABORT need RESET (DISARM is ARMED-only).
 bool AO_FlightDirector_is_ground_state();
 
 #endif // ROCKETCHIP_AO_FLIGHT_DIRECTOR_H

@@ -23,7 +23,7 @@
 namespace rc {
 
 // ============================================================================
-// Mission Profile ID — stored in flash, selects active profile at boot
+// Mission Profile ID — compile-time field; flash selection is not implemented
 // ============================================================================
 enum class ProfileId : uint8_t {
     kRocket     = 0,
@@ -35,8 +35,7 @@ enum class ProfileId : uint8_t {
 // ============================================================================
 // Mission Profile — flight configuration data
 //
-// Lengths/speeds/accels are SI (m, m/s, m/s^2); timeouts are milliseconds (*_ms).
-// Profile is boot-locked: read from flash at boot, immutable for session.
+// Lengths/speeds/accels: m, m/s, m/s^2. Timeouts *_ms. drogue/main_timer_s from ARM. Lat/lon deg.
 // ============================================================================
 struct MissionProfile {
     ProfileId id;
@@ -44,7 +43,7 @@ struct MissionProfile {
 
     // --- Timing ---
     uint32_t armed_timeout_ms;          // Auto-disarm if no launch
-    uint32_t abort_timeout_ms;          // ABORT → LANDED auto-transition
+    uint32_t abort_timeout_ms;          // Pad (launch_ms==0) → IDLE; else LED beacon
     uint32_t coast_timeout_ms;          // Missed apogee fallback
 
     // --- Guard thresholds ---
@@ -59,7 +58,7 @@ struct MissionProfile {
     float apogee_velocity_threshold;    // Vertical velocity for zero-cross (m/s)
     uint32_t apogee_sustain_ms;
 
-    uint32_t baro_peak_sustain_ms;      // Baro derivative window for backup apogee
+    uint32_t baro_peak_sustain_ms;      // Sustain hold for kBaroPeak (ms)
 
     float main_deploy_altitude_m;       // AGL altitude for main chute (m)
     uint32_t main_deploy_sustain_ms;

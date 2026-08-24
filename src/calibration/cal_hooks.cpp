@@ -69,12 +69,9 @@ bool cal_read_mag(float* mx, float* my, float* mz) {
 // ============================================================================
 // Post-Calibration Hook
 // ============================================================================
-// Signal Core 1 to reload calibration data after a successful save. The
-// I2C-pause primitive that used to live here (cal_pre_hook) now lives
-// with the pause atomics in shared_state (R-17) and is invoked directly
-// by every flash_safe_execute callsite.
-// cal_pre_hook is gone (R-18 cleanup); only the cal-specific reload-pending
-// signal remains here, called from ao_rcos.cpp cal_save_to_flash().
+// Reload-pending signal after a save. Sets g_calReloadPending only when
+// g_sensorPhaseActive; otherwise a no-op. I2C pause/resume is not in this
+// TU (shared_state). Called from ao_rcos.cpp cal_save_to_flash().
 
 void cal_post_hook() {
     if (g_sensorPhaseActive) {

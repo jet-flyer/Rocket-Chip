@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Fixed-point wire-ready telemetry payload — 45 bytes packed
-// TelemetryState is the canonical wire format for PCM frames and radio
-// telemetry. All fields quantized from FusedState float32 to fixed-point
-// integers for compact transport.
+// Fixed-point wire-ready telemetry payload — 45 bytes packed.
+// Mix of FusedState, seqlock GPS, baro, health, and MET — not a uniform
+// FusedState float32 dump.
 // Also defines FlightMetadata (UTC epoch anchor) and FlightSummary
 // (per-flight running statistics).
 

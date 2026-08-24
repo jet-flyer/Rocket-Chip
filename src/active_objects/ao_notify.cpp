@@ -3,10 +3,8 @@
 //============================================================================
 // AO_Notify — Notification Hub Active Object
 //
-// Subscribes to state-producing signals (phase change, health, radio,
-// beacon, calibration override). Maintains NotifyState with per-category
-// typed intents. At 33Hz, runs the priority resolver and dispatches to
-// registered output backends (LED, future audio).
+// Subscribes to phase, health, radio, beacon. Cal is a direct CalIntentEvt post.
+// Tick forwards the snapshot; LED priority is in notify_backend_led.
 //
 // Priority 5, queue 16, 33 Hz (every 3 ticks at 100 Hz).
 //============================================================================
@@ -113,7 +111,7 @@ static RadioIntent radio_intent_from_lq(uint8_t lq) {
 // Called from the 33Hz tick handler.
 // ============================================================================
 
-// Sensor phase 5-min timeout — matches the pre-IVP-117 value in LedEngine.
+// Wall-clock from notify_initial; latches SensorIntent::kTimeout.
 static constexpr uint32_t kSensorPhaseTimeoutMs = 300000U;
 
 static void notify_evaluate_sensor_status(NotifyAo * const me,
@@ -146,10 +144,9 @@ static void notify_evaluate_sensor_status(NotifyAo * const me,
 static QState notify_initial(NotifyAo * const me, QEvt const * const e) {
     (void)e;
 
-    // Zero-init intent state, then default to kInit so boot shows the
-    // rainbow warmup visual until ESKF + IMU are both ready (Stage L).
-    // Gets overridden by any higher-priority intent (fault, cal); gets
-    // cleared by notify_evaluate_sensor_status() once ESKF is up.
+    // kInit until handle_notify_tick: init_min_ticks==0, snap_ok,
+    // eskf_runner_is_initialized(), and imu_read_count>0. Fault/cal write
+    // their own categories; they do not clear phase.
     me->state = {};
     me->state.phase = PhaseIntent::kInit;
     me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
@@ -171,12 +168,8 @@ static QState notify_initial(NotifyAo * const me, QEvt const * const e) {
     return Q_TRAN(&notify_running);
 }
 
-// Apply a phase-change event to NotifyState. Extracted for JSF AV rule 1
-// compliance. Stage L: also clears both beacon flags on exit from recovery-
-// relevant phases — beacon stays active across LANDED and ABORT (the two
-// phases where a recovery beacon is meaningful), any other transition clears.
-// Stage L also clears the pre-arm-fail visual (any phase change invalidates
-// the "ARM rejected" message).
+// Apply a phase-change event to NotifyState. Clears beacons except on
+// LANDED/ABORT. Zeros prearm_fail_ticks (tick never re-stamps kPreArmFail).
 static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
     const auto* pce = rc::evt_cast<rc::PhaseChangeEvt>(e);
     me->state.phase = phase_from_flight_phase(pce->phase);
@@ -185,15 +178,12 @@ static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
         me->state.beacon_auto = false;
         me->state.beacon_manual = false;
     }
-    // Stage L: phase change always invalidates an in-progress pre-arm-fail
-    // flash. The FD override already replaced state.phase; clearing the
-    // counter prevents a future tick from re-stamping kPreArmFail.
+    // Phase change invalidates an in-progress pre-arm-fail visual.
     me->prearm_fail_ticks = 0;
 }
 
-// 33Hz tick: refresh sensor intent from seqlock, run the pre-arm-fail
-// auto-clear helper, and dispatch resolved pattern to both output
-// backends. Extracted from Notify_running for JSF AV rule 1.
+// 33Hz tick: refresh sensor intent, pre-arm-fail auto-clear, forward
+// NotifyState to LED and audio backends (resolver is in the LED backend).
 static void handle_notify_tick(NotifyAo * const me) {
     shared_sensor_data_t snap{};
     bool snap_ok = seqlock_read(&g_sensorSeqlock, &snap);
@@ -234,10 +224,7 @@ static void handle_notify_tick(NotifyAo * const me) {
     rc::notify::notify_backend_audio_update(me->state);
 }
 
-// Handle simple single-flag setters to keep Notify_running under the
-// JSF AV Rule 1 60-line cap. All these branches just flip one bool or
-// set one enum field and return — the dispatcher in Notify_running
-// calls this and treats a non-zero return as "handled".
+// Simple single-flag setters. Dispatcher treats a non-zero return as handled.
 static bool handle_simple_flag_sig(NotifyAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case rc::SIG_BEACON_ACTIVE:

@@ -33,11 +33,8 @@ bool mcu_temp_available();
 // Also updates the internal "stuck" detector (see mcu_temp_is_stuck).
 float mcu_temp_read_c();
 
-// Returns true if the last kStuckThresholdSamples (60) consecutive reads
-// returned bit-identical values. Indicates a non-functional sensor
-// (ADC cached, bias disabled, etc.) — distinct from "silicon is at
-// steady state," which shows natural 1-2 LSB (~0.5-1 °C) jitter.
-// Always false until at least kStuckThresholdSamples have been taken.
+// True after kStuckThresholdSamples (60) later matches following a seed
+// sample. A new converted value resets the consecutive-match counter to 0.
 bool mcu_temp_is_stuck();
 
 // Returns the current consecutive-identical read count, for diag / health

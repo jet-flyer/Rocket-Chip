@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Flight phase guard functions (IVP-70)
-// Pure functions that evaluate sensor data against thresholds.
-// Each guard returns true when its condition is met for a single sample.
-// Sustain timing (N consecutive true samples) is handled by the
-// GuardEvaluator, not here.
-// Guards read from FusedState (ESKF output) — not raw sensor data.
-// Thresholds come from MissionProfile.
+// Flight phase guard functions (IVP-70). One-sample predicates; sustain is GuardEvaluator.
+// Primitive float args only — this leaf does not read FusedState or MissionProfile.
 
 #ifndef ROCKETCHIP_GUARD_FUNCTIONS_H
 #define ROCKETCHIP_GUARD_FUNCTIONS_H
@@ -15,77 +10,25 @@
 
 namespace rc {
 
-// Launch detection: body-Z acceleration exceeds threshold.
-// In NED frame with rocket pointing up, launch produces large negative vel_d
-// and large positive body-Z accel. We use |accel_z| from the calibrated
-// accel reading stashed in FusedState (via seqlock snapshot).
-// This guard checks accel magnitude since body-Z orientation varies.
-//
-// accel_z Calibrated body-Z acceleration (m/s^2), from seqlock
-
-// threshold MissionProfile::launch_accel_threshold
-
+// Launch: |accel_z| > threshold.
 bool guard_launch_accel(float accel_z, float threshold);
 
-// Burnout detection: acceleration magnitude drops below threshold.
-// During powered flight, accel > 1g from thrust. At burnout, only
-// drag + gravity remain, so |A| drops toward ~1g then below as
-// drag decreases. We check total accel magnitude.
-//
-// accel_mag sqrt(ax^2 + ay^2 + az^2) in m/s^2
-
-// threshold MissionProfile::burnout_accel_threshold
-
+// Burnout: accel_mag < threshold.
 bool guard_burnout_accel(float accel_mag, float threshold);
 
-// Apogee detection: vertical velocity crosses zero (going negative).
-// ESKF vel_d is NED — negative = ascending, positive = descending.
-// Apogee is when vel_d crosses from negative to positive (or near zero).
-//
-// vel_d NED down velocity (m/s), negative = ascending
-
-// threshold MissionProfile::apogee_velocity_threshold (positive value)
-
+// Apogee: vel_d > -threshold (level check, not a zero-crossing). NED down-positive.
 bool guard_apogee_velocity(float vel_d, float threshold);
 
-// Backup apogee: vertical velocity is non-positive.
-// If vert_vel <= 0 for sustained period, rocket is descending.
-// Caller currently passes ESKF-propagated vert_vel_eskf — NOT independent of
-// ESKF. ESKF-independent descent detection (`guard_baro_stationary`) is
-// planned but not yet implemented (see docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md).
-//
-// vert_vel Vertical velocity (m/s), positive = ascending
-
+// Backup apogee: vert_vel <= 0. Not a baro peak. Callers pass fused.vert_vel_eskf.
 bool guard_baro_peak(float vert_vel);
 
-// Main deploy: altitude AGL below threshold.
-// Rocket is descending through the main chute deployment altitude.
-//
-// baro_alt_agl Barometric altitude above ground level (m)
-
-// threshold MissionProfile::main_deploy_altitude_m
-
+// Main deploy: baro_alt_agl < threshold. Altitude only.
 bool guard_main_deploy_altitude(float baro_alt_agl, float threshold);
 
-// Landing detection: velocity magnitude near zero.
-// All three NED velocity components must be small. Uses velocity norm.
-//
-// vel_n, vel_e, vel_d NED velocity components (m/s)
-
-// threshold MissionProfile::landing_velocity_threshold
-
+// Landing: NED velocity norm < threshold.
 bool guard_stationary(float vel_n, float vel_e, float vel_d, float threshold);
 
-// Landing detection: raw baro altitude rate near zero (IVP-120).
-// ESKF-independent — reads FusedState::baro_alt_rate_mps directly.
-// The rate is computed from raw DPS310 pressure in ao_logger, not from ESKF.
-// When the ESKF is dead, this guard still fires, providing a secondary
-// landing detection channel for the MAIN_DESCENT liveness fix (IVP-121).
-//
-// baro_alt_rate_mps Raw baro altitude rate (m/s) from FusedState
-
-// threshold MissionProfile::baro_landing_rate_threshold_mps
-
+// Landing: |baro_alt_rate_mps| < threshold.
 bool guard_baro_stationary(float baro_alt_rate_mps, float threshold);
 
 } // namespace rc

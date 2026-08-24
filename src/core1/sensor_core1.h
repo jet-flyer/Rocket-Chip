@@ -23,13 +23,7 @@
 // then enters the sensor loop (never returns).
 void core1_entry();
 
-// ============================================================================
-// Cross-Core Shared State (written by Core 1, read by Core 0)
-// ============================================================================
-
-// Best GPS fix diagnostic: captures the highest-quality fix seen this session.
-// Written by Core 1, read by Core 0 CLI. Atomic flag guards visibility
-// (not struct consistency -- benign for diagnostics, not flight-critical).
+// Best-GPS diagnostic (non-atomic). Mutator: core1_update_best_gps_fix. Flag is visibility only.
 struct best_gps_fix_t {
     int32_t lat_1e7;
     int32_t lon_1e7;

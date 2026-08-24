@@ -204,7 +204,7 @@ static uint32_t get_alternate_sector(uint32_t current_offset) {
 }
 
 static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* cal, uint32_t sequence) {
-    // Use static buffer for flash write (must be page-aligned)
+    // Word-aligned RAM source; page-align is the flash dest in safe_flash_write.
     static uint8_t g_pageBuffer[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
 
     // Step 1: Erase the sector

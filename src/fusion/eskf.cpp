@@ -338,10 +338,8 @@ static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat
 //
 // Uses SymPy-generated flat scalar expansion (scripts/generate_fpft.py).
 // CSE eliminates redundant sub-expressions. Q_d baked into generated code.
-// Dense predict_dense() retained as verification reference (Test 8).
-//
-// History: Block-sparse tried first, 31% SLOWER (712us vs 542us).
-// Codegen is the correct path (PX4/ArduPilot pattern).
+// Dense predict_dense() is a verification path; it is not equivalent (no
+// ensure_dense, no phase-Q delta).
 // ============================================================================
 void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
     const Vec3 accel_body = accel_meas - accel_bias;
@@ -373,7 +371,8 @@ void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
 
 // ============================================================================
 // predict_dense: Dense FPFT verification path
-// Same result as predict() — used in tests to validate sparse path.
+// Does not call ensure_dense() or apply_phase_q_delta(). Comparable to
+// predict() only on a freshly-initialized dense P with no phase Q/R table.
 // ============================================================================
 void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
                           float dt) {
@@ -712,13 +711,8 @@ void ESKF::invalidate_ud_factors() {
 //   R = kRBaro = 0.033² ≈ 0.001089 m²
 //
 // Sequential scalar update — no matrix inverse needed.
-// Bierman UD scalar P update (Joseph form removed 2026-07).
-// Static locals for Mat15 temporaries (LL Entry 1, ~2.9KB BSS).
-// Single-threaded Core 0 — no reentrancy concern.
-//
+// Bierman UD scalar P update. Single-threaded Core 0 — no reentrancy concern.
 // isfinite() and S > 0 guards.
-// P rotation at reset() omitted — small-angle approximation, G ≈ I to
-// float precision for baro-only corrections. See Solà (2017) Eq. 298.
 // ============================================================================
 bool ESKF::update_baro(float altitude_agl_m) {
     // Reject non-finite input
@@ -793,9 +787,9 @@ static float wrap_pi(float angle) {
 //   1. Extract roll, pitch from current q (well-observed by accel)
 //   2. Build R_zero = R(roll, pitch, yaw=0) — tilt only, no yaw
 //   3. magLevel = R_zero * magBody — level-frame mag (yaw signal preserved)
-//   4. headingMeasured = -atan2(magLevel.y, magLevel.x)
+//   4. headingMeasured = -atan2(magLevel.y, magLevel.x) + declination
 //   5. headingPredicted = yaw from q (ZYX Euler extraction)
-//   6. innovation = wrap_pi(headingPredicted - headingMeasured)
+//   6. innovation = wrap_pi(headingMeasured - headingPredicted)  // z − h(x)
 //
 //   H ≈ [0, 0, 1, 0...0] (yaw-only, level-flight approximation)
 //   R = kRMagHeading (~0.00757 rad²), inflated under interference
@@ -805,11 +799,8 @@ static float wrap_pi(float angle) {
 //   heading measurement. The full rotation R(q)*magBody would recover
 //   the NED field direction (constant, independent of heading).
 //
-// UNOBSERVABLE: mag states 15-20 (earth_mag, body_mag_bias) have no H entries
-// and no F coupling with this yaw-only model. They MUST remain inhibited until
-// a proper 3-axis mag measurement model is implemented (Titan tier).
-// Full 3-axis model: z_pred = R(q) * earth_mag + body_mag_bias, with H at
-// attitude(0-2), earth_mag(15-17), body_mag_bias(18-20).
+// Heading-only H has no entries on mag states 15-20. Those states are
+// fused by update_mag_3axis when uninhibited, not by this function.
 //
 // Two-tier interference detection (council modification):
 //   25-50% magnitude deviation: inflate R by 10x
@@ -817,7 +808,6 @@ static float wrap_pi(float angle) {
 //
 // Sequential scalar update — same pattern as update_baro().
 // Bierman UD scalar P update.
-// Static locals for Mat24 temporaries (LL Entry 1).
 // ============================================================================
 // Compute effective R after two-tier interference detection.
 // Returns negative if hard-rejected (>50% deviation).
@@ -1651,10 +1641,8 @@ void ESKF::reset_p_growth_baseline() {
 
 // ============================================================================
 // set_inhibit_mag: Enable/disable earth_mag[15-17] + body_mag_bias[18-20]
-// R-7: When enabling, assert P is zero before setting initial variance.
-// When disabling, zero P block to prevent stale cross-covariances.
-// UNOBSERVABLE: mag states 15-20 require 3-axis mag model (Titan tier).
-// Do NOT enable until full 3-axis measurement update is implemented.
+// Enabling zeros the block then writes kInitP* on the diagonals (no assert).
+// Disabling zeros the P block and the nominal mag states.
 // ============================================================================
 void ESKF::set_inhibit_mag(bool inhibit) {
     if (inhibit == inhibit_mag_states_) {

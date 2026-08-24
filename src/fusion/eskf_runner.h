@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// ESKF runner — 200 Hz tick from seqlock. Owns ESKF, Mahony cross-check,
-// confidence gate, GPS session stats, state buffer, bench timing.
-// After predict, publishes SIG_SENSOR_DATA. Accessors are read-only.
+// ESKF runner — 200 Hz tick from seqlock. Owns ESKF, Mahony, confidence, GPS stats.
+// SIG_SENSOR_DATA publishes at cycle end; skipped/diverged predict still updates
+// then publishes unless P-growth CR-1 returns first. Accessors are read-only.
 //============================================================================
 #ifndef ROCKETCHIP_FUSION_ESKF_RUNNER_H
 #define ROCKETCHIP_FUSION_ESKF_RUNNER_H
@@ -60,9 +60,8 @@ struct gps_session_stats_t {
 // Public API (read-only accessors per Council A6)
 // ============================================================================
 
-// Initialize ESKF runner with mission profile.
-// Must be called once before eskf_runner_tick().
-// Confidence transitions log via AO_Logger_log_event (firmware only).
+// Store profile pointer (null skips phase Q/R). Mag default-location /
+// heading-fallback need a live profile. Firmware logs confidence via AO_Logger.
 void eskf_runner_init(const rc::MissionProfile* profile);
 
 // Main entry point — called from qv_idle_bridge() every idle iteration.

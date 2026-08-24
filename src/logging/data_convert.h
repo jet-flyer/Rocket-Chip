@@ -12,11 +12,7 @@
 
 namespace rc {
 
-// Quantization:
-// Quaternion: Q15 (val * 32767), max error ±3.05e-5
-// Velocity: cm/s (int16), max error ±0.005 m/s
-// Altitude: mm (int32), max error ±0.001 m
-// Temperature: rounded int8, max error ±0.5 C
+// Conversion scales (saturates via clamp_round_*): Q15 quat, cm/s vel, mm alt, int8 °C.
 void fused_to_telemetry(const FusedState& fused, TelemetryState& out);
 
 // Not bit-exact — quantization is lossy. Used for test validation only.

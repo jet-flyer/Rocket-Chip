@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Calibration data structures for RocketChip sensors
 // Defines calibration parameters stored persistently in flash.
-// All values use SI units (m/s², rad/s, µT, Pa).
+// Sensor corrections: SI (m/s², rad/s, µT, Pa). Temperatures °C. WMM lat/lon deg.
 
 #ifndef ROCKETCHIP_CALIBRATION_DATA_H
 #define ROCKETCHIP_CALIBRATION_DATA_H
@@ -131,8 +131,8 @@ typedef struct {
 
     // WMM geomagnetic field position (v4) — persisted for no-GPS boots.
     // Field vector recomputed from tables at boot — only position stored.
-    float wmm_lat_deg;               // Latitude of last WMM lookup (0 = not set)
-    float wmm_lon_deg;               // Longitude of last WMM lookup
+    float wmm_lat_deg;               // deg; 0 is legal equator — validity is CAL_STATUS_WMM_SET
+    float wmm_lon_deg;               // deg
 } calibration_store_t;
 
 // Verify size fits in a flash page

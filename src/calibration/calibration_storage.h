@@ -9,17 +9,16 @@
 
 #include "calibration_data.h"
 
-// Sets up flash sectors for calibration storage.
-// Call once at boot, before stdio_init_all() per LL Entry 4/12.
+// Scan XIP for IN_USE and seed RAM cache (defaults if none). Always true.
 bool calibration_storage_init(void);
 
-// true if valid calibration was read
+// Copy RAM cache into *cal. true if that cache currently validates.
 bool calibration_storage_read(calibration_store_t* cal);
 
-// Uses flash_safe_execute for dual-core safety.
-// Writes to alternate sector for wear leveling.
+// flash_safe_execute; alternate-sector wear leveling. Timeout: kFlashSafeTimeoutMs.
 bool calibration_storage_write(const calibration_store_t* cal);
 
+// flash_safe_execute; both sectors erased. Timeout: kFlashSafeTimeoutMs.
 bool calibration_storage_erase(void);
 
 #endif // ROCKETCHIP_CALIBRATION_STORAGE_H

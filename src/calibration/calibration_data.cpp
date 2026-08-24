@@ -13,9 +13,10 @@ constexpr uint16_t kCrc16Poly       = 0x1021;   // CCITT polynomial
 constexpr uint16_t kCrc16HighBit    = 0x8000;   // MSB test mask
 constexpr uint8_t  kCrc16BitsPerByte = 8;        // Bits processed per byte
 
-// Default barometric calibration (standard atmosphere)
+// Default barometric calibration. Pressure is ISA sea-level; temperature is
+// a room-temperature default (not ISA T0).
 constexpr float    kDefaultGroundPressurePa  = 101325.0F;  // Sea-level pressure (Pa)
-constexpr float    kDefaultGroundTempC       = 20.0F;       // Standard ground temperature
+constexpr float    kDefaultGroundTempC       = 20.0F;       // Room-temperature default (°C)
 
 // ============================================================================
 // CRC16 (CCITT polynomial 0x1021)
@@ -60,7 +61,7 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->gyro.bias = cal_vec3_t{0.0F, 0.0F, 0.0F};
     cal->gyro.status = CAL_STATUS_NONE;
 
-    // Baro defaults: standard atmosphere
+    // Baro defaults: ISA sea-level pressure, room-temperature default
     cal->baro.ground_pressure_pa = kDefaultGroundPressurePa;
     cal->baro.ground_temperature_c = kDefaultGroundTempC;
     cal->baro.status = CAL_STATUS_NONE;
@@ -103,10 +104,8 @@ bool calibration_validate(const calibration_store_t* cal) {
         return false;
     }
 
-    // Check CRC (computed over everything after crc16 field)
+    // CRC over the same span as calibration_update_crc (&accel through end).
     const auto* data_start = reinterpret_cast<const uint8_t*>(&cal->accel);
-    // CRC region = from &accel to end of the struct, computed as a pointer span
-    // within the same object (no offsetof — JSF AV 18 / avoids the macro entirely).
     const auto* data_end = reinterpret_cast<const uint8_t*>(cal) + sizeof(*cal);
     size_t data_len = static_cast<size_t>(data_end - data_start);
     uint16_t computed_crc = crc16_ccitt(data_start, data_len);

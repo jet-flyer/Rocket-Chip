@@ -74,7 +74,7 @@ static void average_floats(FusedState& out, float inv) {
     out.gps_ground_speed_mps *= inv;
 }
 
-// Overwrite discrete/integer fields from latest sample
+// Last-sample discrete/integer fields (not confident / uncertain_ms)
 static void copy_discrete_fields(FusedState& accum, const FusedState& input) {
     accum.gps_lat_1e7 = input.gps_lat_1e7;
     accum.gps_lon_1e7 = input.gps_lon_1e7;

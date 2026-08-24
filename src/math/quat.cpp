@@ -62,8 +62,7 @@ Quat Quat::normalized() const {
 }
 
 Vec3 Quat::rotate(const Vec3& v) const {
-    // q * [0,v] * q*  — expanded for efficiency (avoids two full quaternion multiplies)
-    // Reference: Sola (2017) Eq. 27-28
+    // Unit-q expansion of v' = q v q* (Hamilton). Not a rotation if |q| != 1.
     const float tx = 2.0F * (y * v.z - z * v.y);
     const float ty = 2.0F * (z * v.x - x * v.z);
     const float tz = 2.0F * (x * v.y - y * v.x);
@@ -75,7 +74,7 @@ Vec3 Quat::rotate(const Vec3& v) const {
 }
 
 void Quat::to_rotation_matrix(float m[kDcmElements]) const {
-    // Row-major DCM. Reference: Sola (2017) Eq. 22
+    // Row-major DCM. Unit quaternion required.
     const float xx = x * x;
     const float yy = y * y;
     const float zz = z * z;
@@ -100,8 +99,7 @@ void Quat::to_rotation_matrix(float m[kDcmElements]) const {
 }
 
 Vec3 Quat::to_euler() const {
-    // ZYX convention: returns Vec3(roll, pitch, yaw)
-    // Reference: Sola (2017) Eq. 290
+    // ZYX. Packing is Vec3(roll, pitch, yaw). Unit quaternion required.
 
     // Roll (x-axis rotation)
     const float sinr_cosp = 2.0F * (w * x + y * z);
@@ -158,7 +156,7 @@ Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
     const float d = fn.dot(tn);
 
     if (d > kDotParallel) {
-        // Vectors nearly parallel — identity rotation
+        // Remaining rotation dropped (not a numerical-stability guard).
         return {1.0F, 0.0F, 0.0F, 0.0F};
     }
 
@@ -179,9 +177,7 @@ Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
 }
 
 Quat Quat::from_small_angle(const Vec3& delta_theta) {
-    // First-order approximation: q ~= [1, deltaTheta/2] normalized
-    // Sola (2017) Eq. 186: for small rotation vector deltaTheta,
-    // the corresponding quaternion is approximately [1, deltaTheta/2].
+    // First-order approximation: q ~= [1, deltaTheta/2] then normalized.
     const float hx = delta_theta.x * 0.5F;
     const float hy = delta_theta.y * 0.5F;
     const float hz = delta_theta.z * 0.5F;

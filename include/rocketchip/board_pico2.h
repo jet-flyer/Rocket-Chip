@@ -39,8 +39,7 @@ inline constexpr uint8_t kRadioIrqPin      = 21;
 inline constexpr bool    kRadioTrustDio0   = false;
 
 // --- NeoPixel ---
-// Pico 2 has only a standard GPIO-controlled LED, no RGB. Using 0 as a
-// neutral "no NeoPixel chain" sentinel so WS2812 init skips.
+// Pico 2: GPIO LED only. Count 0 skips WS2812. Pin 0 is UART GPS TX — do not mux PIO.
 inline constexpr uint     kNeoPixelPin     = 0;
 inline constexpr uint8_t  kNeoPixelCount   = 0;
 inline constexpr uint8_t  kNeoPixelGpioBase = 0;

@@ -172,13 +172,13 @@ bool flight_table_save(FlightTableState* state) {
     // Compute CRC before writing
     flight_table_compute_crc(&state->table);
 
-    // Write to alternate sector (A→B→A→B...)
+    // Even active_sequence → B, odd → A, then seq 0 forced to A.
+    // Virgin 0 then 1 both program A; alternation starts at even >= 2.
     uint32_t next_seq = state->active_sequence + 1;
     uint32_t target_sector = (state->active_sequence % 2 == 0)
                              ? kFlightTableSectorB
                              : kFlightTableSectorA;
 
-    // On first save (seq=0), write to A
     if (state->active_sequence == 0) {
         target_sector = kFlightTableSectorA;
     }

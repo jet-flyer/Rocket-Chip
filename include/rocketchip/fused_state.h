@@ -39,12 +39,12 @@ struct FusedState {
     float gyro_bias_y;
     float gyro_bias_z;
 
-    // Covariance diagnostics: sqrt of P diagonal (1-sigma)
-    float sig_att;     // rad
-    float sig_pos;     // m
-    float sig_vel;     // m/s
+    // Covariance diagnostics: max P diagonal in each block (variance, not 1-sigma)
+    float sig_att;     // rad^2
+    float sig_pos;     // m^2
+    float sig_vel;     // (m/s)^2
 
-    // Barometric altitude (AGL, m) and vertical velocity (m/s)
+    // Barometric altitude (AGL, m)
     float baro_alt_agl;
     // ESKF-propagated vertical velocity (NOT raw baro — see ao_logger.cpp)
     float vert_vel_eskf;

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Guard sustain evaluator: fire after N consecutive true ticks; one false
-// tick resets the count. Unmanaged guards auto-dispatch; managed ones only
-// set GuardState.sustained for the combinator. Inactive in a phase → skip and reset.
-// Model also in docs/IVP.md IVP-71 / IVP-120 and
-// docs/plans/STAGE8_FLIGHT_DIRECTOR.md — this header is not the sole SSOT.
+// Fire after N consecutive true ticks; a false condition zeros the count.
+// Unmanaged: first-wins signal. Managed: GuardState.sustained only.
+// Also in docs/IVP.md IVP-71 / IVP-120 and docs/plans/STAGE8_FLIGHT_DIRECTOR.md.
 
 #ifndef ROCKETCHIP_GUARD_EVALUATOR_H
 #define ROCKETCHIP_GUARD_EVALUATOR_H
@@ -52,11 +50,11 @@ static_assert(!kGuardManaged[static_cast<uint8_t>(GuardId::kBaroStationary)]);
 struct GuardState {
     uint32_t sustain_count;     // Consecutive true ticks
     uint32_t sustain_required;  // Ticks required to fire (from profile ms / tick_ms)
-    float threshold;            // Guard-specific threshold from MissionProfile
+    float threshold;            // From MissionProfile where used; kBaroPeak stores 0 unused
     uint16_t signal;            // Signal to emit when sustained
     uint8_t valid_phases;       // Bitmask: (1 << FlightPhase) for active phases
-    bool fired;                 // Edge detection: true after first fire, reset on phase change
-    bool sustained;             // True when sustain_count >= sustain_required
+    bool fired;                 // Unmanaged auto-dispatch latch; managed never set
+    bool sustained;             // Eligible, not fired, and count >= required
 };
 
 // Guard evaluator — holds state for all guards, evaluates per tick
@@ -71,7 +69,7 @@ void guard_evaluator_init(GuardEvaluator* ev,
                            const MissionProfile& profile,
                            uint32_t tick_period_ms);
 
-// Unmanaged: signal on first sustain (or SIG_MAX). Managed: flag only.
+// Unmanaged first-wins returns a signal. Managed: flag only.
 // accel_z / accel_mag are calibrated body-frame (m/s^2).
 uint16_t guard_evaluator_tick(GuardEvaluator* ev,
                                FlightPhase phase,

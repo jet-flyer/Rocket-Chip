@@ -8,7 +8,7 @@
 // Use double precision for latitude/longitude (better accuracy)
 #define LWGPS_CFG_DOUBLE            1
 
-// Enable status callback
+// Status callback disabled
 #define LWGPS_CFG_STATUS            0
 
 // Enable standard NMEA sentences

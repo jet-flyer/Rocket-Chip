@@ -99,7 +99,7 @@ static constexpr float kIntensity[19][37] = {
 
 static float interp(const float table[][kLonCols],
                     float lat_deg, float lon_deg) {
-    // Clamp inputs
+    // Bilinear; declination not unwrapped. Lat clamp / lon wrap are silent.
     if (lat_deg < kLatMinF) { lat_deg = kLatMinF; }
     if (lat_deg > kLatMaxF) { lat_deg = kLatMaxF; }
     // Wrap longitude to [-180, 180]

@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Box-car averaging decimator for FusedState (200Hz→50Hz)
-// Accumulates N samples of FusedState and outputs the average.
-// Float fields: arithmetic mean.
-// Quaternion: component-wise accumulate with sign flip for antipodal
-// protection (Markley 2007), then normalize.
-// Integer fields (GPS lat/lon, fix, sats): pass-through from final sample.
-// met_ms: final sample's value.
-// SDK-independent — compiles on host and target.
+// Box-car averaging decimator for FusedState.
+// Listed floats: mean. Quaternion: Markley 2007 then normalize. Listed integers: last sample.
+// confident / confidence_div_deg / uncertain_ms: first sample of the window.
 
 #ifndef ROCKETCHIP_LOG_DECIMATOR_H
 #define ROCKETCHIP_LOG_DECIMATOR_H
@@ -20,7 +15,7 @@ namespace rc {
 struct LogDecimator {
     FusedState accum;      // Running accumulator
     uint32_t   count;      // Samples accumulated so far
-    uint32_t   ratio;      // Decimation ratio (e.g., 4 for 200→50Hz)
+    uint32_t   ratio;      // Samples per output (caller-supplied)
     bool       initialized;
 };
 

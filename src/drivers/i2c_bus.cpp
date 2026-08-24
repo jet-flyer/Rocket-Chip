@@ -65,7 +65,7 @@ bool i2c_bus_probe(uint8_t addr) {
         return false;
     }
 
-    // Try to read a single byte - if device ACKs, it's present
+    // Presence is a 1-byte read, not an address-only ACK.
     uint8_t dummy = 0;
     int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, &dummy, 1, false, kI2cTimeoutUs);
     return (ret >= 0);
@@ -104,9 +104,6 @@ void i2c_bus_scan() {
                     break;
                 case kI2cAddrAk09916:
                     rc::rc_log(" (AK09916 Magnetometer)");
-                    break;
-                case kI2cAddrPa1010d:
-                    rc::rc_log(" (PA1010D GPS)");
                     break;
                 case kI2cAddrIcm20948Alt:
                     rc::rc_log(" (ICM-20948 IMU, AD0=LOW)");

@@ -46,9 +46,8 @@ static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~
 static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
 static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
 static constexpr uint32_t kBaroMaxReinitAttempts = 3;           // Max baro re-inits before declaring dead
-// Minimum plausible accel magnitude: 9.8 * cos(72 deg) = 3.0 m/s^2.
-// Below any valid sensor reading -- all-zeros output means device is in sleep/reset state.
-// Source: gravity projection floor when tilted 72 deg off vertical.
+// Pad/1g gravity-floor heuristic (9.8 * cos(72 deg) = 3.0 m/s^2).
+// Free-fall/coast can be below this; the body still treats it as IMU death.
 static constexpr float kAccelMinHealthyMag = 3.0F;
 
 // PA1010D SDA settling delay (LL Entry 24)
@@ -146,9 +145,8 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
         return;
     }
 
-    // Sanity-check raw accel magnitude. A working sensor in ANY orientation always
-    // measures at least 3 m/s^2 (gravity floor at 72 deg tilt: 9.8*cos(72 deg)=3.0).
-    // All-zeros = ICM-20948 silent reset to sleep state (LL Entry 29).
+    // Pad/1g gravity-floor check (kAccelMinHealthyMag). Free-fall/coast can
+    // be below this; still routed as IMU death (LL Entry 29 all-zeros path).
     const float raw_accel_mag = sqrtf(
         imu_data.accel.x * imu_data.accel.x +
         imu_data.accel.y * imu_data.accel.y +
@@ -494,9 +492,8 @@ void core1_entry() {
     //     timeout branch fires and crash_record_capture() is [[noreturn]]).
     //   - Station/Relay path: intentionally non-terminating per Holzmann
     //     P10 Rule 2 inverted-rule scheduler exemption (Core 1 has no
-    //     work in these roles). The static_assert pattern below documents
-    //     that the unbounded branch is statically reachable only on these
-    //     roles.
+    //     work in these roles). if constexpr selects the unbounded wait;
+    //     there is no static_assert.
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         // Vehicle: bounded wait. Loop bound expressed as constants so the
         // compiler folds the static-bound check at -O2.

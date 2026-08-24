@@ -24,8 +24,7 @@ constexpr uint8_t kGpsPa1010dAddr   = 0x10;
 
 [[nodiscard]] bool gps_pa1010d_ready(void);
 
-// Call this periodically (at least 10Hz for 10Hz GPS).
-// Reads available NMEA data from I2C and parses it.
+// Poll. Module is 1 Hz (PMTK220,1000). true if I2C read completed; false on error.
 [[nodiscard]] bool gps_pa1010d_update(void);
 
 [[nodiscard]] bool gps_pa1010d_get_data(gps_data_t* data);
@@ -35,10 +34,7 @@ constexpr uint8_t kGpsPa1010dAddr   = 0x10;
 // buf/len point at an internal buffer; invalid after the next update().
 [[nodiscard]] bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
 
-// Contents: PMTK write return codes from the ultra-early init path
-// (captured in init_early_hw() before USB CDC is up), plus window-hit
-// flag and init flag. Used by the Hardware Status (`b`) CLI handler
-// so those early-init observations survive to post-USB display time.
+// PMTK write return codes from gps_pa1010d_init(), plus window-hit and init.
 void gps_pa1010d_get_debug_status(char* buf, size_t len);
 
 #endif // ROCKETCHIP_GPS_PA1010D_H

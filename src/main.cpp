@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// RocketChip entry: HW init, Core 1 sensors, Core 0 CLI, watchdog, MPU.
+// RocketChip entry: HW init, Core 1 sensors, QF/QV AOs, PIO watchdog in idle, MPU.
 
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
@@ -179,8 +179,7 @@ static void init_usb() {
     stdio_set_translate_crlf(&stdio_usb, false);
 }
 
-// Boot ordering helper: fault handlers + MPU + test-mode init. Must run
-// before any C++ static constructor that touches .uninitialized_data.
+// Fault handlers + MPU + test-mode init. Called from main via init_early_hw.
 static void init_fault_recovery() {
     // Confidence gate FIRST — anomalous_boot_init reads .uninitialized_data
     // sentinel + POWMAN_CHIP_RESET. Downstream baro auto-zero gate
@@ -456,9 +455,8 @@ extern "C" void qv_idle_bridge(void) {
 // ============================================================================
 // Active Object startup
 //
-// Start all AOs in priority order (highest first). Priority layout
-// documented in lib/qep/qp_config.h. Roles (Vehicle/Station/Relay) mask
-// which AOs run — see job::DeviceRole gating below.
+// Start-call order is not highest-first. Priority numbers are in the start calls.
+// Roles mask which AOs run — see job::DeviceRole gating.
 // ============================================================================
 
 static void start_active_objects() {

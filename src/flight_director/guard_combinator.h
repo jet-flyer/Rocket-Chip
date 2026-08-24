@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Guard combinator + safety lockout gates
-// Three-layer safety architecture for deployment-critical transitions:
-// Layer 1: Lockout gates (velocity + min-time) — block if unsafe
-// Layer 2: Sensor combinators (AND/OR) — primary detection
-// Layer 3: Timer backup — fires if sensors don't, gated by lockouts
-// Industry standard: Altus Metrum velocity lockout + apogee lockout,
-// Featherweight dual-channel, NASA timer-primary for sounding rockets.
+// Confidence gate first. Layer 1 lockouts block Layer 2. Layer 3 timer if Layer 2
+// did not fire (time lockout holds; velocity lockout may bypass if !eskf_healthy).
+// Both apogee legs use ESKF vertical velocity, not independent baro.
 // Council review 2026-03-25: 6 amendments incorporated (A1-A6).
 
 #ifndef ROCKETCHIP_GUARD_COMBINATOR_H
@@ -22,7 +19,7 @@ namespace rc {
 enum class CombinatorType : uint8_t {
     kAnd,               // All guards must be sustained
     kOr,                // Any guard sustained fires
-    kPrimaryPlusTimeout // Any guard OR timeout (whichever first)
+    kPrimaryPlusTimeout // Same as kOr in evaluate_sensors; timeout is Layer 3
 };
 
 // Safety lockout snapshot — populated by caller each tick
@@ -66,10 +63,7 @@ void combinator_set_init(CombinatorSet* cs, const MissionProfile& profile);
 // Returns signal if any combinator fires, or SIG_MAX if none.
 // tick_ms: tick period in ms (for elapsed time tracking).
 //
-// Layer 1 (lockouts) checked first — blocks layers 2+3 if active.
-// Layer 2 (sensor combinators) checked next.
-// Layer 3 (timer backup) checked last — only if layer 2 didn't fire.
-// Council A2: ESKF-unhealthy bypasses velocity lockout for timer backup only.
+// !confident fail-closes first. Layer 1 blocks Layer 2. Layer 3: time lockout; A2 may bypass vel.
 uint16_t combinator_set_evaluate(CombinatorSet* cs,
                                   FlightPhase phase,
                                   const GuardEvaluator* ev,

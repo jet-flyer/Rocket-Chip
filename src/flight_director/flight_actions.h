@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flight Actions — constexpr entry and transition lists per phase.
-// QEP handlers run entry + transition lists via action_execute_list().
-// Exit table is reserved (all count 0); no Q_EXIT_SIG dispatch.
-// FIRE_PYRO only on transitions (test_action_executor.cpp).
-// LED codes: LedPhaseValue; operator colors: docs/USER_GUIDE.md.
+// Flight Actions — entry lists for all phases; drogue/main fire transition lists.
+// QEP runs entry + those lists. Exit table reserved (count 0). FIRE_PYRO on transitions only.
 //============================================================================
 #ifndef ROCKETCHIP_FLIGHT_ACTIONS_H
 #define ROCKETCHIP_FLIGHT_ACTIONS_H
@@ -102,8 +99,7 @@ inline constexpr ActionEntry kLandedEntry[] = {
 // ABORT — Entry: red fast blink + abort marker. Exit: none.
 //
 // Transition actions depend on source phase (handled in flight_director.cpp):
-//   ABORT-from-BOOST: fire drogue
-//   ABORT-from-COAST: fire drogue
+//   ABORT-from-BOOST/COAST: fire drogue if profile flags set
 //   ABORT-from-ARMED: no pyro
 // ============================================================================
 inline constexpr ActionEntry kAbortEntry[] = {
@@ -112,12 +108,12 @@ inline constexpr ActionEntry kAbortEntry[] = {
 };
 // No exit actions for ABORT
 
-// Transition action: fire drogue on abort-from-boost/coast
+// Transition action: fire drogue on abort-from-boost/coast if profile flags
 // (Same as kTransitionFireDrogue — reuse the array)
 
 // ============================================================================
-// FAULT — Entry: LED only. No pyro in entry; PIO backup timers are
-// independent of the FD HSM. Not entered by normal phase transitions.
+// FAULT — table slot for kFault. FD HSM never enter_phase(kFault);
+// fault_protection writes the observable pair and does not run this list.
 // ============================================================================
 inline constexpr ActionEntry kFaultEntry[] = {
     {ActionType::kSetLed, kLedPhaseFault},

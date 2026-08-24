@@ -6,7 +6,7 @@
 // Mahony AHRS — complementary filter attitude estimator.
 // Pure C++ — no Pico SDK dependencies.
 //
-// Runs alongside the 15-state ESKF as an independent cross-check.
+// Runs alongside the 24-state ESKF as an independent cross-check.
 // NOT a navigation solution — lightweight "second opinion" for the
 // confidence gate. When ESKF diverges but Mahony doesn't
 // (or vice versa), the gate can flag the discrepancy.
@@ -26,11 +26,11 @@ struct MahonyAHRS {
     // PI integral term (rad/s accumulated error)
     Vec3 integral_error;
 
-    // Time elapsed since init (for startup gain decay)
+    // Time elapsed since init (10× Kp while elapsed_s < kStartupDurationS)
     float elapsed_s{};
 
     bool initialized_{};
-    bool startup_ended_{};  // True after ARM or elapsed > kStartupDurationS
+    bool startup_ended_{};  // force_end_startup() only; elapsed timeout does not set this
 
     // =================================================================
     // Council-approved parameters (arXiv:0811.4303 + 3-stack consensus)
@@ -42,9 +42,7 @@ struct MahonyAHRS {
     // Integral gain — ArduPilot AP_AHRS_DCM hardcoded value.
     static constexpr float kKi = 0.0087F;
 
-    // Startup: 10× Kp for first 20s, then decay to normal.
-    // BetaFlight pattern — fast convergence on power-on.
-    // Also terminate on ARM state transition.
+    // 10× Kp while elapsed_s < kStartupDurationS and !startup_ended_; then step to kKp.
     static constexpr float kStartupKpMultiplier = 10.0F;
     static constexpr float kStartupDurationS    = 20.0F;
 
@@ -65,10 +63,7 @@ struct MahonyAHRS {
     // Methods
     // =================================================================
 
-    // Initialize from gravity vector + tilt-compensated mag yaw.
-    // accel: body-frame accelerometer reading (m/s²).
-    // mag_body: body-frame magnetometer reading (µT). If zero vector,
-    //   attitude initializes with yaw=0 (North assumed).
+    // Initialize from gravity + optional mag yaw (|mag| > 1 µT, else tilt-only q).
     // Returns false if accel fails gate (not stationary).
     bool init(const Vec3& accel, const Vec3& magBody);
 

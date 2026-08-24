@@ -228,17 +228,16 @@ Mat<N, N> fpft_dense(const Mat<N, N>& F, const Mat<N, N>& P) {
     return FP * F.transposed();
 }
 
-// Scalar measurement update — optimized path when H is a row vector (1xN)
-// and R is a scalar. Avoids matrix inversion entirely.
+// Gain/innovation scalars only — does not write P or x.
+// H is 1xN, R is scalar. Avoids matrix inversion.
 //
-// Returns: {K, innovation, S} where K is Nx1 gain, innovation is scalar,
-// S is innovation covariance (scalar).
+// Returns {K, innovation, S, nis}. K is Nx1, the rest are scalar.
 template <int32_t N>
 struct ScalarUpdateResult {
     Mat<N, 1> K;          // Kalman gain (Nx1)
     float innovation;     // z - H*x (scalar)
     float S;              // Innovation covariance H*P*H^T + R (scalar)
-    float nis;            // Normalized innovation squared: innovation^2 / S
+    float nis;            // innovation^2 / S, or 0 when S <= 1e-30
 };
 
 template <int32_t N>
@@ -266,7 +265,7 @@ ScalarUpdateResult<N> scalar_update(
     }
     float innovation = z - Hx;
 
-    // Kalman gain: K = PHt / S  (Nx1)
+    // K = PHt / S; if S <= 1e-30, inv_S = 0 so K is zero.
     float inv_S = (S > 1e-30F) ? (1.0F / S) : 0.0F;
     Mat<N, 1> K;
     for (int32_t i = 0; i < N; ++i) {
@@ -278,9 +277,7 @@ ScalarUpdateResult<N> scalar_update(
     return {K, innovation, S, nis};
 }
 
-// Cholesky decomposition: A = L * L^T
-// Returns lower triangular L. A must be symmetric positive definite.
-// Returns false if matrix is not positive definite.
+// Cholesky A = L L^T into L. false on a non-positive pivot (L left partial).
 template <int32_t N>
 bool cholesky(const Mat<N, N>& A, Mat<N, N>& L) {
     L = Mat<N, N>::zeros();
@@ -295,7 +292,7 @@ bool cholesky(const Mat<N, N>& A, Mat<N, N>& L) {
             if (i == j) {
                 float diag = A(i, i) - sum;
                 if (diag <= 0.0F) {
-                    return false;  // Not positive definite
+                    return false;  // Non-positive pivot; L left partial
                 }
                 L(i, j) = sqrtf(diag);
             } else {

@@ -122,9 +122,7 @@ bool baro_dps310_init(uint8_t addr) {
         return false;
     }
 
-    // Configure pressure and temperature independently.
-    // Pressure gets full rate budget; temperature only needs ~2 Hz for compensation.
-    // See baro_dps310.h for duty cycle model and tradeoff table.
+    // OS/MR from baro_dps310.h constexprs.
     status = dps310_config_temp(&g_dps310Ctx,
                                 mr_from_int(kBaroDps310TempMeasRate),
                                 os_from_int(kBaroDps310TempOversampling));

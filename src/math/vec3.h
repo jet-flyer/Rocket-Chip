@@ -30,7 +30,7 @@ struct Vec3 {
     Vec3 cross(const Vec3& rhs) const;
     float norm_sq() const { return dot(*this); }
     float norm() const;
-    Vec3 normalized() const;
+    Vec3 normalized() const;  // {0,0,0} when norm < kNormEpsilon (vec3.cpp)
 };
 
 } // namespace rc

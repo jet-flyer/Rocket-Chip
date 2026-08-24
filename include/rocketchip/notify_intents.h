@@ -15,8 +15,8 @@ namespace notify {
 
 // ============================================================================
 // Category: Flight Phase (from AO_FlightDirector via SIG_PHASE_CHANGE)
-// Maps 1:1 to FlightPhase enum in flight_state.h, plus kBeacon for
-// post-landing/abort recovery beacon (via SIG_BEACON_ACTIVE).
+// FlightPhase 0-8 plus extra intents (kBeacon, kPreArmFail, kInit).
+// Not a 1:1 numeric map to FlightPhase.
 // ============================================================================
 enum class PhaseIntent : uint8_t {
     kNone       = 0,

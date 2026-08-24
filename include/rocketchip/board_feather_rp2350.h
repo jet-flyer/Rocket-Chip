@@ -12,6 +12,7 @@
 
 #include "hardware/i2c.h"
 #include "hardware/spi.h"
+#include "hardware/gpio.h"
 
 namespace board {
 
@@ -47,8 +48,7 @@ inline constexpr uint8_t kLedPin           = 7;
 inline constexpr bool    kLedActiveHigh    = true;
 
 inline void board_led_set(bool on) {
-    // Active-high: on=true → pin HIGH
-    gpio_put(kLedPin, on);
+    gpio_put(kLedPin, kLedActiveHigh ? on : !on);
 }
 
 // --- Shared peripheral RESET ---
@@ -69,10 +69,8 @@ inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
 // --- Capability flags ---
-// Peripheral presence flags consumed by role-agnostic shared code
-// (health monitor, CLI, telemetry). Let call sites branch on capability
-// rather than board identity — makes future board ports (Tiny 2350,
-// Pico 2) drop-in without touching shared code.
+// Compile-time presence. Call sites branch on these (e.g. kPsramAvailable),
+// not on board identity.
 inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
 inline constexpr bool    kDvmAvailable         = false;  // HSTX not wired
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD

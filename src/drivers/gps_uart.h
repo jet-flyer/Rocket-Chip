@@ -5,11 +5,10 @@
 // Uses transport-neutral types from gps.h.
 // NMEA parsing by lwGPS (same parser as I2C backend).
 // Receive architecture: UART0 RX interrupt (Core 0) drains hardware FIFO
-// into a 512-byte ring buffer. Application code on Core 1 reads from the
-// ring buffer — zero bytes lost at operating baud rate.
+// into a 512-byte ring buffer. Core 1 reads the ring. ISR drops bytes and
+// increments overflow when the ring is full (gps_uart_get_overflow_count).
 // Baud: try 57600 first (CR1220 sticky), fall back to 9600 + PMTK251;
-// leave at 57600 before enabling IRQ. Required for 10Hz operation
-// (9600 baud saturates at ~4.8 NMEA bursts/sec; 57600 gives 2.8x headroom).
+// leave at 57600 before enabling IRQ. NMEA rate is PMTK220,200 (5 Hz).
 // NVIC / exclusive handler: Core 0 only (the core that ran gps_uart_init).
 // Pin assignment: GPIO0 (TX), GPIO1 (RX) — Feather standard UART0.
 
@@ -46,8 +45,7 @@ constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
 // at any rate — the ISR handles byte capture independently.
 void gps_uart_drain(void);
 
-// Drains ring buffer and extracts parsed data from lwGPS.
-// Call at 10Hz for 10Hz GPS position updates.
+// Drain + extract. false only if !initialized. Module is 5 Hz (PMTK220,200).
 [[nodiscard]] bool gps_uart_update(void);
 
 // true if data is valid (has fix)

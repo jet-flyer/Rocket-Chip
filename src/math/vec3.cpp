@@ -6,7 +6,7 @@
 
 namespace rc {
 
-constexpr float kNormEpsilon = 1e-12F;  // Minimum norm for safe division
+constexpr float kNormEpsilon = 1e-12F;  // Below this, normalized() returns {0,0,0}
 
 Vec3 Vec3::cross(const Vec3& rhs) const {
     return {

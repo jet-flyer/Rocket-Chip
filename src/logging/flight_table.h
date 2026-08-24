@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Flash flight log table — dual-sector, higher sequence wins, CRC-32
-// over the table. Addresses from flash_layout.h (not this banner).
+// In-memory flight log table. Flash dual-sector I/O is flash_flush, not
+// this TU. Addresses from flash_layout.h.
 
 #ifndef ROCKETCHIP_FLIGHT_TABLE_H
 #define ROCKETCHIP_FLIGHT_TABLE_H
@@ -44,7 +44,7 @@ struct __attribute__((packed)) FlightLogEntry {
     uint8_t        log_rate_hz;      // Logging rate (25 or 50)
     uint8_t        frame_type;       // kPcmFrameTypeStandard = 1
     uint8_t        _pad[2];
-    FlightMetadata metadata;         // UTC epoch anchor (14B)
+    FlightMetadata metadata;         // UTC epoch anchor (sizeof FlightMetadata)
     FlightSummary  summary;          // Running stats (36B)
     uint32_t       crc32;            // CRC-32 over bytes 0..(sizeof-4)
 };
@@ -73,8 +73,7 @@ struct __attribute__((packed)) FlightLogTable {
 // In-memory flight table state (host-testable, no flash dependency)
 // ============================================================================
 
-// On target, load/save functions interact with flash.
-// In host tests, the table is manipulated directly.
+// In-memory only. Load/save live in flash_flush.
 struct FlightTableState {
     FlightLogTable table;
     uint32_t       active_sequence;    // Current dual-sector sequence number
@@ -126,7 +125,7 @@ uint32_t flight_table_used_sectors(const FlightTableState* state);
 
 float flight_table_used_pct(const FlightTableState* state);
 
-// Erase all entries, reset to empty
+// Clear entries and recompute CRC. Does not init (loaded/magic/sequence stay).
 
 void flight_table_erase_all(FlightTableState* state);
 

@@ -29,7 +29,7 @@ struct WmmField {
     float intensity_ut;      // Total field magnitude (microtesla)
 };
 
-// Get all three geomagnetic components (bilinear interpolated from tables)
+// Bilinear table interp. Declination is not unwrapped across ±180°.
 WmmField wmm_get_field(float lat_deg, float lon_deg);
 
 // Get declination only (radians, East-positive) — legacy compatibility

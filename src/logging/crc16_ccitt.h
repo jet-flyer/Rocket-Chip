@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // CRC-16-CCITT (poly 0x1021, init 0xFFFF, MSB-first, no final XOR).
-// Header-only constexpr table.
+// Header-only. Table is constexpr; crc16_ccitt() is a runtime inline.
 
 #ifndef ROCKETCHIP_CRC16_CCITT_H
 #define ROCKETCHIP_CRC16_CCITT_H

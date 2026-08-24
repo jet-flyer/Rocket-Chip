@@ -50,8 +50,7 @@ inline constexpr uint8_t kLedPin           = 29;
 inline constexpr bool    kLedActiveHigh    = false;
 
 inline void board_led_set(bool on) {
-    // Active-low: on=true → pin LOW
-    gpio_put(kLedPin, !on);
+    gpio_put(kLedPin, kLedActiveHigh ? on : !on);
 }
 
 // --- Shared peripheral RESET ---

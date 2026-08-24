@@ -107,8 +107,8 @@ static constexpr RcSignal SIG_MAX = SIG_FD_MAX;
 // ============================================================================
 // Event Structures — typed payloads extending QEvt
 //
-// QV cooperative scheduling guarantees run-to-completion, so all events
-// can be stack-allocated (QF_MAX_EPOOL pre-wired but pool not allocated).
+// Live posts use static or caller QEvt storage. QF_MAX_EPOOL is pre-wired
+// but no dynamic event pool is allocated.
 // ============================================================================
 
 // Phase transition event (published by Flight Director)
@@ -131,7 +131,7 @@ struct SensorDataEvt {
 };
 
 // Radio TX event — encoded packet ready to transmit
-// Allocated from QP/C dynamic event pool [C3-A1]
+// Static / caller storage. No QP dynamic event pool in this tree.
 struct RadioTxEvt {
     QEvt super;
     uint8_t buf[256];    // CCSDS 54B / MAVLink ~140B; matches EncodeResult + FIFO
@@ -140,7 +140,7 @@ struct RadioTxEvt {
 };
 
 // Radio RX event — raw packet received from radio
-// Allocated from QP/C dynamic event pool [C3-A1]
+// Static / caller storage. No QP dynamic event pool in this tree.
 struct RadioRxEvt {
     QEvt super;
     uint8_t buf[256];    // Raw received bytes (matches TX for symmetry).

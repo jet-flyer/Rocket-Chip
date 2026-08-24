@@ -3,10 +3,8 @@
 //============================================================================
 // AO_Logger — Flight Data Logger Active Object
 //
-// Owns the logging ring buffer, decimator, flight table, FusedState builder,
-// and event logging. Publishes PCM frames to the ring buffer at decimated
-// rate (50Hz PSRAM / 25Hz SRAM). CLI commands access state through
-// read-only accessors (Council A6 pattern).
+// Owns ring, decimator, flight table, FusedState builder, and event log.
+// 50 Hz tick pushes one FusedState into the boxcar (ratio 4 PSRAM / 8 SRAM).
 //============================================================================
 #ifndef ROCKETCHIP_AO_LOGGER_H
 #define ROCKETCHIP_AO_LOGGER_H
@@ -28,7 +26,7 @@ struct shared_sensor_data_t;
 
 extern QActive * const AO_Logger;
 
-// After PSRAM init, flash-safe test, and flight_table_load().
+// After PSRAM init and flash-safe test. Body calls flight_table_load().
 // psram_ok: self-test AND flash-safe (else SRAM ring).
 void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_ok);
 

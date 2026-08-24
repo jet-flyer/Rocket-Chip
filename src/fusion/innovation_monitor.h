@@ -6,9 +6,7 @@
 // Per-channel innovation ratio (NIS) sliding-window tracker.
 // Pure C++ — no Pico SDK dependencies.
 //
-// Tracks alpha = mean(nu^2 / S) over a sliding window. When alpha > 1.0,
-// the filter's process noise (Q) is too low for the actual sensor noise.
-// The q_scale output can be used to inflate Q diagonals adaptively.
+// Tracks alpha = mean(nu^2 / S). alpha > 1 means residuals exceed S (Q, R, or model).
 //
 // Inflates Q only, never below baseline (no overconfidence via
 // innovation). Capped at kMaxQInflation. Caller freezes during ramps.
@@ -31,8 +29,7 @@ struct InnovationChannel {
 // Initialize channel to empty state.
 void innovation_channel_init(InnovationChannel* ch);
 
-// Push a new NIS sample into the sliding window.
-// NIS = nu^2 / S where nu = innovation, S = innovation covariance.
+// Push NIS = nu^2 / S. Non-finite or negative NIS is dropped (window unchanged).
 void innovation_channel_push(InnovationChannel* ch, float nis);
 
 // Return Q scaling factor based on current alpha.

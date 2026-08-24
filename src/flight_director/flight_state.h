@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Flight phases (7 nominal + ABORT). DROGUE/MAIN are DESCENT sub-phases.
+// Flight phases: 7 nominal + ABORT + FAULT (kCount = 9). DROGUE/MAIN are DESCENT sub-phases.
 // Enum is contiguous for arrays and the wire.
 //============================================================================
 #ifndef ROCKETCHIP_FLIGHT_STATE_H

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Compile-time device role selector
-// Selects behavioral configuration based on CMake defines.
+// Compile-time device role selector (CMake ROCKETCHIP_JOB_*).
+// Not a runtime interface. kRole comes from the included job_*.h.
 // Board hardware (pins, peripherals) is handled separately by board.h.
 // "Job" = device role. Distinct from "MissionProfile" which is the
 // flight profile data used by the Flight Director at runtime.

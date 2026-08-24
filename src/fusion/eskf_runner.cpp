@@ -173,7 +173,7 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
     g_eskf.reset_p_growth_baseline();
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
 
-    // Wire phase Q/R from active mission profile
+    // Phase Q/R is the only null-guarded g_profile use here.
     if (g_profile != nullptr) {
         g_eskf.set_phase_qr(&g_profile->phase_qr);
     }
@@ -520,8 +520,8 @@ static void eskf_tick_phase_and_confidence() {
 #endif
 }
 
-// One fused cycle (predict → updates → phase/conf → bench → publish).
-// Split out so `eskf_runner_tick` stays within pre-commit size limits.
+// One fused cycle. Predict skip/diverge still updates then publishes;
+// P-growth CR-1 returns first. Split so `eskf_runner_tick` stays in size limits.
 static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
 #ifndef ROCKETCHIP_HOST_TEST
     const uint32_t t_fusion = time_us_32();

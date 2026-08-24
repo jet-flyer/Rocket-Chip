@@ -81,7 +81,7 @@ extern "C" {
 #include "qp_port.h"
 }
 
-// ARM CMSIS __get_MSP intrinsic — SDK provides via hardware/sync.h
+// MSP via MRS, not CMSIS __get_MSP.
 static inline uint32_t msp_read() {
     uint32_t result;
     asm volatile("MRS %0, msp" : "=r"(result));
@@ -91,7 +91,7 @@ static inline uint32_t msp_read() {
 extern sensor_seqlock_t g_sensorSeqlock;
 
 // MSP tracking: track minimum-seen MSP value = deepest stack usage.
-// Initialized to UINT32_MAX on first tick so any read seeds the baseline.
+// g_mspMin is 0xFFFFFFFFU at load; first tick only seeds g_mspInitial.
 static uint32_t g_mspMin = 0xFFFFFFFFU;
 static uint32_t g_mspInitial = 0;
 

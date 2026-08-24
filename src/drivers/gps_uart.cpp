@@ -16,7 +16,7 @@
 // GPS module (57600 operating; 9600 factory) -> UART0 hardware FIFO (32 bytes)
 // -> ISR on Core 0 (drains FIFO -> ring buffer)
 // -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
-// -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
+// -> gps_uart_update() (drain + extract gps_data_t)
 // Prior Art:
 // - Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet
 // - ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern)
@@ -51,7 +51,7 @@ constexpr uint8_t  kGsaFixMode2d    = 2;
 // MT3339 switches baud immediately on receiving PMTK251 — ACK arrives at the
 // NEW baud rate, so it won't be readable at the old rate. Use a delay instead.
 // Source: GlobalTop PMTK_A11 spec; Adafruit_GPS uses 1000ms delay after PMTK251.
-// 57600 chosen: 5760 B/s / ~200 B per 10Hz burst = 28 Hz capacity (2.8× headroom).
+// 57600 chosen vs factory 9600; NMEA output is PMTK220,200 (5 Hz).
 // At 115200 the MT3339 PA1616D is documented to work but some units are unreliable
 // above 57600 (Adafruit forum reports). 57600 is the safe high-speed choice.
 // Source: Adafruit Ultimate GPS product page, user forum thread #71672.
@@ -114,8 +114,6 @@ static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
               "PMTK314 sentence byte length mismatch");
 
 // PMTK220,200 — set NMEA output interval to 200ms = 5 Hz.
-// See AGENT_WHITEBOARD.md "UART GPS 10Hz + sticky-baud fix" for the
-// active 10Hz investigation.
 constexpr char kPmtk2205HzBody[] = "PMTK220,200";
 constexpr char kPmtk2205HzSentence[] = "$PMTK220,200*2C\r\n";
 static_assert(nmea_checksum_constexpr(kPmtk2205HzBody) == 0x2C,
@@ -133,7 +131,7 @@ static_assert(sizeof(kPmtk2205HzSentence) - 1 == 17,
 //   - Writes g_rxBuf[head], then release-stores g_rxHead
 //   - Acquire-loads g_rxTail to check if buffer is full
 //
-// Consumer: gps_uart_drain() on Core 1 (polled at 10Hz+)
+// Consumer: gps_uart_drain() on Core 1
 //   - Acquire-loads g_rxHead, reads g_rxBuf[tail..head], then release-stores
 //     g_rxTail
 //
@@ -145,10 +143,7 @@ static_assert(sizeof(kPmtk2205HzSentence) - 1 == 17,
 //     access on parser state
 //
 // Sizing: 512 bytes (power-of-2 for efficient masking).
-//   At 57600 baud (~5760 B/s), 10Hz poll = ~576 bytes/interval worst case.
-//   In practice each 10Hz burst is ~200 bytes (GGA+RMC+GSA sentences).
-//   512 bytes holds 2+ full bursts; ISR drains FIFO faster than burst rate.
-//   Overflow would only occur if Core 1 stalls for >88ms — not possible at 200Hz loop.
+//   ISR drops bytes into g_rxOverflow when next==tail.
 //
 // Ref: ArduPilot ByteBuffer, Pico SDK stdio_uart.c, Linux serial core.
 
@@ -201,10 +196,8 @@ static void gps_uart_rx_isr() {
 // Private Functions
 // ============================================================================
 
-// Duplicated from gps_pa1010d.cpp — both backends produce identical
-// gps_data_t from the same lwGPS state. Factoring into a shared helper
-// would couple two otherwise-independent drivers for ~40 lines of
-// trivial field copies. Not worth the dependency.
+// Duplicated from gps_pa1010d.cpp field copies, except `valid`: this
+// backend uses GGA quality only (no RMC=A). I2C requires RMC AND GGA.
 static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;
@@ -215,7 +208,7 @@ static void update_data_from_lwgps() {
     g_data.courseDeg = static_cast<float>(g_gps.course);
 
     // Fix type: prefer GGA fix quality, fall back to GSA fixMode for 2D/3D.
-    // GSA fixMode==2 is 2D; anything else (3, or not yet updated) → 3D.
+    // GSA 2 = 2D; else 3D, including GSA 1 (no fix) and 0 (not yet received).
     if (g_gps.fix >= 1) {
         if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;

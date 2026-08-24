@@ -307,18 +307,15 @@ struct ESKF {
     bool init(const Vec3& accelMeas, const Vec3& gyroMeas);
 
     // Propagate (predict) step: integrate IMU measurements forward by dt.
-    // Uses sparse FPFT exploiting F_x block structure (R-1).
-    // Solà (2017) §5.3.
+    // Codegen FPFT after ensure_dense(); then optional phase-Q delta. Solà §5.3.
     void predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
-    // Propagate using dense FPFT (verification path only).
-    // Same result as predict() but slower — used to validate sparse path.
+    // Dense FPFT (host tests). Skips ensure_dense() and apply_phase_q_delta().
     void predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
     // Barometric altitude measurement update.
-    // z = altitude_agl_m (positive up, from calibration_get_altitude_agl).
-    // h(x) = -p.z (NED down negated). H = [0 0 0 | 0 0 -1 | 0...].
-    // Returns false if input is non-finite or innovation is gated out.
+    // z = altitude_agl_m. h(x) = -p.z, plus baro_bias_ if uninhibited.
+    // H is -1 at down-position only. Returns false if non-finite or gated.
     // Solà (2017) §7.2; Bierman UD scalar P update.
     bool update_baro(float altitudeAglM);
 
@@ -390,17 +387,10 @@ struct ESKF {
     // clamp_covariance() then zeroes the inhibited blocks back to 0).
     void clamp_covariance();
 
-    // Health check: NaN detection, P bounds, quaternion norm (council RF-3).
-    // Inhibit-aware (R-1): skips P diagonal check for inhibited state indices.
-    // When covariance is UD-factored (post-Bierman, dense P lazy/stale), diagonal
-    // positivity uses UD D factors — same authority as scalar_innovation_s().
-    // Does not call ensure_dense() (const; avoids reconstruct on health polls).
+    // NaN/Inf, enabled D/P_ii > 0, unit quat, bias limits, vel sentinel. No P upper bound.
     bool healthy() const;
 
-    // Reconstruct dense P from UD when Bierman left covariance factored.
-    // Required before reading P(i,j) after measurement updates (lazy dense).
-    // No-op when already dense or when Bierman is not compiled in.
-    // Does not run on the hot path after every update — call at inspect sites.
+    // Reconstruct dense P from UD. Firmware inspect sites do not call this.
     void sync_dense_covariance();
 
     // After externally writing P while UD factors may be active, mark dense P

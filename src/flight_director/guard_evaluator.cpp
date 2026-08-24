@@ -82,7 +82,7 @@ bool guard_evaluator_is_sustained(const GuardEvaluator* ev, GuardId id) {
     return ev->guards[static_cast<uint8_t>(id)].sustained;
 }
 
-// Evaluate each guard condition using thresholds from MissionProfile.
+// Evaluate each guard condition. kBaroPeak uses fused.vert_vel_eskf only.
 // Extracted from guard_evaluator_tick for JSF AV rule 1 compliance.
 static void evaluate_guard_conditions(const GuardEvaluator* ev,
                                       const FusedState& fused,

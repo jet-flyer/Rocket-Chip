@@ -95,7 +95,7 @@ static size_t __no_inline_not_in_flash_func(psram_detect)() {
     (void)qmi_hw->direct_rx;
     qmi_hw->direct_csr &= ~QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
 
-    // Read device ID via SPI mode (cmd 0x9F, 3 addr bytes, then KGD + EID)
+    // SPI ID: 7 beats (cmd + 3 addr + discarded beat + KGD@5 + EID@6)
     qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
     uint8_t kgd = 0;
     uint8_t eid = 0;

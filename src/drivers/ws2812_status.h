@@ -40,6 +40,8 @@ typedef enum {
 // ============================================================================
 
 // num_leds 0: no-op false. Above 8 (pixels[] capacity): clamp.
+// `pio` is overwritten by pio_claim_free_sm_and_add_program_for_gpio_range
+// (SDK picks the block).
 bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds = 1);
 
 void ws2812_status_deinit(void);
@@ -60,18 +62,14 @@ void ws2812_set_pixel_rgb(uint8_t index, uint8_t r, uint8_t g, uint8_t b);
 
 void ws2812_show(void);
 
-// Maps RSSI to 1–N lit pixels (N = strip length, typically 5).
+// Maps RSSI to 1–N lit pixels (N = strip length).
 // Thresholds in the .cpp: >= -60 all lit, then -70/-80/-95 steps.
+// Lit pixels mixed green/yellow/red by index, not a whole-bar color band.
 // no_signal: pixel 0 dim red, rest off. Not a pulse.
 void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
 
-// Single lit pixel walks back and forth across the strip at a fixed cadence,
-// independent of call frequency. Color is the caller's choice — station uses
-// yellow during LOS-watchdog (config apply in progress) and cyan during
-// channel-find (future IVP, deferred).
-// Drives the bar directly — caller should throttle to ~20 Hz (every 50 ms)
-// or similar for smooth motion. Internal static position + direction persist
-// across calls.
+// One step per call; caller sets cadence. Color is the caller's choice.
+// Position + direction persist in file-scope statics.
 void ws2812_set_sweep_bar(ws2812_rgb_t color);
 
 // ============================================================================
@@ -86,9 +84,8 @@ void ws2812_set_breathe_period(uint32_t periodMs);
 // 0 on either side: keep last timings.
 void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs);
 
-// Swaps between `a` (primary / baseColor) and `b` (altColor) every
-// `halfPeriodMs` milliseconds. Default is 250ms each = true 2Hz toggle
-// (one full cycle per second). Visually reads as "2 flashes per second."
+// Swaps `a` and `b` every halfPeriodMs. No C++ default; 0 remaps in the
+// .cpp to kDefaultAlternateHalfMs (250). Full a→b→a period is 2*halfPeriodMs.
 void ws2812_set_mode_alternate(ws2812_rgb_t a, ws2812_rgb_t b,
                                uint32_t halfPeriodMs);
 

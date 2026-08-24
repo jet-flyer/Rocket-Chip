@@ -25,11 +25,11 @@
 //   SIG_DISARM      — CLI/command: return to IDLE from ARMED
 //   SIG_LAUNCH      — Guard: body-Z accel threshold sustained
 //   SIG_BURNOUT     — Guard: accel magnitude below threshold
-//   SIG_APOGEE      — Guard: velocity zero-cross or coast timeout
+//   SIG_APOGEE      — Guard combinator (vel/baro). Coast timeout is a separate HSM path.
 //   SIG_MAIN_DEPLOY — Guard: AGL altitude below threshold
 //   SIG_LANDING     — Guard: stationary for sustained period
 //   SIG_ABORT       — CLI/command/guard: emergency abort
-//   SIG_RESET       — CLI/command: return to IDLE from any state
+//   SIG_RESET       — CLI/command: IDLE from LANDED or ABORT only
 //
 // The FlightDirector is a C struct (not C++ class) for QEP compatibility.
 // It extends QHsm with a FlightState struct and a const MissionProfile*.
@@ -78,7 +78,7 @@ struct FlightDirector {
     GuardEvaluator guard_eval;      // Guard sustain evaluator
     CombinatorSet combinator_set;   // Guard combinators + lockouts
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
-    bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
+    bool guards_enabled;            // Unused after ctor. Enablement is evaluate_guards' phase check.
 };
 
 // Lifecycle
@@ -113,7 +113,7 @@ void fd_effect_set_led(uint8_t led_value);
 void fd_effect_log_pyro(PyroChannel channel);
 void fd_effect_phase_change(FlightPhase phase, uint32_t timestamp_ms);
 void fd_effect_beacon();
-void fd_effect_reset_subsystems();
+void fd_effect_reset_subsystems();  // Any non-startup IDLE entry, not only RESET.
 
 #ifdef ROCKETCHIP_HOST_TEST
 void fd_effect_host_reset();

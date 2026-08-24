@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // UD factorization for 24-state ESKF covariance.
-// Thornton WMGS temporal update + Bierman scalar measurement update.
-// Three Thornton precision variants (f32, mixed f32/f64, f64 accum).
-// All hot functions placed in .time_critical SRAM section for fair
-// comparison with codegen FPFT (LL Entry 30: XIP cache is only 2KB).
+// ud_to_dense, ud_factorize (modified Cholesky), Bierman scalar update.
+// Flight predict is codegen FPFT in eskf.cpp; this TU has no Thornton path.
+// Only bierman_scalar_update is in .time_critical SRAM.
 
 #include "fusion/ud_factor.h"
 
@@ -16,7 +15,7 @@ namespace rc {
 static constexpr int32_t kN = eskf::kStateSize;
 
 // Minimum D-element guard for numerical stability.
-// Below this threshold, the U column is zeroed to avoid division by near-zero.
+// Tiny alpha skips that column's U/D update; tiny/non-finite D is floored.
 static constexpr float  kMinDFloat  = 1e-30F;
 
 // =========================================================================

@@ -11,7 +11,7 @@ namespace job {
 
 inline constexpr DeviceRole kRole = DeviceRole::kRelay;
 
-// Radio mode: RX continuous (relay receives, then re-TXes)
+// kRadioModeRx is "radio stays in RX". Relay re-TX is this job, not this flag.
 inline constexpr bool kRadioModeRx = true;
 
 // No MAVLink output on relay (no AO_Telemetry)

@@ -19,7 +19,7 @@ constexpr uint32_t kDefaultBlinkOnMs    = 500;
 constexpr uint32_t kDefaultBlinkOffMs   = 500;
 constexpr uint32_t kFastBlinkPeriodMs   = 200;  // 5Hz = 100ms on + 100ms off
 constexpr uint32_t kFastBlinkOnMs       = 100;
-constexpr uint32_t kDefaultAlternateHalfMs = 250;  // Stage L: 250ms each = 2Hz toggle
+constexpr uint32_t kDefaultAlternateHalfMs = 250;  // 250 ms each color; 0 remaps to this
 // Double-flash: 100ms on, 100ms off, 100ms on, 700ms off = 1s full cycle (Stage L, AP-parity pre-arm-fail shape)
 constexpr uint32_t kDoubleFlashP0OnMs   = 100;   // first pulse on
 constexpr uint32_t kDoubleFlashP1OffMs  = 100;   // gap between pulses
@@ -165,8 +165,7 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
         return;
     }
 
-    // Map RSSI to lit pixel count (1-5 for 5-LED strip)
-    // -40 dBm = excellent (5 pixels), -120 dBm = barely detectable (1 pixel)
+    // Map RSSI to lit pixel count (steps at -60 / -70 / -80 / -95).
     uint8_t max_px = g_state.numLeds;
     uint8_t lit;
     if (rssi >= -60) {

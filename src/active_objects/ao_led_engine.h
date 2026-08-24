@@ -21,8 +21,8 @@ void AO_LedEngine_start(uint8_t prio);
 // Post a resolved pattern (AO_Notify → kLayerNotify). See NOTIFY_CONTRACT.md.
 void AO_LedEngine_post_pattern(uint8_t pattern);
 
-// Dev helper: force a pattern into the Fault layer so it wins over
-// AO_Notify re-publishes. Pass 0 to clear. LED-test debug CLI only.
+// Dev helper: compositor bypass above every layer (including Fault).
+// Pass 0 to disable the bypass (does not clear kLayerFault). LED-test CLI.
 void AO_LedEngine_dev_force_fault_layer(uint8_t pattern);
 
 #endif // ROCKETCHIP_AO_LED_ENGINE_H

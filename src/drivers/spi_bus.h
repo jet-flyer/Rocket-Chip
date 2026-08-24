@@ -27,7 +27,7 @@ constexpr uint32_t kSpiBusFreqHz = 5000000;  // 5 MHz (SX1276 supports up to 10 
 // Initialization
 // ============================================================================
 
-// 5 MHz, Mode 0, MSB first. Pins from board::. CS is per-peripheral.
+// 5 MHz, Mode 0, MSB first. Pins from board::. Always returns true.
 bool spi_bus_init(void);
 
 // ============================================================================
@@ -47,7 +47,7 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len);
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len);
 
-// Short-count SPI errors. Expected 0 on a clean bench; growth is EMI/wiring.
+// Incremented on short SDK SPI count. Those APIs have no timeout (hardware_spi.h).
 #ifdef __cplusplus
 #include <atomic>
 extern std::atomic<uint32_t> g_spi_error_count;

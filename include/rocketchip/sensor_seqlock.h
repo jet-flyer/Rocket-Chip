@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Seqlock: Core 1 (~1 kHz) publishes calibrated SI samples to Core 0.
+// Seqlock: Core 1 publishes IMU/baro/GPS/health/MCU samples to Core 0.
 // __dmb() is required — memory_order_release does not order the memcpy.
 // See SEQLOCK_DESIGN.md.
 //============================================================================

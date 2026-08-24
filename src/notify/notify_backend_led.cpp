@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// LED backend: Fault > Cal > Flight > Radio > Sensor > Idle.
-// First non-kNone wins. Posted to AO_LedEngine from AO_Notify's 33 Hz tick.
+// LED backend: Fault > Cal > Flight > Radio > Sensor. First non-zero pattern wins.
+// Posted to AO_LedEngine from AO_Notify's 33 Hz tick.
 //============================================================================
 
 #include "notify_resolver.h"
@@ -17,7 +17,7 @@ namespace notify {
 
 // ============================================================================
 // Per-category pattern lookups
-// Returns 0 (not a valid pattern code) if the intent is kNone.
+// Returns 0 (kOff / empty-category sentinel) if the intent is kNone.
 // ============================================================================
 
 static uint8_t fault_to_pattern(FaultIntent f) {

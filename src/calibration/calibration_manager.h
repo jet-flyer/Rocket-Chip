@@ -36,7 +36,7 @@ typedef enum {
     CAL_RESULT_TIMEOUT,         // Calibration took too long
     CAL_RESULT_INVALID_DATA,    // Data out of expected range
     CAL_RESULT_STORAGE_ERROR,   // Failed to save
-    CAL_RESULT_FIT_FAILED,      // Ellipsoid fit did not converge or params out of range
+    CAL_RESULT_FIT_FAILED,      // Post-fit range/radius check (not LM divergence)
 } cal_result_t;
 
 // ============================================================================
@@ -109,8 +109,7 @@ uint16_t calibration_6pos_position_sample_count(void);
 // CAL_RESULT_OK on success, CAL_RESULT_NO_DATA if not enough samples
 cal_result_t calibration_finalize_6pos_position(void);
 
-// Requires all 6 positions collected first.
-// On success, stores offset/scale/offdiag to calibration data.
+// Requires all 6 positions. Stores offset + diagonal scale; offdiag written 0.
 cal_result_t calibration_compute_6pos(void);
 
 void calibration_reset_6pos(void);
@@ -141,10 +140,7 @@ uint16_t calibration_get_mag_sample_count(void);
 
 uint8_t calibration_get_mag_coverage_pct(void);
 
-// Step 1: Sphere fit (4 params) for initial offset/radius estimate
-// Step 2: Ellipsoid fit (9 params) for full soft-iron correction
-// On success, stores results to calibration data.
-// CAL_RESULT_NO_DATA if insufficient samples
+// Sphere then 9-param ellipsoid. FIT_FAILED is range/radius, not LM divergence.
 cal_result_t calibration_compute_mag_cal(void);
 
 float calibration_get_mag_fitness(void);
@@ -174,7 +170,7 @@ void calibration_apply_mag(float mxRaw, float myRaw, float mzRaw,
 void calibration_apply_mag_with(const calibration_store_t* cal,
                                   const cal_vec3_t& raw, cal_vec3_t& out);
 
-// Reads from the cached copy in RAM (no flash access). Safe to call from Core 1.
+// Copies via calibration_storage_read, not the manager get() snapshot.
 bool calibration_load_into(calibration_store_t* dest);
 
 float calibration_get_altitude_agl(float pressurePa);

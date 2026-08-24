@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Compile-time board selector (PICO_BOARD → board_*.h, `board::` constants).
+// Compile-time board selector (PICO_BOARD → one board_*.h pack per binary).
 // Adding a board: new board_<name>.h, #elif on the SDK macro, check
 // docs/hardware/BOARD_COMPARISON.md. Unknown PICO_BOARD must not inherit
 // Feather pins.

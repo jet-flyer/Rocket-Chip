@@ -861,7 +861,7 @@ static bool mag_sphere_fit(uint16_t num_samples, float* out_radius, float out_of
     return true;
 }
 
-// --- Ellipsoid fit (Step 2): same 9-param model as accel 6-pos but with mag radius ---
+// --- Ellipsoid fit (Step 2): 9 params (offset + diag + offdiag) + mag radius ---
 
 static float calc_residual_mag(const float sample[3], const float params[kMagEllipsoidParams]) {
     float sx = sample[0] + params[kParamOffX];

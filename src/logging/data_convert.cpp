@@ -24,7 +24,7 @@ static constexpr float kInt8MaxF  =  127.0F;
 static constexpr float kInt8MinF  = -128.0F;
 static constexpr int8_t kInt8Max  =  127;
 
-// Clamp float to int16 range and round
+// Clamp finite out-of-range floats; NaN comparisons fail, so NaN is not clamped.
 static int16_t clamp_round_i16(float val) {
     if (val >= kInt16MaxF) { return kInt16Max; }
     if (val <= kInt16MinF) { return -kInt16Max - 1; }
@@ -76,7 +76,7 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     // Baro altitude AGL in mm
     t.baro_alt_mm = clamp_round_i32(f.baro_alt_agl * 1000.0F);
 
-    // Baro vertical velocity in cm/s
+    // Wire baro_vvel_cms from ESKF vert_vel_eskf (not baro_alt_rate_mps)
     t.baro_vvel_cms = clamp_round_i16(f.vert_vel_eskf * kMsToCms);
 
     // GPS ground speed in cm/s (unsigned)

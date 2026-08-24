@@ -6,8 +6,8 @@
 // Priority layer compositor. Each tick: iterate layers from highest priority
 // (fault) to lowest (idle). First non-zero layer determines the LED pattern.
 //
-// Sensor status (GPS fix, ESKF health) evaluated on each tick via seqlock.
-// Core 1 vitality monitored via core1_loop_count staleness.
+// GPS/ESKF evaluation is in AO_Notify. This tick seqlock-reads only
+// for Core 1 vitality (core1_loop_count).
 //
 // Runs on Core 0 via QV cooperative scheduler. ws2812_update() called at
 // ~33Hz (every 3 ticks at 100Hz base) — adequate for all animation modes.

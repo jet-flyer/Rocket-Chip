@@ -6,8 +6,8 @@
 // No-op stub until the audio stage implements the TLV320DAC3100 I2S
 // codec driver + AP tone string parser on the Fruit Jam ground station.
 //
-// AP tone string constants are defined here as data so the notification
-// engine can reference them now. Parser is deferred to the audio stage.
+// Tone strings are file-static placeholders; notify_backend_audio_update
+// discards state. Not in notify_backend.h. Parser is deferred.
 // Format: RTTTL-like strings matching ArduPilot AP_Notify/ToneAlarm.
 //============================================================================
 

@@ -25,17 +25,13 @@ static constexpr float    kTempOffsetC  = 27.0F;     // °C
 static constexpr uint8_t  kTempAdcInput = board::kMcuTempAdcInput;
 
 
-// Stuck-sensor detection. At 1 Hz capture, 60 consecutive bit-identical
-// reads = 60 seconds of zero ADC jitter, which is indistinguishable from
-// a cached/frozen ADC output. Bench measurement at ~28°C shows 0.93°C
-// spread across 15 samples (3 distinct ADC codes at the 0.58°C LSB step),
-// so real silicon at thermal steady state always produces movement across
-// a ~60s window. 60 is a conservative floor; we never expect to see it
-// reach that count on a working sensor.
+// Stuck-sensor detection. Counter resets to 0 on a new converted sample;
+// is_stuck after 60 later matches. LSB is kAdcVref/kAdcMaxCount/kTempSlope
+// from the conversion constants above.
 static constexpr uint32_t kStuckThresholdSamples = 60U;
 
 static bool     g_mcuTempInitialized = false;
-static float    g_lastRawSample      = kMcuTempSentinelC;  // raw read, for bit compare
+static float    g_lastRawSample      = kMcuTempSentinelC;  // last converted °C, bit-compared
 static uint32_t g_consecIdentical    = 0;
 
 bool mcu_temp_init() {

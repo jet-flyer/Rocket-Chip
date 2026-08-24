@@ -7,8 +7,8 @@
 // Each handler processes QEP signals (Q_ENTRY_SIG, user signals).
 // No Q_EXIT_SIG dispatch. Returns Q_HANDLED(), Q_TRAN(), or Q_SUPER().
 //
-// ABORT: BOOST/COAST fire drogue; DESCENT is no-op (chutes already out).
-// Pad abort timeout → IDLE. In-flight abort stays in ABORT (beacon, no LANDED).
+// ABORT: BOOST/COAST fire drogue if profile abort_fires_drogue_from_*. DESCENT no-op.
+// Pad abort timeout → IDLE. In-flight abort stays in ABORT (LED beacon, no LANDED).
 // Re-ARM from ABORT requires explicit RESET first.
 //============================================================================
 
@@ -573,10 +573,8 @@ static QState state_landed(FlightDirector * const me, QEvt const * const e) {
 // ABORT — Emergency state. Terminal for this flight — no transition to LANDED.
 //
 // ABORT is a sink state: stays in ABORT until manual RESET → IDLE.
-// Pad abort (from ARMED): timeout → IDLE (auto-safe, never launched).
-// In-flight abort (from BOOST/COAST): activates beacon after timeout for
-//   recovery tracking. Stays in ABORT — landing moment determined in
-//   post-processing from flight log. RESET required to return to IDLE.
+// Pad vs in-flight uses markers.launch_ms / landing_ms as one-shots.
+// Pad (launch_ms == 0): timeout → IDLE. In-flight: LED beacon, stay in ABORT.
 //
 // Accepts: SIG_RESET → IDLE
 //          SIG_TICK — pad abort timeout, in-flight beacon activation
@@ -612,13 +610,11 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->abort_timeout_ms) {
                 if (me->state.markers.launch_ms == 0) {
-                    // Pad abort: never launched — auto-return to IDLE
+                    // Pad abort: launch_ms still 0 — auto-return to IDLE
                     rc::rc_log("[FD] ABORT timeout (pad) — auto-IDLE\n");
                     return Q_TRAN(&state_idle);
                 }
-                // In-flight abort: activate beacon for recovery, stay in ABORT.
-                // Use marker as one-shot flag — landing_ms is otherwise unused
-                // in ABORT (landing time determined in post-processing).
+                // In-flight abort: LED beacon override, stay in ABORT.
                 if (me->state.markers.landing_ms == 0) {
                     me->state.markers.landing_ms = me->tick_ms;
                     fd_effect_set_led(kLedPhaseBeacon);

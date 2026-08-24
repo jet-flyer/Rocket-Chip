@@ -8,7 +8,6 @@
 //
 // User-facing .cfg has simple options (protocol, rate, power).
 // Generator derives RF parameters (SF, BW, CR) from those.
-// Advanced overrides available in V2 (not V1).
 //============================================================================
 #ifndef ROCKETCHIP_RADIO_CONFIG_H
 #define ROCKETCHIP_RADIO_CONFIG_H
@@ -29,11 +28,11 @@ enum class RadioRole : uint8_t {
 struct RadioConfig {
     RadioRole   mode;           // TX, RX, or Relay
     EncoderType protocol;       // kCcsds or kMavlink
-    uint8_t     nav_rate_hz;    // 2, 5, or 10
+    uint8_t     nav_rate_hz;    // Hz; legal 1-50 (radio_config_sx1276_legal)
     uint8_t     power_dbm;      // 2-20
-    uint8_t     spreading_factor;  // Derived: 6-12 (default 7)
-    uint16_t    bandwidth_khz;     // Derived: 125, 250, or 500
-    uint8_t     coding_rate;       // Derived: 5-8 (CR 4/x, default 5)
+    uint8_t     spreading_factor;  // 7-12
+    uint16_t    bandwidth_khz;     // 125, 250, or 500
+    uint8_t     coding_rate;       // 5-8 (CR 4/x)
 };
 
 // Default radio config — used when no profile [radio] section exists

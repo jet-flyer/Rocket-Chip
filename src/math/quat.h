@@ -13,7 +13,7 @@
 
 namespace rc {
 
-// Row-major 3×3 DCM. Index as row * kDcmRows + col (Sola 2017 Eq. 22).
+// Row-major 3×3 DCM. Index as row * kDcmRows + col.
 constexpr int kDcmRows = 3;
 constexpr int kDcmElements = kDcmRows * kDcmRows;
 
@@ -46,15 +46,15 @@ struct Quat {
     // Return normalized copy
     Quat normalized() const;
 
-    // Rotate a vector: v' = q * [0,v] * q*
+    // Rotate a vector. Unit quaternion required.
+    // Expansion equals q * [0,v] * q* only when |q| = 1.
     Vec3 rotate(const Vec3& v) const;
 
-    // Convert to 3x3 rotation matrix (row-major, 9 floats)
-    // Output: m[0..8] = row-major DCM (body-to-NED)
+    // Unit quaternion required. Row-major body-to-NED DCM, 9 floats.
     void to_rotation_matrix(float m[kDcmElements]) const;
 
-    // Convert to Euler angles (ZYX convention: yaw, pitch, roll)
-    // Returns Vec3(roll, pitch, yaw) in radians
+    // ZYX Tait-Bryan. Returns Vec3(roll, pitch, yaw) radians — not yaw-pitch-roll packing.
+    // Unit quaternion required.
     Vec3 to_euler() const;
 
     // ---- Static constructors ----
@@ -63,15 +63,14 @@ struct Quat {
     // roll = rotation about X, pitch = about Y, yaw = about Z
     static Quat from_euler(float roll, float pitch, float yaw);
 
-    // From axis-angle: rotation of 'angle' radians about unit vector 'axis'
+    // Rotation of 'angle' radians about 'axis' (axis is normalized in the body).
     static Quat from_axis_angle(const Vec3& axis, float angle);
 
-    // Quaternion that rotates vector 'from' to vector 'to'
+    // Quaternion that rotates 'from' to 'to'. Near-parallel returns identity.
     static Quat from_two_vectors(const Vec3& from, const Vec3& to);
 
     // First-order quaternion from small rotation vector deltaTheta:
-    // q ~= [1, deltaTheta/2] normalized
-    // Core ESKF operation for error state injection. Sola (2017) Eq. 186.
+    // q ~= [1, deltaTheta/2] then normalized. Sola (2017).
     static Quat from_small_angle(const Vec3& deltaTheta);
 };
 

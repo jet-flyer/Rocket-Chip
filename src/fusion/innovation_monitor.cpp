@@ -19,7 +19,7 @@ void innovation_channel_init(InnovationChannel* ch) {
 }
 
 void innovation_channel_push(InnovationChannel* ch, float nis) {
-    // Reject non-finite values
+    // Drop non-finite or negative NIS; leave the window unchanged.
     if (!std::isfinite(nis) || nis < 0.0f) {
         return;
     }

@@ -41,9 +41,8 @@ constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
 
 [[nodiscard]] bool i2c_bus_init(void);
 
-[[nodiscard]] bool i2c_bus_probe(uint8_t addr);
-
-void i2c_bus_scan(void);
+[[nodiscard]] bool i2c_bus_probe(uint8_t addr);  // 1-byte read, not address-only ACK
+void i2c_bus_scan(void);  // Expected-sensor inventory; skips 0x10 (LL 20)
 
 // ============================================================================
 // Read/Write Operations
@@ -71,10 +70,10 @@ void i2c_bus_scan(void);
 // Bus recovery
 // ============================================================================
 
-// Clock out a stuck-low SDA (up to 9 SCL pulses + STOP). true = SDA released.
+// Deinit, SIO recover, reinit. true = SDA released. Other core must be paused.
 bool i2c_bus_recover(void);
 
-// Performs a full bus reset sequence when a device becomes unresponsive.
+// recover() then mark initialized even if recover returned false.
 bool i2c_bus_reset(void);
 
 #endif // ROCKETCHIP_I2C_BUS_H

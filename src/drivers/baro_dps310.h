@@ -16,9 +16,8 @@
 constexpr uint8_t kBaroDps310AddrDefault    = 0x77;
 constexpr uint8_t kBaroDps310AddrAlt        = 0x76;
 
-// Pressure 8x / 32 Hz (Table 16: 0.4 Pa, 14.8 ms). Temp 1x / 2 Hz
-// (package thermal tau 5–15 s). CONT_BOTH duty ~481 ms/s. Datasheet
-// full OS table is Infineon DPS310 Table 16, not restated here.
+// Pressure OS/MR and temp OS/MR are the constexprs below.
+// Datasheet OS / meas-time / RMS tables: Infineon DPS310 (not restated here).
 constexpr uint8_t kBaroDps310PresOversampling = 8;
 constexpr uint8_t kBaroDps310PresMeasRate     = 32;
 constexpr uint8_t kBaroDps310TempOversampling = 1;

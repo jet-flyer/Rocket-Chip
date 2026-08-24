@@ -4,8 +4,7 @@
 // AO_Logger — Flight Data Logger Active Object
 //
 // Owns ring buffer, decimator, flight table, FusedState builder, and event
-// logging. 50Hz time event drives logging_tick() which reads ESKF epoch,
-// builds FusedState, decimates, encodes PCM frame, and pushes to ring buffer.
+// logging. 50 Hz tick pushes one FusedState into the boxcar (ratio 4/8).
 //============================================================================
 
 #include "ao_logger.h"
@@ -54,11 +53,10 @@ static constexpr uint32_t kEskfRateHz = 200;
 // Rad/deg conversion for Mahony divergence
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
 
-// SRAM fallback: 200KB ring buffer at 25Hz if PSRAM unavailable.
-// 200KB / 55B = 3636 frames / 25Hz = 145 seconds.
+// SRAM fallback ring if PSRAM unavailable.
 static constexpr uint32_t kSramRingSize = 200U * 1024U;
 
-// Decimation: 4:1 for PSRAM (200->50Hz), 8:1 for SRAM (200->25Hz)
+// Boxcar ratio on the 50 Hz tick (not a 200 Hz ingest).
 static constexpr uint32_t kDecimationPsram = 4;
 static constexpr uint32_t kDecimationSram = 8;
 
@@ -139,11 +137,8 @@ static void fused_copy_eskf_state(rc::FusedState& fused) {
     fused.zupt_active = g_eskf.last_zupt_active_;
 }
 
-// Non-static: shared between AO_FlightDirector (guard evaluation) and
-// logging_tick (PCM frame encoding). Public via ao_logger.h.
-// Populate baro-derived fields (AGL, vertical velocity, and 2-point raw baro
-// altitude rate from hydrostatic pressure delta). Extracted from
-// AO_Logger_populate_fused_state for JSF AV rule 1 compliance.
+// static helper. Pressure-delta cache is function-static.
+// Populate baro-derived fields (AGL, ESKF vert_vel, 2-point baro rate).
 static void populate_baro_fields(rc::FusedState& fused,
                                   const shared_sensor_data_t& snap) {
     fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);
@@ -152,7 +147,6 @@ static void populate_baro_fields(rc::FusedState& fused,
 
     // Raw baro altitude rate (ESKF-independent, IVP-120)
     // 2-point pressure delta → altitude rate via hydrostatic approximation.
-    // Cache lives at file scope so it persists across calls.
     static float g_prevPressurePa = 0.0F;
     static uint32_t g_prevSampleMs = 0;
 #ifndef ROCKETCHIP_HOST_TEST
@@ -179,7 +173,7 @@ static void populate_baro_fields(rc::FusedState& fused,
         g_prevPressurePa = snap.pressure_pa;
         g_prevSampleMs = now_ms;
     }
-    // If dt_s < 0.05, keep previous rate (noise-dominated interval)
+    // Short dt: this call does not write fused.baro_alt_rate_mps.
 }
 
 void AO_Logger_populate_fused_state(rc::FusedState& fused,
@@ -251,7 +245,7 @@ void AO_Logger_log_event(rc::LogEventId id,
 static void init_logging_ring() {
     // Initialize logging ring buffer.
     // PSRAM ring if size > 0 and psram_ok (self-test AND flash-safe).
-    // Else SRAM fallback (200KB at 25Hz).
+    // Else SRAM fallback (kSramRingSize, ratio 8).
     uint8_t* ring_mem = nullptr;
     uint32_t ring_size = 0;
     uint32_t dec_ratio = kDecimationSram;
@@ -343,7 +337,7 @@ static QState logger_ao_initial(LoggerAo * const me, QEvt const * const e) {
     // Subscribe to flight events from Flight Director
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
     QActive_subscribe(&me->super, rc::SIG_PYRO_FIRED);
-    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: health in FusedState
+    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // not handled below; health sampled on tick
     // 50Hz tick (every 2 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 2U, 2U);
     return Q_TRAN(&logger_ao_running);
@@ -358,7 +352,7 @@ static QState logger_ao_running(LoggerAo * const me, QEvt const * const e) {
     case rc::SIG_PHASE_CHANGE: {
         const rc::PhaseChangeEvt* pe =
             rc::evt_cast<rc::PhaseChangeEvt>(e);
-        // Log phase transition with exact FD timestamp
+        // pe->phase only; event MET is to_ms_since_boot at handle time
         AO_Logger_log_event(rc::LogEventId::kPhaseChange,
                             pe->phase, 0, 0, 0);
         return Q_HANDLED();

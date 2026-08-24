@@ -3,8 +3,8 @@
 #ifndef ROCKETCHIP_FUSION_UD_FACTOR_H
 #define ROCKETCHIP_FUSION_UD_FACTOR_H
 
-// 24-state UD covariance: P = U D U^T, D[i] > 0 by construction.
-// Flight path: codegen FPFT predict + Bierman 1977 scalar update.
+// 24-state UD: P = U D U^T. Factorize can fail mid-write (D<=0).
+// Bierman floors tiny D or skips a column; D>0 is not guaranteed after every call.
 
 #include <cstdint>
 
@@ -30,7 +30,7 @@ void ud_to_dense(const UD24& ud, float P[eskf::kStateSize][eskf::kStateSize]);
 // Returns false if P is not positive-definite (any D[i] <= 0).
 bool ud_factorize(UD24& ud, const float P[eskf::kStateSize][eskf::kStateSize]);
 
-// In-place scalar update. H has one nonzero at hIdx (usually ±1).
+// In-place scalar update. H has one nonzero at hIdx (any hValue). Core 0 only.
 
 void bierman_scalar_update(UD24& ud, int32_t hIdx, float hValue,
                            float innovation, float r, float dx[eskf::kStateSize]);

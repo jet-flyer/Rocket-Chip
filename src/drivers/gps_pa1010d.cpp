@@ -65,10 +65,7 @@ static_assert(sizeof(kPmtk2201HzSentence) - 1 == 18,
 
 static bool g_initialized = false;
 
-// Grok-triage instrumentation: capture blind-PMTK write return codes and
-// whether the post-config probe hit. Rendered by gps_pa1010d_get_debug_status()
-// for display in Hardware Status (`b`) since init_early_hw() runs before
-// USB CDC, so any printf() from init is dropped.
+// Blind-PMTK write return codes and post-config probe, filled in gps_pa1010d_init().
 static int  g_pmtkWriteResults[3] = { -999, -999, -999 };
 static bool g_pmtkWindowHit = false;
 static lwgps_t g_gps;
@@ -77,8 +74,7 @@ static gps_data_t g_data;
 // I2C read buffer — full 255-byte MT3333 TX buffer per vendor recommendation.
 // GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended."
 // Pico SDK i2c_read_blocking() has no upper limit (unlike Arduino Wire.h's 32).
-// At 400kHz, 255 bytes takes ~5.8ms. At 10Hz GPS poll, this affects 10 of 1000
-// IMU cycles/sec — negligible jitter for a 200Hz fusion consumer.
+// At 400kHz, 255 bytes takes ~5.8ms.
 // Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
 constexpr size_t kGpsMaxRead = 255;
 static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
@@ -97,6 +93,8 @@ static size_t g_lastReadLen = 0;           // Last successful read length
 // NMEA terminator). Discard all standalone 0x0A (padding). This handles
 // all three packet types and preserves sentence framing for lwGPS.
 // Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
+// max_len is the I2C read size into g_raw[kGpsMaxRead], not the capacity of
+// `buffer`. Requires max_len <= kGpsMaxRead and buffer >= filtered output.
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // Read raw I2C data into a local buffer, then filter in-place
     static uint8_t g_raw[kGpsMaxRead];
@@ -140,7 +138,7 @@ static void update_data_from_lwgps() {
     // GSA fixMode: 1=none, 2=2D, 3=3D
     if (g_gps.fix >= 1) {
         // GGA says we have a fix — use GSA for 2D/3D if available.
-        // GSA fixMode==2 is 2D; anything else (3, or not yet updated) → 3D.
+        // GSA 2 = 2D; else 3D, including GSA 1 (no fix) and 0 (not yet received).
         if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;
         } else {

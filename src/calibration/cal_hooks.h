@@ -11,6 +11,6 @@
 
 bool cal_read_mag(float* mx, float* my, float* mz);
 void cal_reset_mag_staleness();
-void cal_post_hook();
+void cal_post_hook();  // Sets g_calReloadPending if g_sensorPhaseActive; else no-op.
 
 #endif // ROCKETCHIP_CAL_HOOKS_H

@@ -24,13 +24,13 @@ bool MahonyAHRS::init(const Vec3& accel, const Vec3& mag_body) {
     q = Quat::from_two_vectors(body_down, ned_down);
     q.normalize();
 
-    // Yaw from tilt-compensated magnetometer (council: match ESKF init).
-    // If magBody is zero or too small, skip — yaw = 0 (North assumed).
+    // Optional mag yaw. Skip when |mag| <= 1 µT. Skipped path leaves q as
+    // from_two_vectors(body_down, ned_down); that is not Euler yaw = 0.
     if (mag_body.norm() > 1.0F) {
-        // Project mag into level plane using current roll/pitch.
-        // Rotate mag to NED frame, then extract yaw from horizontal components.
+        // Rotate mag by the full from_two_vectors q (not a zero-yaw tilt-only
+        // projection). Horizontal atan2 then replaces that q's Euler yaw.
         const Vec3 mag_ned = q.rotate(mag_body);
-        const float yaw = atan2f(-mag_ned.y, mag_ned.x);  // East-positive heading → negate y
+        const float yaw = atan2f(-mag_ned.y, mag_ned.x);
         // Rebuild quaternion with this yaw
         const Vec3 euler = q.to_euler();
         q = Quat::from_euler(euler.x, euler.y, yaw);
@@ -100,7 +100,7 @@ void MahonyAHRS::update(const Vec3& accel, const Vec3& gyro,
         return;
     }
 
-    // Effective Kp: startup 10x boost until time expires or ARM forces end
+    // Effective Kp: 10× while in_startup, else kKp (hard step, not a decay).
     const bool in_startup = !startup_ended_ && elapsed_s < kStartupDurationS;
     const float kp_eff = in_startup ? kKp * kStartupKpMultiplier : kKp;
 

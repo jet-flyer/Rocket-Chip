@@ -15,11 +15,11 @@
 static constexpr uint8_t kSpiReadMask  = 0x7FU;  // Clear bit 7 for read
 static constexpr uint8_t kSpiWriteFlag = 0x80U;   // Set bit 7 for write
 
-// Short-count SPI errors. Expected 0 indoors.
+// Incremented only on a short SDK blocking return (those calls return len).
 std::atomic<uint32_t> g_spi_error_count{0};
 
 bool spi_bus_init(void) {
-    // Init SPI — instance selected by board header (SPI_BUS_INSTANCE from spi_bus.h)
+    // spi_init returns the achieved baud; discarded — this function cannot fail-report.
     spi_init(SPI_BUS_INSTANCE, kSpiBusFreqHz);
 
     // Mode 0: CPOL=0, CPHA=0 (SX1276 requirement)

@@ -29,7 +29,7 @@ void confidence_gate_evaluate(ConfidenceState* cs, const ConfidenceInput& input)
 
     // Hysteresis state machine
     if (raw_ok) {
-        cs->bad_since_ms = 0;  // reset bad timer
+        cs->bad_since_ms = 0;
         if (!cs->confident) {
             // Uncertain → trying to recover
             if (cs->good_since_ms == 0) {
@@ -44,7 +44,7 @@ void confidence_gate_evaluate(ConfidenceState* cs, const ConfidenceInput& input)
             cs->good_since_ms = 0;
         }
     } else {
-        cs->good_since_ms = 0;  // reset good timer
+        cs->good_since_ms = 0;
         if (cs->confident) {
             // Confident → checking if loss is sustained
             if (cs->bad_since_ms == 0) {
@@ -60,7 +60,6 @@ void confidence_gate_evaluate(ConfidenceState* cs, const ConfidenceInput& input)
         }
     }
 
-    // Update timing
     if (cs->confident) {
         cs->last_confident_ms = input.now_ms;
         cs->time_since_confident_ms = 0;
