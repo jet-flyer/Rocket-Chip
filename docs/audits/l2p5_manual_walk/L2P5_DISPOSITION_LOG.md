@@ -590,3 +590,35 @@ GSV stays off (vendor SSOT). Core 1 does not call `gps_uart_reinit()`.
 | CW-B09-05 / GWF-402 | REMEDIATE comments | dual-baud two-window budget; `core1_read_gps` side effects |
 | CW-B14-05 / CW-B36-01 / CW-L041 / GWF-405 | REMEDIATE | `eskf_runner_probably_flying()` atomic; drop Core 1 `g_eskf` (`409d890`) |
 | GWF-008 | skip pointers; REMEDIATE comment | function-pointer table already gone (P10-9); `g_gpsTransport` frozen before `g_startSensorPhase` |
+
+### Cross-core publication / fail-open — CLOSED 2026-08-24
+
+Previously resolved (GPS sitting): GWF-171 / GWF-404 (`g_eskf` Core 1 read); GWF-008 pointer table. Pause fail-open already on the header (CW-B34-03 / GWF-383 contract half).
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-007 / CW-X4-09 | REMEDIATE | seqlock + six signaling atomics declared only in `sensor_seqlock.h` (`67aa59b`) |
+| CW-B01-01 / CW-B41-04 / GWF-003 / GWF-454 / GWF-361 / GWF-470 | REMEDIATE | `g_baroInitialized` / `g_gpsInitialized` acquire/release atomics |
+| CW-B41-05 / GWF-001 / GWF-002 / GWF-004 / GWF-005 / GWF-469 | REMEDIATE comments | ownership map matches grep; `g_sensorPhaseActive` is Core 0 only |
+| CW-B34-02 / GWF-386 | REMEDIATE comments | pause not nestable; fail-open stays |
+| CW-X5-04 | REMEDIATE | boot PSRAM flash-safe wraps `core1_i2c_pause` + `i2c_bus_reset` (LL 31) |
+| CW-B41-01 | REMEDIATE | baro auto-zero bounded 5 s (`kBaroCalSamples` 50 @ ~31 Hz) |
+| CW-B30-02 | REMEDIATE | station MCU-temp not gated on GPS |
+| CW-X5-03 / GWF-462 / GWF-463 / CW-B41-03 | REMEDIATE | deleted `init_gps_early`; IMU then `init_gps` UART-or-I2C (`36ed59c`) |
+
+**Park (not this sitting)**
+
+| ID | Home |
+|----|------|
+| CW-B18-01 / CW-B36-02 / GWF-222 | early-impl — cal Core 1 mutates Core 0 `g_calState` |
+| CW-B18-03 / GWF-234 | comment-contract — cal_hooks |
+| CW-B22-01 | safety / ops SSOT — Go/No-Go fail-open |
+| CW-X1-07 / GWF-168 / GWF-460 | class-design — Core 1 WS2812 during pause |
+| CW-B10-03 | early-impl ICM mag static |
+| CW-B12-07 | comment-contract — mcu_temp cores |
+| GWF-183 / GWF-208 | fusion — file-static mutators |
+| GWF-417 / GWF-482 / CW-X1-08 | RC_OS |
+| GWF-381 | P10-9 `g_phaseAccessor` |
+| CW-B32-01 / CW-B31-04 / GWF-368 | safety leftovers |
+| GWF-031 / GWF-123 / GWF-013 | board / log-ring |
+| GWF-425 / GWF-498 / GWF-340–343 | later comment or RC_OS |
