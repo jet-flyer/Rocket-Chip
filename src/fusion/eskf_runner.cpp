@@ -494,7 +494,7 @@ static void eskf_tick_phase_and_confidence() {
     if (g_eskf.innov_gps_vel_.alpha > max_alpha) max_alpha = g_eskf.innov_gps_vel_.alpha;
     ci.max_innov_ratio = max_alpha;
     // Max P diagonal for attitude and velocity (UD-lazy P is stale after Bierman)
-    g_eskf.ensure_dense();
+    g_eskf.sync_dense_covariance();
     ci.p_att_max = g_eskf.P(0, 0);
     for (int32_t i = 1; i < 3; ++i) {
         if (g_eskf.P(i, i) > ci.p_att_max) ci.p_att_max = g_eskf.P(i, i);

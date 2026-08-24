@@ -100,7 +100,7 @@ __attribute__((always_inline)) static inline void fault_store_record(
     __asm volatile ("dsb" ::: "memory");
 }
 
-__attribute__((always_inline)) static inline void fault_dispatch_by_phase() {
+[[noreturn]] __attribute__((always_inline)) static inline void fault_dispatch_by_phase() {
     const rc::FlightPhase phase = rc::flight_phase_observable_get();
     if (phase == rc::FlightPhase::kIdle) {
         fault_reset_with_visible_signal();
