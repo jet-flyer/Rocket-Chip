@@ -49,9 +49,8 @@ rc::FlightTableState* AO_Logger_get_flight_table_mut();
 // Whether the logging ring buffer has been initialized.
 bool AO_Logger_is_initialized();
 
-// Log a discrete flight event to the ring buffer as a PCM event frame.
-// Called from AO_FlightDirector (pyro fire, abort, etc.) and eskf_runner
-// (via callback).
+// PCM event primitive. SIG_PHASE_CHANGE / SIG_PYRO_FIRED handlers call this.
+// No de-dup: a direct call plus the matching signal writes two frames.
 void AO_Logger_log_event(rc::LogEventId id,
                          uint8_t d0 = 0, uint8_t d1 = 0,
                          uint8_t d2 = 0, uint8_t d3 = 0);

@@ -137,8 +137,9 @@ static void fused_copy_eskf_state(rc::FusedState& fused) {
     fused.zupt_active = g_eskf.last_zupt_active_;
 }
 
-// static helper. Pressure-delta cache is function-static.
-// Populate baro-derived fields (AGL, ESKF vert_vel, 2-point baro rate).
+// Pressure-delta cache is function-static, written by every
+// AO_Logger_populate_fused_state caller (Logger ~50 Hz, FD guards ~100 Hz).
+// Last sample with dt >= 50 ms wins. Populate AGL / ESKF vert_vel / rate.
 static void populate_baro_fields(rc::FusedState& fused,
                                   const shared_sensor_data_t& snap) {
     fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Soak snapshot + T=0 identity check. Read-only — always compiled.
-// Dump: rc_os_debug 'd' or GDB call diag_stats_dump().
+// Soak snapshot + T=0 identity. Always compiled.
+// Dump: CLI 'd' or GDB. Not ISR-safe. Touches radio SPI (RegVersion).
+// AO queue getters have no critical section on this port (QF_CRIT is a no-op).
 #ifndef ROCKETCHIP_DIAG_DIAG_STATS_H
 #define ROCKETCHIP_DIAG_DIAG_STATS_H
 
@@ -14,9 +15,8 @@ extern "C" {
 // soak to catch Frankenstein builds.
 void diag_stats_t0_preconditions();
 
-// Full diagnostic snapshot to serial. Read-only — safe to run from
-// any phase. Includes T=0 block + per-AO queue depths + MSP high-
-// water + radio counters + health latches + sensor temps.
+// Serial dump: T=0 block + AO queues + MSP + radio counters + health + temps.
+// Performs a radio SPI read. Pause Core 1 I2C first if sensors are sampling.
 void diag_stats_dump();
 }
 

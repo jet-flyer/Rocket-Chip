@@ -346,7 +346,9 @@ void AO_Notify_post_prearm_fail() {
     if (!g_notifyStarted) {
         return;
     }
-    // Static event per LL Entry 35. No QEvt subclass payload needed.
+    // Static QEvt per LL 35. No dedup: rewrite refreshes the window.
+    // Safe under cooperative QV on Core 0; overlapping posts coalesce
+    // to the last write of this same static object (pointer, not a copy).
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
     QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);
@@ -361,6 +363,7 @@ void AO_Notify_post_prearm_fail() {
 // ============================================================================
 void AO_Notify_post_vehicle_lost() {
     if (!g_notifyStarted) { return; }
+    // Same static-QEvt rule as pre-arm: QV stores the pointer.
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
     QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);

@@ -53,8 +53,8 @@ void diag_stats_t0_preconditions() {
 }
 
 // -------------------------------------------------------------------
-// Full diag_stats_dump() for soak snapshots. No longer ifdef-gated
-// per R-25-exec step 4: pure read-only snapshot.
+// Full diag_stats_dump() for soak snapshots. Not a pure snapshot:
+// t0_preconditions issues a radio SPI RegVersion read.
 // -------------------------------------------------------------------
 
 #include "diag/diag_stats.h"
@@ -107,6 +107,7 @@ static void dump_ao_queue(const char* name, QActive* ao) {
         return;
     }
     const QEQueue* q = &ao->eQueue;
+    // This QP port's QF_CRIT is a no-op; these three getters can tear.
     uint16_t free_slots = QEQueue_getFree(q);
     uint16_t min_free = QEQueue_getMin(q);
     uint16_t use_now = QEQueue_getUse(q);

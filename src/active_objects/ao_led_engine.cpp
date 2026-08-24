@@ -176,7 +176,10 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
 
 static void led_check_core1_vitality(LedEngine * const me,
                                       const shared_sensor_data_t* snap) {
-    if (snap->core1_loop_count != me->last_core1_count) {
+    // snap==nullptr: seqlock failed (the stall this fallback exists for).
+    const bool progressed = (snap != nullptr) &&
+                            (snap->core1_loop_count != me->last_core1_count);
+    if (progressed) {
         me->last_core1_count = snap->core1_loop_count;
         me->core1_stall_ticks = 0;
         me->layers[kLayerFault] = 0;  // Clear fault when Core 1 recovers
@@ -244,6 +247,8 @@ static QState led_engine_running(LedEngine * const me, QEvt const * const e) {
         shared_sensor_data_t snap{};
         if (seqlock_read(&g_sensorSeqlock, &snap)) {
             led_check_core1_vitality(me, &snap);
+        } else {
+            led_check_core1_vitality(me, nullptr);
         }
 
         // Apply priority compositor and drive animation frame
