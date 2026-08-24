@@ -654,3 +654,53 @@ Previously resolved: GWF-011 / CW-B01-04 (`kRcLogRingBytes`); CW-B06-04 (`flash_
 | CW-B37-04 | FD queue-depth / QP |
 | CW-B39-06 | Starcom / radio TX-fail reinit |
 | CW-B42-06 | RC_OS mag-cal ownership comment |
+
+### Class-design / published guts — CLOSED 2026-08-24
+
+**Previously resolved:** CW-B01-07 (GPS pointer table gone, P10-9); CW-L031 (UART NVIC Core 0 only).
+
+**Do-now** (`3465618`, `c5dd0dd`, `cbc8eaf`)
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B02-02 | REMEDIATE | Pico 2 `kPsramCsPin`; skip `psram_init` when `kPsramAvailable` is false |
+| CW-B05-06 / CW-L033 assert | REMEDIATE | `static_assert` parser overlay fits; public scratch shape unchanged |
+| CW-B12-02 / CW-L026 / CW-L029 | REMEDIATE | `kWs2812MaxLeds`; skip count 0; ignore period 0 |
+| CW-X4-07 | REMEDIATE | delete unused `rc_signal_name` |
+| CW-B07-06 | REMEDIATE | clang-tidy `HeaderFilterRegex` covers `src/**/*.h` |
+
+**Park (encapsulation / P10-9 / Starcom / early-impl)**
+
+| ID | Home |
+|----|------|
+| CW-B37-02 | P10-9 FD/action callbacks — QP eval |
+| CW-L021 | `AO_Logger_get_flight_table_mut()` — logger/QP |
+| CW-L022 | AO_Radio SX1276 handle — Starcom |
+| CW-L023 | `AO_FlightDirector_get_director()` — QP |
+| CW-L024 | AO_Telemetry public surface — Starcom / RC_OS |
+| CW-L027 | `rfm95w_t` accessors — Starcom |
+| CW-L028 / CW-L030 | public `icm20948_t` — early-impl ICM |
+| CW-L032 | `RadioScheduler` in the header — Starcom |
+| CW-L036 | seqlock payload — early-impl WN-042 |
+| CW-B39-01 | `ROCKETCHIP_RADIO_PERSIST` — Starcom |
+| CW-X1-07 / GWF-168 / GWF-460 | NeoPixel dual-core on pause-exit — not this R-10 |
+
+### In-source NOLINT leftover — CLOSED 2026-08-24
+
+**Previously resolved:** CW-B42-08 — no `NOLINT` remains in `src/cli/rc_os.{cpp,h}`.
+
+### Process archaeology leftovers — CLOSED 2026-08-24
+
+**Previously resolved:** CW-B06-03 / GWF-096 (flash-layout banner already constants + radio-config); CW-B41-08 (`kWatchdogTimeoutMs` already gone).
+
+**Do-now** (`8e97d99`)
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B07-02 | REMEDIATE comment | `fpft_dense` is host-test only; flight check is `dense_fpft_add` |
+| CW-B12-05 | REMEDIATE comments | init always true; `available()` means init ran |
+| CW-B20-07 | REMEDIATE comments | no `Q_EXIT_SIG`; deleted unused `kEmptyActions` |
+| CW-B29-04 | REMEDIATE comment | beacon overlay named on `resolve_led_pattern` |
+| GWF-202 | REMEDIATE comments | `healthy()` fails if not initialized, then NaN/Inf |
+| GWF-321 | REMEDIATE comment | `msp_tick` writes watermarks |
+| GWF-461 | REMEDIATE comment | `init_hardware` is void; drop watchdog-return banner |

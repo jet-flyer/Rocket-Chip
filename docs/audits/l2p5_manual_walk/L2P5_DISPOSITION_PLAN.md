@@ -2,7 +2,7 @@
 
 Replace the prelim skeleton with a real plan. Finding packs stay frozen. Work lives on a dedicated worktree and is removed when this workstream is done.
 
-**Progress (2026-08-24):** Phase 0–2 closed. Phase 3 owner do-now on `main`. Overlay paper through phantom/missing symbols closed. **Next: Class-design / published guts.** Per remaining item: summary + suggestion before `src/`. Keep worktree `grok/l2p5-disposition`.
+**Progress (2026-08-24):** Phase 0–2 closed. Phase 3 owner do-now on `main`. Overlay through class-design, NOLINT leftover, and archaeology leftovers closed. **Next: comment still disagrees with the body.** Per remaining item: summary + suggestion before `src/`. Already-done work is **previously resolved**, not skip. Keep worktree `grok/l2p5-disposition`.
 
 **Session unit (owner chunk, closed):** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). **Session unit (agent chunk):** the remaining buckets in `L2P5_GROK_CLAUDE_OVERLAY.md`. One theme per sitting; related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks. Do not merge GWF/CW IDs with WNs.
 
@@ -182,9 +182,9 @@ Owner pack stays out of this queue. Work from `L2P5_GROK_CLAUDE_OVERLAY.md`:
 
 Then remediate remaining (affected + untouched) **by overlay bucket**, same sitting style as the owner 16. No new WNs by default. No fourth taxonomy. Test in groups of 2–4 (R-10). Do not silent-regen `mission_profile_data.h` (R-4).
 
-**Per remaining item (required):** before `src/` edits in that group, name each ID with (1) a one-line summary of the claim against the current tree and (2) a suggested label — REMEDIATE (what), re-read skip, **park**, or DEFER-home. Do not auto-ACCEPT. A 1-vs-1 or a design fork stops for the owner even if the rest of the bucket is obvious.
+**Per remaining item (required):** before `src/` edits in that group, name each ID with (1) a one-line summary of the claim against the current tree and (2) a suggested label — REMEDIATE (what), **previously resolved**, **park**, or DEFER-home. Do not auto-ACCEPT. Do not say skip when the tree already matches — that is previously resolved (log it that way). A 1-vs-1 or a design fork stops for the owner even if the rest of the bucket is obvious.
 
-**Graph first (token budget):** `graphify-out/graph.json` exists. For “who calls / where is / what includes” an overlay leaf, run `graphify query` (or `path` / `explain`) **before** a tree-wide grep or a speculative file read. Then open only the files the graph names. After `src/` / `include/` edits, `graphify update .` (AST-only). Mid-sitting the graph can lag this branch — if graph and tree disagree, **the tree wins**. A stale node (deleted symbol, old caller) is not a skip; re-check the file. The graph stays useful after remediates: remaining callers and homes, not a second walk of frozen packs.
+**Graph first (token budget):** `graphify-out/graph.json` exists. For “who calls / where is / what includes” an overlay leaf, run `graphify query` (or `path` / `explain`) **before** a tree-wide grep or a speculative file read. Then open only the files the graph names. After `src/` / `include/` edits, `graphify update .` (AST-only). Mid-sitting the graph can lag this branch — if graph and tree disagree, **the tree wins**. A stale node (deleted symbol, old caller) is not previously resolved until the file is re-checked. The graph stays useful after remediates: remaining callers and homes, not a second walk of frozen packs.
 
 **Park** means: not this sitting, and not “skip forever.” The ID moves to a **named later home** (Starcom, RC_OS structure, early-impl, comment-contract, …) and stays on the overlay/log until that home runs. Cleared = work done. DEFER-home = already in an owner DEFER pile. Park = we just assigned the home.
 

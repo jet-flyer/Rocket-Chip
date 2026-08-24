@@ -375,8 +375,10 @@ do-now = `untouched` + surviving `affected`. Test in groups of 2–4
 (R-10). **QMI disagree settled** (fence configure with detect).
 
 **Per remaining item:** one-line summary of the claim + a suggested
-label (REMEDIATE / re-read skip / DEFER-home) before `src/` in that
-group. Do not auto-ACCEPT. See plan Phase 4.
+label (REMEDIATE / previously resolved / park / DEFER-home) before
+`src/` in that group. Do not auto-ACCEPT. Do not say skip for work
+the tree already matches — say **previously resolved**. See plan
+Phase 4.
 
 **Graph first:** `graphify query` / `path` / `explain` before a
 tree-wide grep or a speculative read of an overlay leaf. Open only
