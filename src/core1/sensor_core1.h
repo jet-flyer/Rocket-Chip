@@ -21,6 +21,7 @@
 // Launch target for multicore_launch_core1(). Sets up MPU stack guard,
 // registers as multicore lockout victim, waits for sensor phase signal,
 // then enters the sensor loop (never returns).
+// WS2812: Core 1 writes orange/blue only during I2C pause. AO_LedEngine owns the rest.
 void core1_entry();
 
 // Best-GPS diagnostic (non-atomic). Mutator: core1_update_best_gps_fix. Flag is visibility only.

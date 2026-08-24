@@ -64,7 +64,7 @@ struct __attribute__((packed)) FlightLogTable {
     uint32_t       magic;              // kFlightTableMagic
     uint32_t       version;            // kFlightTableVersion
     uint32_t       entry_count;        // Number of valid entries (0..kMaxFlightEntries)
-    uint32_t       next_free_sector;   // Sector offset for next flight (relative to flash 0)
+    uint32_t       next_free_sector;   // Last add_entry's start+count; not derived from used_sectors
     FlightLogEntry entries[kMaxFlightEntries];
     uint32_t       crc32;              // CRC-32 over bytes 0..(sizeof-4)
 };
@@ -96,7 +96,8 @@ void flight_entry_compute_crc(FlightLogEntry* entry);
 
 bool flight_entry_validate_crc(const FlightLogEntry* entry);
 
-// Add a new entry to the table. Returns false if table is full.
+// Copies entry, then sets next_free_sector = start_sector + sector_count.
+// Callers must pass start_sector == the previous next_free or the two diverge.
 
 bool flight_table_add_entry(FlightTableState* state, const FlightLogEntry* entry);
 
@@ -109,7 +110,7 @@ bool flight_table_get_entry(const FlightTableState* state, uint32_t index,
 
 uint32_t flight_table_count(const FlightTableState* state);
 
-// Next free sector offset for a new flight
+// Last add_entry's start+count (not a used_sectors sum)
 
 uint32_t flight_table_next_free_sector(const FlightTableState* state);
 

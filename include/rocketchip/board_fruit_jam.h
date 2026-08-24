@@ -27,9 +27,13 @@ inline constexpr uint8_t kI2cSclPin        = 21;
 #define BOARD_I2C_INSTANCE i2c0
 
 // --- SPI (radio — shared with ESP32-C6 WiFi, different CS) ---
+// Live writer: AO_Radio (kRadioCsPin). ESP CS is GPIO 46 on the SKU
+// but not a RocketChip object — no mutex. Hold ESP CS high if that
+// coprocessor is powered. Button3 shares kRadioIrqPin.
 inline constexpr uint8_t kSpiMisoPin       = 28;
 inline constexpr uint8_t kSpiSckPin        = 30;
 inline constexpr uint8_t kSpiMosiPin       = 31;
+inline constexpr uint8_t kEsp32CsPin       = 46;
 #define BOARD_SPI_INSTANCE spi1
 
 // --- Radio (expansion adapter; not onboard LoRa) ---

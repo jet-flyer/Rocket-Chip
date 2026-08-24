@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Relay role — range extender
 // RX continuous and re-TX. Link-layer only — no payload decode,
-// no AO_Telemetry, no ESKF, no Flight Director.
+// no ESKF, no Flight Director. This header does not start or exclude AO_Telemetry.
 
 #ifndef ROCKETCHIP_JOB_RELAY_H
 #define ROCKETCHIP_JOB_RELAY_H
@@ -14,7 +14,7 @@ inline constexpr DeviceRole kRole = DeviceRole::kRelay;
 // kRadioModeRx is "radio stays in RX". Relay re-TX is this job, not this flag.
 inline constexpr bool kRadioModeRx = true;
 
-// No MAVLink output on relay (no AO_Telemetry)
+// Default MAVLink output flag only — not an AO_Telemetry compile gate.
 inline constexpr bool kDefaultMavlinkOutput = false;
 
 } // namespace job

@@ -15,7 +15,8 @@ namespace rc {
 // Conversion scales (saturates via clamp_round_*): Q15 quat, cm/s vel, mm alt, int8 °C.
 void fused_to_telemetry(const FusedState& fused, TelemetryState& out);
 
-// Not bit-exact — quantization is lossy. Used for test validation only.
+// Test-only partial inverse: zeros FusedState, then fills the quantized
+// fields. Not bit-exact (quantization) and not a full roundtrip.
 void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f);
 
 } // namespace rc

@@ -56,6 +56,7 @@ bool flight_log_erase_all(const FlightTableState* table);
 // 2. Check flash capacity
 // 3. xip_cache_clean_all() (council req. #1)
 // 4. Per sector: read frames → 4KB buffer → erase → program → feed PIO watchdog
+//    Short ring_read_sequential returns kWriteError (no 0xFF-padded success).
 // 5. Build FlightLogEntry → flight_table_add_entry() → flight_table_save()
 // 6. ring_reset()
 FlushResult flush_ring_to_flash(RingBuffer* rb,

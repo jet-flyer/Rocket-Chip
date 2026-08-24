@@ -769,3 +769,16 @@ Owner GPS/watchdog remediates closed. QP-tied still DEFER. `CW-B42-04` DEFER-hom
 | GWF-235 | REMEDIATE comment | `cal_read_mag` raw µT; false = no fresh sample |
 | CW-B19-01 | REMEDIATE comment | LM templates still deduce function-pointer types |
 | GWF-294 | REMEDIATE comment | null table = all log sectors; kick-cb gone |
+
+### Overlay leftover — One-off (44) — CLOSED 2026-08-24
+
+Last overlay leftover sitting. Four domain commits. Tiny 038/039 wait R-17 allowlist (not overlay). Overlay remediates on this worktree are now closed; rem WB / SPIN R-16 / first-flight / merge remain.
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-038 / GWF-039 | park | rem WB R-17 Tiny allowlist |
+| GWF-027 / GWF-103 / GWF-165 | previously resolved | Feather LED; version job/board; ws2812 clamp |
+| CW-B14-02 / CW-B18-05 / CW-B19-02 / CW-L043 / CW-L044 / CW-L045 | REMEDIATE | mag3d latch; unread mag-diag; LM bounds; drop block3 |
+| CW-B20-06 / CW-L001 / CW-B21-04 / CW-L002 / CW-B22-03 / GWF-252 / GWF-255 / CW-B23-05 / CW-L003 / GWF-267 / GWF-246 | REMEDIATE | FD ctor/action/guard/table contracts |
+| CW-B29-03 / GWF-320 / CW-B38-04 / GWF-427 / CW-B40-07 / CW-B40-08 / GWF-458 / GWF-455 | REMEDIATE | dump SPI; log_event; LED writers/stall; static QEvt |
+| CW-L047 / GWF-085 / GWF-012 / GWF-029 / GWF-048 / GWF-098 / GWF-129 / GWF-159 / GWF-295 / GWF-298 / GWF-300 / GWF-304 / GWF-408 / GWF-464 | REMEDIATE | leftover header/driver/main contracts |

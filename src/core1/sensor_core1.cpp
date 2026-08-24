@@ -457,7 +457,7 @@ static void core1_sensor_loop() {
             seqlock_write(&g_sensorSeqlock, &local_data);
 
             // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
-            // LED state evaluated on Core 0 via AO_LedEngine.
+            // WS2812: pause path above writes orange/blue; AO_LedEngine owns the rest.
 
             uint32_t elapsed = time_us_32() - cycle_start_us;
             if (elapsed < kCore1TargetCycleUs) {

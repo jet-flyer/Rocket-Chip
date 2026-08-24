@@ -19,9 +19,9 @@ inline constexpr float kMcuTempSentinelC = -999.0F;
 // Classify/display: values below this (including the sentinel) are absent.
 inline constexpr float kMcuTempAbsentBelowC = -100.0F;
 
-// Initialize ADC + enable on-die temp sensor. Idempotent.
-// Always returns true (SDK adc_init / adc_set_temp_sensor_enabled are
-// void). available() means init ran, not that a sample was verified.
+// adc_init() of the whole ADC block, then enable the die sensor. Idempotent.
+// Always returns true (SDK calls are void). available() means init ran,
+// not that a sample was verified.
 bool mcu_temp_init();
 
 // True after mcu_temp_init() has run. Not an ADC self-test.

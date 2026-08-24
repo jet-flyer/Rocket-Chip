@@ -309,16 +309,16 @@ static void init_core1_role() {
         g_sensorPhaseActive = true;
         g_startSensorPhase.store(true, std::memory_order_release);
         rc_os_i2c_scan_allowed = false;  // LL Entry 23
-        // Wait for Core 1's multicore_lockout_victim_init() (required for
-        // any flash_safe_execute() to follow).
-        while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
-            sleep_ms(1);
-        }
     } else {
         rc_os_i2c_scan_allowed = true;
         if constexpr (job::kRadioModeRx) {
             rc::station_idle_tick_init();
         }
+    }
+    // Core 1 always calls lockout_victim_init() before the sensor-phase wait.
+    // Station/Relay still run psram_flash_safe_test after this, so every role waits.
+    while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
+        sleep_ms(1);
     }
 }
 

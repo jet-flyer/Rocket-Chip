@@ -16,6 +16,7 @@
 #ifndef ROCKETCHIP_AO_SIGNALS_H
 #define ROCKETCHIP_AO_SIGNALS_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <type_traits>
 
@@ -41,6 +42,8 @@ template <typename E>
 inline const E* evt_cast(QEvt const* e) {
     static_assert(std::is_standard_layout<E>::value,
                   "QP/C event must be standard-layout (QEvt first member) for first-member downcast");
+    static_assert(offsetof(E, super) == 0,
+                  "QEvt super must be the first member");
     return reinterpret_cast<const E*>(e);
 }
 
@@ -121,7 +124,7 @@ struct PhaseChangeEvt {
 // LED pattern request (published by FD, calibration, RX overlay)
 struct LedPatternEvt {
     QEvt super;
-    uint8_t pattern;    // kCalNeo*, kRxNeo*, kFdNeo* values from ws2812_status.h
+    uint8_t pattern;    // led_patterns.h codes. Posted by AO_Notify via AO_LedEngine_post_pattern.
 };
 
 // Sensor data notification (published by eskf_tick bridge)

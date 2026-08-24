@@ -21,8 +21,10 @@ constexpr uint8_t kGpsPa1010dAddr = kI2cAddrPa1010d;
 // API
 // ============================================================================
 
+// Success latches ready. Re-entry re-sends PMTK. Failure leaves ready false.
 [[nodiscard]] bool gps_pa1010d_init(void);
 
+// Latched init success, not a live ACK.
 [[nodiscard]] bool gps_pa1010d_ready(void);
 
 // Poll. Module is 1 Hz (PMTK220,1000). true if I2C read completed; false on error.

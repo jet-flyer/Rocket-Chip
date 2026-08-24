@@ -62,7 +62,8 @@ static constexpr uint32_t kFlashLogEnd   = kFlashSafeTestOffset;
 static constexpr uint32_t kFlashLogSize  = kFlashLogEnd - kFlashLogStart;
 static constexpr uint32_t kFlashLogSectors = kFlashLogSize / FLASH_SECTOR_SIZE;
 
-// Compile-time overlap checks (not a runtime init call).
+// Compile-time overlap checks vs the 512KB reserve and derived offsets.
+// Not a runtime firmware-size check — a larger image is not detected here.
 static constexpr bool flash_layout_valid() {
     // Table must be above firmware reserve
     static_assert(kFlashTableSectorA >= kFlashFirmwareReserve,

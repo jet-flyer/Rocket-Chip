@@ -240,7 +240,7 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
 
         while (frame_idx < stored && buf_pos + frame_size <= kFlashSectorSize) {
             if (!ring_read_sequential(rb, frame_idx, g_sectorBuf + buf_pos)) {
-                break;
+                return FlushResult::kWriteError;
             }
             buf_pos += frame_size;
             ++frame_idx;
