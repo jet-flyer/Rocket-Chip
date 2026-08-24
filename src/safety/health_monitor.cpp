@@ -247,6 +247,10 @@ static HealthLevel evaluate_mcu_temp(const shared_sensor_data_t& snap) {
 // Internal: evaluate GPS health
 // ============================================================================
 
+static bool gps_usable_fix(const shared_sensor_data_t& snap) {
+    return snap.gps_fix_type >= 2 && snap.gps_satellites >= 4;
+}
+
 static HealthLevel evaluate_gps(const shared_sensor_data_t& snap) {
     if (!g_gpsInitialized.load(std::memory_order_acquire)) {
         return kHealthAbsent;
@@ -266,7 +270,7 @@ static HealthLevel evaluate_gps(const shared_sensor_data_t& snap) {
     }
 
     // Degraded = NMEA flowing but no usable fix
-    if (snap.gps_fix_type < 2 || snap.gps_satellites < 4) {
+    if (!gps_usable_fix(snap)) {
         return kHealthDegraded;
     }
 
@@ -359,7 +363,7 @@ static bool check_core1_vitality() {
 
     shared_sensor_data_t snap{};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return true;  // Can't read — assume alive (seqlock race, transient)
+        return false;  // Torn snapshot — do not treat Core 1 as healthy
     }
     if (snap.core1_loop_count != g_lastCore1Count) {
         g_lastCore1Count = snap.core1_loop_count;
@@ -596,7 +600,9 @@ bool health_monitor_tick() {
     g_health.tick_counter++;
 
     shared_sensor_data_t snap{};
-    seqlock_read(&g_sensorSeqlock, &snap);
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        snap = {};  // Discard torn memcpy; classify as invalid sensors
+    }
 
     PrimaryLevels lvl{};
     uint8_t primary = evaluate_primary_byte(snap, lvl);
@@ -730,7 +736,9 @@ bool health_monitor_critical_fault() {
 void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     // Read fresh sensor snapshot for GPS specifics
     shared_sensor_data_t snap{};
-    seqlock_read(&g_sensorSeqlock, &snap);
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        snap = {};  // Discard torn memcpy
+    }
 
     // Derive from 2-bit health: OK or degraded counts as healthy for Go/No-Go
     HealthLevel imu = health_imu(g_health.primary);
@@ -752,8 +760,7 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
 
     // Tier 2: Profile -- GPS needs fresh snapshot
     gng->gps_has_lock = g_gpsInitialized.load(std::memory_order_acquire) &&
-                        snap.gps_fix_type >= 2 &&
-                        snap.gps_satellites >= 4;
+                        gps_usable_fix(snap);
 
     const calibration_store_t* cal = calibration_manager_get();
     gng->mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;

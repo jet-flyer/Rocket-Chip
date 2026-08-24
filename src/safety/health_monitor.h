@@ -39,7 +39,7 @@ static constexpr uint8_t kHealthMask2bit  = 0x03;
 enum HealthSecondary : uint8_t {
     kHealthRadioOk    = (1 << 0),
     kHealthFlashOk    = (1 << 1),
-    kHealthWatchdogOk = (1 << 2),
+    kHealthWatchdogOk = (1 << 2),  // ESKF healthy (name is historical)
     kHealthPioOk      = (1 << 3),
     kHealthCore1Ok    = (1 << 4),  // IVP-117: Core 1 vitality (primary check)
 };
@@ -127,7 +127,7 @@ static constexpr float kMcuTempHysteresisC = 2.0F;   // clean exit / re-entry ga
 void health_monitor_init();
 
 // Periodic tick — evaluates all subsystem health.
-// Returns true if primary or secondary flags changed.
+// Returns true if primary, secondary, critical, or mcu changed.
 bool health_monitor_tick();
 
 // Read-only accessor (safe under QV cooperative scheduling)
