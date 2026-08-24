@@ -15,7 +15,7 @@ same propositions.
 Join key: **itinerary leaf + the proposition** (same helper as
 `L2P5_THREE_WALK_COMPARE.md`). Silence is not “this is fine.”
 
-Generator: `_gen_grok_claude_overlay.py`. Re-run after rule tweaks.
+Generator: `_gen_grok_claude_overlay.py` (also writes `_grok_claude_overlay.json`). Re-run after rule tweaks. The markdown is the review surface; the JSON is the join dump.
 Review **buckets**, not each row. Default for remaining live rows is
 still REMEDIATE; do not auto-ACCEPT.
 
