@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-06-18
+**Updated:** 2026-08-24
 
 **Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -69,6 +69,9 @@ rocketchip/
 │   │       └── ESKF_RESEARCH_SUMMARY.md  # MMAE pivot research (2026-02-24)
 │   ├── benchmarks/
 │   │   └── UD_BENCHMARK_RESULTS.md      # UD factorization benchmark (2026-02-24)
+│   ├── RBM/
+│   │   ├── README.md                    # Index (current map vs CLA/SPIN/April audit)
+│   │   └── RUNTIME_BEHAVIOR_MAP.md      # Living operational map (2026-08-24)
 │   ├── flight_director/
 │   │   ├── FLIGHT_DIRECTOR_DESIGN.md    # Flight Director design (Stage 6)
 │   │   └── RESEARCH.md

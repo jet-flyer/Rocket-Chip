@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-24-004 | Grok 4.6 (Build CLI) | documentation, tooling
+
+**Post-walk CLA snapshot + living RBM.** `cla_collect.py` is debug-menu `s` / idle / `s` / `d` (no Stage-7 `e` stream or GDB). Dated soak `docs/audits/cla_rbm/cla_2026-08-24.md` (COM5, on-chip `flight-3201eb2`, DPS310 failed; predict 730 µs / full-tick 1899 µs). Current operational map is `docs/RBM/` (2026-04-12 file stays under `docs/audits/cla_rbm/`). AST `graphify update` 5109 nodes; master SPIN **SPIN_OK_31** (FD `.pml` DFS depth truncated). Verified: host ctest via pre-commit; docs/script only this push, no HW reseat.
+
 ### 2026-08-24-003 | Grok 4.6 (Build CLI) | documentation, process
 
 **L2-P5 Cycle 4 overlay merged to `main`; worktree torn down; milestone wrap.** Fast-forward `grok/l2p5-disposition` then `d6a937d` (target compile: public `sync_dense_covariance`, `Q_onError` noreturn — host ctest does not build the Pico ELF). Rem WB deleted by the merge. Join dump tracked as `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json`. Next: WB leftover sittings / first-flight prod strip / Stage 17. Verified: host ctest 859/859; vehicle + station `rocketchip.elf` both link; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; SPIN_OK_31; full-tree clang-tidy clean.
