@@ -10,9 +10,12 @@
 namespace rc {
 
 // Phase bitmask helper
-static constexpr uint8_t phase_bit(FlightPhase p) {
-    return static_cast<uint8_t>(1U << static_cast<uint8_t>(p));
+static constexpr uint16_t phase_bit(FlightPhase p) {
+    return static_cast<uint16_t>(1U << static_cast<uint8_t>(p));
 }
+
+static_assert(static_cast<unsigned>(FlightPhase::kCount) <= 16U,
+              "valid_phases is uint16_t");
 
 // Specification for one guard combinator (grouped to keep init within the
 // JPL-25 parameter limit).
@@ -22,7 +25,7 @@ struct CombinatorSpec {
     uint8_t n;
     uint16_t signal;
     uint32_t backup_ms;
-    uint8_t phases;
+    uint16_t phases;
 };
 
 static void init_combinator(GuardCombinator& c, const CombinatorSpec& spec) {
@@ -107,7 +110,7 @@ static bool evaluate_sensors(const GuardCombinator& c,
 
 // One combinator's evaluation this tick; returns its signal if it fires, else
 // SIG_MAX. Split from combinator_set_evaluate for JSF-3 complexity (see CHANGELOG).
-static uint16_t evaluate_one_combinator(GuardCombinator& c, uint8_t phase_mask,
+static uint16_t evaluate_one_combinator(GuardCombinator& c, uint16_t phase_mask,
                                         const GuardEvaluator* ev,
                                         const SafetyLockout& lockout,
                                         uint32_t tick_ms) {
@@ -165,7 +168,7 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
         cs->last_phase = phase;
     }
 
-    uint8_t phase_mask = phase_bit(phase);
+    uint16_t phase_mask = phase_bit(phase);
 
     for (uint8_t i = 0; i < cs->num_combinators; ++i) {
         uint16_t sig = evaluate_one_combinator(cs->combinators[i], phase_mask,

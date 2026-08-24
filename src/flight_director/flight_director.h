@@ -110,7 +110,7 @@ bool flight_director_launch_abort();
 // P10-9: named side effects (was a function-pointer table). Target
 // definitions in ao_flight_director.cpp; host recorders below.
 void fd_effect_set_led(uint8_t led_value);
-void fd_effect_log_pyro(PyroChannel channel);
+void fd_effect_log_pyro(PyroChannel channel);  // Log, latch, cancel PIO backup, SIG_PYRO_FIRED.
 void fd_effect_phase_change(FlightPhase phase, uint32_t timestamp_ms);
 void fd_effect_beacon();
 void fd_effect_reset_subsystems();  // Any non-startup IDLE entry, not only RESET.

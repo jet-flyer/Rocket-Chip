@@ -26,7 +26,7 @@ enum class ActionType : uint8_t {
     kSetLed,        // Set NeoPixel mode for phase
     kMarkEvent,     // Record event timestamp
     kReportState,   // No-op; phase log is flight_director log_transition
-    kFirePyro,      // Pyro intent (transition lists only)
+    kFirePyro,      // fd_effect_log_pyro: log, latch, cancel PIO backup, publish
     kSetBeacon,     // Post-landing beacon mode
 };
 
@@ -64,9 +64,6 @@ enum class MarkerId : uint8_t {
     kAbort,
 };
 
-// ============================================================================
-// Pyro Channel ID — intent logging only in Stage 8
-// ============================================================================
 enum class PyroChannel : uint8_t {
     kDrogue = 0,
     kMain   = 1,

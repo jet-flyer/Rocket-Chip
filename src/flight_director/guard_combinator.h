@@ -39,7 +39,7 @@ struct GuardCombinator {
     uint8_t num_guards;
     uint16_t signal;                // Signal to emit when combinator fires
     uint32_t backup_timeout_ms;     // Layer 3 timer backup (0 = no backup)
-    uint8_t valid_phases;           // Bitmask of phases where active
+    uint16_t valid_phases;          // Bitmask of phases; uint16 so kFault (8) fits
 
     // Runtime state
     uint32_t elapsed_ms;            // Time in current phase (for timer backup)

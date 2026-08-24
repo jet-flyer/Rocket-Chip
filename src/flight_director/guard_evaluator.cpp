@@ -9,13 +9,16 @@
 namespace rc {
 
 // Phase bitmask helper
-static constexpr uint8_t phase_bit(FlightPhase p) {
-    return static_cast<uint8_t>(1U << static_cast<uint8_t>(p));
+static constexpr uint16_t phase_bit(FlightPhase p) {
+    return static_cast<uint16_t>(1U << static_cast<uint8_t>(p));
 }
+
+static_assert(static_cast<unsigned>(FlightPhase::kCount) <= 16U,
+              "valid_phases is uint16_t");
 
 static void init_guard(GuardState& g, uint32_t sustain_ms,
                         uint32_t tick_ms, float threshold,
-                        uint16_t signal, uint8_t valid_phases) {
+                        uint16_t signal, uint16_t valid_phases) {
     g.sustain_count = 0;
     g.sustain_required = sustain_ms / tick_ms;
     g.threshold = threshold;
@@ -123,7 +126,7 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
         ev->last_phase = phase;
     }
 
-    uint8_t phase_mask = phase_bit(phase);
+    uint16_t phase_mask = phase_bit(phase);
 
     bool conditions[static_cast<uint8_t>(GuardId::kCount)];
     evaluate_guard_conditions(ev, fused, accel_z, accel_mag, conditions);

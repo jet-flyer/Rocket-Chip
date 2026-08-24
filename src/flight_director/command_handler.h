@@ -33,7 +33,8 @@ struct CommandResult {
 
 // Validate a command against current phase and Go/No-Go checks.
 //
-// For kArm: runs Go/No-Go poll, prints result, blocks if Tier 1 NO-GO.
+// For kArm: IDLE only. test_mode_active() rejects before Go/No-Go.
+// Else Go/No-Go poll/print; blocks if Tier 1 NO-GO.
 // For kDisarm: only valid from ARMED.
 // For kAbort: valid except IDLE/LANDED; HSM ignores DESCENT.
 // For kReset: only valid from LANDED or ABORT.
