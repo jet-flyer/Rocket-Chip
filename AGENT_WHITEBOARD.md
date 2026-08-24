@@ -70,20 +70,24 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk disposition (Phase 3 do-now) on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100). **Next:** log ring init / recover (combined overlay remaining). Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 do-now on `main` (`2026-08-23-002`). Overlay through phantom closed on `grok/l2p5-disposition` (`2026-08-24-001`). Sitting 6 RF skipped (WN-100). **Next:** Class-design / published guts — summaries posted, wait owner labels. Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
 
-## L2-P5 agent-chunk resume (OPEN) (2026-08-23)
+## L2-P5 agent-chunk resume (OPEN) (2026-08-24)
 
-Owner-chunk Phase 3 do-now is on `main` (`2026-08-23-002`). Owner walk stays separate. **Keep this worktree** for the combined Grok+Claude remaining buckets. **Do not start those `src/` edits on `main`.**
+Handoff. Overlay paper through phantom/missing symbols closed on this branch (`cc2b38a`). **Keep this worktree.** **Do not start remaining overlay `src/` on `main`.**
 
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-4–R-6, R-8–R-14).
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-4–R-6, R-8–R-15). CHANGELOG `2026-08-24-001` is on `origin/main`.
 
-**Test in groups of 2–4** (R-10). Overlay **cleared** → skip. **defer-home** → same owner DEFER homes. Per remaining item: summary + suggestion before `src/` (plan Phase 4). QMI / remaining PSRAM / dashboard display lies closed. **Next: log ring init / recover.** Do not silent-regen `mission_profile_data.h` (R-4). First-flight prod strip is its own WB row. Do not auto-ACCEPT.
+**In progress:** Class-design / published guts. Summaries already posted; **wait for owner sign-off / amendments before any `src/`.** Do-now (if signed): Pico2 `kPsramCsPin`; WS2812 max-LED clamp + period 0; MAVLink `parser_buf` static_assert; drop unused `rc_signal_name`; widen `.clang-tidy` HeaderFilterRegex to `src/**/*.h`. Park if signed: AO guts / P10-9 leftovers.
 
-**Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named.
+**Blocked:** class-design `src/` until owner labels. WN-100 / Starcom / RC_OS structure / early-impl rewrites stay DEFER. R-9 version bump not invented. Protected-doc name rot (`SCAFFOLDING.md` `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17, SAD §9.3) until those files are named. GPS bus-and-transport standing rule: row above — not a license to write `SENSOR_ARCHITECTURE.md` / `CODING_STANDARDS.md` / `SAD.md` until named.
+
+**Concerns:** untracked `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (leave; not SSOT). Do not silent-regen `mission_profile_data.h` (R-4). Do not auto-ACCEPT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+
+**Test in groups of 2–4** (R-10). Overlay **cleared** → skip. **defer-home** → same owner DEFER homes. Per remaining item: summary + suggestion before `src/`; auto-show next summaries after a bucket closes. After class-design: comment-disagrees-with-body, HW leakage leftovers, safety/ops, fusion, one-off.
 
 ---
 
