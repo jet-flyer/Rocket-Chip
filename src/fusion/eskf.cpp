@@ -489,6 +489,7 @@ void ESKF::reset(const Vec3& delta_theta) {
         }
     }
 
+    ensure_dense();
     reset_covariance_attitude(ga);
 }
 
@@ -909,8 +910,8 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
 //   z_predicted = R(q) * earth_mag + body_mag_bias (body frame)
 //   innovation = magBody - z_predicted (per axis)
 //
-// Sequential scalar updates: 3 for earth_mag NED (rotated to body),
-// then 3 for body_mag_bias. Same pattern as GPS position/velocity.
+// Sequential H=1 updates on NED earth_mag then body_mag_bias using
+// the body-frame residual. earthFieldNed is |B| pre-check only.
 // ============================================================================
 // Sequential 3-axis scalar updates for mag states.
 // Returns max NIS across all accepted axes.

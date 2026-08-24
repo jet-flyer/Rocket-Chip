@@ -338,9 +338,10 @@ struct ESKF {
                             float declinationRad = 0.0F);
 
     // 3-axis magnetometer fusion (Stage 3D, IVP-99).
-    // Sequential scalar updates on earth_mag[15-17] and body_mag_bias[18-20].
-    // Requires mag states un-inhibited. earthFieldNed from WMM tables.
-    // R_per_axis: measurement noise per axis in µT² (AK09916: 0.36).
+    // z_pred = R(q)*earth_mag + body_mag_bias. |B| pre-check vs earthFieldNed.
+    // Sequential H=1 updates on earth_mag[15-17] then body_mag_bias[18-20]
+    // with the body-frame residual (not a rotated dual-state H).
+    // Requires mag states un-inhibited. R_per_axis µT² (AK09916: 0.36).
     bool update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
                           float R_per_axis = kRMag3dPerAxis);
 
@@ -366,16 +367,14 @@ struct ESKF {
     void reset_position();
 
     // Zero-velocity pseudo-measurement update.
-    // Checks stationarity from raw IMU data (accel magnitude ≈ g,
-    // gyro rates < threshold). If stationary, applies v=[0,0,0] as
-    // three sequential scalar measurements on velocity states [6..8].
-    // Returns false if not stationary or innovation gated out.
-    // Call at predict() rate (200Hz) — stationarity check is cheap.
+    // Checks stationarity from raw IMU (accel ≈ g, gyro below threshold).
+    // If stationary, applies v=[0,0,0] as three sequential scalar updates.
+    // Returns false if non-finite or not stationary. After that pass, true
+    // even if some axes were innovation-gated (counters still ++accepts).
     bool update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas);
 
-    // State-aware ZUPT: when on_pad is true (IDLE/ARMED), skips IMU
-    // stationarity check (guaranteed stationary) and uses tighter R.
-    // ArduPilot EKF3 onGround flag, PX4 ECL vehicle_at_rest.
+    // on_pad true (IDLE/ARMED): skip stationarity; IMU unused except a
+    // finite check; tighter R. ArduPilot EKF3 onGround / PX4 vehicle_at_rest.
     bool update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
                      bool on_pad);
 

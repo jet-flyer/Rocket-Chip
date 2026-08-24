@@ -22,15 +22,16 @@ struct ConfidenceInput {
     uint32_t now_ms;            // current time (ms since boot)
 };
 
-// Output of the confidence gate. Published to FusedState and consumed
-// by the Flight Director's SafetyLockout.
+// Gate output + hysteresis on one public struct. FD SafetyLockout reads
+// confident / ahrs_divergence_deg / time_since_confident_ms.
+// bad/good/last_confident_ms are hysteresis — only the gate functions write.
 struct ConfidenceState {
     bool confident;                     // safe to execute irreversible actions
     float ahrs_divergence_deg;          // ESKF vs Mahony angle at last eval
     uint32_t time_since_confident_ms;   // 0 when confident, counts up when not
-    bool phase_agreement;               // reserved for cross-check expansion
+    bool phase_agreement;               // unused (reserved)
 
-    // Internal hysteresis state
+    // Hysteresis (gate functions write these)
     uint32_t bad_since_ms;              // 0 = not in bad period
     uint32_t good_since_ms;             // 0 = not in good period
     uint32_t last_confident_ms;         // timestamp of last confident=true eval
@@ -51,6 +52,7 @@ namespace confidence {
 void confidence_gate_init(ConfidenceState* cs);
 
 // Evaluate confidence conditions and update state with hysteresis.
+// cs must be non-null. now_ms == 0 is the host-test clock.
 void confidence_gate_evaluate(ConfidenceState* cs, const ConfidenceInput& input);
 
 }  // namespace rc
