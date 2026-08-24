@@ -6,9 +6,11 @@
 // Format specs: docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md
 //
 // Each call ≤ kRcLogBufferBytes (128), then "...\n" truncation. No alloc,
-// never blocks, no error return. Ring full → drop. Drain from Core 0
-// (rc_log_drain_to_cdc) or nothing hits the wire.
-// Not for hot-path, ISR, or fault-handler.
+// never blocks, no error return. Ring full → drop-oldest (evict oldest
+// bytes so the new write lands). Drain from Core 0 idle:
+// rc_log_drain_to_cdc in qv_idle_bridge — not tud_task.
+// Not for hot-path, ISR, or Core 1. Q_onError is the exception
+// (Q_NORETURN; IRQs already off; the preempted producer never resumes).
 
 #ifndef ROCKETCHIP_RC_LOG_H
 #define ROCKETCHIP_RC_LOG_H
@@ -48,6 +50,9 @@ void strbuf_printf(strbuf* sb, const char* fmt, ...)
 inline size_t strbuf_len(const strbuf* sb) { return sb->pos; }
 inline bool   strbuf_overflowed(const strbuf* sb) { return sb->overflow; }
 
+// Target CDC ring (drop-oldest).
+constexpr size_t kRcLogRingBytes = 8192U;
+
 }  // namespace rc
 
 // Drain the rc_log ring buffer to USB CDC. Non-blocking; only writes bytes
@@ -57,7 +62,7 @@ inline bool   strbuf_overflowed(const strbuf* sb) { return sb->overflow; }
 extern "C" void rc_log_drain_to_cdc(void);
 
 // Ring health (HW_GATE Rule 1 / LL 36): dropped_bytes > 0 means output
-// was lost; high_water approaching kRcLogRingBytes means the ring is tight.
+// was lost; high_water approaching rc::kRcLogRingBytes means the ring is tight.
 extern "C" uint32_t rc_log_dropped_bytes(void);
 extern "C" uint32_t rc_log_high_water(void);
 

@@ -192,7 +192,7 @@ extern "C" Q_NORETURN Q_onError(
     // a context that already had USB infrastructure healthy. If it doesn't
     // make it out the wire, the captured crash record will surface on
     // next boot. rc_log writes to the ring buffer non-blocking; drain
-    // happens later from Core 0's tud_task path or via the
+    // happens later from qv_idle_bridge drain or via the
     // visible-signal delay before AIRCR.
     rc::rc_log("[QP ASSERT] module=%s, id=%d\n", module, id);
 

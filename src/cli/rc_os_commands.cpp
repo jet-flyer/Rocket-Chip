@@ -942,8 +942,9 @@ static void print_station_rx_fields(const rc::TelemetryState& t,
     static constexpr float kMmToFt = 0.00328084F;
     static constexpr float kCmsToMs = 0.01F;
 
-    float alt_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
-    float alt_ft = static_cast<float>(t.baro_alt_mm) * kMmToFt;
+    float msl_m  = static_cast<float>(t.alt_mm) * kMmToM;
+    float msl_ft = static_cast<float>(t.alt_mm) * kMmToFt;
+    float agl_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
     float vvel   = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
     uint8_t fix  = (t.gps_fix_sats >> 4) & 0x0F;
     uint8_t sats = t.gps_fix_sats & 0x0F;
@@ -961,9 +962,9 @@ static void print_station_rx_fields(const rc::TelemetryState& t,
 
     rc::rc_log("State: %-8s  Pkts: %lu (%lu lost)\n", phase,
            (unsigned long)rs->rx_count, (unsigned long)lost);
-    rc::rc_log("Alt:   %.1f m (%.0f ft)  Vvel: %.1f m/s\n",
-           static_cast<double>(alt_m), static_cast<double>(alt_ft),
-           static_cast<double>(vvel));
+    rc::rc_log("Alt:   %.1f m (%.0f ft) MSL  Baro AGL: %.1f m  Vvel: %.1f m/s\n",
+           static_cast<double>(msl_m), static_cast<double>(msl_ft),
+           static_cast<double>(agl_m), static_cast<double>(vvel));
     rc::rc_log("RSSI:  %d dBm  SNR: %d dB\n",
            static_cast<int>(rs->last_rx_rssi),
            static_cast<int>(rs->last_rx_snr));

@@ -179,6 +179,20 @@ fill-and-stop, not forensic. Re-arm only when pyro HW is on those pins
 are deleted.
 **Blocking?** No
 
+### R-15 — PCM ring `frame_count` uint32 wrap (GWF-291)
+
+**Surfaced:** 2026-08-23 · log-ring overlay sitting. Owner: still worth
+tracking, especially future high-rate logging; CCSDS/Starcom logging may
+replace this ring.
+
+**What:** `ring_stored_count` is `min(frame_count, max_frames)`. After
+`frame_count` wraps at 2^32 the ring is still full but stored_count looks
+empty. At 50 Hz that is ~2.7 years; high-rate logging makes it closer.
+
+**Disposition target:** Starcom / CCSDS logging replace, or a saturating
+counter if this ring survives. Comment on the field until then.
+**Blocking?** No
+
 ### R-6 — Thin-file / hopeful-future nameplates (seeded WN-035)
 
 **Surfaced:** 2026-08-21 · WN-035 (`notify_backend.h`) — not a public-vs-private

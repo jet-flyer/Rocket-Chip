@@ -252,6 +252,8 @@ void format_float(etl::istring& out, double value, const ParsedSpec& spec) {
     double abs_v = neg ? -value : value;
     double scale = 1.0;
     for (uint32_t i = 0; i < prec; ++i) { scale *= 10.0; }
+    // Domain: |value| * 10^prec must fit in unsigned long long. In-tree
+    // formats stay well below that (lat/lon ±180, bounded covariances).
     double rounded = nearbyint(abs_v * scale);
     unsigned long long combined = static_cast<unsigned long long>(rounded);
     unsigned long long denom = 1U;
@@ -415,13 +417,11 @@ void emit(const char* buf, size_t len) {
 // Target sink: non-blocking, ring-buffered, drained from qv_idle_bridge.
 // Council round 2 amendment #1 (Cubesat): never blocks the caller.
 //
-// Implementation: 1024-byte ring buffer. emit() copies the message in
+// Implementation: kRcLogRingBytes ring. emit() copies the message in
 // full; if the ring is full, the OLDEST bytes are evicted to make room
-// (drop-oldest semantics). rc_log_drain_to_cdc() drains the ring to
-// USB CDC via tud_cdc_write/tud_cdc_write_flush from Core 0's main
-// loop. While USB CDC is disconnected (host hasn't opened the port +
-// asserted DTR yet), bytes accumulate in the ring; when the host
-// finally attaches, drain emits whatever the ring currently holds.
+// (drop-oldest). rc_log_drain_to_cdc() drains to USB CDC from Core 0
+// idle (qv_idle_bridge), not tud_task. While CDC is disconnected,
+// bytes accumulate; when the host attaches, drain emits what remains.
 //
 // Rationale for drop-oldest (not drop-newest):
 //   - Boot output is the diagnostic high-value content. Before the host
@@ -430,12 +430,10 @@ void emit(const char* buf, size_t len) {
 //     first 1KB followed by silence.
 //   - Pattern source: ArduPilot AP_HAL UART putchar (newest wins).
 //
-// Concurrency: rc_log is called from Core 0 cooperative context only
-// (per rc_log.h contract — never from ISR, never from Core 1). Drain
-// is also Core 0 cooperative (from qv_idle_bridge). Producer and
-// consumer never run concurrently; the volatile head/tail are
-// belt-and-braces against compiler reordering, not against
-// preemption. Coexistence with SDK's stdio_usb (un-migrated printf
+// Concurrency: rc_log is Core 0 cooperative except Q_onError, which
+// is Q_NORETURN with IRQs already off (preempted producer never
+// resumes). Drain is Core 0 idle. volatile head/tail are
+// belt-and-braces against compiler reordering, not preemption. Coexistence with SDK's stdio_usb (un-migrated printf
 // callers) is byte-stream-level: TinyUSB serializes its own TX FIFO,
 // so our tud_cdc_write and the SDK's tud_cdc_write don't corrupt each
 // other, they just interleave at byte boundaries — acceptable during
@@ -464,7 +462,7 @@ namespace target_sink {
     // Acceptable because the fault-reset path only fires from kIdle
     // (pad faults) and the ring is typically near-empty at fault
     // time — rc_log is not on hot path.
-    constexpr size_t kRingBytes = 8192U;
+    constexpr size_t kRingBytes = rc::kRcLogRingBytes;
     static volatile char g_ring[kRingBytes];
     static volatile size_t g_head = 0U;  // producer (rc_log writes here)
     static volatile size_t g_tail = 0U;  // consumer (drain reads here)
@@ -530,6 +528,15 @@ uint32_t rc_log_high_water(void) {
 // conversion char. Returns true if the buffer overflowed and the caller's
 // loop should stop. args MUST be passed by reference so format_conversion's
 // va_arg calls advance the caller's iterator (mirrors format_conversion).
+void stamp_trunc_marker(etl::istring& out) {
+    while (out.size() + kTruncMarkerLen > out.capacity() && out.size() > 0U) {
+        out.pop_back();
+    }
+    if (out.size() + kTruncMarkerLen <= out.capacity()) {
+        out.append(kTruncMarker, kTruncMarkerLen);
+    }
+}
+
 bool handle_percent_token(etl::istring& out, const char** p, va_list& args) {
     ParsedSpec spec = parse_spec(p);
     if (spec.conversion == '\0') {
@@ -539,11 +546,9 @@ bool handle_percent_token(etl::istring& out, const char** p, va_list& args) {
         char tmp[3] = { '%', spec.conversion, '\0' };
         if (buffer_append(out, tmp, 2U)) { return true; }
     }
-    if (out.size() + kTruncMarkerLen >= out.capacity()) {
-        size_t avail = out.capacity() - out.size();
-        if (avail >= kTruncMarkerLen) {
-            out.append(kTruncMarker, kTruncMarkerLen);
-        }
+    if (out.size() + kTruncMarkerLen > out.capacity() ||
+        out.size() == out.capacity()) {
+        stamp_trunc_marker(out);
         return true;
     }
     return false;

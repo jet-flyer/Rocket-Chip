@@ -238,7 +238,7 @@ void AO_Logger_log_event(rc::LogEventId id,
     uint8_t data[4] = {d0, d1, d2, d3};
     uint32_t met = to_ms_since_boot(get_absolute_time());
     rc::pcm_encode_event(static_cast<uint8_t>(id), data, met, frame);
-    rc::ring_push(&g_ringBuffer, &frame);
+    (void)rc::ring_push(&g_ringBuffer, &frame);
 #else
     (void)id; (void)d0; (void)d1; (void)d2; (void)d3;
 #endif
@@ -314,7 +314,7 @@ static void logging_tick() {
     rc::PcmFrameStandard frame = {};
     rc::pcm_encode_standard(telem, averaged.met_ms, frame);
 
-    rc::ring_push(&g_ringBuffer, &frame);
+    (void)rc::ring_push(&g_ringBuffer, &frame);
 
     // Push to AO_Telemetry for radio TX encoding
     AO_Telemetry_set_telem_snapshot(telem);

@@ -36,18 +36,19 @@ bool ring_init(RingBuffer* rb, uint8_t* memory, uint32_t memory_size,
     if (memory_size <= sizeof(RingHeader)) { return false; }
     if (header_sync_div == 0) { return false; }
 
+    const uint32_t capacity = memory_size - sizeof(RingHeader);
+    const uint32_t max_frames = capacity / frame_size;
+    if (max_frames == 0) { return false; }
+
     rb->base = memory;
-    rb->capacity = memory_size - sizeof(RingHeader);
+    rb->capacity = capacity;
     rb->frame_size = frame_size;
-    rb->max_frames = rb->capacity / frame_size;
+    rb->max_frames = max_frames;
     rb->head = 0;
     rb->frame_count = 0;
     rb->header_sync_div = header_sync_div;
     rb->initialized = true;
 
-    if (rb->max_frames == 0) { return false; }
-
-    // Write initial header
     sync_header(rb);
     return true;
 }

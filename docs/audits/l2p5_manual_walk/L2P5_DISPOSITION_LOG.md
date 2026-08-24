@@ -544,7 +544,7 @@ Print/path bugs. Not RC_OS menu structure (WN-313–327 DEFER).
 | ID | Label | Close |
 |----|-------|-------|
 | GWF-487 / CW-B44-01 | REMEDIATE | Temp: prints `t.temperature_c` not literal 0 |
-| GWF-488 / CW-B44-02 | REMEDIATE | Alt = MSL `alt_mm`; Baro = AGL `baro_alt_mm` |
+| GWF-488 / CW-B44-02 | REMEDIATE | Alt = MSL `alt_mm`; Baro = AGL `baro_alt_mm` (dashboard + station `print_station_rx_fields`) |
 | GWF-481 / CW-B43-01 | REMEDIATE | distance age from `last_rx_ms`, not vehicle MET |
 | GWF-485 / CW-B43-05 | REMEDIATE | FAIL count matches FAIL list (drop AK09916 dup; radio iff SPI) |
 | CW-B44-04 | REMEDIATE | Lost: `RfManager.packets_missed` (14-bit expected peg) |
@@ -561,3 +561,19 @@ Print/path bugs. Not RC_OS menu structure (WN-313–327 DEFER).
 | CW-X2-05 | safety-ssot |
 | GWF-269 | comment-contract (guard_functions) |
 | CW-B44-08 / CW-B44-09 / GWF-491 / GWF-492 / CW-X2-08 | comment / helper nits — later |
+
+### Log ring init / recover / named sizes — CLOSED 2026-08-24
+
+| ID | Label | Close |
+|----|-------|-------|
+| GWF-292 / CW-B25-05 | REMEDIATE | `max_frames==0` before `initialized`; `[[nodiscard]]` |
+| GWF-288 / CW-B25-06 / GWF-289 | REMEDIATE comments | init writes a fresh header; recover unused on target |
+| GWF-009 / GWF-284 / CW-B01-03 | REMEDIATE comments | drop-oldest |
+| GWF-014 / GWF-287 / CW-B25-01 | REMEDIATE comments | `Q_onError` exception (noreturn) |
+| GWF-281 / GWF-282 | REMEDIATE comments | idle-bridge drain, not `tud_task` |
+| GWF-286 / CW-B25-02 | REMEDIATE | truncation marker on conversion fill |
+| CW-B25-03 | REMEDIATE comment | float magnitude domain |
+| GWF-290 / CW-B25-04 / CW-L040 | DEFER | ring seqlock with WN-204/205 |
+| GWF-291 | park | rem WB **R-15** — Starcom/CCSDS or saturating count |
+| GWF-018 | skip | `config.h` gone |
+| CW-B43-02 | park | download `frame_size`; not this ring |

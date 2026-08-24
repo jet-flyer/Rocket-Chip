@@ -239,6 +239,18 @@ TEST(RcLog, FloatHalfwayRounding) {
 // Truncation behavior — council amendment #2 (Unit B contract)
 // ============================================================================
 
+TEST(RcLog, TruncationMarkerOnConversionFill) {
+    rc::rc_log_test::host_capture_reset();
+    char big[129];
+    memset(big, 'A', 128);
+    big[128] = '\0';
+    rc::rc_log("%s", big);
+    auto out = captured();
+    EXPECT_LE(out.size(), 128u);
+    ASSERT_GE(out.size(), 4u);
+    EXPECT_EQ(out.substr(out.size() - 4), "...\n");
+}
+
 TEST(RcLog, TruncationMarker) {
     rc::rc_log_test::host_capture_reset();
     // Output exceeds 128-byte buffer — must terminate with "...\n" marker.

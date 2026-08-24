@@ -35,26 +35,27 @@ struct RingBuffer {
     uint32_t frame_size;      // Bytes per frame (e.g., 55 for PcmFrameStandard)
     uint32_t max_frames;      // capacity / frame_size
     uint32_t head;            // Next write offset in data region (bytes)
-    uint32_t frame_count;     // Total frames written (monotonic, wraps)
+    uint32_t frame_count;     // Increment-only; wraps at 2^32 (~2.7 y at 50 Hz).
+                              // stored_count then under-reports. GWF-291;
+                              // Starcom/CCSDS logging may replace this ring.
     uint32_t header_sync_div; // Sync header every N frames (e.g., 50 = 1/sec at 50Hz)
     bool     initialized;
 };
 
-// Writes initial RingHeader with magic and zero state.
-// Does NOT call ring_recover() — caller must do that explicitly if desired.
-bool ring_init(RingBuffer* rb, uint8_t* memory, uint32_t memory_size,
+// Writes a fresh RingHeader (zeros). Overwrites any prior crash header.
+[[nodiscard]] bool ring_init(RingBuffer* rb, uint8_t* memory, uint32_t memory_size,
                uint32_t frame_size, uint32_t header_sync_div);
 
 // Overwrites oldest frame when buffer is full (circular).
 // Syncs crash recovery header every header_sync_div frames.
-bool ring_push(RingBuffer* rb, const void* frame);
+[[nodiscard]] bool ring_push(RingBuffer* rb, const void* frame);
 
 // true if index is valid and frame was read
-bool ring_read(const RingBuffer* rb, uint32_t index_from_newest,
+[[nodiscard]] bool ring_read(const RingBuffer* rb, uint32_t index_from_newest,
                void* frame_out);
 
 // Used for sequential readback during flush (oldest → newest).
-bool ring_read_sequential(const RingBuffer* rb, uint32_t abs_index,
+[[nodiscard]] bool ring_read_sequential(const RingBuffer* rb, uint32_t abs_index,
                           void* frame_out);
 
 // Total frames written (monotonic, may exceed capacity)
@@ -69,10 +70,11 @@ uint32_t ring_stored_count(const RingBuffer* rb);
 
 uint32_t ring_capacity_frames(const RingBuffer* rb);
 
-// Call after ring_init() to attempt recovery. If recovery succeeds,
-// the ring buffer resumes from the last consistent header state.
-// If recovery fails (no magic, odd seq), the buffer starts fresh.
-bool ring_recover(RingBuffer* rb);
+// Reads a crash-recovery header already in backing memory. Does not
+// start-fresh (returns false; leaves runtime state). ring_init always
+// writes a zero header, so init-then-recover cannot restore a prior
+// run. No firmware caller today (AO_Logger only ring_init).
+[[nodiscard]] bool ring_recover(RingBuffer* rb);
 
 // Clears header and resets write position. Used after flush to flash.
 void ring_reset(RingBuffer* rb);

@@ -82,6 +82,7 @@ TEST(RingBuffer, InitRejectsTooSmall) {
     rc::RingBuffer rb{};
     EXPECT_FALSE(rc::ring_init(&rb, mem.data(), static_cast<uint32_t>(mem.size()),
                                kFrameSize, kSyncDiv));
+    EXPECT_FALSE(rb.initialized);
 }
 
 TEST(RingBuffer, InitRejectsZeroSyncDiv) {
