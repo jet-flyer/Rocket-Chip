@@ -13,7 +13,6 @@
 #include <atomic>
 
 #include "rocketchip/shared_state.h"  // cross-core init flags, GPS, seqlock (OPT-IVP-02)
-#include "fusion/eskf.h"              // rc::ESKF
 
 // ============================================================================
 // Core 1 Entry Point
@@ -57,10 +56,5 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
 // seqlock_writes localData after return.
 void core1_read_gps(shared_sensor_data_t* localData,
                     uint32_t* lastGpsReadUs);
-
-// ESKF instance in eskf_runner.cpp — Core 0 fusion; Core 1 reads for GPS
-// staleness and related diagnostics.
-extern rc::ESKF g_eskf;
-extern bool g_eskfInitialized;
 
 #endif // ROCKETCHIP_SENSOR_CORE1_H

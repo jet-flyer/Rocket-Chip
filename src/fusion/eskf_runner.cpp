@@ -31,6 +31,7 @@ extern "C" {
 static inline uint32_t time_us_32() { return 0; }
 #endif
 
+#include <atomic>
 #include <math.h>
 
 // ============================================================================
@@ -69,11 +70,22 @@ static const rc::MissionProfile* g_profile = nullptr;
 // ESKF Module State (moved from main.cpp)
 // ============================================================================
 
-// ESKF error-state Kalman filter (Core 0 at 200Hz)
-// Non-static: Core 1 reads g_eskf.v for GPS staleness heuristic (sensor_core1.cpp).
+// ESKF error-state Kalman filter (Core 0 at 200Hz).
+// Core 0 readers only. Core 1 uses eskf_runner_probably_flying().
 // ESKF ~970 bytes — file-scope, not stack (LL 1).
 rc::ESKF g_eskf;
 bool g_eskfInitialized = false;
+
+// UART-reinit inhibit for Core 1. Threshold is the previous Core 1
+// heuristic (5 m/s). Core 0 stores release; Core 1 loads acquire.
+static constexpr float kGpsFlyingVelocityThreshold = 5.0F;  // m/s
+static std::atomic<bool> g_probablyFlying{false};
+
+static void publish_probably_flying() {
+    bool flying = g_eskfInitialized &&
+                  (g_eskf.v.norm() > kGpsFlyingVelocityThreshold);
+    g_probablyFlying.store(flying, std::memory_order_release);
+}
 static uint32_t g_lastEskfImuCount = 0;
 static uint32_t g_lastEskfTimestampUs = 0;
 static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
@@ -563,6 +575,7 @@ void eskf_runner_tick() {
 
     // ESKF failure backoff — skip if disabled after too many failures
     if (eskf_is_disabled()) {
+        g_probablyFlying.store(false, std::memory_order_release);
         return;
     }
 
@@ -585,10 +598,12 @@ void eskf_runner_tick() {
 
     if (!g_eskfInitialized) {
         eskf_try_init(snap);
+        publish_probably_flying();
         return;
     }
 
     eskf_runner_fusion_cycle(snap);
+    publish_probably_flying();
 }
 
 // ============================================================================
@@ -619,6 +634,10 @@ bool eskf_runner_is_initialized() {
     return g_eskfInitialized;
 }
 
+bool eskf_runner_probably_flying() {
+    return g_probablyFlying.load(std::memory_order_acquire);
+}
+
 bool eskf_runner_is_mahony_initialized() {
     return g_mahonyInitialized;
 }
@@ -627,6 +646,7 @@ void eskf_runner_request_reinit() {
     g_eskfInitialized = false;
     g_mahonyInitialized = false;
     eskf_reenable();
+    publish_probably_flying();
 }
 
 uint32_t eskf_runner_get_buffer_count() {

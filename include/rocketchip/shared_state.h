@@ -40,8 +40,9 @@ extern bool g_psramFlashSafePassed;
 // Calibration storage
 extern bool g_calStorageInitialized;
 
-// GPS transport (set once in init_sensors()). Callers switch on this
-// and invoke gps_uart_* or gps_pa1010d_* by name (P10-9).
+// GPS transport. Core 0 writes once in init_sensors() before releasing
+// g_startSensorPhase; Core 1 reads after that barrier. Callers switch
+// on this and invoke gps_uart_* or gps_pa1010d_* by name (P10-9).
 extern gps_transport_t g_gpsTransport;
 
 // IMU handle (not seqlock-protected). Core 0 inits before

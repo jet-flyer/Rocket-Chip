@@ -29,7 +29,7 @@
 #include "ao_flight_director.h"
 #include "flight_director/flight_director.h"
 #include "ao_telemetry.h"
-#include "core1/sensor_core1.h"  // g_eskf, g_eskfInitialized
+#include "core1/sensor_core1.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"

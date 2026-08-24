@@ -13,6 +13,11 @@
 #include "fusion/mahony_ahrs.h"
 #include "fusion/confidence_gate.h"
 
+// Core 0 fusion instance (defined in eskf_runner.cpp). Logger/CLI on
+// Core 0. Core 1 must not load these — use eskf_runner_probably_flying().
+extern rc::ESKF g_eskf;
+extern bool g_eskfInitialized;
+
 // Forward declarations
 namespace rc {
 struct MissionProfile;
@@ -75,6 +80,10 @@ uint32_t eskf_runner_get_epoch();
 
 // Whether ESKF has been initialized (stationary init passed).
 bool eskf_runner_is_initialized();
+
+// Core 1 UART-reinit inhibit. Core 0 stores release after fusion ticks
+// (initialized and |v| > 5 m/s). Do not read g_eskf from Core 1.
+[[nodiscard]] bool eskf_runner_probably_flying();
 
 // Whether Mahony AHRS has been initialized.
 bool eskf_runner_is_mahony_initialized();

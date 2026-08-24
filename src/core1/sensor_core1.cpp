@@ -24,6 +24,7 @@
 #include "drivers/gps_pa1010d.h"
 #include "drivers/gps_uart.h"
 #include "drivers/mcu_temp.h"
+#include "fusion/eskf_runner.h"
 #include "calibration/calibration_manager.h"
 #include "cli/rc_os.h"
 #include "math/quat.h"
@@ -64,9 +65,6 @@ static constexpr double kGpsCoordScale = 1e7;                   // Degrees to 1e
 
 // GPS staleness watchdog
 static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;    // 10s
-// Velocity threshold for "probably flying" heuristic (flight state gate).
-// Prevents UART reinit mid-flight.
-static constexpr float kGpsFlyingVelocityThreshold = 5.0F;      // m/s
 
 // ============================================================================
 // Cross-Core Globals (written by Core 1, read by Core 0)
@@ -261,10 +259,8 @@ static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
         return;
     }
 
-    // Flight state gate: proxy heuristic.
-    bool probably_flying = g_eskfInitialized &&
-                          g_eskf.v.norm() > kGpsFlyingVelocityThreshold;
-    if (probably_flying) {
+    // Flight-state inhibit: Core 0 publishes this atomic (not live g_eskf).
+    if (eskf_runner_probably_flying()) {
         return;
     }
 
