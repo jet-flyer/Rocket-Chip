@@ -757,3 +757,15 @@ Early-impl *rewrites* parked. Numerical/contract lies remediates. GWF-106 / GWF-
 | CW-B16-07 / GWF-203 | REMEDIATE | `kMagMinNormUt`; dt no-op |
 | GWF-207 / GWF-209 / CW-L012 / GWF-112 | REMEDIATE | UD partial-fail; quat inverse identity |
 | GWF-174 / GWF-215 / GWF-218 / GWF-223 / GWF-231 | REMEDIATE | WMM mutator; flags-only has; version==; progress; LM in-out |
+
+### Overlay leftover — P10-9 function pointers — CLOSED 2026-08-24
+
+Owner GPS/watchdog remediates closed. QP-tied still DEFER. `CW-B42-04` DEFER-home RC_OS.
+
+| ID | Label | Close |
+|----|-------|-------|
+| CW-B42-04 | DEFER-home | RC_OS structure — `rc_os_read_accel` |
+| CW-B18-02 | previously resolved | `cal_read_accel` already gone |
+| GWF-235 | REMEDIATE comment | `cal_read_mag` raw µT; false = no fresh sample |
+| CW-B19-01 | REMEDIATE comment | LM templates still deduce function-pointer types |
+| GWF-294 | REMEDIATE comment | null table = all log sectors; kick-cb gone |

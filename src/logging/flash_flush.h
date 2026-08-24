@@ -43,8 +43,8 @@ bool flight_table_save(FlightTableState* state);
 // Used by CLI 'E' erase-all command after flight_table_erase_all().
 bool flight_table_erase_flash();
 
-// Only erases sectors that have been used (based on next_free_sector).
-// Feeds the PIO watchdog between sectors.
+// Non-null table: erase used sectors [0, next_free). Null: all log sectors.
+// pio_watchdog_feed between sectors.
 bool flight_log_erase_all(const FlightTableState* table);
 
 // ============================================================================

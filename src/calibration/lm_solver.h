@@ -7,7 +7,8 @@
 // Samples/JtJ/jtjInv are caller-owned. mat_inverse uses a process-lifetime
 // static [A|I] workspace (not a second public API).
 //
-// Template dispatch (not function pointers). Host-testable in isolation.
+// Templates; call sites still deduce ResFn/JacFn as function-pointer types.
+// Host-testable in isolation. FP-1 retired — this is not "no pointer in scope."
 
 #include <math.h>
 #include <stdint.h>
