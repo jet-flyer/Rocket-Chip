@@ -1,7 +1,7 @@
 # Active Object Architecture
 
 **Status:** Active — update as modules are extracted
-**Last Updated:** 2026-04-04
+**Last Updated:** 2026-08-24
 **Council Reviewed:** 2026-04-04 (5 personas: ArduPilot, JPL, Professor, Student, Hobbyist)
 **Plan:** `.claude/plans/idempotent-cooking-metcalfe.md`
 
@@ -23,7 +23,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 |----|------|------|------|-------|------|-----------|------------|
 | AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 9 | 32 | FlightDirector HSM ([diagram](../audits/cla_rbm/dot/flight_director_hsm.dot)), guard eval, Go/No-Go (incl. RF Link via AO_RfManager state), PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
 | AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState; station-TX gated by `AO_RfManager_next_tx_window_us()` (Stage T IVP-T14) | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_RfManager | `ao_rf_manager.cpp` | 10Hz | 7 | 16 | LinkState (kAcq/kTentative/kTrack/kTrackDegraded), sliding-window LQ%, α-filtered anchor estimate, deadman, forced-ACQ; posts vehicle-lost/found notify on transition edges (Stage T IVP-T14) | SIG_NOTIFY_VEHICLE_LOST, SIG_NOTIFY_VEHICLE_FOUND | SIG_RADIO_RX |
+| AO_RfManager | `ao_rf_manager.cpp` | 10Hz | 7 | 16 | LinkState (kAcq/kTentative/kTrack/kTrackDegraded), sliding-window LQ%, α-filtered anchor estimate, deadman, forced-ACQ; posts Notify *private* SIG_NOTIFY_VEHICLE_LOST/FOUND on transition edges (not catalog pub/sub) | (none catalog) | SIG_RADIO_RX |
 | AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117); populates GoNoGoInput RF link fields from AO_RfManager (Stage T IVP-T14) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
 | AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14), beacon overlay + pre-arm fail + boot-init rainbow (Stage L) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE, SIG_BEACON_MANUAL |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
@@ -66,15 +66,19 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
               |               |           |
               v               v           v
         AO_FlightDir    AO_Logger   AO_Telemetry
-        (100Hz, P7)     (50Hz, P4)  (10Hz, P3)
+        (100Hz, P9)     (50Hz, P4)  (10Hz, P3)
               |               |           ^
      SIG_PHASE_CHANGE   writes ring       | SIG_RADIO_TX
      SIG_PYRO_FIRED     SIG_PYRO_INTENT   v
      SIG_BEACON_ACTIVE                AO_Radio
               |                       (100Hz, P8)
               |                           |
-              v                   SIG_RADIO_STATUS
+              v              SIG_RADIO_RX + SIG_RADIO_STATUS
   AO_HealthMonitor (10Hz, P6)             |
+                                          v
+                              AO_RfManager (10Hz, P7)
+                                posts Notify private
+                                SIG_NOTIFY_VEHICLE_*
       reads seqlock + ESKF + confidence   |
       reads Core 1 vitality (IVP-117)     |
       publishes SIG_HEALTH_STATUS         |
@@ -99,11 +103,15 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
                           - Core 1 vitality fallback (A1)
                           - drives ws2812
 
-  Idle Bridge (runs when all AO queues empty):
-    1. watchdog_kick_tick()     -- permanent
-    2. eskf_runner_tick()       -- fusion + publish SIG_SENSOR_DATA
-    3. rc_os_update()           -- blocking cal wizards only (conditional)
-    4. __wfi()                  -- sleep until next interrupt
+  Idle Bridge (qv_idle_bridge, when all AO queues empty):
+    1. test-mode fault inject   -- no-op unless probe-armed
+    2. watchdog_kick_tick()     -- permanent
+    3. GPS UART reinit          -- if Core 1 requested
+    4. eskf_runner_tick()       -- fusion + publish SIG_SENSOR_DATA
+    5. station only             -- Telem cmd retry + station_idle_tick
+    6. diag_stats_msp_tick()
+    7. rc_log_drain_to_cdc()
+    8. __wfi()                  -- sleep until next interrupt
 
   AO_RCOS (20Hz, P1, CLI)
     reads: all module/AO public APIs for display
@@ -223,22 +231,28 @@ or over radio.
 Note: "removed" historical slots (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) do NOT
 create numeric gaps in the enum — the table reflects ACTUAL runtime values.
 
-Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker,
-1=Counter+HealthMon, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 6=Notify tick,
-7=Notify cal intent, 10=Radio, 20=RCOS).
+Private signals (per-AO TU, not catalog pub/sub): `SIG_AO_MAX + offset`.
+Notify +9/+10 = `SIG_NOTIFY_VEHICLE_LOST` / `FOUND` — directed posts from
+AO_RfManager into AO_Notify, not `QActive_publish_`.
+
+Start order is **not** priority order: Radio starts before FD (`start_active_objects()`).
 
 ---
 
 ## Idle Bridge Contract
 
-`qv_idle_bridge()` in main.cpp runs when all AO queues are empty. Contains:
+`qv_idle_bridge()` in `src/main.cpp` runs when all AO queues are empty, in order:
 
-1. **watchdog_kick_tick()** — permanent, never moves to AO (Council A2, Stage 9)
-2. **eskf_runner_tick()** — permanent, needs zero-latency seqlock polling (Council A1, Stage 13)
-3. **rc_os_update()** — blocking calibration wizards only (conditional on output mode)
-4. **__wfi()** — ARM wait-for-interrupt, sleeps until next IRQ
+1. Test-mode fault inject — no-op unless probe-armed (`rc::test_mode_active()`)
+2. **watchdog_kick_tick()** — permanent, never moves to AO (Council A2, Stage 9)
+3. GPS UART reinit if Core 1 requested (`gps_uart_take_reinit_request`)
+4. **eskf_runner_tick()** — permanent, zero-latency seqlock polling (Council A1, Stage 13); publishes `SIG_SENSOR_DATA`
+5. Station only: `AO_Telemetry_cmd_retry_tick()` + `station_idle_tick()`
+6. `diag_stats_msp_tick()` — sampled in idle, so it does not see handler depth
+7. `rc_log_drain_to_cdc()` — empty-ring fast path (LL 39)
+8. **__wfi()** — sleep until next IRQ (100 Hz QF tick / USB / other)
 
-Items 1-2 are system invariants. Item 3 moves to non-blocking when calibration state machine is refactored (deferred).
+Items 2 and 4 are system invariants. There is no `rc_os_update()` on this path (CLI is AO_RCOS).
 
 ---
 

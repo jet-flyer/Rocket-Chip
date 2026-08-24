@@ -247,6 +247,16 @@ def validate_and_convert(params):
     rejected = {
         'EMERG_DEPLOY': 'HAB lockout skip is not implemented '
                         '(WN-195 / rem WB R-11); lockouts always apply',
+        # Channel routing / fault policy are not MissionProfile fields.
+        # PIO SM0/SM1 drive the pins they were inited with; in-flight
+        # fault is degrade-in-place (R-21). PIO-backup sitting may wire
+        # these later — until then a .cfg key must fail, not warn-and-drop.
+        'DROGUE_TIMER_ACTION': 'not a MissionProfile field; drogue PIO '
+                               'fires the drogue pin from init',
+        'MAIN_TIMER_ACTION': 'not a MissionProfile field; main PIO '
+                             'fires the main pin from init',
+        'SAFE_MODE_ACTION': 'not a MissionProfile field; in-flight fault '
+                            'is degrade-in-place (R-21), not a cfg switch',
     }
     for key in params:
         if key in rejected:

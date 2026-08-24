@@ -10,12 +10,9 @@
 // Cancelled on successful smart deployment.
 // Completely independent of ARM cores — survives crashes.
 //
-// Timer actions are profile-configurable:
-//   0 = disabled (no GPIO drive)
-//   1 = fire drogue GPIO
-//   2 = fire main GPIO
-//
-// For bench testing: read GPIO state via gpio_get() or CLI command.
+// Each SM drives the pin it was given at init (drogue SM → drogue pin,
+// main SM → main pin). Timeout seconds come from the profile
+// (DROGUE_TIMER_S / MAIN_TIMER_S). Channel routing is not a cfg field.
 
 #include <cstdint>
 

@@ -17,8 +17,8 @@ from typing import Any, Optional
 from .taxonomy import (
     VehicleCategory, RocketType, BalloonType, GroundType, AircraftType,
     RecoveryType, RecoveryMethod, StagingType, CertLevel, RadioPreset,
-    Peripheral, FailsafeAction,
-    MOTOR_POWER_TIERS, BASE_PROFILE, DESCENT_RATE_ESTIMATES, FAILSAFE_MAP,
+    Peripheral,
+    MOTOR_POWER_TIERS, BASE_PROFILE, DESCENT_RATE_ESTIMATES,
 )
 
 
@@ -274,20 +274,8 @@ def _apply_vehicle_overrides(answers: dict[str, str],
     land_vel = max(0.3, descent_rate * 0.1)
     params["LAND_VEL"] = f"{land_vel:.1f}"
 
-    # --- Failsafe behavior (auto-determined) ---
-    recovery_key = recovery if recovery else RecoveryType.NONE.value
-    failsafe = FAILSAFE_MAP.get((cat, recovery_key), FailsafeAction.LOG_ONLY)
-    # Map to SAFE_MODE_ACTION values in .cfg
-    safe_mode_map = {
-        FailsafeAction.PIO_BACKUP: "0",
-        FailsafeAction.CUTDOWN: "1",
-        FailsafeAction.RTLS: "0",
-        FailsafeAction.SAFE_PYROS: "0",
-        FailsafeAction.LOG_ONLY: "0",
-        FailsafeAction.DEPLOY_DROGUE: "0",
-        FailsafeAction.DEPLOY_MAIN: "0",
-    }
-    params["SAFE_MODE_ACTION"] = safe_mode_map.get(failsafe, "0")
+    # SAFE_MODE_ACTION is not a MissionProfile field (generator rejects it).
+    # In-flight fault is degrade-in-place (R-21), not a cfg switch.
 
 
 # =============================================================================

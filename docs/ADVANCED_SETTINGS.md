@@ -70,9 +70,9 @@ Settings that belong in the Mission Profile `.cfg` but aren't yet wired through 
 
 | Setting | .cfg Field | In Struct? | Description |
 |---------|-----------|------------|-------------|
-| PIO drogue action | `DROGUE_TIMER_ACTION` | No | 0=disabled, 1=fire drogue, 2=fire main |
-| PIO main action | `MAIN_TIMER_ACTION` | No | Same as above for main channel |
-| Safe mode behavior | `SAFE_MODE_ACTION` | No | 0=degrade, 1=safe+radio recovery, 2=immediate deploy |
+| PIO drogue action | `DROGUE_TIMER_ACTION` | **Rejected** | Not a MissionProfile field. Drogue PIO SM fires the drogue pin from init. Generator errors if the key is present. |
+| PIO main action | `MAIN_TIMER_ACTION` | **Rejected** | Same: main SM → main pin. Not a cfg switch. |
+| Safe mode behavior | `SAFE_MODE_ACTION` | **Rejected** | In-flight fault is degrade-in-place (R-21), not a profile field. Generator errors if the key is present. |
 | Station output default | — | No | ANSI/CSV/MAVLink boot default (station_output_mode.h) |
 | Radio mode profiles (IVP-64) | — | Partial | Full radio parameter customization without reflash |
 | Runtime profile switching | — | No | Select profile from flash/SD at boot (Stage 12 prerequisite) |

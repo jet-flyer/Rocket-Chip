@@ -73,9 +73,6 @@ SECTIONS = [
         ("DEFAULT_LAT", "degrees North"),
         ("DEFAULT_LON", "degrees East (negative = West)"),
     ]),
-    ("SAFE MODE BEHAVIOR", [
-        ("SAFE_MODE_ACTION", "0=safe mode, 1=safe+radio recovery"),
-    ]),
     ("RADIO CONFIGURATION", [
         ("RADIO_MODE", "0=TX, 1=RX, 2=relay"),
         ("RADIO_PROTOCOL", "0=CCSDS, 1=MAVLink"),
