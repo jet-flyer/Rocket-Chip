@@ -2,9 +2,9 @@
 
 Replace the prelim skeleton with a real plan. Finding packs stay frozen. Work lives on a dedicated worktree and is removed when this workstream is done.
 
-**Progress (2026-08-23 owner-chunk land):** Phase 0–2 closed. Phase 3 owner do-now closed and on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100 DEFER). **Next: Phase 4 Grok `GWF-001–498`**, then Phase 5 Claude. Keep worktree `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · `grok/l2p5-disposition`. Do not start Phase 4 `src/` on `main`.
+**Progress (2026-08-23 combined overlay):** Phase 0–2 closed. Phase 3 owner do-now closed and on `main` (`2026-08-23-002`). Sitting 6 RF skipped (WN-100 DEFER). Owner walk stays a **separate** chunk. Grok+Claude packs are combined: `L2P5_GROK_CLAUDE_OVERLAY.md` (generator `_gen_grok_claude_overlay.py`). **Next: Phase 4 remaining-bucket sittings** from that overlay (skip cleared, park defer-home). Keep worktree `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · `grok/l2p5-disposition`. Do not start those `src/` edits on `main`.
 
-**Session unit:** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). First disposition-prep step after walk-WB close. One theme per sitting: all comments together; other related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks.
+**Session unit (owner chunk, closed):** the 16 WN buckets in `docs/audits/l2p5_manual_walk/L2P5_WN_CLUSTERS.md` (327 notes, generator `_gen_wn_clusters.py`). **Session unit (agent chunk):** the remaining buckets in `L2P5_GROK_CLAUDE_OVERLAY.md`. One theme per sitting; related notes in the same bucket even if they are not one bug. Do not split a bucket across weeks. Do not merge GWF/CW IDs with WNs.
 
 **Progress docs (whole disposition):** `AGENT_WHITEBOARD.md`, `L2P5_DISPOSITION_LOG.md` sitting rows, and this file’s **Progress** line update **when a bucket sitting closes**, not after each R-10 group. Code still commits in groups of 2–4 WNs. Do not restamp sitting progress mid-bucket. Unexpected blockers still go on the rem WB; that is not a progress restamp.
 
@@ -41,10 +41,10 @@ After itinerary 121/121 and walk-WB drain (2026-08-17), PROJECT_STATUS / whitebo
 
 ## Already recorded (do not re-litigate)
 
-- **Chunks:** owner WNs → Grok → Claude. Do not merge IDs. Do not use three-walk triples as a rank.
+- **Chunks:** owner WNs first (done). Grok+Claude **combined** after that (owner asked 2026-08-23 — similar findings; keep the owner walk separate). Overlay: `L2P5_GROK_CLAUDE_OVERLAY.md`. Do not merge IDs. Do not use three-walk triples as a rank.
 - Owner `nothing of note` ≠ “P is false.” Agent-only hits wait for chunks 2–3.
 - Canonical Claude vote = aligned batch row; skip 22 lane duplicates; UART-staleness live on the vehicle.
-- **QMI 1-vs-1:** `GWF-311` vs `CW-B26-05`. Chunk 1 ignores it. Chunk 2 stops and settles with `pico-sdk` present before any code. No fix from one agent.
+- **QMI 1-vs-1:** `GWF-311` vs `CW-B26-05`. **Settled 2026-08-23:** Grok. Claude’s “no IRQ armed” misses `sleep_ms` in `gps_pa1010d_init` (before `psram_init`) which enables the default alarm-pool TIMER IRQ. Configure takes the same IRQ fence as detect.
 - Each WN is a PR (open → analyzed → in progress → verified → closed). Default REMEDIATE. ACCEPT = signed deviation. DEFER without a safety-impact one-liner is invalid.
 - Frozen packs stay frozen.
 
@@ -169,19 +169,26 @@ Verification: per-commit host ctest + the change’s own signal. **Flight-critic
 
 ---
 
-## Phase 4 — Grok chunk
+## Phase 4 — Combined Grok+Claude (overlay, then remaining buckets)
 
-`GWF-001–498`. No new WNs by default. Covered by a disposed WN → skip. Unique-and-real → label. Nit or Starcom/RC_OS/early-impl → skip/DEFER to the same home.
+Owner pack stays out of this queue. Work from `L2P5_GROK_CLAUDE_OVERLAY.md`:
 
-**QMI `GWF-311`:** stop; re-read boot IRQ with SDK; owner settles.
+1. **Cleared** — skip. Same P as a closed REMEDIATE WN, or essay-only leftover after sittings 1/5/13.
+2. **Affected** — re-read the current tree. The leaf was remediates; the agent P may still be live.
+3. **Defer-home** — park with owner Starcom / RC_OS structure / early-impl / codegen / WN-100. Dashboard **display lies** are not RC_OS structure.
+4. **Both agree** — extra walks working. Medium-high trust of the claim; still not a rank.
+5. **Disagree** — `GWF-311` vs `CW-B26-05` (QMI) **settled**: fence configure with detect. Not a second fight (`0`/`kOff` LED is same facts).
+6. **Unique** — still sit in the same buckets when the theme matches.
 
-Remediate this chunk’s REMEDIATE set by the same bucket themes; do not open a fourth taxonomy.
+Then remediate remaining (affected + untouched) **by overlay bucket**, same sitting style as the owner 16. No new WNs by default. No fourth taxonomy. Test in groups of 2–4 (R-10). Do not silent-regen `mission_profile_data.h` (R-4).
+
+Default remaining live rows: REMEDIATE. Do not auto-ACCEPT.
 
 ---
 
-## Phase 5 — Claude chunk
+## Phase 5 — folded into Phase 4
 
-Aligned pack, one vote, skip lane duplicates. Same questions. Then remaining REMEDIATE.
+Claude is not a second sequential chunk. Canonical Claude vote is still the aligned batch row (skip 22 lane duplicates; UART-staleness live on the vehicle). REFUTED rows are not live work except as the disagree bin.
 
 ---
 
@@ -215,7 +222,8 @@ Aligned pack, one vote, skip lane duplicates. Same questions. Then remaining REM
 | File | Role |
 |------|------|
 | `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` | This plan in-repo (prelim stays skeleton) |
-| `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` | Per-WN labels |
+| `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md` | Combined Grok+Claude bins + remaining buckets |
+| `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` | Per-WN labels (owner chunk). Agent-chunk labels ride overlay buckets. |
 | Dated W-2/W-5 note | Prep |
 | `docs/baselines/l2p5_disposition_<date>/` | Authored LOC / ctest / `.text` before and after |
 | `docs/audits/AUDIT_COVERAGE_CATCHUP_YYYY-MM-DD.md` | Close-out |

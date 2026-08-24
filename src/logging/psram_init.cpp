@@ -6,13 +6,16 @@
 // Sequence: detect via SPI ID read → compute M1 timing (XIP still up) →
 // enable QPI mode → program QMI M1 timing/format → enable XIP writable
 // for M1.
-// QMI direct-mode windows run from SRAM (__no_inline_not_in_flash_func).
-// Datasheet 12.14.5: with DIRECT_CSR.EN set, the AHB XIP window is
-// disconnected; a fetch generates a bus fault. pico-sdk qmi.h same
-// contract. Arduino-Pico discussion 3431: calling clock_get_hz() from
-// RAM-resident PSRAM init after enabling direct mode is intermittent
-// (works only if that flash line is still in the XIP cache). Compute
-// timing, including clock_get_hz and any libgcc helpers, before EN.
+// QMI direct-mode windows run from SRAM (__no_inline_not_in_flash_func)
+// and with IRQs off (save_and_disable_interrupts). Datasheet 12.14.5:
+// with DIRECT_CSR.EN set, the AHB XIP window is disconnected; a fetch
+// generates a bus fault. pico-sdk hardware_flash.h: unsafe if handlers
+// or the vector table live in flash — they do. Both detect and configure
+// take the same fence; configure is not exempt because today's caller
+// looks "early." init_gps_early() already ran sleep_ms, which arms the
+// default alarm-pool TIMER IRQ (pico_time; handler always enabled)
+// before psram_init. Compute timing, including clock_get_hz and any
+// libgcc helpers, before EN (Arduino-Pico discussion 3431).
 
 #include "psram_init.h"
 #include "rocketchip/flash_layout.h"
@@ -180,6 +183,9 @@ static uint32_t psram_calc_timing() {
 // ============================================================================
 
 static void __no_inline_not_in_flash_func(psram_configure_qmi)(uint32_t timing) {
+    // Same IRQ fence as psram_detect: EN disconnects XIP (datasheet 12.14.5).
+    uint32_t intr_stash = save_and_disable_interrupts();
+
     // Enable direct mode with auto-CS for QPI enable command.
     // Direct mode claims QMI — no flash fetches until direct_csr is cleared.
     qmi_hw->direct_csr = kQpiClkDiv << QMI_DIRECT_CSR_CLKDIV_LSB |
@@ -216,6 +222,7 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)(uint32_t timing) 
 
     // Disable direct mode (return to XIP)
     qmi_hw->direct_csr = 0;
+    restore_interrupts(intr_stash);
 
     // Enable writes to PSRAM via XIP
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
