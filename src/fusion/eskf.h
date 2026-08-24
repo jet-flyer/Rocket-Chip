@@ -6,6 +6,7 @@
 // ESKF: 24-state error-state KF. Host-build, no Pico SDK.
 // Nominal: q (body→NED), p, v, biases, earth mag, body mag bias, wind, baro bias.
 // Error state: eskf_state.h. States 15–23 have runtime inhibit flags.
+// FPFT covariance: generated `eskf_codegen.cpp` / `scripts/generate_fpft.py` (CG-1).
 // Solà 2017 arXiv:1711.02508.
 //
 // Noise/R/init defaults are for this vehicle's sensors (ICM-20948 DS-000189,

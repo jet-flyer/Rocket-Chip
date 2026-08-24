@@ -275,17 +275,16 @@ Commit cited is on `grok/l2p5-disposition`.
 **Sitting:** owner chunk, Phase 2 labels. **Code:** WN-195 only this plan
 (`emergency_deploy_anytime` removed; HAB later, rem WB **R-11**). The other
 four wait on the existing WB **codegen audit**.
-**A/B (2026-08-21, no overwrite):** `python scripts/generate_profile.py profiles/rocket.cfg --output <temp>`. `rocket.cfg` sha256 prefix still `e1c22265fc444258`. Committed `mission_profile_data.h` differs by exactly the two Stage-T post-gen edits the WB already names: (1) `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch, (2) IVP-T6 sweep comment. Regenerating in place would **delete the MAVLink switch** (plan: no silent regen). HAB generator **failed** (missing `BARO_LAND_*`, `DESCENT_MAX_MS`, `DROGUE_TIMER_S`, `MAIN_TIMER_S`); `test/test_hab_profile_data.h` not compared. `generate_fpft.py` not re-run (writes `eskf_codegen.cpp` in place and stamps a date).
+**A/B (2026-08-21, no overwrite):** `python scripts/generate_profile.py profiles/rocket.cfg --output <temp>`. Committed `mission_profile_data.h` differs by exactly the two Stage-T post-gen edits: (1) `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch, (2) IVP-T6 sweep comment. Regenerating in place would **delete the MAVLink switch**. HAB generator **failed** (missing required fields). `generate_fpft.py` not re-run (in-place + date stamp).
+**A/B (2026-08-24, codegen sitting):** HEAD generator vs HEAD rocket header reproduced those two radio edits only (profile *values* match). They did not earn rent in the generator (Stage-T test flag would leak into every profile; T6 comment is plan-doc). Committed headers regenerated to pure generator output — T3 `#ifdef` and T6 comment dropped. HAB `hab.cfg` completed and fixture regenerated. WMM comments / FPFT not regenerated. `scripts_generated_profiles` is tempfile A/B, not CMake overwrite. `ROCKETCHIP_STAGE_T3_MAVLINK` CMake option no longer flips protocol.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-137 | DEFER | labeled | Codegen audit — eskf vs codegen / verify / non-core aids |
-| WN-141 | DEFER | labeled | Codegen audit — `eskf_state.h` banner / state table |
-| WN-152 | DEFER | labeled | Codegen audit — `phase_qr.h` council cite + density |
+| WN-137 | REMEDIATE | closed | `eskf.h` points FPFT at generated `eskf_codegen.cpp` / `generate_fpft.py` (CG-1). Not a regen of that file. |
+| WN-141 | REMEDIATE | closed | `eskf_state.h` already has the 24-state index banner; no generated output. |
+| WN-152 | REMEDIATE | closed | `phase_qr.h` is the Q/R type home (not generated). Council 2026-03-29 line kept as the why. |
 | WN-195 | REMEDIATE | closed | field/cfg/wizard removed; generator rejects `EMERG_DEPLOY`; HAB later (R-11) |
-| WN-196 | DEFER | labeled | Codegen audit — A/B: two Stage-T hand-edits still in `mission_profile_data.h`; do not regen this pass |
-
-**DEFER safety (WN-137/141/152/196):** No post-gen hand-edits *this* pass and no silent regen. The two Stage-T edits are intentional radio-path switches, not random drift; a later regen without absorbing them into `generate_profile.py` would drop MAVLink compile-flag behavior. Flight profile *values* match the generator. HAB fixture is stale (generator now errors) — audit must fix generator or fixture before HAB profile work.
+| WN-196 | REMEDIATE | closed | A/B: two Stage-T hunks did not earn rent; rocket+HAB headers are pure generator output; `scripts_generated_profiles` gate. |
 
 ---
 

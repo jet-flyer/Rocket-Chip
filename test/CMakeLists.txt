@@ -274,6 +274,12 @@ gtest_discover_tests(test_rc_snprintf)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(
+        NAME scripts_generated_profiles
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/check_generated_profiles.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(scripts_generated_profiles PROPERTIES LABELS "python;audit-cycle")
+    add_test(
         NAME scripts_rc_test_common
         COMMAND ${Python3_EXECUTABLE} scripts/test__rc_test_common.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
