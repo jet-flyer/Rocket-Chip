@@ -70,20 +70,18 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 do-now on `main` (`2026-08-23-002`). Overlay through phantom closed on `grok/l2p5-disposition` (`2026-08-24-001`). Sitting 6 RF skipped (WN-100). **Next:** Class-design / published guts — summaries posted, wait owner labels. Keep worktree `grok/l2p5-disposition`. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 on `main` (`2026-08-23-002`). Phase 4 Grok+Claude overlay on `main` (`2026-08-24-002`). Sitting 6 RF skipped (WN-100). Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
 
-## L2-P5 agent-chunk resume (OPEN) (2026-08-24)
+## L2-P5 Phase 4 overlay (landed 2026-08-24)
 
-Overlay remediates closed (`33da2d7`). SPIN_OK_31 on this branch. Rem WB drained. **Keep this worktree** until merge. **Do not start leftover overlay `src/` on `main`.**
-
-**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. Overlay: `docs/audits/l2p5_manual_walk/L2P5_GROK_CLAUDE_OVERLAY.md`. Plan: `L2P5_DISPOSITION_PLAN.md`. Log: `L2P5_DISPOSITION_LOG.md`.
+Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted. Join dump: `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (markdown is the review surface). Log: `L2P5_DISPOSITION_LOG.md`.
 
 **Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Codegen audit, Early-impl table.
 
-**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites / codegen hygiene. Version bump not invented (was rem WB R-9). Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not silent-regen `mission_profile_data.h`. Untracked `_grok_claude_overlay.json` — leave; not SSOT. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites / codegen hygiene. Version bump not invented. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not silent-regen `mission_profile_data.h`. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 
