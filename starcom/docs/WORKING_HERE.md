@@ -11,6 +11,18 @@
 
 Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground stations, HABs, and RC alike. See `DESIGN.md` note 2026-08-21 for the stack-vs-library vocabulary.
 
+
+## Vocabulary
+
+Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
+
+| Term | Means |
+|------|--------|
+| **PLTU** | Proximity Link Transmission Unit (211.2). The coding-and-sync wrapper: ASM + one transfer frame + CRC-32. |
+| **USLP** | Unified Space Data Link Protocol (732.1). Its on-the-wire frame is Version-4. On Prox-1 it sits *in* a PLTU, in lieu of Version-3, never inside the V-3 data field. |
+| **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. |
+
+
 ---
 
 ## Dos
@@ -35,10 +47,11 @@ Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground statio
 
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
 - **Do** read in this order when onboarding:
-  1. `design_record_claude.md` §0 (canonical scope)
-  2. `comparison.md` (settled facts + open forks D-1…D-5)
-  3. Research pair as needed (`research/ccsds_domain_*.md`, `research/library_craft_*.md`)
-  4. `DESIGN.md` once the condensation session produces it
+  1. this file
+  2. `DESIGN.md` (locks)
+  3. `SAD.md` (map), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
+  4. `STATUS.md` (phase)
+  5. `comparison.md` / research pair as needed (historical)
 - **Do** append to research/comparison/design-record docs — **do not silently rewrite** another agent's entries (`CROSS_AGENT_REVIEW.md`).
 
 ### Code quality (core targets strictest plausible adopter)
@@ -106,7 +119,10 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/comparison.md`](comparison.md) | **Open architectural forks** (D-1…D-5), cross-agent comparison log. Append-only. | Live — do not duplicate elsewhere |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Live — governs §0 until `DESIGN.md` exists |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
-| [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step (e.g. "Phase 0 CMake"). Lighter than RC `PROJECT_STATUS.md`. | Placeholder — flesh out when implementation starts |
+| [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure). | Draft 2026-08-25 |
+| [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs, signatures TBD. | Draft 2026-08-25 |
+| [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table. | Draft 2026-08-25 |
+| [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |
 
 ### At Rocket-Chip repo root (firmware-owned — do not copy into `starcom/`)
 
