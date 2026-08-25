@@ -141,6 +141,19 @@ Settled in conversation. Append-only: does not rewrite §0. It names what §0 al
 
 **Build order (fundamentals).** Prove it is a library (host-only core) → pure codecs → state machines → host loopback → first-party ports → RC integration last.
 
+## Note — 2026-08-25 (Grok Researcher): PHY, FPGA, compliance layers
+
+Append-only. Does not rewrite `§0`. Hardware sitting 2026-08-25; primary sources in `standards/starcom/`.
+
+- **Cheap ISM** (LoRa and not: RFM69, CC1101, Si4463, AX5043) cannot emit 211.1 residual-carrier PM. The lock-in is the analog front end, not LoRa.
+- **Compliance is layered**, not a boolean. 211.0 COP-P, 211.2 C&S, 211.1 waveform, RF (1 ppm, RHCP, residual AM <2% RMS), MAC (`CARRIER_ACQUIRED`), operational access are independent. 211.2 PICS: PLTU mandatory; coding is at least one of uncoded / conv / LDPC.
+- **Pluto** buys a lab 211.1 I/Q waveform (Zynq-7010 + AD9363). It is not a JPL User Terminal and does not hail MRO/Pathfinder. Clock path: 0.5 ppm VCTCXO or GPSDO, not a $10k rad-hard OCXO. RHCP is explicit in 211.1-B-4 §3.3.4 (current HW is linear).
+- **Forgix T8 (~7.4k LE):** feasible C&S is conv encode + PLTU/ASM/CRC; Viterbi is a whole-chip problem; LDPC (2048,1024) decode does not fit. Encode might. GCS (Pi Zero 2 / RP400 / laptop) can decode in software. Snickerdoodle 1 MSPS DAC is housekeeping, not I/Q; 7020 fabric is the only extra vs Forgix, and only for decode.
+- **FPGA pedagogy:** NASA-HDBK-4008 §7.3 + NASA-HDBK-4011 (not a JPL Power-of-Ten for HDL). DO-254 / device TMR is theater on a T8. MCU heartbeat + reconfig is the cubesat-scale scrubber.
+- **Distributed boards:** Space Packets on UART/CAN-FD; not SpaceWire, not TM/Prox-1 as a backplane. First extra board is a Starcom appliance, not Gemini (Gemini stays dual-Core voting).
+- **Next (not this wrap):** identity README, architecture map, core API ICD, conformance table, then Phase 0 CMake. Implementation is Hamilton; this agent stays research.
+
+
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)
 
 **Claude-only / stronger (ccsds_domain_claude + library_craft_claude + design_record):**

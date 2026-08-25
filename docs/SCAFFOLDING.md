@@ -99,8 +99,12 @@ rocketchip/
 │   ├── STANDARDS_AUDIT_2026-03-26.md  # Tiered audit (Stage 8, 40 files, remediated)
 │   ├── AUDIT_REMEDIATION.md       # Line-level fix tracking
 │   ├── ACCEPTED_STANDARDS_DEVIATIONS.md  # User-accepted deviation log (renamed 2026-05-07)
-│   └── protocols/
-│       └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational)
+│   ├── protocols/
+│   │   └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational)
+│   └── starcom/                  # Starcom primary-source PDFs (not the stack)
+│       ├── README.md             # Index; ECSS URL-only
+│       ├── fpga/                 # NASA-HDBK-4008/4011, ESA ASIC/001, GSFC 500-PG-8700.2.7
+│       └── ccsds/                # 211.0-B-6, 211.1-B-4, 211.2-B-3, 131.0-B-5, 133.0-B-2
 │
 ├── include/
 │   └── rocketchip/
@@ -303,7 +307,8 @@ rocketchip/
 │   └── CLAUDE.md                  # Thin shim → AGENTS.md
 │
 ├── standards/
-│   └── AK_GUIDELINES.md           # Behavioral guidelines
+│   ├── AK_GUIDELINES.md           # Behavioral guidelines
+│   └── starcom/                   # CCSDS + FPGA primary-source PDFs
 │
 └── docs/agents/                   # Agent operational discipline (universal)
     ├── SESSION_CHECKLIST.md       # Session handoff/end procedures

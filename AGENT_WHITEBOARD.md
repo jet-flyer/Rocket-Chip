@@ -34,7 +34,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ## Starcom Phase 0 (OPEN) (2026-08-21)
 
-Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Next: Phase 0 host-only core skeleton (`cmake -S starcom`, host ctest, no RC includes). Not a license to start that until scheduled.
+Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-source shelf `standards/starcom/` + PHY/FPGA note 2026-08-25. Next docs (Hamilton): identity README, architecture map, core API ICD, conformance, then Phase 0 host-only CMake. Not a license to start CMake until scheduled. Researcher stays Blue Books.
 
 ---
 

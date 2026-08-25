@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-25-001 | Grok Researcher (Grok Bot) | documentation
+
+Collected public CCSDS Blue Books and NASA/ESA/GSFC FPGA handbooks under `../../standards/starcom/` (index README). DESIGN.md gained a 2026-08-25 note on layered Prox-1 compliance, T8/LDPC, and Pluto-as-lab-PHY. Identity README / architecture map still pending. No CMake or core code this sitting.
+
 ### 2026-08-21-001 | Grok Researcher (Grok Bot) | documentation, architecture
 
 Named the stack-vs-library distinction in `docs/DESIGN.md` (dated note) and `docs/WORKING_HERE.md`. Starcom = stack; core = sans-I/O library; ports are first-party; RC is integration. Detail lives in the DESIGN note, not here.

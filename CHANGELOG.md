@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-25-002 | Grok Researcher (Grok Bot) | documentation, architecture
+
+**Starcom primary-source shelf + PHY/FPGA sitting wrap.** Added `standards/starcom/` (FPGA handbooks + Prox-1/coding Blue Books) with an index. Sitting conclusions (layered 211.x compliance, T8 vs LDPC, Pluto as lab PHY not User Terminal) are a dated note on `starcom/docs/DESIGN.md`. Next implementation docs (identity README, architecture, API ICD, conformance) are for Hamilton; Phase 0 CMake still not started. Verified: docs/PDF only, no firmware path, no HW reseat required.
+
 ### 2026-08-25-001 | Grok (Grok Bot) | documentation, hardware
 
 **New-user first-run sitting on vehicle Feather + Fruit Jam.** Flashed current `main` flight UF2 to both (no GitHub releases). Vehicle USB CLI follows live help; USER_GUIDE key table is stale. Station dashboard RF TRACK / live RSSI; dashboard GPS is vehicle telemetry; station `g` is not connected. Detail: `docs/audits/NEW_USER_FIRST_RUN_2026-08-25.md`. Opened PRs R-30, R-31. Verified: docs-only this push, no HW reseat required.
