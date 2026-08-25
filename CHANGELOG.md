@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-25-001 | Grok (Grok Bot) | documentation, hardware
+
+**New-user first-run sitting on vehicle Feather + Fruit Jam.** Flashed current `main` flight UF2 to both (no GitHub releases). Vehicle USB CLI follows live help; USER_GUIDE key table is stale. Station dashboard RF TRACK / live RSSI; dashboard GPS is vehicle telemetry; station `g` is not connected. Detail: `docs/audits/NEW_USER_FIRST_RUN_2026-08-25.md`. Opened PRs R-30, R-31. Verified: docs-only this push, no HW reseat required.
+
 ### 2026-08-24-005 | Grok 4.6 (Build CLI) | tooling, documentation
 
 **Codegen A/B closed; inert profile keys rejected; AO map vs live idle.** `ad52dd7`: rocket/HAB headers match `generate_profile.py`; Stage-T T3 ifdef/T6 comment did not earn rent. This wrap: generator **errors** on `DROGUE_TIMER_ACTION` / `MAIN_TIMER_ACTION` / `SAFE_MODE_ACTION` (no silent drop); wizard no longer emits them; PIO SM still fires the pin it was inited with. `AO_ARCHITECTURE.md` idle/P9/RfManager/private Notify signals match `qv_idle_bridge` / `start_active_objects`. `SAD.md` still 8 AOs (hard-protected, not named). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, `sensors healthy — GO`.
