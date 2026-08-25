@@ -8,12 +8,12 @@ Honesty: a claim is in-scope, deferred, or out of scope. "Best effort" is not a 
 |-------|------|--------|--------|
 | PLTU: ASM `FAF320` + transfer frame + CRC-32, uncoded | 211.2-B-3 Fig 3-1 | In scope (MVP) | Envelope. One frame version per stream. |
 | Version-3 transfer frame | 211.0-B-6 Fig 3-2 | In scope (MVP) | First insides of PLTU. 5-octet header, 2 KiB cap. |
-| Version-4 / USLP transfer frame in the same PLTU | 732.1-B-3 Fig 4-1 | In scope (MVP) | In lieu of V-3, whole stream V-4. Not nested in the V-3 data field. |
+| Version-4 / USLP transfer frame in the same PLTU | 732.1-B-3 Fig 4-1 | In scope (after COP-P) | In lieu of V-3, whole stream V-4. Not nested in the V-3 data field. Newer frame; can host COP-P. |
 | Space Packet as SDU | 133.0-B-2 Fig 4-1 | In scope (MVP) | 6-octet header + user data. Not a Starcom product name. |
 | PLCW 16-bit SPDU field codec | 211.0-B-6 §3.2.4.3.2.1.1 | In scope (MVP codecs) | Pack/unpack only. Not the ARQ. Distinct from CLCW. No generic OCF. |
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. |
-| COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | Deferred | State machines, timers, window. USLP can *host* this; it does not replace it. Claude phase 4. |
-| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | Deferred | State machines. Distinct from COP-P. Claude phase 3. |
+| COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | In scope (MVP, after codecs) | Prox ARQ. USLP can host this; it does not replace it. Sequenced immediately after V-3/PLTU can pack a frame. |
+| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (after COP-P) | The other ARQ. Distinct from COP-P. Not a substitute. |
 | Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Deferred or absent | Full module later, or not at all. No stub. |
 | Convolutional or LDPC coding | 211.2 → 131.0-B-3 | Deferred | 211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded PLTU. |
 | Long-haul TM C&S (131.0 ASM / FECF path) | 131.0 | Out of scope for this MVP | Different coding sublayer than PLTU. |

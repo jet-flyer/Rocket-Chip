@@ -7,7 +7,8 @@ Library-scoped phase and blockers. Lighter than Rocket-Chip `docs/PROJECT_STATUS
 ## Next
 
 1. Phase 0 CMake (`Starcom::starcom`), host ctest shell, `tl::expected` + span seams. Header-vs-static default is a spike, not a lock.
-2. Phase 1 codecs, Blue Book order: PLTU, Version-3, Space Packet SDU, PLCW/CLCW field pack, then USLP.
+2. Phase 1 codecs: PLTU, Version-3, Space Packet SDU, PLCW/CLCW field pack.
+3. Phase 2 COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
 
 README identity is drafted in chat; not required to start Phase 0.
 
@@ -18,14 +19,14 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 | Phase | Job | Notes |
 |-------|-----|--------|
 | 0 | Skeleton | CMake static + export, `version` / `result` / span seams, empty host test. Prove the target exists. |
-| 1 | Codecs | Pure functions. PLTU (ASM+CRC-32), Version-3 frame, Space Packet SDU, PLCW and CLCW *field* pack/unpack. Golden vectors. No state machines. |
-| 2 | USLP | Version-4 frame + VC/MAP. Same PLTU. Table tests. |
-| 3 | COP-1 | FOP-1 / FARM-1 as sans-I/O machines. Engine verbs become real. |
-| 4 | COP-P procedures | FOP-P / FARM-P (windows, timers, resync). PLCW bits already exist from Phase 1. Hailing/session is not this phase. |
+| 1 | Codecs | Pure functions. PLTU (ASM+CRC-32), Version-3 frame, Space Packet SDU, PLCW and CLCW field pack/unpack. Golden vectors. |
+| 2 | COP-P | FOP-P / FARM-P. This is implementing Prox reliability, not extra. Engine verbs become real here. |
+| 3 | USLP | Version-4 frame + VC/MAP in the same PLTU. Can host COP-P. |
+| 4 | COP-1 | FOP-1 / FARM-1. The other ARQ, not a substitute for COP-P. |
 | 5 | Adapters | Host loopback first. Generic radio port in `starcom/adapters/`. RC pins/AO stay in RC. |
 | 6 | Hardening | Sanitizers, longer fuzz, docs, first `0.1.0`. |
 
-**MVP cut (2026-08-25):** Phases 0–2 (both frame types in one PLTU) plus PLCW/CLCW field codecs. COP-P *procedures* (FOP-P/FARM-P) stay Phase 4: they are state machines, not another packet layout. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port.
+**MVP cut (2026-08-25):** Phases 0–2: CMake, codecs, COP-P. USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. §6 hailing/MAC is later or absent.
 
 ## Blockers
 
