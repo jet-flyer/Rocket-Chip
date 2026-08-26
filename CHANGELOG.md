@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-26-001 | Grok 4.6 (Build CLI) | architecture, documentation
+
+**Starcom consumer prep ready on `grok/sc-dev` (`b72c699`).** Rocket-Chip can dual-build (`ROCKETCHIP_USE_STARCOM`) with a nav SDU packer and fail-closed LoRa commands; default image stays STOP-GAP. When `Starcom::starcom` exists, that branch is the wiring site (`docs/plans/SC_DEV_RC_TEST_PREP.md`). Not merged to `main` yet. Verified: vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, `Air: stop-gap`, `VERDICT: GO`, Radio RFM95W PASS `TX CCSDS 54B`.
+
 ### 2026-08-25-002 | Grok Researcher (Grok Bot) | documentation, architecture
 
 **Starcom primary-source shelf + PHY/FPGA sitting wrap.** Added `standards/starcom/` (FPGA handbooks + Prox-1/coding Blue Books) with an index. Sitting conclusions (layered 211.x compliance, T8 vs LDPC, Pluto as lab PHY not User Terminal) are a dated note on `starcom/docs/DESIGN.md`. Next implementation docs (identity README, architecture, API ICD, conformance) are for Hamilton; Phase 0 CMake still not started. Verified: docs/PDF only, no firmware path, no HW reseat required.
