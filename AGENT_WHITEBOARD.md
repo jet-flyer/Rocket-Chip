@@ -40,7 +40,7 @@ Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-sou
 
 ## SC_dev RC worktree (OPEN) (2026-08-25)
 
-Worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` on `grok/sc-dev` (from `docs/starcom-sad-draft` @ `bacf0d4`). RC-side Starcom **test-prep**, not library codecs. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Do not merge to `main` until Starcom host increments 0+1 and 2 have Closed IDs and the owner schedules integration. Flight image on `main` stays STOP-GAP. No CMake `add_subdirectory(starcom)` until `Starcom::starcom` exists.
+Worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` on `grok/sc-dev`. RC-side Starcom test-prep; **goal is merge to `main`**. Council 2026-08-26 (JPL/Professor/ArduPilot/Cubesat) **GO WITH AMENDMENTS**: merge ≠ cutover ≠ Stage 17. Plan + record: `docs/plans/SC_DEV_RC_TEST_PREP.md`, `SC_DEV_RC_TEST_PREP_COUNCIL_2026-08-26.md`. No CMake `add_subdirectory(starcom)` until `Starcom::starcom` exists. Stage 17 motor stays STOP-GAP.
 
 ---
 
