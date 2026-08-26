@@ -45,12 +45,12 @@ from _rc_test_common import (  # noqa: E402
 )
 
 
-# Canned banner samples captured 2026-04-27 from real firmware on the
-# bench. These are the source of truth for the regex / token tests.
+# Banner grammar SSOT: standards/VERSIONING.md (2026-08-26).
+# 2026-04-27 captures kept as compatibility samples for the old RCOS field.
 
 VEHICLE_FLIGHT_BANNER = """\
 ==============================================
-  RocketChip v0.16.0  RCOS v0.5.0  flight-deadbe
+  RocketChip 0.16.3-dev flight-deadbe
   Board: Adafruit Feather RP2350 HSTX
   Profile: Rocket  Uptime: 5s
 ==============================================
@@ -62,7 +62,7 @@ h-Help  p-Preflight  c-Calibration  f-Flight
 
 STATION_KMENU_BANNER = """\
 ========================================
-  RocketChip v0.16.0  RCOS v0.5.0 - Station RX
+  RocketChip 0.16.3-dev flight-deadbe - Station RX
   Board: Adafruit Fruit Jam
 ========================================
 
@@ -122,7 +122,7 @@ def test_classify_vehicle_flight() -> None:
     b = classify_banner(VEHICLE_FLIGHT_BANNER)
     check('role is VEHICLE',  b.role is Role.VEHICLE,      f'got {b.role}')
     check('build is FLIGHT',  b.build is Build.FLIGHT,     f'got {b.build}')
-    check('version captured', b.version == '0.16.0',       f'got {b.version!r}')
+    check('version captured', b.version == '0.16.3-dev',       f'got {b.version!r}')
     check('board captured',   b.board is not None
           and 'feather rp2350 hstx' in (b.board or ''),    f'got {b.board!r}')
     check('is_vehicle()',     b.is_vehicle())

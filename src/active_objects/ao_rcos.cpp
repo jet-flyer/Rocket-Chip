@@ -193,7 +193,8 @@ static void enter_cli_menu() {
     AO_RCOS_set_output_mode(StationOutputMode::kMenu);
     rc::rc_log("\033[2J\033[H");
     rc::rc_log("========================================\n");
-    rc::rc_log("  RocketChip v%s  RCOS v%s — Station RX\n", kFirmwareVersion, kRcOsVersion);
+    rc::rc_log("  RocketChip %s %s-%s — Station RX\n",
+           kVersionString, kBuildConfig, kGitHash);
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("========================================\n\n");
     rc::rc_log("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");

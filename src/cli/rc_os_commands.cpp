@@ -735,8 +735,8 @@ static void print_gps_status_boot() {
 
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
-    rc::rc_log("  Build: %s-%s-%s (%s %s)\n",
-           kFirmwareVersion, kBuildConfig, kGitHash, __DATE__, __TIME__);
+    rc::rc_log("  Build: %s %s %s (%s %s)\n",
+           kVersionString, kBuildConfig, kBuildIdentity, __DATE__, __TIME__);
 
     rc::rc_log("[PASS] Build + boot (you're reading this)\n");
     rc::rc_log("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
@@ -850,8 +850,8 @@ void cli_print_boot_summary() {
 
     rc::rc_log("\n");
     rc::rc_log("==============================================\n");
-    rc::rc_log("  RocketChip v%s  RCOS v%s  %s-%s\n",
-           kFirmwareVersion, kRcOsVersion, kBuildConfig, kGitHash);
+    rc::rc_log("  RocketChip %s %s-%s\n",
+           kVersionString, kBuildConfig, kGitHash);
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("  Profile: %s  Uptime: %lus\n",
            rc::kDefaultRocketProfile.name,
