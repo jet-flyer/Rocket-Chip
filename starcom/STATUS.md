@@ -2,14 +2,14 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** docs cut on `docs/starcom-sad-draft`. No library code, no CMake targets, not in the root build.
+**Phase:** docs cut on `docs/starcom-sad-draft` (SAD, ICD, CONFORMANCE, IVP, identity README). No library code, no CMake targets, not in the root build.
 
 ## Next
 
 1. Codecs: PLTU, Version-3, Space Packet SDU, PLCW/CLCW field pack. CMake (`Starcom::starcom` + host ctest + `tl::expected` / span seams) lands with the first `.cpp`, not as a solo sitting.
 2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
 
-After codecs + COP-P: USLP, COP-1, adapters, then a Starcom IVP fed from this STATUS and `docs/CONFORMANCE.md`. FPGA sim is later (Researcher / Buzz).
+After codecs + COP-P: USLP, COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
 
 ## Phase sketch
 
@@ -36,3 +36,4 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - SAD with on-the-wire PLTU figure (`starcom/docs/SAD.md`).
 - ICD, CONFORMANCE, this STATUS, WORKING_HERE vocabulary.
 - Identity README and folder READMEs un-placeholdered. DESIGN pointer so stale D-4 is not read as current.
+- IVP (`docs/IVP.md`): living plan, IEEE/ECSS shape. Closed log IDs minted when gates pass, not in advance.

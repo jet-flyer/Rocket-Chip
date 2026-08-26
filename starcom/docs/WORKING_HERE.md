@@ -50,7 +50,7 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
   1. this file
   2. `DESIGN.md` (locks)
   3. `SAD.md` (map), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
-  4. `STATUS.md` (phase)
+  4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass)
   5. `comparison.md` / research pair as needed (historical)
 - **Do** append to research/comparison/design-record docs — **do not silently rewrite** another agent's entries (`CROSS_AGENT_REVIEW.md`).
 
@@ -122,6 +122,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure). | Draft 2026-08-25 |
 | [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
 | [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table. | Draft 2026-08-25 |
+| [`docs/IVP.md`](IVP.md) | Integration/verification plan (IEEE 1012 + ECSS methods). Closed log IDs when gates pass. | Living 2026-08-25 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |
 
 ### At Rocket-Chip repo root (firmware-owned — do not copy into `starcom/`)
@@ -131,7 +132,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | Root [`CHANGELOG.md`](../../CHANGELOG.md) | Rocket-Chip firmware and integration history. |
 | [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | Cross-session RC flags. Starcom-specific notes may appear here **briefly** with a link to `starcom/` — not a second whiteboard. |
 | [`docs/PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md) | RC phase/blockers. Starcom progress does not belong here except "RC blocked on Starcom MVP". |
-| [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan. Starcom IVP comes later in `starcom/`, fed from STATUS/CONFORMANCE, not a clone of this file. |
+| [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan (board bring-up checklist). Starcom’s plan is [`docs/IVP.md`](IVP.md), not a clone. |
 | [`docs/decisions/*`](../../docs/decisions/) | RC architectural decisions (STOP-GAP retry map, Stage T, etc.). Not Starcom library decisions. |
 
 ### Not needed yet (add at Phase 0 / extraction)

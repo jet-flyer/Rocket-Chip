@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-25-002 | Grok Hamilton (Grok Bot) | documentation, architecture
+
+**Starcom docs cut + living IVP.** SAD, ICD, CONFORMANCE, identity README, folder READMEs, DESIGN pointer (D-4 closed as PLTU wraps V-3 XOR USLP). IVP at `docs/IVP.md` (IEEE 1012 + ECSS methods; Closed log IDs when gates pass, not a projected SC-01 list). Next: first codec, CMake with it. No library code. Detail: `docs/IVP.md`, `STATUS.md`.
+
 ### 2026-08-25-001 | Grok Researcher (Grok Bot) | documentation
 
 Collected public CCSDS Blue Books and NASA/ESA/GSFC FPGA handbooks under `../../standards/starcom/` (index README). DESIGN.md gained a 2026-08-25 note on layered Prox-1 compliance, T8/LDPC, and Pluto-as-lab-PHY. Identity README / architecture map still pending. No CMake or core code this sitting.

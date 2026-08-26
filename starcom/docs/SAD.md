@@ -106,7 +106,7 @@ starcom/
 | Module | Job |
 |--------|-----|
 | types | Strong IDs (`Scid`, `Vcid`, `MapId`, …) |
-| result / span | Error and buffer seams (header-vs-static form is a Phase 0 spike) |
+| result / span | Error and buffer seams. Static `Starcom::starcom` is the product. |
 | clcw / plcw | `Clcw32` and `Plcw16` — distinct. No generic OCF. |
 | pltu | C&S envelope: ASM + CRC-32 (211.2). Wraps one frame version. |
 | v3 | Version-3 transfer frame (211.0). First insides of PLTU. |

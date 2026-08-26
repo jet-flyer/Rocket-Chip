@@ -2,7 +2,7 @@
 
 Library docs live here, not under repo-root `docs/research/`.
 
-**Living (this sitting):** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`../STATUS.md`](../STATUS.md).
+**Living (this sitting):** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`../STATUS.md`](../STATUS.md).
 
 **Research freeze:** [`DESIGN.md`](DESIGN.md) is the condensed record. Historical research and `comparison.md` stay append-only.
 
@@ -11,7 +11,7 @@ Library docs live here, not under repo-root `docs/research/`.
 1. [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts and vocabulary
 2. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
 3. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
-4. [`../STATUS.md`](../STATUS.md) — phase and implementation order
+4. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof and Closed log
 5. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
 
 ## Tracking (`starcom/` root)
