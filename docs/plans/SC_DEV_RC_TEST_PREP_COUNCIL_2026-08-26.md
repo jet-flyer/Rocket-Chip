@@ -7,6 +7,8 @@
 
 Round 1 was independent briefs. Round 2 was dialogue. Locks below are the Round 2 joint recommendation. Do not treat Round 1 leftovers as open.
 
+**2026-08-26:** Living plan coarsened back to prep grain (strip / add / merge). Radio-path detail in this record stays here; do not copy it into `SC_DEV_RC_TEST_PREP.md`.
+
 ---
 
 ## Conversation (compressed)
