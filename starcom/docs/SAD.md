@@ -119,7 +119,7 @@ starcom/
 
 **CMake:** package `starcom`, alias `Starcom::starcom`, namespace `starcom::ccsds`. As-is: `project(starcom)`, no library target. Phase 0 creates a real target. Core never links adapter targets.
 
-A generic radio port (SPI/GPIO) lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip. Consumer owns I/O policy. Prox-1 session/MAC/hailing is out of this MVP (no stub). A full module later if we hail.
+A generic radio port (SPI/GPIO) lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip. Consumer owns I/O policy. Prox-1 session/MAC/hailing is not in the MVP sequence. Full module vs out is decided when we implement it, not now. No stub.
 
 ## View 3 — Decisions
 
@@ -134,7 +134,7 @@ Settled this sitting (do not reopen):
 - Framing: PLTU wraps Version-3 XOR Version-4 (USLP), never mixed on one stream, never USLP nested in the V-3 data field. MVP includes both frame types. Implementation order: PLTU, then V-3, then USLP.
 - Time: caller passes `now`; the C++ typedef lands with COP-P timers, not as a Phase 0 public type.
 - Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
-- Prox-1 §6 session/MAC is out of this MVP. No stub.
+- Prox-1 §6 session/MAC is not decided. Full module vs out waits until we implement it. No stub now.
 - Blue Book pins are the issues in the figure caption above. No second pin list.
 
 ## What this file is not

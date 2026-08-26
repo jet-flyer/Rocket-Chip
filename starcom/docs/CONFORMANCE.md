@@ -14,7 +14,7 @@ Honesty: a claim is in-scope, deferred, or out of scope. "Best effort" is not a 
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. |
 | COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | In scope (MVP, after codecs) | Prox ARQ. USLP can host this; it does not replace it. Sequenced immediately after V-3/PLTU can pack a frame. |
 | COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (after COP-P) | The other ARQ. Distinct from COP-P. Not a substitute. |
-| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Out of this MVP | No stub. Full module later if we hail. |
+| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Not decided | Decide at implementation (full module vs out). No stub now. |
 | Convolutional or LDPC coding | 211.2 → 131.0-B-3 | Deferred | 211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded PLTU. |
 | Long-haul TM C&S (131.0 ASM / FECF path) | 131.0 | Out of scope for this MVP | Different coding sublayer than PLTU. |
 | 211.1-B-4 Physical Layer | 211.1-B-4 | Out of scope | No blanket PHY claim. Adapters may later declare none / best-effort / compliant. |

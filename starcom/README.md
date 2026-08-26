@@ -18,4 +18,4 @@ starcom/
   CMakeLists.txt     scaffold until Phase 0
 ```
 
-CMake still has no library target. Next coding work is Phase 0 (`Starcom::starcom` + host ctest).
+CMake still has no library target. That lands with the first codec, not as a solo sitting.

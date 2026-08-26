@@ -163,7 +163,9 @@ Decisions from this sitting live in `SAD.md` (map), `ICD.md` (handshake), `CONFO
 
 **C++ / errors:** C++20, `tl::expected` default with a knob, `std::span`, no exceptions across the core API.
 
-**Closed with this sitting (not leftover forks):** static `Starcom::starcom` is the product (header-only is a later size spike, not a Phase 0 fork). Prox-1 §6 session/MAC is out of this MVP; no stub; a full module later if we hail. Blue Book pins are the issues already in the SAD figure caption. Time typedef and ICD signatures land when COP-P / the first codec need them.
+**Closed with this sitting (not leftover forks):** static `Starcom::starcom` is the product (header-only is a later size spike, not a fork). Blue Book pins are the issues already in the SAD figure caption. Time typedef and ICD signatures land when COP-P / the first codec need them. CMake (`Starcom::starcom` + host ctest) lands with the first codec `.cpp`, not as a solo sitting.
+
+**Prox-1 §6 session/MAC:** not decided. Full module vs out waits until we implement it. No stub in the meantime. Do not treat absence from the MVP sequence as a removal.
 
 
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)
