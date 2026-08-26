@@ -11,6 +11,12 @@ cmake_minimum_required(VERSION 3.25)
 
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 
+# Dual-build soak for the Starcom consumer. Default OFF = today's STOP-GAP
+# air path. ON compiles RC prep (banner, nav SDU packer, LoRa commands
+# refuse). Does NOT add_subdirectory(starcom) until Starcom::starcom exists.
+# Dies at ops cutover. See docs/plans/SC_DEV_RC_TEST_PREP.md.
+option(ROCKETCHIP_USE_STARCOM "Starcom consumer prep (no library link yet)" OFF)
+
 if(BUILD_TESTS)
     # ========================================================================
     # Host Build: Pure C++ libraries + Google Test (no Pico SDK)
@@ -21,6 +27,11 @@ if(BUILD_TESTS)
     set(CMAKE_CXX_STANDARD 20)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+    if(ROCKETCHIP_USE_STARCOM)
+        add_compile_definitions(ROCKETCHIP_USE_STARCOM=1)
+        message(STATUS "Starcom consumer prep: ON (host; Starcom::starcom not linked)")
+    endif()
 
     # Google Test (pinned v1.14.0)
     include(FetchContent)
@@ -109,6 +120,7 @@ if(BUILD_TESTS)
     add_library(rc_telemetry STATIC
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/starcom_adapt/nav_sdu.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -433,6 +445,7 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/starcom_adapt/nav_sdu.cpp
 
         # -------------------------------------------------------------------------
         # Stage 8: Flight Director (IVP-66+)
@@ -575,6 +588,7 @@ else()
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/starcom_adapt/nav_sdu.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp
         src/flight_director/command_handler.cpp
@@ -825,6 +839,11 @@ else()
         set(GIT_HASH_RAW "unknown")
     endif()
     target_compile_definitions(rocketchip PRIVATE GIT_HASH="${GIT_HASH_RAW}")
+
+    if(ROCKETCHIP_USE_STARCOM)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_USE_STARCOM=1)
+        message(STATUS "Starcom consumer prep: ON (not linking Starcom::starcom — no library target yet)")
+    endif()
 
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)

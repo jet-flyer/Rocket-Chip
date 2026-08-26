@@ -26,6 +26,7 @@
 #include "rocketchip/radio_config.h"
 #include "rocketchip/radio_config_table.h"          // SET_RADIO_CONFIG whitelist
 #include "rocketchip/job.h"
+#include "starcom_adapt/sc_air.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
 #ifdef ROCKETCHIP_JOB_STATION
@@ -859,6 +860,16 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
                                        float p2, float p3,
                                        float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
+    if constexpr (!rc::kAirLoraCommandsEnabled) {
+        rc::rc_log("[SC] LoRa command refused (starcom-prep; COP-P not linked)\n");
+        (void)command;
+        (void)p1;
+        (void)p2;
+        (void)p3;
+        (void)p4;
+        (void)p5;
+        return;
+    }
     // Newest-wins dedupe for non-safety cmds: mash → one pending, latest params.
     // ARM/ABORT bypass so each press keeps its own ACK window.
     if (g_pendingCmd.pending &&

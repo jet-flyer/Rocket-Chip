@@ -11,6 +11,7 @@
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/radio_config.h"     // T5.5 sub 2f: nav-with-config encoder needs full RadioConfig
 #include "safety/health_monitor.h"       // 2-bit health decode
+#include "starcom_adapt/nav_sdu.h"
 #include "crc16_ccitt.h"
 #include <string.h>
 #include <math.h>
@@ -50,9 +51,7 @@ static constexpr uint8_t  kCcsdsPriHdrDataLenIdx = 5;    // Byte index of data_l
 static constexpr uint8_t kMetShift24 = 24;
 
 // Nav payload layout: first 40 bytes of TelemetryState (q_w through battery_mv)
-static constexpr uint8_t kTelemPayloadBytes = 40;
-static constexpr uint8_t kTelemPadding1Idx  = 40;  // Padding byte 1 offset within payload
-static constexpr uint8_t kTelemPadding2Idx  = 41;  // Padding byte 2 offset within payload
+// Packer lives in starcom_adapt/nav_sdu (future Space Packet user data).
 
 void CcsdsEncoder::init() {
     seq_count = 0;
@@ -87,19 +86,9 @@ static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
     buf[3] = static_cast<uint8_t>( met_ms        & 0xFF);
 }
 
-// Write the 42-byte nav payload (first 40 B of TelemetryState + 2 B padding).
-// Returns advanced pointer.
-//
-// TelemetryState layout:
-//   bytes  0-39: q_w through battery_mv  (40 bytes)
-//   bytes 40-43: met_ms                  (4 bytes — in secondary header)
-//   byte  44:    flags                   (1 byte — not on this 42 B nav payload)
 static uint8_t* write_nav_payload_42(uint8_t* p, const TelemetryState& telem) {
-    const uint8_t* telem_bytes = reinterpret_cast<const uint8_t*>(&telem);
-    memcpy(p, telem_bytes, kTelemPayloadBytes);
-    p[kTelemPadding1Idx] = 0;
-    p[kTelemPadding2Idx] = 0;
-    return p + ccsds::kNavPayloadLen;
+    const uint8_t n = pack_nav_sdu_user(p, ccsds::kNavPayloadLen, telem);
+    return p + n;
 }
 
 void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
@@ -400,7 +389,9 @@ bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                   static_cast<uint32_t>(buf[kSecHdrByte3]);
 
     memset(&telem, 0, sizeof(telem));
-    memcpy(&telem, &buf[kPayloadIdx], kTelemPayloadBytes);
+    if (!unpack_nav_sdu_user(&buf[kPayloadIdx], ccsds::kNavPayloadLen, &telem)) {
+        return false;
+    }
     telem.met_ms = met_ms_out;
 
     // Config tail (only present in APID 0x004).

@@ -115,6 +115,18 @@ add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
 target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)
 gtest_discover_tests(test_telemetry_encoder)
 
+# Starcom consumer prep: nav SDU packer (no mavlink / encoder)
+add_executable(test_nav_sdu
+    test_nav_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+)
+target_link_libraries(test_nav_sdu PRIVATE GTest::gtest_main)
+target_include_directories(test_nav_sdu PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_nav_sdu)
+
 # IVP-62b: MAVLink RX parser
 add_executable(test_mavlink_rx test_mavlink_rx.cpp)
 target_link_libraries(test_mavlink_rx PRIVATE rc_telemetry GTest::gtest_main)

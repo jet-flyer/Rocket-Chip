@@ -40,7 +40,7 @@ Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-sou
 
 ## SC_dev RC worktree (OPEN) (2026-08-25)
 
-Worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` on `grok/sc-dev`. RC-side Starcom test-prep; **goal is merge to `main`**. Council GO WITH AMENDMENTS (merge ≠ cutover ≠ Stage 17). Living plan is prep grain; radio minutiae stay on `docs/plans/SC_DEV_RC_TEST_PREP_COUNCIL_2026-08-26.md`. No `add_subdirectory(starcom)` until `Starcom::starcom` exists. Stage 17 motor stays STOP-GAP.
+Worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` on `grok/sc-dev`. RC-side Starcom test-prep; **goal is merge to `main`**. Prep without library: `ROCKETCHIP_USE_STARCOM` (default OFF), `src/starcom_adapt/`, `Air: starcom-prep` banner, LoRa commands refuse when ON. No `add_subdirectory(starcom)` until `Starcom::starcom` exists. `docs/SCAFFOLDING.md` still omits `src/starcom_adapt/` (hard-protected, not named). Stage 17 motor stays STOP-GAP.
 
 ---
 

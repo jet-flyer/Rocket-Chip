@@ -852,6 +852,7 @@ void cli_print_boot_summary() {
     rc::rc_log("==============================================\n");
     rc::rc_log("  RocketChip v%s  RCOS v%s  %s-%s\n",
            kFirmwareVersion, kRcOsVersion, kBuildConfig, kGitHash);
+    rc::rc_log("  Air: %s\n", kAirDialect);
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("  Profile: %s  Uptime: %lus\n",
            rc::kDefaultRocketProfile.name,

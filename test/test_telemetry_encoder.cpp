@@ -74,6 +74,15 @@ TEST_F(CcsdsEncoderTest, PacketSize) {
     EXPECT_EQ(result.len, 54);
 }
 
+TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
+    // Fixture for a later Starcom PLTU test: reject this 54 B packet
+    // (ASM is FAF320). Do not invent a PLTU encoder here.
+    enc.encode_nav(telem, 12345, result);
+    ASSERT_TRUE(result.ok);
+    EXPECT_EQ(result.buf[0] & 0xE0, 0x00);
+    EXPECT_NE(result.buf[0], 0xFA);
+}
+
 TEST_F(CcsdsEncoderTest, MaxPacketSize) {
     // Stage T IVP-T5.5 sub 2f: bumped to 58 when encode_nav_with_config
     // became the default TX path (nav + 4 B config tail, APID 0x004).

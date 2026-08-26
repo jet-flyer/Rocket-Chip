@@ -37,6 +37,12 @@ constexpr const char* kBuildConfig = "flight";
 #endif
 constexpr const char* kGitHash = GIT_HASH;
 
+#ifdef ROCKETCHIP_USE_STARCOM
+constexpr const char* kAirDialect = "starcom-prep";
+#else
+constexpr const char* kAirDialect = "stop-gap";
+#endif
+
 // Build iteration tag — increment on every rebuild during debug sessions.
 // See LESSONS_LEARNED.md Entry 2.
 constexpr const char* kBuildIterationTag = "16B-init";

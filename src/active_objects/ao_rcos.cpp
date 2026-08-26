@@ -194,6 +194,7 @@ static void enter_cli_menu() {
     rc::rc_log("\033[2J\033[H");
     rc::rc_log("========================================\n");
     rc::rc_log("  RocketChip v%s  RCOS v%s — Station RX\n", kFirmwareVersion, kRcOsVersion);
+    rc::rc_log("  Air: %s\n", kAirDialect);
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("========================================\n\n");
     rc::rc_log("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");
