@@ -34,7 +34,13 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ## Starcom Phase 0 (OPEN) (2026-08-21)
 
-Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-source shelf `standards/starcom/` + PHY/FPGA note 2026-08-25. Next docs (Hamilton): identity README, architecture map, core API ICD, conformance, then Phase 0 host-only CMake. Not a license to start CMake until scheduled. Researcher stays Blue Books.
+Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-source shelf `standards/starcom/` + PHY/FPGA note 2026-08-25. Identity README / SAD / ICD / CONFORMANCE / IVP are on `docs/starcom-sad-draft`. Phase 0 host-only CMake still not started — not a license until scheduled. Researcher stays Blue Books. RC consumer / RF test-prep is **not** this row: see SC_dev worktree below.
+
+---
+
+## SC_dev RC worktree (OPEN) (2026-08-25)
+
+Worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` on `grok/sc-dev` (from `docs/starcom-sad-draft` @ `bacf0d4`). RC-side Starcom **test-prep**, not library codecs. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Do not merge to `main` until Starcom host increments 0+1 and 2 have Closed IDs and the owner schedules integration. Flight image on `main` stays STOP-GAP. No CMake `add_subdirectory(starcom)` until `Starcom::starcom` exists.
 
 ---
 
