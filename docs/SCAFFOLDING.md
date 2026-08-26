@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-08-24
+**Updated:** 2026-08-26
 
 **Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -16,6 +16,9 @@ rocketchip/
 ├── CMakeLists.txt                 # Primary build system (Pico SDK + Ninja)
 ├── CMakePresets.json              # 4 build combos (vehicle/station × bench/flight)
 ├── pico_sdk_import.cmake          # Pico SDK integration
+├── cmake/
+│   └── rc_version.cmake           # Generates rocketchip/version.h from RC_VERSION + git
+├── RC_VERSION                     # Product version (IVP stage.substage; not C++ <version>)
 ├── README.md                      # Agent instructions
 ├── CHANGELOG.md                   # Development history
 ├── AGENT_WHITEBOARD.md            # Cross-session communication
@@ -91,6 +94,7 @@ rocketchip/
 │
 ├── standards/
 │   ├── CODING_STANDARDS.md        # Code style and safety rules
+│   ├── VERSIONING.md              # Firmware identification (RC / RCOS / Starcom CIs)
 │   ├── DEBUG_OUTPUT.md            # USB CDC output conventions
 │   ├── GIT_WORKFLOW.md            # Git conventions
 │   ├── VENDOR_GUIDELINES.md       # Hardware vendor constraints and datasheets
@@ -118,7 +122,7 @@ rocketchip/
 │       ├── job_vehicle.h          # Vehicle role constants
 │       ├── job_station.h          # Station role constants
 │       ├── job_relay.h            # Relay role constants
-│       ├── version.h              # kFirmwareVersion / RC_VERSION_* trio
+│       ├── version.h.in           # template; CMake writes generated/rocketchip/version.h
 │       ├── rc_debug.h             # DBG_* macros
 │       ├── rc_log.h               # Log channel (rc_log) + buffer formatter (rc_snprintf) + strbuf (R-5, 2026-05-17)
 │       ├── ao_signals.h           # System-wide AO signal catalog + event structs

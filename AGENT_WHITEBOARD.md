@@ -81,7 +81,7 @@ Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted.
 
 **Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Early-impl table.
 
-**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites. Version bump not invented. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 

@@ -797,3 +797,13 @@ Master SPIN gate on `grok/l2p5-disposition`: **SPIN_OK_31** (6 models, all `erro
 | CW-B20-06 / CW-L001 / CW-B21-04 / CW-L002 / CW-B22-03 / GWF-252 / GWF-255 / CW-B23-05 / CW-L003 / GWF-267 / GWF-246 | REMEDIATE | FD ctor/action/guard/table contracts |
 | CW-B29-03 / GWF-320 / CW-B38-04 / GWF-427 / CW-B40-07 / CW-B40-08 / GWF-458 / GWF-455 | REMEDIATE | dump SPI; log_event; LED writers/stall; static QEvt |
 | CW-L047 / GWF-085 / GWF-012 / GWF-029 / GWF-048 / GWF-098 / GWF-129 / GWF-159 / GWF-295 / GWF-298 / GWF-300 / GWF-304 / GWF-408 / GWF-464 | REMEDIATE | leftover header/driver/main contracts |
+
+## Version bump process (WN-010 / WN-067 / R-9) — CLOSED 2026-08-26
+
+Closed on docs/versioning by standards/VERSIONING.md plus generated
+
+ocketchip/version.h. Product tuple lives in repo-root RC_VERSION. Git
+identity is CMake-captured. Banner grammar is in VERSIONING.md.
+
+The 2026-08-21 grab-bag table above stays the label sitting. This section is
+the unique-path close. **WN-322** (RC_OS rework comments) is unchanged DEFER.

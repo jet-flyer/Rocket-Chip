@@ -22,6 +22,9 @@ if(BUILD_TESTS)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+    # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
+
     # Google Test (pinned v1.14.0)
     include(FetchContent)
     FetchContent_Declare(googletest
@@ -227,6 +230,9 @@ else()
 
     # Initialize the SDK
     pico_sdk_init()
+
+    # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
 
     # ============================================================================
     # Build Configuration
@@ -609,6 +615,7 @@ else()
     # Include directories — split into our code (-I, pedantic-checked) and
     # vendored third-party code (-isystem, pedantic-suppressed).
     target_include_directories(rocketchip PRIVATE
+        ${RC_VERSION_GENERATED_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/drivers
@@ -813,18 +820,8 @@ else()
         endif()
     endif()
 
-    # Git hash injection for version.h
-    execute_process(
-        COMMAND git rev-parse --short HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_HASH_RAW
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-    )
-    if(NOT GIT_HASH_RAW)
-        set(GIT_HASH_RAW "unknown")
-    endif()
-    target_compile_definitions(rocketchip PRIVATE GIT_HASH="${GIT_HASH_RAW}")
+    # Firmware identity is cmake/rc_version.cmake -> generated/rocketchip/version.h.
+    # Do not add a second GIT_HASH compile-definition mechanism.
 
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
