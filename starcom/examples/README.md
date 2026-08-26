@@ -1,3 +1,3 @@
 # Examples (`examples/`)
 
-**Placeholder.** Minimal loopback and ground-station demos once the core has codecs. Learning-oriented; not RC firmware.
+Loopback and tiny ground-station demos after codecs exist. Not Rocket-Chip firmware.

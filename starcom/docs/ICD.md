@@ -1,6 +1,6 @@
 # Starcom core ICD
 
-**Status:** Draft. Principles plus named verbs. Signatures TBD until Phase 1 codecs exist. Namespace `starcom::ccsds`.
+**Status:** Draft. Principles plus named verbs. Signatures land with the first codec, not invented here. Namespace `starcom::ccsds`.
 
 This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Do not treat example spellings below as the API.
 
@@ -26,10 +26,10 @@ It may not: open a socket, poke SPI, sleep inside the core, or include Rocket-Ch
 - Caller owns state. Protocol state lives in caller-provided static structs. The core is functions over that state.
 - Public API is value-or-error. Default `tl::expected`. Compile knob to `std::expected` or `starcom::Result`. No exceptions across the core API. Error objects trivially copyable, no heap.
 - C++20. `std::span` is the buffer type. Do not vendor a span backport.
-- Time: the core never reads a clock. The caller passes `now`. The C++ type is deferred until COP timers are implemented.
+- Time: the core never reads a clock. The caller passes `now`. The C++ typedef lands with COP-P timers.
 - Strong IDs (`Scid`, `Vcid`, `MapId`, …). Version-3 uses PCID / Port ID; those are not USLP VCID / MAP.
 
-## Named verbs (signatures TBD)
+## Named verbs
 
 From DESIGN / library_craft, for the engine, not for Phase 1 helpers:
 
@@ -41,7 +41,7 @@ From DESIGN / library_craft, for the engine, not for Phase 1 helpers:
 | `handle_timeout` / `tick` | Caller passes `now`. Core owns no clock. |
 | `submit_sdu` | Caller gives a Space Packet (or equivalent SDU) to send. |
 
-Exact types, error codes, and whether output is a drain or a write-into-span: TBD in Phase 1/3 when the first caller exists. Do not invent them here.
+Exact types, error codes, and whether output is a drain or a write-into-span land with the first codec / COP-P caller. Do not invent them here.
 
 ## Not this document
 

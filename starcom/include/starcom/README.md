@@ -1,3 +1,5 @@
 # Public headers (`include/starcom/`)
 
-**Placeholder.** Future public API lives here. Layout mirrors namespace (`starcom::ccsds` → `include/starcom/ccsds/`). Consumers see only this directory.
+Consumers' only search path. Mirrors `starcom::ccsds`. No Rocket-Chip types, no radio objects, no hardware.
+
+Real headers arrive in Phase 0 (`version`, `error`/`expected`, `span`). Codecs after that. See `docs/ICD.md`.

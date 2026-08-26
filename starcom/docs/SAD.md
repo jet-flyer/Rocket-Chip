@@ -4,7 +4,7 @@
 
 Shape follows ISO/IEC/IEEE 42010 in miniature: stakeholders and concerns, then views that answer them, then decisions. Layout follows Pitchfork (`include/` public, `src/` implementation). The core is sans-I/O (I/O and flow control at the edges).
 
-This is the map. The ICD is the handshake at the core boundary (signatures still TBD). Conformance is the claim table (forthcoming). STATUS is phase. Acronyms live in `WORKING_HERE.md`.
+This is the map. The ICD is the handshake at the core boundary (named verbs now; signatures land with the first codec). Conformance is the claim table. STATUS is phase. Acronyms live in `WORKING_HERE.md`.
 
 ## Stakeholders and concerns
 
@@ -35,7 +35,7 @@ HW-specific drivers live here only.
 Integration (Rocket-Chip) is outside this tree.
 ```
 
-Verb names are the sans-I/O handshake. Signatures: ICD, TBD.
+Verb names are the sans-I/O handshake. Signatures land with the first codec; do not invent them in the ICD now.
 
 ## On the wire
 
@@ -119,7 +119,7 @@ starcom/
 
 **CMake:** package `starcom`, alias `Starcom::starcom`, namespace `starcom::ccsds`. As-is: `project(starcom)`, no library target. Phase 0 creates a real target. Core never links adapter targets.
 
-A generic radio port (SPI/GPIO) lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip. Consumer owns I/O policy. Prox-1 session/MAC/hailing is a later full module or absent — not a stub in the MVP core.
+A generic radio port (SPI/GPIO) lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip. Consumer owns I/O policy. Prox-1 session/MAC/hailing is out of this MVP (no stub). A full module later if we hail.
 
 ## View 3 — Decisions
 
@@ -132,13 +132,10 @@ Settled this sitting (do not reopen):
 - `Clcw32` / `Plcw16` distinct. No generic OCF.
 - F' is an integration target, not a Starcom dependency.
 - Framing: PLTU wraps Version-3 XOR Version-4 (USLP), never mixed on one stream, never USLP nested in the V-3 data field. MVP includes both frame types. Implementation order: PLTU, then V-3, then USLP.
-- Time: caller passes `now`; typedef deferred until COP timers.
-
-Still open (label, do not invent):
-
-- Header-vs-static default (Phase 0 size spike).
-- Whether Prox-1 §6 session/MAC is a later full module or stays out.
-- Exact issue pins for books other than 211.2 ↔ 131.0-B-3 (already pinned in DESIGN).
+- Time: caller passes `now`; the C++ typedef lands with COP-P timers, not as a Phase 0 public type.
+- Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
+- Prox-1 §6 session/MAC is out of this MVP. No stub.
+- Blue Book pins are the issues in the figure caption above. No second pin list.
 
 ## What this file is not
 

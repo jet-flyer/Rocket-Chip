@@ -1,5 +1,9 @@
 # Contributing to Starcom
 
-**Placeholder.** Will cover build/test commands, coding standard for the core, DCO/sign-off, and PR expectations. See `docs/WORKING_HERE.md` for interim rules.
+Interim rules: [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md). Rocket-Chip `standards/CODING_STANDARDS.md` applies to Starcom as much as to RC firmware.
 
-> **Note:** Historical research and design documents in `docs/` predate this folder (authored at `docs/research/`). Do not rewrite them in place to update paths — append or add new docs; see `docs/README.md`.
+Until Phase 0 CMake lands there is no `ctest` target here. Host tests of the core must not need Pico SDK or hardware.
+
+Do not rewrite historical research, `comparison.md`, or `design_record_claude.md`. Append. New architecture goes in SAD / ICD / CONFORMANCE / STATUS.
+
+PR expectations, DCO, and install snippets wait until the library target exists.

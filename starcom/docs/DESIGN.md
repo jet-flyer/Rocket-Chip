@@ -153,6 +153,18 @@ Append-only. Does not rewrite `§0`. Hardware sitting 2026-08-25; primary source
 - **Distributed boards:** Space Packets on UART/CAN-FD; not SpaceWire, not TM/Prox-1 as a backplane. First extra board is a Starcom appliance, not Gemini (Gemini stays dual-Core voting).
 - **Next (not this wrap):** identity README, architecture map, core API ICD, conformance table, then Phase 0 CMake. Implementation is Hamilton; this agent stays research.
 
+## Note — 2026-08-25 (Hamilton + Nathan): living map vs this file
+
+Append-only. Does not rewrite §0 or the research freeze above.
+
+Decisions from this sitting live in `SAD.md` (map), `ICD.md` (handshake), `CONFORMANCE.md` (claims), and `STATUS.md` (order). This file stays the condensed research record.
+
+**Framing (was D-4):** closed for this cut. On a Prox-1 C&S stream, PLTU wraps Version-3 XOR Version-4 (USLP), never mixed, never USLP nested in the V-3 data field. CRC-32 is a PLTU field; USLP FECF is not the Prox-1 CRC. Implementation order: CMake, codecs (PLTU / V-3 / Space Packet / PLCW / CLCW pack), COP-P procedures, then USLP, then COP-1. See SAD and STATUS.
+
+**C++ / errors:** C++20, `tl::expected` default with a knob, `std::span`, no exceptions across the core API.
+
+**Closed with this sitting (not leftover forks):** static `Starcom::starcom` is the product (header-only is a later size spike, not a Phase 0 fork). Prox-1 §6 session/MAC is out of this MVP; no stub; a full module later if we hail. Blue Book pins are the issues already in the SAD figure caption. Time typedef and ICD signatures land when COP-P / the first codec need them.
+
 
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)
 

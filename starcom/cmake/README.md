@@ -1,3 +1,3 @@
 # CMake modules (`cmake/`)
 
-**Placeholder.** Future home for `StarcomConfig.cmake.in`, compiler warnings, sanitizer toggles, and install/export helpers.
+Install/export helpers, warnings, sanitizer toggles. Empty until Phase 0 creates `Starcom::starcom`.

@@ -1,16 +1,16 @@
 # Starcom status
 
-Library-scoped phase and blockers. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
+Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** pre-Phase-0 docs. SAD draft is on `docs/starcom-sad-draft`. ICD, conformance, and this file land with it. No library code, no CMake targets, not in the root build.
+**Phase:** docs cut on `docs/starcom-sad-draft`. No library code, no CMake targets, not in the root build.
 
 ## Next
 
-1. Phase 0 CMake (`Starcom::starcom`), host ctest shell, `tl::expected` + span seams. Header-vs-static default is a spike, not a lock.
+1. Phase 0 CMake: static `Starcom::starcom`, host ctest shell, `tl::expected` + span seams. Header-only is a later size spike, not this step.
 2. Phase 1 codecs: PLTU, Version-3, Space Packet SDU, PLCW/CLCW field pack.
 3. Phase 2 COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
 
-README identity is drafted in chat; not required to start Phase 0.
+After this MVP (0–2): USLP, COP-1, adapters, then a Starcom IVP fed from this STATUS and `docs/CONFORMANCE.md`. FPGA sim is later (Researcher / Buzz), not Phase 0.
 
 ## Phase sketch
 
@@ -26,14 +26,14 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 | 5 | Adapters | Host loopback first. Generic radio port in `starcom/adapters/`. RC pins/AO stay in RC. |
 | 6 | Hardening | Sanitizers, longer fuzz, docs, first `0.1.0`. |
 
-**MVP cut (2026-08-25):** Phases 0–2: CMake, codecs, COP-P. USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. §6 hailing/MAC is later or absent.
+**MVP cut (2026-08-25):** Phases 0–2: CMake, codecs, COP-P. USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. Prox-1 §6 hailing/MAC is out of this MVP (no stub; a full module later if we hail).
 
 ## Blockers
 
 - None for Phase 0 CMake. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
-- Open, not blockers: Prox-1 §6 later vs absent; header-vs-static default.
 
 ## Done this sitting
 
-- SAD draft with on-the-wire PLTU figure (`starcom/docs/SAD.md`).
-- Identity README drafted in chat, not landed.
+- SAD with on-the-wire PLTU figure (`starcom/docs/SAD.md`).
+- ICD, CONFORMANCE, this STATUS, WORKING_HERE vocabulary.
+- Identity README and folder READMEs un-placeholdered. DESIGN pointer so stale D-4 is not read as current.

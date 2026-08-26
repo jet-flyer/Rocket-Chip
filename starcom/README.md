@@ -1,12 +1,21 @@
 # Starcom
 
-**Placeholder.** Standalone CCSDS data-link library (incubating inside Rocket-Chip until extraction to its own repo).
+Starcom is a CCSDS comms **stack** incubating inside Rocket-Chip until it extracts to its own repository.
 
-> **Historical documents:** The research, comparison, and design-record files under `docs/` were **authored before this folder existed** (while they lived at repo-root `docs/research/`). They were **relocated unchanged** on 2026-06-18. Internal cross-references still cite the original paths and filenames — see [`docs/README.md`](docs/README.md) for the current-location mapping.
+The portable piece is the **Starcom library** (`starcom::ccsds`): a sans-I/O data-link core. Rocket-Chip is the first consumer, not the owner.
 
-- **Scope & rules:** [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md) — read first.
-- **Design record:** [`docs/design_record_claude.md`](docs/design_record_claude.md) §0
-- **Doc index:** [`docs/README.md`](docs/README.md)
-- **Status:** [`STATUS.md`](STATUS.md) · **Changelog:** [`CHANGELOG.md`](CHANGELOG.md)
+PHY and claim language live in [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). There is no blanket 211.1 Physical Layer claim.
 
-Implementation scaffold (CMake, headers, tests) not wired up yet — placeholders only.
+Read [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md) first. Map: [`docs/SAD.md`](docs/SAD.md). Handshake: [`docs/ICD.md`](docs/ICD.md). Phase: [`STATUS.md`](STATUS.md). Locks and research freeze: [`docs/DESIGN.md`](docs/DESIGN.md).
+
+```
+starcom/
+  include/starcom/   public API (empty of real headers until Phase 0)
+  src/ccsds/         core implementation
+  adapters/          first-party ports (host, radio)
+  tests/             host tests, no hardware
+  docs/              DESIGN, SAD, ICD, CONFORMANCE, WORKING_HERE
+  CMakeLists.txt     scaffold until Phase 0
+```
+
+CMake still has no library target. Next coding work is Phase 0 (`Starcom::starcom` + host ctest).

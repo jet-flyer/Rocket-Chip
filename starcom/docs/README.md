@@ -1,27 +1,25 @@
 # Starcom documentation
 
-**Placeholder index.** Library docs live here, not under repo-root `docs/research/`.
+Library docs live here, not under repo-root `docs/research/`.
 
-> **Provenance:** All files below (except `WORKING_HERE.md`, `DESIGN.md`, and this README) were written **before** the dedicated `starcom/` folder — originally under `docs/research/`. They were moved here **without content edits** so the historical record stays intact. Cross-references inside those documents still name the old paths; use the mapping table when navigating.
+**Living (this sitting):** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`../STATUS.md`](../STATUS.md).
+
+**Research freeze:** [`DESIGN.md`](DESIGN.md) is the condensed record. Historical research and `comparison.md` stay append-only.
 
 ## Reading order
 
-1. [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts for this folder
-2. [`design_record_claude.md`](design_record_claude.md) — scope, architecture, council rounds (§0 governs)
-3. [`comparison.md`](comparison.md) — cross-doc synthesis + open decisions D-1…D-5
-4. **Research** (underlying evidence):
-   - [`research/ccsds_domain_claude.md`](research/ccsds_domain_claude.md)
-   - [`research/ccsds_domain_grok.md`](research/ccsds_domain_grok.md)
-   - [`research/library_craft_claude.md`](research/library_craft_claude.md)
-   - [`research/library_craft_grok.md`](research/library_craft_grok.md)
-5. [`DESIGN.md`](DESIGN.md) — **canonical condensed record** (post-2026-06-22 condensation session; see DESIGN.md header for sources). Historical research docs remain in place (append-only).
+1. [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts and vocabulary
+2. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
+3. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
+4. [`../STATUS.md`](../STATUS.md) — phase and implementation order
+5. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
 
-## Tracking (repo root of `starcom/`)
+## Tracking (`starcom/` root)
 
-- [`CHANGELOG.md`](../CHANGELOG.md) — library-scoped only (see scope note there)
-- [`STATUS.md`](../STATUS.md) — phase and blockers
-- [`VERSIONING.md`](../VERSIONING.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md) — placeholders until release
-- [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts and tracking-doc map
+- [`CHANGELOG.md`](../CHANGELOG.md) — library-scoped only
+- [`STATUS.md`](../STATUS.md) — phase
+- [`VERSIONING.md`](../VERSIONING.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md) — stubs until release / Phase 0
+- [`WORKING_HERE.md`](WORKING_HERE.md) — tracking-doc map
 
 ## Relocation mapping (2026-06-18, content unchanged)
 
@@ -34,4 +32,4 @@
 | `STARCOM_RESEARCH_COMPARISON.md` | [`comparison.md`](comparison.md) |
 | `STARCOM_CLAUDE_COUNCIL_VERDICT.md` | [`design_record_claude.md`](design_record_claude.md) |
 
-Old `docs/research/` paths are gone; relocation is logged in `CHANGELOG.md` (here) and repo-root `CHANGELOG.md`.
+Old `docs/research/` paths are gone; relocation is logged in CHANGELOG.

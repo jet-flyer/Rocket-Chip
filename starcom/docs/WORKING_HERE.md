@@ -32,7 +32,7 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 - **Do** keep the names straight: **Starcom** = stack, **core** = library, **port** = first-party adapter, **integration** = Rocket-Chip. “No hardware in Starcom” applies to the **core**, not the whole tree.
 - **Do** keep dependency direction one-way: **Rocket-Chip → Starcom**. Starcom must never `#include` Rocket-Chip headers, AO/QP types, board pins, mission profiles, or firmware drivers.
 - **Do** put portable protocol logic in `include/starcom/` and `src/ccsds/`.
-- **Do** put platform-specific glue in `adapters/` (host UDP, RP2350/SX1276, optional AO wrapper) — never in the core.
+- **Do** put platform-specific glue in `adapters/` (host UDP, generic radio port, optional AO wrapper) — never in the core.
 - **Do** structure CMake so Starcom can build and test **independently** of the Pico firmware target (own `ctest` suite, host-first).
 - **Do** use `starcom::` / `starcom::ccsds::` namespaces. RC integration code lives outside this tree.
 
@@ -99,7 +99,7 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 
 ### Process mistakes
 
-- **Don't** implement large features without checking `comparison.md` open decisions (D-1…D-5) — some forks are not settled.
+- **Don't** implement large features against stale `comparison.md` D-1…D-5 text. Living locks are SAD / ICD / CONFORMANCE / STATUS. `comparison.md` is historical; append Status lines, do not rewrite entries.
 - **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; 131.0-B-5 is current TM-only. See `DESIGN.md` pin.
 
 ---
@@ -114,13 +114,13 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 |---|---|---|
 | [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes only (see its scope note). | Live |
 | [`VERSIONING.md`](../VERSIONING.md) | SemVer rules, supported API surface (`include/starcom/` only), breaking-change policy. | Placeholder until first tagged release |
-| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Placeholder — interim rules are this file |
+| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
-| [`docs/comparison.md`](comparison.md) | **Open architectural forks** (D-1…D-5), cross-agent comparison log. Append-only. | Live — do not duplicate elsewhere |
-| [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Live — governs §0 until `DESIGN.md` exists |
+| [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / STATUS / CONFORMANCE. | Historical |
+| [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Historical — DESIGN.md is the freeze |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
 | [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure). | Draft 2026-08-25 |
-| [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs, signatures TBD. | Draft 2026-08-25 |
+| [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
 | [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table. | Draft 2026-08-25 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |
 
@@ -131,7 +131,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | Root [`CHANGELOG.md`](../../CHANGELOG.md) | Rocket-Chip firmware and integration history. |
 | [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | Cross-session RC flags. Starcom-specific notes may appear here **briefly** with a link to `starcom/` — not a second whiteboard. |
 | [`docs/PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md) | RC phase/blockers. Starcom progress does not belong here except "RC blocked on Starcom MVP". |
-| [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan. Starcom has its own phased plan in `library_craft_claude.md` §7. |
+| [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan. Starcom IVP comes later in `starcom/`, fed from STATUS/CONFORMANCE, not a clone of this file. |
 | [`docs/decisions/*`](../../docs/decisions/) | RC architectural decisions (STOP-GAP retry map, Stage T, etc.). Not Starcom library decisions. |
 
 ### Not needed yet (add at Phase 0 / extraction)
@@ -149,7 +149,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 |---|---|
 | `starcom/include/`, `starcom/src/ccsds/` | Portable CCSDS protocol core |
 | `starcom/adapters/host/` | Desktop transports (UDP, file replay, SDR bridge) |
-| `starcom/adapters/rp2350/` | SX1276/PIO adapter (or keep thin wrapper in RC `src/` — TBD) |
+| `starcom/adapters/rp2350/` | Generic SPI/GPIO radio port. Board pins and AO stay in Rocket-Chip. |
 | `starcom/tests/` | Host-side unit, property, fuzz tests |
 | `starcom/docs/` | Library design, research, comparison, future `DESIGN.md` |
 | Rocket-Chip `src/telemetry/telemetry_encoder.*` | STOP-GAP — stays until replaced by Starcom + RC adapter |

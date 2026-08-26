@@ -1,3 +1,3 @@
 # RP2350 adapters
 
-**Placeholder.** SX1276/PIO and optional AO wrapper for Rocket-Chip integration. Hardware-specific — not part of the portable core.
+Generic SPI/GPIO radio port for CCSDS-on-a-link. Board pins and AO stay in Rocket-Chip. Not the portable core. No 211.1 claim.

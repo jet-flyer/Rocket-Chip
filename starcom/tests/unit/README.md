@@ -1,3 +1,3 @@
 # Unit tests
 
-**Placeholder.** Table-driven state-machine tests and golden byte vectors (first implementation wins per phased plan).
+Table-driven and golden-byte tests of the core public API. First wins: PLTU / V-3 / Space Packet / PLCW pack.
