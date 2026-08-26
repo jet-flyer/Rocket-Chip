@@ -95,7 +95,8 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 - **Don't** scatter new Starcom library docs under `docs/research/` at repo root — they belong in `starcom/docs/`.
 - **Don't** edit `DESIGN.md` substantively until the condensation session merges the six research artifacts into one canonical record.
 - **Don't** delete historical comparison entries when facts change — append `Status:` lines per `comparison.md` convention.
-- **Don't** mix RC stage plans (IVP, Stage T, AO architecture) into `starcom/docs/` — those stay in repo-root `docs/`. RC-specific migration notes may eventually live in `starcom/docs/integration/` if needed.
+- **Don't** mix RC stage plans (board IVP, Stage T, AO architecture) into `starcom/docs/` — those stay in repo-root `docs/`. Starcom's IVP is `docs/IVP.md` in this tree. RC-specific migration notes may eventually live in `starcom/docs/integration/` if needed.
+- **Don't** mint a repo-root `CHANGELOG.md` entry for work that stayed entirely under `starcom/`. Use [`CHANGELOG.md`](../CHANGELOG.md) here. Root changelog is for firmware/integration sittings.
 
 ### Process mistakes
 
@@ -106,13 +107,13 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 
 ## Tracking documents — what goes in `starcom/` vs. repo root
 
-Starcom gets its **own** tracking files so it can extract to a standalone repo without archaeology. Changelog discipline follows repo-root agent guidance (`CHANGELOG.md` header, `docs/agents/SESSION_CHECKLIST.md`).
+Starcom gets its **own** tracking files so it can extract to a standalone repo without archaeology. Wrap of a Starcom-only sitting: one entry in [`CHANGELOG.md`](../CHANGELOG.md) here, **not** a second row on repo-root `CHANGELOG.md`. Root wrap/push rules in `docs/agents/SESSION_CHECKLIST.md` still apply when the sitting also touched firmware or RC docs.
 
 ### In `starcom/` (library-owned)
 
 | File | Purpose | Status |
 |---|---|---|
-| [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes only (see its scope note). | Live |
+| [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. Starcom-only sittings log **here only** (see its scope note). | Live |
 | [`VERSIONING.md`](../VERSIONING.md) | SemVer rules, supported API surface (`include/starcom/` only), breaking-change policy. | Placeholder until first tagged release |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
@@ -129,7 +130,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 
 | File | Starcom relationship |
 |---|---|
-| Root [`CHANGELOG.md`](../../CHANGELOG.md) | Rocket-Chip firmware and integration history. |
+| Root [`CHANGELOG.md`](../../CHANGELOG.md) | Rocket-Chip firmware and integration history. Not for Starcom-only sittings. |
 | [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | Cross-session RC flags. Starcom-specific notes may appear here **briefly** with a link to `starcom/` — not a second whiteboard. |
 | [`docs/PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md) | RC phase/blockers. Starcom progress does not belong here except "RC blocked on Starcom MVP". |
 | [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan (board bring-up checklist). Starcom’s plan is [`docs/IVP.md`](IVP.md), not a clone. |
