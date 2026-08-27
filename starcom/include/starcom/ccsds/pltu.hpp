@@ -21,8 +21,9 @@ struct PltuView {
   std::span<const std::byte> frame;  // Transfer Frame, no ASM, no CRC
 };
 
-// Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4 (V-3
-// Frame Length). USLP TFVN 1100 is tfvn_unknown until increment 3.
+// Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4:
+// V-3 11-bit Frame Length, or non-truncated USLP 16-bit Frame Length.
+// Truncated USLP (flag = 1) is uslp_truncated (MIB length, not this sitting).
 Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept;
 
 // Writes ASM + frame + CRC-32. Envelope cap is kTransferFrameMin/Max.

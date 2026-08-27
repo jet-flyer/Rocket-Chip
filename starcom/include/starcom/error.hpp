@@ -15,6 +15,8 @@ enum class Error : std::uint8_t {
   sp_too_short,
   sp_pvn,
   buffer_too_small,
+  uslp_truncated,   // End of Frame Primary Header Flag = 1; needs MIB length
+  uslp_length_oob,  // C implies frame < 8 or > 65536 octets
 };
 
 static_assert(std::is_trivially_copyable_v<Error>);

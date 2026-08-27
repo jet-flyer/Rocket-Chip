@@ -48,7 +48,7 @@ Bottom-up, same cut as `STATUS.md`. MVP is **0+1 then 2**. USLP and COP-1 follow
 |-----------|------|----------------------|---------|
 | **0+1** | `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLCW/CLCW pack | Those codecs | T, R, I (detail below) |
 | **2** | FOP-P / FARM-P | COP-P procedures | T |
-| **3** | USLP in the same PLTU | Version-4 in PLTU | T (sketch) |
+| **3** | USLP in the same PLTU | Version-4 in PLTU | T |
 | **4** | FOP-1 / FARM-1 | COP-1 procedures | T (sketch) |
 | **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T (sketch) |
 | **6** | Sanitizers, fuzz smoke, `0.1.0` | Claims match tests | T, R (sketch) |
@@ -101,7 +101,7 @@ Names for tests. Hex remainders are computed from 211.2 Annex C when the codec l
 | `truncated` | Shorter than ASM + min frame + CRC, or shorter than Frame Length implies. | 211.2 §3.6.4 |
 | `bad-crc` | Annex C syndrome not all-zero. | 211.2 §3.6.5–3.6.6, Annex C |
 | `asm-in-crc` | Remainder over ASM+frame is not the PLTU CRC. | 211.2 §3.2.5.4 |
-| `tfvn-unknown` | First bits of the frame are not V-3 `10` (this sitting; USLP `1100` comes in increment 3). | 211.2 §3.6.4 |
+| `tfvn-unknown` | First bits of the frame are not V-3 `10` and not USLP `1100`. | 211.2 §3.6.4 |
 | `v3-length-oob` | C implies frame &lt; 5 or &gt; 2048 octets. | 211.0 §3.2.2.10 |
 | `sp-too-short` | Packet shorter than 7 octets, or Data Length implies that. | 133.0 §4.1.2.2 |
 | `sp-pvn` | Packet Version Number not `000`. | 133.0 §4.1.3.2 |
@@ -114,9 +114,13 @@ FOP-P (sender) and FARM-P (receiver) as table-driven C++ from the book tables. E
 
 **Gate:** table-driven host tests of the book events used in the MVP (RE0–RE6, SE0–SE4/SE7); `tick(now)` advances timers; canned inbound PLTU → FARM-P + matching `Plcw16`; FOP-P + FARM-P host loop with `take_sdu`. CLCW stays with increment 4. Do not mint SC-NNN until SET V(R)/MAC is in or the owner closes the increment without it.
 
-### Increments 3–6 (sketch)
+### Increment 3 — USLP
 
-**3 — USLP.** Same PLTU, Version-4 in lieu of V-3. Optional FECF CRC-16 is a USLP field; Prox-1 link CRC stays PLTU CRC-32. Can host increment-2 COP-P on a VC. Gate: golden USLP in PLTU.
+Same PLTU, Version-4 in lieu of V-3 (732.1-B-3 §4.1). Non-truncated primary header + TFDF. Optional FECF CRC-16 is a USLP field; Prox-1 link CRC stays PLTU CRC-32. `decode_pltu` uses the 16-bit Frame Length when TFVN is `1100` and the truncated flag is `0` (211.2 §3.6.4). Truncated USLP, Insert Zone, and FECF are **not** this increment (truncated length is a MIB parameter). COP-P on a USLP VC stays V-3 `CoppEndpoint` until a later sitting. Do not mint SC-NNN.
+
+**Gate:** golden non-truncated USLP (empty TFDZ and one Space Packet) inside a PLTU; round-trip of SCID/VCID/MAP/VCF/OCF; reject `tfvn_unknown`, `uslp_truncated`, `uslp_length_oob`.
+
+### Increments 4–6 (sketch)
 
 **4 — COP-1.** FOP-1 / FARM-1 from 232.1-B-2. `Clcw32`. Gate: table tests like increment 2.
 

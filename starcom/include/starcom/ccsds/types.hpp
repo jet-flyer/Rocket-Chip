@@ -5,11 +5,14 @@
 
 namespace starcom::ccsds {
 
-// 211.0 Fig 3-3 widths. Distinct from later USLP Vcid / MapId.
-enum class Scid : std::uint16_t {};    // 10-bit
-enum class Pcid : std::uint8_t {};     // 1-bit
-enum class PortId : std::uint8_t {};   // 3-bit
-enum class Apid : std::uint16_t {};    // 11-bit; idle is all-ones
+// 211.0 Fig 3-3 widths. Distinct from USLP Vcid / MapId / UslpScid.
+enum class Scid : std::uint16_t {};     // 10-bit
+enum class Pcid : std::uint8_t {};      // 1-bit
+enum class PortId : std::uint8_t {};    // 3-bit
+enum class Apid : std::uint16_t {};     // 11-bit; idle is all-ones
+enum class UslpScid : std::uint16_t {}; // 16-bit (732.1 §4.1.2.2.3)
+enum class Vcid : std::uint8_t {};      // 6-bit; 63 = OID
+enum class MapId : std::uint8_t {};     // 4-bit
 
 inline constexpr Apid kIdleApid{0x7FF};
 

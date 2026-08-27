@@ -2,17 +2,17 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 2 FOP-P/FARM-P in (211.0 §7 tables + `CoppEndpoint`). Codecs from 0+1 remain. Host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`. SET V(R) persistent activity (7.2.3.2 / MAC) is **not** this sitting. No SC-NNN.
+**Phase:** increment 3 USLP (Version-4) in the same PLTU. COP-P and 0+1 codecs remain. Host `ctest` (`starcom.unit`). Not in the Pico firmware build. Truncated USLP / Insert Zone / FECF are **not** this sitting. No SC-NNN.
 
 ## Next
 
-USLP (Version-4 in the same PLTU). Then COP-1.
+COP-1 (FOP-1 / FARM-1).
 
 Owner-open (whiteboard): duplex/§6; repeater grade (after codecs; RAM/CPU at that sitting).
 
-1. USLP transfer frame in the same PLTU. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
+1. COP-1 procedures. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
 
-After USLP: COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
+After COP-1: adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
 
 ## Phase sketch
 
@@ -32,7 +32,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Blockers
 
-- None for USLP start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
+- None for COP-1 start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
 
 ## Done this sitting
 
@@ -42,4 +42,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - Space Packet `decode_space_packet` / `encode_space_packet`; IVP `v3-one-sp-n` is 18+N.
 - `Plcw16` / `Clcw32` pack/unpack.
 - FOP-P / FARM-P (`copp.hpp` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `copp_take_sdu` (7.3.3). SET V(R) persistent/MAC omitted.
+- USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF omitted.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

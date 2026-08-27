@@ -82,9 +82,9 @@ This cut: PLTU envelope, Version-3 and Version-4 as the two legal insides of a P
 
 Implement bottom-up: PLTU, then Version-3, then USLP in lieu of V-3 in the same PLTU.
 
-## Codec field maps (increment 0+1)
+## Codec field maps
 
-**These tables are not the standard.** They are a working copy of 211.2-B-3, 211.0-B-6, 133.0-B-2, and (for CLCW) public 232.0-B-4. Open the cited figure/section first. Trust the book over this file. If they disagree, the book wins.
+**These tables are not the standard.** They are a working copy of 211.2-B-3, 211.0-B-6, 133.0-B-2, 732.1-B-3, and (for CLCW) public 232.0-B-4. Open the cited figure/section first. Trust the book over this file. If they disagree, the book wins.
 
 Bit 0 = first transmitted bit = MSB of the first octet (each book’s Fig 1-1). Do not invent C++ names here; ICD signatures still land with the first codec.
 
@@ -99,7 +99,7 @@ Bit 0 = first transmitted bit = MSB of the first octet (each book’s Fig 1-1). 
 How C&S finds the CRC (211.2 §3.6.4): look at the first bits of the Transfer Frame.
 
 - First two bits `10` → Version-3. Use the 11-bit Frame Length (header bits 21–31) to locate CRC-32.
-- First two bits `11` and TFVN `1100` → Version-4. Use the USLP Frame Length (non-truncated) the same way.
+- First two bits `11` and TFVN `1100` → Version-4. If End of Frame Primary Header Flag is `0`, use the 16-bit Frame Length (header bits 32–47). If the flag is `1` (truncated), C&S uses Truncated Transfer Frame Length (MIB) — Starcom returns `uslp_truncated` this sitting.
 - Anything else → keep searching for the next ASM.
 
 **CRC-32 (211.2 Annex C — normative, part of the Blue Book).** A language `crc32()` helper is often ISO-HDLC/Ethernet; same width, different polynomial and init. Be aware of that when picking a helper; implement from Annex C.
@@ -160,7 +160,7 @@ Encode/decode of a single canned frame in a host test can pass IDs and lengths *
 
 **Space Packet (133.0 Table 5-1):** Maximum Packet Length; per-APID service type (Packet vs Octet String); secondary-header contents (mission-specific / SANA). Sequence flags `11` if Octet String.
 
-**USLP (later):** 732.1-B-3 §5 managed parameters when increment 3 starts. `Frame Version in use` (3 or 4) is already in 211.0 Annex C.
+**USLP this sitting (non-truncated):** header fields as 732.1 §4.1.2. Insert Zone length and FECF presence are §5 managed parameters — absent (length 0 / not present). Truncated Transfer Frame Length is MIB; truncated headers return `uslp_truncated`. `Frame Version in use` (3 or 4) is already in 211.0 Annex C.
 
 ### Space Packet primary header — 133.0-B-2 §4.1.3, Fig 4-2
 
@@ -217,6 +217,28 @@ Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book o
 | 23 | 1 | Reserved Spare | `0`. |
 | 24–31 | 8 | Report Value | N(R) = FARM V(R). |
 
+### USLP primary header (non-truncated) — 732.1-B-3 §4.1.2, Fig 4-2
+
+Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields only (4 octets) and is not encoded this sitting.
+
+| Bits | Width | Field | Value / meaning |
+|------|-------|-------|-----------------|
+| 0–3 | 4 | TFVN | `1100` (Version-4). |
+| 4–19 | 16 | SCID | `UslpScid`. Not V-3 10-bit `Scid`. |
+| 20 | 1 | Source-or-Destination | `0` source / `1` destination. |
+| 21–26 | 6 | VCID | 0–62; 63 = OID. |
+| 27–30 | 4 | MAP ID | |
+| 31 | 1 | End of Frame Primary Header Flag | `0` non-truncated (this sitting). `1` truncated. |
+| 32–47 | 16 | Frame Length | C = frame octets − 1 (max 65536). |
+| 48 | 1 | Bypass/Sequence Control | `0` Sequence-Controlled; `1` Expedited. |
+| 49 | 1 | Protocol Control Command | `1` TFDF is protocol control. |
+| 50–51 | 2 | Reserve Spares | `00`. |
+| 52 | 1 | OCF Flag | `1` 4-octet OCF present. |
+| 53–55 | 3 | VCF Count Length | 0–7 octets of VC Frame Count follow. |
+| 56+ | 0–56 | VC Frame Count | Absent when length is `000`. |
+
+TFDF header (732.1 Fig 4-4): TFDZ Construction Rules (3) + UPID (5); 16-bit pointer only for rules `000`/`001`/`010`. Rule `111` = no segmentation. UPID `00000` = Space Packets (SANA). Insert Zone and FECF are MIB; absent this sitting.
+
 NASA `CFS_IO_LIB` `cop1.c` (FARM-1 + CLCW on **TC** frames) is prior art for this 32-bit layout, not for Prox-1 PLTU/PLCW. Yamcs COP-1 / CLCW path is the GCS-side counterpart. Neither is a Prox-1 stack.
 
 ### What IRL stacks actually implement (so we do not code a ghost)
@@ -237,9 +259,9 @@ NASA cFS / Yamcs / `cop1.c` are worth pulling for **Space Packet and COP-1/CLCW*
 
 Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.hpp` ↔ `src/ccsds/pltu.cpp`).
 
-**As-is:** codecs (CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW) plus COP-P (`copp.hpp` / `copp.cpp`). USLP and COP-1 not present. PHY is a port, not a core header.
+**As-is:** codecs (CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP) plus COP-P (`copp.hpp` / `copp.cpp`). COP-1 not present. PHY is a port, not a core header.
 
-**Public modules.** `uslp`, `cop1`, and a standalone `mib` module are not present yet.
+**Public modules.** `cop1` and a standalone `mib` module are not present yet.
 
 | Module | Job |
 |--------|-----|

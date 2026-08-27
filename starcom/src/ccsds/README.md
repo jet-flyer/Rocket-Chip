@@ -11,5 +11,6 @@ Sans-I/O protocol core. No Pico SDK, sockets, SPI, GPIO, or Rocket-Chip includes
 | `plcw.cpp` | 16-bit PLCW SPDU pack/unpack |
 | `clcw.cpp` | 32-bit CLCW pack/unpack |
 | `copp.cpp` | FOP-P / FARM-P (211.0 §7) |
+| `uslp.cpp` | Version-4 transfer frame (732.1 §4.1) |
 
-Next: USLP, then COP-1. SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.
+Next: COP-1. SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.

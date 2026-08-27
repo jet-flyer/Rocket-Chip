@@ -8,4 +8,4 @@ cmake --build starcom/build
 ctest --test-dir starcom/build
 ```
 
-`starcom.unit` is the host binary: increment 0+1 codec goldens plus increment 2 FOP-P/FARM-P tables (`test_copp.cpp`). SET V(R) persistent activity (211.0 7.2.3.2) is not in this sitting.
+`starcom.unit` is the host binary: increment 0+1 codecs, increment 2 FOP-P/FARM-P (`test_copp.cpp`), increment 3 USLP (`test_uslp.cpp`). Truncated USLP / FECF / Insert Zone are not this sitting.

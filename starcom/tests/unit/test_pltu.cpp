@@ -165,7 +165,7 @@ void test_reject_tfvn_unknown() {
   CHECK(!r.has_value());
   CHECK(r.error() == Error::tfvn_unknown);
 
-  frame[0] = std::byte{0xC0};  // 1100 USLP — not increment 0+1
+  frame[0] = std::byte{0xD0};  // 1101 — not V-3, not USLP 1100
   const auto n2 = encode_pltu(buf, as_span(frame));
   CHECK(n2.has_value());
   const auto r2 = decode_pltu(std::span<const std::byte>(buf.data(), *n2));
@@ -265,6 +265,7 @@ int run_v3_tests();
 int run_space_packet_tests();
 int run_ocf_tests();
 int run_copp_tests();
+int run_uslp_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -286,6 +287,7 @@ int main() {
   g_fails += run_space_packet_tests();
   g_fails += run_ocf_tests();
   g_fails += run_copp_tests();
+  g_fails += run_uslp_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);
