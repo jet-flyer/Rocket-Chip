@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation, architecture
+
+**Starcom PLTU repeater locked on `docs/starcom-sad-draft`.** Bent-pipe range-extend is MVP (ASM + CRC-32, bit-exact, V-3 FSN dedup; no COP-P). Buffered grade (caller-owned queue; RC relay profile may use PSRAM instead of IMU) is deferred. Not a Prox-1/long-haul gateway. Detail: `starcom/CHANGELOG.md` `2026-08-27-001`. Not merged. Verified: docs only, host ctest 860/860 on the feature commit, no HW reseat required.
+
 ### 2026-08-27-002 | Grok Buzz (Grok Bot) | bugfix, hardware
 
 **Fruit Jam station PA1010D I2C GPS.** I2C PMTK314 is RMC+GGA only (GSA=0) so a dual-GNSS epoch fits the 255-byte MT3333 TX buffer; 50 ms I2C read timeout (10 ms was ~90% errors and wedged the module); `init_gps()` no longer probe-gates or 255-byte-drains before blind PMTK; wake-read before PMTK. Station `g` prints PMTK + seqlock G/E/RMC/GGA even without a latched 3D fix. USB 3V3 cut (not picotool reboot) recovered a wedged PA1010D. Station-to-vehicle distance can use that local fix once the telem stream is the reliable path. UART vehicle PMTK314 unchanged. Pre-commit still runs vehicle `bench_sim` on any firmware path (COM5 HEALTH-spam reclassify); owner one-time `--no-verify` for this station-GPS commit. Follow-up: I?C bus as a whole (early-impl table) using 50 ms stretch / no probe-gate / POR vs MCU reset; WB 2026-08-27. Verified: COM7 Hardware 11/11, `[PASS] GPS init`, PMTK `[51,18,51]`, `gps reads=1681 errs=0`, `g` 3D / 6 sats 30.17257, -97.86009.
