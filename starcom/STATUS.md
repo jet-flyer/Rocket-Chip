@@ -2,11 +2,13 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** docs cut on `docs/starcom-sad-draft` (SAD, ICD, CONFORMANCE, IVP, identity README). No library code, no CMake targets, not in the root build.
+**Phase:** docs cut on `docs/starcom-sad-draft` (SAD, ICD, CONFORMANCE, IVP, identity README) plus a Starcom-only graph at `starcom/graphify-out/`. No library code in the last graph snapshot commit.
 
 ## Next
 
-Owner-open (whiteboard): duplex/§6 (do not couple core to half-duplex LoRa); repeater grade (bent vs buffered by cost) — capability wanted after codecs. Graphify Starcom-only: after this docs cut, before first `.cpp`.
+Owner-open (whiteboard): duplex/§6 (do not couple core to half-duplex LoRa); repeater grade (bent vs buffered by cost) — capability wanted after codecs.
+
+Starcom graph: `starcom/graphify-out/` (host semantic pass 2026-08-27). Repo-root graph still ignores `starcom/` by `.graphifyignore`. Query with `--graph starcom/graphify-out/graph.json`.
 
 1. First TUs: Annex C CRC-32 + PLTU. Codec handshake in `docs/ICD.md`. Then V-3, Space Packet, PLCW/CLCW pack. CMake (`Starcom::starcom` + host ctest) lands with that first `.cpp`.
 2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
@@ -35,8 +37,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Done this sitting
 
-- SAD with on-the-wire PLTU figure (`starcom/docs/SAD.md`).
-- ICD, CONFORMANCE, this STATUS, WORKING_HERE vocabulary.
-- Identity README and folder READMEs un-placeholdered. DESIGN pointer so stale D-4 is not read as current.
-- IVP (`docs/IVP.md`): living plan, IEEE/ECSS shape. Closed log IDs minted when gates pass, not in advance.
-- Codec field maps in SAD (working copies of the books). Starcom WB at `starcom/AGENT_WHITEBOARD.md`: graphify Starcom-only pass OPEN; PLTU repeater awareness OPEN (not a lock).
+- Starcom-only graph snapshot (`starcom/graphify-out/`).
+- Docs cut committed separately (`db1465c`).

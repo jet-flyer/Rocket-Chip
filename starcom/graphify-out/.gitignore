@@ -1,0 +1,10 @@
+# Keep the queryable snapshot; leave extract dumps local.
+*
+!.gitignore
+!README.md
+!graph.json
+!graph.html
+!GRAPH_REPORT.md
+!.graphify_labels.json
+!manifest.json
+!cost.json

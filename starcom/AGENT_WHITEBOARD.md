@@ -32,16 +32,6 @@ Space Packet / CLCW / COP-1 still use cFS, Yamcs, OSDLP, `cop1.c` as prior art f
 
 ---
 
-## Graphify Starcom-only semantic pass (OPEN) (2026-08-27)
-
-Owner: after living docs for this cut are done, **immediately before** the first codec sitting. Dedicated run on `starcom/` + `standards/starcom/` only — **not** a full-repo `/graphify .`. Owner-gated billed pass.
-
-Why it exists: the repo graph currently does not carry these living docs. A Starcom SAD/ICD query collapsed to RC dashboard / SpaceWire-Lite. After codec field maps land, the graph is stale until this run.
-
-Not a license to run it from a sitting that only mentioned the row.
-
----
-
 ## Duplex / §6 / radios (OPEN) (2026-08-27)
 
 Do **not** couple the core to RC’s current half-duplex LoRa. Other radios (dual-radio, possible full duplex) stay in mind.

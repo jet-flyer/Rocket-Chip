@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation
+
+**Starcom-only graph snapshot.** Host semantic pass of `starcom/` + `standards/starcom/` (living docs, first codec symbols, Blue Books). Outputs in `starcom/graphify-out/` (`graph.json`, `graph.html`, `GRAPH_REPORT.md`). Repo-root graph still excludes this tree. Query with `--graph starcom/graphify-out/graph.json`. No library code in this commit.
+
+Verified: documentation/graph artifacts only, no firmware path, no HW reseat required.
+
 ### 2026-08-27-002 | Grok 4.6 (Build CLI) | documentation
 
 **Docs cut before first codec.** Glossary with Blue Book section cites; README key-concept table. IVP work sequence is the increment numbers; Purpose / Methods / Closed are plan parts, not steps to run first. T/A/R/I from ECSS-E-ST-10-02; T is default; not all four on every increment. ICD codec handshake locked (`crc32`, `decode_pltu`, `encode_pltu`). Public docs state what the system is; hung-up corrections live on WORKING_HERE / `starcom/AGENT_WHITEBOARD.md`. Repeater walked back from the increment-0+1 lock in 2026-08-27-001 — early RC capability after codecs, grade still open. PIO/FPGA called out as later port seams. Blue Books 232.0-B-4, 232.1-B-2, 732.1-B-3 on the shelf. No library code in this commit.
