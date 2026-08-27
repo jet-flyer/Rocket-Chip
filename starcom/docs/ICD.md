@@ -99,9 +99,21 @@ Result<std::size_t> encode_sp(std::span<std::byte> out, SpFields const& fields,
 
 6-octet primary header. PVN `000`. Data field 1–65536 octets. Idle: APID all-ones, secondary header flag 0. Field map: SAD (working copy of 133.0 Fig 4-2). Composition: encode packet, encode V-3 around it, encode PLTU around that (18+N).
 
-### PLCW, CLCW
+### PLCW and CLCW
 
-Same shape: `decode_*` / `encode_*`. Pack/unpack only — not FOP-P/FARM-P.
+Pack/unpack only — not FOP-P/FARM-P. Distinct types.
+
+```cpp
+struct Plcw16 { /* retransmit, Pcid, expedited counter, report V(R) */ };
+Result<Plcw16> decode_plcw(std::span<const std::byte> octets) noexcept;
+Result<std::size_t> encode_plcw(std::span<std::byte> out, Plcw16 const&) noexcept;
+
+struct Clcw32 { /* status, COP in Effect, VCID, flags, FARM-B, report N(R) */ };
+Result<Clcw32> decode_clcw(std::span<const std::byte> octets) noexcept;
+Result<std::size_t> encode_clcw(std::span<std::byte> out, Clcw32 const&) noexcept;
+```
+
+PLCW is 16 bits (211.0 Fig 3-5). Encode writes Format ID `1`, Type ID `0`, spare `0`. CLCW is 32 bits (232.0 Fig 4-6). Encode writes Control Word Type `0`, version `00`.
 
 ## Engine verbs (not increment 0+1)
 

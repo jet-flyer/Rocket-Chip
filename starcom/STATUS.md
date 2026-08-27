@@ -2,16 +2,15 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 0+1 in progress. CRC-32 + PLTU + Version-3 + Space Packet + `Starcom::starcom` + host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`.
+**Phase:** increment 0+1 codecs in. CRC-32, PLTU, Version-3, Space Packet, PLCW, CLCW. Host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`.
 
 ## Next
 
-`Plcw16` / `Clcw32` pack/unpack (same increment). Then COP-P.
+COP-P (FOP-P / FARM-P). That is the Prox ARQ.
 
-Owner-open (whiteboard): duplex/§6; repeater grade (after remaining 0+1 codecs).
+Owner-open (whiteboard): duplex/§6; repeater grade (after codecs; RAM/CPU at that sitting).
 
-1. `Plcw16` / `Clcw32` pack. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
-2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
+1. COP-P procedures (FOP-P/FARM-P). Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
 
 After codecs + COP-P: USLP, COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
 
@@ -33,7 +32,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Blockers
 
-- None for V-3. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
+- None for COP-P start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
 
 ## Done this sitting
 
@@ -41,4 +40,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - Host testing procedure: `docs/TESTING.md`.
 - Version-3 `decode_v3` / `encode_v3`.
 - Space Packet `decode_sp` / `encode_sp`; IVP `v3-one-sp-n` is 18+N.
+- `Plcw16` / `Clcw32` pack/unpack.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

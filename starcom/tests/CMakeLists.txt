@@ -3,6 +3,7 @@ add_executable(starcom_tests
   unit/test_pltu.cpp
   unit/test_v3.cpp
   unit/test_sp.cpp
+  unit/test_ocf.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)
