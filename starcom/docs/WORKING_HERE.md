@@ -121,7 +121,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | File | Purpose | Status |
 |---|---|---|
 | [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. **Major pushes only** (see its scope note and `TESTING.md`). | Live |
-| [`VERSIONING.md`](../VERSIONING.md) | SemVer rules, supported API surface (`include/starcom/` only), breaking-change policy. | Placeholder until first tagged release |
+| [`VERSIONING.md`](../VERSIONING.md) | SemVer + `STARCOM_VERSION` SSOT. Generated `version.hpp`. | Live 2026-08-27 |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
 | [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / STATUS / CONFORMANCE. | Historical |

@@ -1,10 +1,16 @@
 # Starcom Changelog
 
-Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases begin. See `VERSIONING.md` (placeholder).
+Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONING.md`](VERSIONING.md).
 
 > **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only, and only on **major pushes** (first tagged cut, public extract, supported-API change). Ordinary codec sittings and graph snapshots do not mint a row. Work that stays entirely under `starcom/` is recorded **here only** when a row is warranted. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting. **Rocket-Chip firmware and integration** belong in the root changelog, not here.
 
 ## Unreleased
+
+### 2026-08-27-004 | Grok 4.6 (Build CLI) | tooling
+
+**Library versioning SSOT.** Same scheme as Rocket-Chip 2026-08-26: humans edit `STARCOM_VERSION` only; CMake writes `generated/starcom/version.hpp`; git hash / `git describe` is the live discriminant. Product tuple `0.5.0-dev` (MINOR = last completed IVP increment). Tags while incubating: `starcom-v*`. No annotated tag this sitting. Detail: `VERSIONING.md`.
+
+Verified: pure-software change, host ctest `starcom.unit` 1/1 PASS, no HW reseat required.
 
 ### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation
 

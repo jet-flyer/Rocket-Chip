@@ -1,0 +1,9 @@
+# Product tuple for the Starcom library. Humans edit this file only when a
+# Starcom IVP increment closes or at a tagged cut. See VERSIONING.md.
+# Filename is STARCOM_VERSION, never VERSION: a VERSION file is the C++20
+# header <version> on Windows (same reason Rocket-Chip uses RC_VERSION).
+VERSION_MAJOR = 0
+VERSION_MINOR = 5
+PATCHLEVEL = 0
+VERSION_TWEAK = 0
+EXTRAVERSION = dev

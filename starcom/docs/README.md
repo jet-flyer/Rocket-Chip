@@ -20,7 +20,8 @@ Library docs live here, not under repo-root `docs/research/`.
 
 - [`CHANGELOG.md`](../CHANGELOG.md) — library-scoped only
 - [`STATUS.md`](../STATUS.md) — phase
-- [`VERSIONING.md`](../VERSIONING.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md) — stubs until release / Phase 0
+- [`VERSIONING.md`](../VERSIONING.md) — SemVer + `STARCOM_VERSION` (live)
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — still interim (build/test + coding bar)
 - [`WORKING_HERE.md`](WORKING_HERE.md) — tracking-doc map
 
 ## Relocation mapping (2026-06-18, content unchanged)

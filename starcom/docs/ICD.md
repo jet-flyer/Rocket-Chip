@@ -21,6 +21,7 @@ A host test of codecs calls the functions below with canned octets.
 - Caller owns state (`CoppEndpoint` for increment 2). Codecs are stateless functions.
 - Value-or-error: `starcom::ccsds::Result<T>` is `tl::expected<T, Error>` by default. Compile knob `STARCOM_USE_STD_EXPECTED` later. No exceptions across the core API. `Error` is a closed `enum class : std::uint8_t`, trivially copyable.
 - C++20. `std::span` is the buffer type. Do not vendor a span backport.
+- Identity: `#include "starcom/version.hpp"` (generated). Product numbers live in `STARCOM_VERSION` only (`VERSIONING.md`).
 - Time: `starcom::ccsds::Tick` (`std::uint32_t`). Caller passes `now`; MIB intervals are in the same unit. No library default milliseconds.
 - Strong IDs for V-3: `Scid` (10-bit), `Pcid` (1-bit), `PortId` (3-bit). USLP: `UslpScid` (16-bit), `Vcid` (6-bit), `MapId` (4-bit). Do not alias them.
 

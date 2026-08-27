@@ -4,6 +4,7 @@ Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no 
 
 | Header | Job |
 |--------|-----|
+| `version.hpp` | Generated. `starcom::kVersionString` / git identity. Template `version.hpp.in`. |
 | `error.hpp` | Closed `enum class Error` |
 | `result.hpp` | `Result<T>` = `tl::expected<T, Error>` |
 | `ccsds/crc.hpp` | Annex C `crc32` |

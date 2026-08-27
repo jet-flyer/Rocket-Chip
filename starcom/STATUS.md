@@ -6,7 +6,7 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 ## Next
 
-Hardening (ASan/UBSan, fuzz smoke, first `0.1.0`).
+Hardening (ASan/UBSan, fuzz smoke). Versioning SSOT is `STARCOM_VERSION` / `VERSIONING.md` (`0.5.0-dev`). First tag later, not this sitting.
 
 Owner-open (whiteboard): duplex/§6; repeater grade; coding-standards clang-tidy/naming audit.
 
@@ -45,4 +45,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF omitted.
 - COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 omitted.
 - Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI.
+- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.5.0-dev`. No tag this sitting.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

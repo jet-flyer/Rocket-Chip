@@ -8,10 +8,12 @@ add_executable(starcom_tests
   unit/test_uslp.cpp
   unit/test_cop1.cpp
   unit/test_loopback.cpp
+  unit/test_version.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)
 target_link_libraries(starcom_tests PRIVATE Starcom::starcom Starcom::adapters_host)
+target_compile_definitions(starcom_tests PRIVATE STARCOM_ROOT="${STARCOM_ROOT}")
 starcom_set_test_flags(starcom_tests)
 
 if(NOT MSVC)

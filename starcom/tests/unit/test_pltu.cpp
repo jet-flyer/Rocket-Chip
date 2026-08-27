@@ -268,6 +268,7 @@ int run_copp_tests();
 int run_uslp_tests();
 int run_cop1_tests();
 int run_loopback_tests();
+int run_version_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -292,6 +293,7 @@ int main() {
   g_fails += run_uslp_tests();
   g_fails += run_cop1_tests();
   g_fails += run_loopback_tests();
+  g_fails += run_version_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

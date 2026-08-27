@@ -1,9 +1,26 @@
 cmake_minimum_required(VERSION 3.20)
-project(starcom VERSION 0.0.0 LANGUAGES CXX)
+
+# Peek STARCOM_VERSION so project() is not a second literal. Full generate
+# (git identity) is cmake/starcom_version.cmake after project().
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/STARCOM_VERSION" _sc_peek)
+set(_sc_maj "0")
+set(_sc_min "0")
+set(_sc_pat "0")
+foreach(_line IN LISTS _sc_peek)
+  if(_line MATCHES "^VERSION_MAJOR[ \t]*=[ \t]*([0-9]+)")
+    set(_sc_maj "${CMAKE_MATCH_1}")
+  elseif(_line MATCHES "^VERSION_MINOR[ \t]*=[ \t]*([0-9]+)")
+    set(_sc_min "${CMAKE_MATCH_1}")
+  elseif(_line MATCHES "^PATCHLEVEL[ \t]*=[ \t]*([0-9]+)")
+    set(_sc_pat "${CMAKE_MATCH_1}")
+  endif()
+endforeach()
+project(starcom VERSION ${_sc_maj}.${_sc_min}.${_sc_pat} LANGUAGES CXX)
 
 option(STARCOM_BUILD_TESTS "Build host unit tests and ctest" ON)
 
 include(cmake/CompilerWarnings.cmake)
+include(cmake/starcom_version.cmake)
 
 add_library(starcom STATIC
   src/ccsds/crc32.cpp
@@ -22,6 +39,7 @@ target_include_directories(starcom
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party>
+    $<BUILD_INTERFACE:${STARCOM_VERSION_GENERATED_DIR}>
     $<INSTALL_INTERFACE:include>
 )
 

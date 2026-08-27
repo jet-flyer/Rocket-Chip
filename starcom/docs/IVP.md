@@ -134,7 +134,7 @@ Host loopback (`HostLoopback` two `FrameSlot`s) then a generic `RadioPort` mailb
 
 ### Increment 6 (sketch)
 
-**6 — Hardening.** ASan/UBSan on host tests, short fuzz of the codecs, CONFORMANCE pointers, first `0.1.0`.
+**6 — Hardening.** ASan/UBSan on host tests, short fuzz of the codecs, CONFORMANCE pointers. Product tuple is `STARCOM_VERSION` (`VERSIONING.md`); first annotated tag is `starcom-vMAJOR.MINOR.PATCH` with EXTRA empty — not a separate marketing `0.1.0`.
 
 ## Closed
 
