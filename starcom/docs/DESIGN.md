@@ -97,6 +97,8 @@ Consequences that bind every decision in this document:
 
 - **D-4 — Framing foundation: USLP-v4 vs native-v3 (THE remaining genuinely-open architectural question).** Both docs flag it; neither fully resolves it. Both agree USLP (732.1-B-3) is the forward-looking unifier and PLTU carries a Version-3 Transfer Frame. The plan must decide whether the core's primary frame is **USLP** (modern, multi-VC, carries both COP-1 and COP-P) or **classic Version-3 / TC-TM**, and reconcile **PLTU CRC-32 vs USLP FECF CRC-16** integrity-check ownership. **Recommendation:** design the framing module to **support USLP as primary with a Version-3/PLTU path**, using the Claude doc's §6 USLP header table as the bit-level spec. *(CRC-32 polynomial + 211.2-B-3 date now confirmed — Entry 1.E — so no remaining re-confirm TODO.)*
 
+  **Status (2026-08-27 council freeze):** closed. Do not code from this “open” paragraph. Living lock (note 2026-08-25): on Prox-1, PLTU wraps Version-3 XOR USLP, never mixed, never nest USLP in the V-3 data field. CRC-32 is the PLTU field. This bullet stays as freeze history.
+
 - **D-5 — CI / packaging hardening (settled → superset both).** Phase-0 CI MUST add: (a) a **no-heap-after-init malloc/operator-new trapping shim** as a **hard pass/fail gate** (positive control per `HW_GATE_DISCIPLINE` Rule 1); (b) a **flash/RAM/stack size report** for 1–2 fixed configs, pinned arm flags, gated on **delta-vs-baseline, not absolute threshold** (also feeds D-3's spike); plus the agreed matrix (GCC/Clang/MSVC × Debug/Release, arm cross, ASan/UBSan, fuzz-smoke, GoogleTest+FuzzTest). One RTOS example build = nightly/"should." Packaging: ship **install/export + a checked-in (not-upstreamed) `vcpkg.json`/`portfile.cmake` + a custom bare-metal triplet** now; **defer registry publication, Conan, and binary-cache infra to post-1.0.** Model the **CLCW (232.0-B-4 §4.2.1) and PLCW (211.0-B-6 §3.2.4.3.2.1.1, 16-bit/7-field SPDU) as two distinct return-link types** — separate `Clcw32`/`Plcw16` types and FARM-1/FARM-P paths, **no generic OCF abstraction** — as a hard design input.
 
 ## Standing decisions (current consolidated state — read this first)
@@ -124,6 +126,8 @@ For an implementer picking this up later, the current settled position after Rou
 - The header-vs-static *default* (D-3) — settle with the Phase-0 size/compile spike.
 - Grok-council cross-check on §2.1 (PHY three-way), §2.2 (conformance subsystem), §2.3 (compliance-neutrality), §2.4/§3.1 (framing). Convergence settles them; divergence comes to the user.
 
+*(Disposition of this Open list: 2026-08-27 note after the 2026-08-25 living-map note. Do not treat the bullets above as current without that note.)*
+
 
 ## Note — 2026-08-21 (Researcher + Nathan): Starcom is a stack; the core is the library
 
@@ -140,6 +144,24 @@ Settled in conversation. Append-only: does not rewrite §0. It names what §0 al
 **D-1 vs D-2 (clarified).** PHY honesty (D-1) and sans-I/O (D-2) are separate decisions. D-2 is library-craft: the core is a passive box. D-1 is no blanket 211.1-B-4 PHY claim; PHY adapters declare none / best-effort / compliant. Round 2 later linked them because a sans-I/O core makes “no PHY” the default. That is a bonus, not the original reason for D-2.
 
 **Build order (fundamentals).** Prove it is a library (host-only core) → pure codecs → state machines → host loopback → first-party ports → RC integration last.
+
+## Note — 2026-08-27 (Hamilton + Nathan): duplex, stack vs core, repeater, Electra
+
+Append-only. Does not rewrite §0.
+
+**Sans-I/O is the core, not the stack.** `starcom::ccsds` stays bytes/`tick(now)` in, events/bytes out. Ports and RC integration may own radios, dual-radio, half- or full-duplex turnaround. “No hardware in Starcom” never meant the tree cannot have adapters.
+
+**Duplex is not a codec concern.** 211.0 DUPLEX = full / half / simplex is a **§6 MAC** variable. 211.1-B-4 is the Prox-1 UHF PHY (forward 435–450 MHz, return 390–405 MHz — two frequencies, full duplex in the book sense). PLTU/V-3/CRC do not change. Do not bake RC’s single SX1276 half-duplex into the core. Dual-radio (two half-duplex transceivers, one TX / one RX) is a port layout. RC integration may lead **if it does not foreclose** full duplex, simplex, or a second radio.
+
+**ELRS Gemini (hardware, not a Starcom protocol):** Gemini boards have two RF chains. In Gemini mode they **TX together then RX together** (frequency diversity / dual-band), not “radio A transmits while radio B receives.” So Gemini-as-ELRS is still TDD. The *chips* could be driven as true two-frequency full duplex in a Starcom port; that would not be running ExpressLRS. Not a PHY compliance claim (D-1).
+
+**Repeater:** owner wants RP2350 + LoRa able to repeat a PLTU (envelope check, same octets out). Early RC-facing capability, **after** codecs exist. Bent-pipe vs buffered (133.0 §2.4) chosen by RAM/CPU; may skip bent-pipe if buffered is cheap. Not Electra-as-product.
+
+**Electra / Odyssey:** good *reference* (211.0 Annex F, Green Book 210.0-G-2 test-campaign annex, Mars papers). Not public drop-in C. Read for interop and mission profiles; implement Annex C / §7 from the books. Do not copy Odyssey’s “Retransmit Flag always 0” as the codec.
+
+**CMake / tests:** Starcom from scratch. Do not inherit Rocket-Chip’s firmware CMake or gtest harness. Already locked; not a leftover fork.
+
+**Graphify:** Starcom-only pass after this docs cut, immediately before first `.cpp`.
 
 ## Note — 2026-08-25 (Grok Researcher): PHY, FPGA, compliance layers
 
@@ -167,6 +189,20 @@ Decisions from this sitting live in `SAD.md` (map), `ICD.md` (handshake), `CONFO
 
 **Prox-1 §6 session/MAC:** not decided. Full module vs out waits until we implement it. No stub in the meantime. Do not treat absence from the MVP sequence as a removal.
 
+## Note — 2026-08-27 (Hamilton + Nathan): freeze “Open” list vs living locks
+
+Append-only. Does not rewrite the freeze body. An implementer who stops at “Open (need resolution…)” above will re-open settled things.
+
+| Freeze Open bullet | Living status |
+|--------------------|---------------|
+| MVP cut: V-3/PLTU + COP-P | Closed. STATUS / IVP increments 0–2. Repeater is **not** in that cut (whiteboard). |
+| MVP cut: “minimal half-duplex turnaround” vs RadioScheduler vs a MAC slice | **Still open**, and **not the same as full §6**. Freeze wanted a small turnaround pulled forward for RC’s half-duplex pain, verified independent of COP-P. Living docs parked *all* of §6 as not decided (no stub). Do not silently pick RadioScheduler or invent a mini-MAC. Home: Starcom whiteboard. |
+| CCSDS issue pins | Closed. SAD figure caption + CONFORMANCE: 211.2-B-3, 211.0-B-6, 133.0-B-2, 732.1-B-3, 232.0-B-4, 232.1-B-2. 131.0-B-3 remains the issue 211.2 cites for conv/LDPC (not this MVP). |
+| Header-vs-static default (D-3) | Closed as **static `Starcom::starcom`**. Header-only is a later size spike, not Phase 0. No spike required to start codecs. |
+| Grok-council cross-check §2.1–§2.4 / framing | Closed by the 2026-08-21 / 08-25 notes: PHY tiers, sans-I/O, PLTU wraps V-3 XOR USLP. Full conformance *subsystem* stays post-MVP polish (principle kept). |
+
+ICD signatures, `now` typedef, CMake targets: still “with the first `.cpp` / COP-P,” not leftover architecture forks.
+
 ## Note — 2026-08-27 (Hamilton + Nathan): PLTU repeater is MVP
 
 Append-only. Does not rewrite §0. Does not add a Prox-1-to-long-haul gateway.
@@ -180,6 +216,22 @@ The functional RC Job (IVP-98) was a same-link regenerative repeater: check the 
 - **Buffered (deferred).** Caller-owned queue of valid PLTUs. 133.0-B-2 §2.4 assumes the *subnetwork* provides storage and forwarding; SPP does not specify the queue. The core stays sans-I/O (span of slots in). Rocket-Chip, when it fleshes the pure relay mission profile, may back that queue with PSRAM instead of IMU/fusion RAM. Not Bundle Protocol / DTN unless a later sitting opens 734.2. Do not pick a depth now.
 
 Living map: `CONFORMANCE.md` rows, `SAD.md` repeater box, `ICD.md` repeater path, `docs/IVP.md` increment 0+1 step 3 + Not-yet buffered row, `STATUS.md` MVP cut.
+
+## Note — 2026-08-27 (Hamilton + Nathan): repeater lock walked back
+
+Append-only. Does not rewrite the note above.
+
+Owner intent for that sitting was **awareness** (something like a same-link regenerative repeater is in mind for base functionality), not an MVP lock. It was written into living docs because there was no Starcom whiteboard. Home is now `starcom/AGENT_WHITEBOARD.md`. SAD / ICD / CONFORMANCE / IVP / STATUS no longer treat it as in-scope increment 0+1.
+
+## Note — 2026-08-27 (Hamilton + Nathan): codec field maps
+
+Append-only. Does not rewrite §0.
+
+Increment 0+1 bit tables (PLTU / V-3 / Space Packet / PLCW / CLCW) live in `SAD.md` as **working copies** of 211.2-B-3, 211.0-B-6, 133.0-B-2, and public 232.0-B-4. Open the book first. The book wins.
+
+**CRC-32 vs CRC-16 is not a guess about the PLTU.** 211.2 Annex C specifies CRC-32 for the PLTU. D-4 (now closed) was which field is the Prox-1 *link* CRC when USLP (optional FECF CRC-16) sits inside a PLTU (CRC-32). Answer: PLTU CRC-32. Annex C itself notes the init differs from the 16-bit CRC in other CCSDS books (those start at all-ones). Ethernet/ISO-HDLC CRC-32 is a third, unrelated algorithm — a software trap, not a standards fork.
+
+Open CCSDS code (Yamcs `CcsdsPacket`, NASA cFS / `CFS_IO_LIB` `cop1.c`) implements Space Packet + TM/TC/COP-1, not 211.2 Annex C. The Blue Book fully specifies the encoder; there is just little open PLTU source to copy.
 
 
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)

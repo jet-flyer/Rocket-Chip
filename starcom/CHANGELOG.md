@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-27-002 | Grok 4.6 (Build CLI) | documentation
+
+**Docs cut before first codec.** Glossary with Blue Book section cites; README key-concept table. IVP work sequence is the increment numbers; Purpose / Methods / Closed are plan parts, not steps to run first. T/A/R/I from ECSS-E-ST-10-02; T is default; not all four on every increment. ICD codec handshake locked (`crc32`, `decode_pltu`, `encode_pltu`). Public docs state what the system is; hung-up corrections live on WORKING_HERE / `starcom/AGENT_WHITEBOARD.md`. Repeater walked back from the increment-0+1 lock in 2026-08-27-001 — early RC capability after codecs, grade still open. PIO/FPGA called out as later port seams. Blue Books 232.0-B-4, 232.1-B-2, 732.1-B-3 on the shelf. No library code in this commit.
+
+Verified: documentation only, no firmware path, no HW reseat required.
+
 ### 2026-08-27-001 | Grok 4.6 (Build CLI) | documentation, architecture
 
 **PLTU repeater locked into MVP; buffered grade deferred.** Bent-pipe: ASM + CRC-32, bit-exact octets out, V-3 FSN dedup — one unit, dual-use board or pole/aerostat. Not COP-P, not Space Packet parse, not a Prox-1/long-haul gateway. Buffered repeater (caller-owned queue; 133.0 §2.4 storage/forwarding; RC relay profile may use PSRAM instead of IMU RAM) is deferred, not DTN. Half-duplex TX-ready stays with the consumer. Living map: CONFORMANCE, SAD, ICD, IVP, STATUS, WORKING_HERE, DESIGN note. No library code. Verified: docs only, no firmware path, no HW reseat required.

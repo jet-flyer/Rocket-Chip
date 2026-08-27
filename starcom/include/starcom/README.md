@@ -2,4 +2,4 @@
 
 Consumers' only search path. Mirrors `starcom::ccsds`. No Rocket-Chip types, no radio objects, no hardware.
 
-Real headers arrive in Phase 0 (`version`, `error`/`expected`, `span`). Codecs after that. See `docs/ICD.md`.
+Real headers arrive with the first codec. Handshake: `docs/ICD.md` (increment 0+1 codec API).

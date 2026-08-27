@@ -34,7 +34,9 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ## Starcom Phase 0 (OPEN) (2026-08-21)
 
-Stack-vs-library landed in `starcom/docs/DESIGN.md` note 2026-08-21. Primary-source shelf `standards/starcom/` + PHY/FPGA note 2026-08-25. Identity README / SAD / ICD / CONFORMANCE / IVP are on this branch. **PLTU repeater is MVP (2026-08-27):** bit-exact bent-pipe after 211.2 CRC, V-3 FSN dedup, no COP-P on that path — range-extend, not a second-link gateway. **Buffered** grade (caller-owned queue; RC relay profile / PSRAM instead of IMU) is deferred, not this CMake sitting. Phase 0 host-only CMake still not started — not a license until scheduled. Researcher stays Blue Books. RC consumer / RF test-prep is **not** this row: worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` (`grok/sc-dev`), plan `docs/plans/SC_DEV_RC_TEST_PREP.md`. **PUS vs NASA FSW:** vocab in `starcom/docs/WORKING_HERE.md` — PUS is ESA utilization *inside* Space Packets; cFS/F´ are NASA frameworks on the same envelope. No `starcom/AGENT_WHITEBOARD.md` (WORKING_HERE: one board).
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md) (graphify Starcom-only pass, Blue Book shelf holes, PLTU repeater awareness — **not decided**). This row is the RC-side pointer, not a second copy.
+
+Stack-vs-library / identity / SAD / ICD / CONFORMANCE / IVP are on `docs/starcom-sad-draft`. Phase 0 host-only CMake still not started — not a license until scheduled. RC consumer / RF test-prep is **not** this row: worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` (`grok/sc-dev`), plan `docs/plans/SC_DEV_RC_TEST_PREP.md`.
 
 ---
 

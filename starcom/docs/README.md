@@ -2,9 +2,11 @@
 
 Library docs live here, not under repo-root `docs/research/`.
 
-**Living (this sitting):** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`../STATUS.md`](../STATUS.md).
+**Living:** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
 
 **Research freeze:** [`DESIGN.md`](DESIGN.md) is the condensed record. Historical research and `comparison.md` stay append-only.
+
+**Primary sources win.** Repeated field maps and diagrams in these files are working copies. Always check the cited Blue Book first; trust that over anything restated here (`WORKING_HERE.md`).
 
 ## Reading order
 

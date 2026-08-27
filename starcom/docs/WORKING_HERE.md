@@ -14,12 +14,12 @@ Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground statio
 
 ## Vocabulary
 
-Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
+Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`](GLOSSARY.md). Short table for agents:
 
 | Term | Means |
 |------|--------|
 | **PLTU** | Proximity Link Transmission Unit (211.2). The coding-and-sync wrapper: ASM + one transfer frame + CRC-32. |
-| **Repeater** | Same-link regenerative forward of a **PLTU**: check ASM + CRC-32, emit the **same octets**. Not a Prox-1 session, not a second long-haul link, not payload decode. Dedup uses the Version-3 frame sequence number. MVP is the one-unit (bent-pipe) path. A later **buffered** grade queues valid PLTUs in caller-owned storage — Rocket-Chip may use PSRAM on a dedicated relay profile. |
+| **Repeater** | Same-link regenerative forward of a **PLTU** (check envelope, same octets out, no payload decode). Wanted early on RC (RP2350 + LoRa). Not a Prox-1 session and not a second long-haul link. Bent-pipe vs buffered (133.0 §2.4 store-and-forward) is a size/CPU pick at implementation — see whiteboard. |
 | **USLP** | Unified Space Data Link Protocol (732.1). Its on-the-wire frame is Version-4. On Prox-1 it sits *in* a PLTU, in lieu of Version-3, never inside the V-3 data field. |
 | **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. Starcom codecs the header; the user field is the app. |
 | **PUS** | ECSS-E-ST-70-41C Packet Utilization Standard (**ESA**, not a CCSDS Blue Book). Service type/subtype **inside** Space Packet user data (e.g. ST[20] get/set onboard parameters). Optional later stack module; not Phase 0. |
@@ -32,7 +32,7 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 
 ### Boundary and dependencies
 
-- **Do** keep the names straight: **Starcom** = stack, **core** = library, **port** = first-party adapter, **integration** = Rocket-Chip. “No hardware in Starcom” applies to the **core**, not the whole tree.
+- **Do** keep the names straight: **Starcom** = stack (this tree), **core** = sans-I/O library (`src/ccsds/`), **port** = first-party adapter (may do I/O), **integration** = Rocket-Chip. “No hardware / sans-I/O” applies to the **core**, not the whole stack. Dual-radio, half-duplex, LoRa, ELRS boards live in ports or in RC — never as assumptions inside codecs.
 - **Do** keep dependency direction one-way: **Rocket-Chip → Starcom**. Starcom must never `#include` Rocket-Chip headers, AO/QP types, board pins, mission profiles, or firmware drivers.
 - **Do** put portable protocol logic in `include/starcom/` and `src/ccsds/`.
 - **Do** put platform-specific glue in `adapters/` (host UDP, generic radio port, optional AO wrapper) — never in the core.
@@ -48,20 +48,22 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 
 ### Documentation
 
+- **Do** treat the CCSDS Blue Books (and other named primary sources) as the authority. SAD / ICD / DESIGN field tables are working copies. Open the cited book first; if they disagree, the book wins.
+- **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
 - **Do** read in this order when onboarding:
   1. this file
   2. `DESIGN.md` (locks)
-  3. `SAD.md` (map), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
+  3. `SAD.md` (map + codec field maps), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
   4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass)
-  5. `comparison.md` / research pair as needed (historical)
+  5. [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md) — Starcom-only open flags
+  6. `comparison.md` / research pair as needed (historical)
 - **Do** append to research/comparison/design-record docs — **do not silently rewrite** another agent's entries (`CROSS_AGENT_REVIEW.md`).
 
 ### Code quality (core targets strictest plausible adopter)
 
-- **Do** write the core **exceptionless, no-RTTI, no-heap-after-init** — compatible with MISRA/JPL/JSF rigor even though RC's root `CODING_STANDARDS.md` governs firmware separately.
-- **Do** use `Result` / `expected`-style returns for fallible operations in the core API.
-- **Do** use `span` for frame boundaries — caller-owned buffers, zero-copy where possible.
+In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip `CODING_STANDARDS.md` still does not govern this library’s public headers.
+
 - **Do** write host-side unit tests **before** hardware adapters. Golden vectors and table-driven state-machine tests are the first wins (see `library_craft_claude.md` §7 phased plan).
 
 ### Pedagogy (standing requirement per `design_record_claude.md` §0.6)
@@ -92,8 +94,8 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 - **Don't** make the protocol FSM **only** usable as a QP Active Object. AO wrapper = optional adapter.
 - **Don't** hard-code COP-1 managed parameters (T1, window sizes) — they must be configurable.
 - **Don't** claim 211.1-B-4 PHY compliance on SX1276/LoRa paths. Best-effort PHY must say so loudly.
-- **Don't** run COP-P (or COP-1) on the repeater path. A repeater is not a Prox-1 endpoint. Don't decode the Space Packet to forward a PLTU.
-- **Don't** describe the repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). That is a different product. This one is range-extend: valid PLTU in, same PLTU out.
+- **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Repeater is an early RC-facing capability after codecs; grade is a later sitting.
+- **Don't** describe a future repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). If we build one, it is range-extend of a PLTU, not a second link. Don't run COP on that path and don't decode the Space Packet just to forward.
 
 ### Documentation mistakes
 
@@ -125,18 +127,20 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / STATUS / CONFORMANCE. | Historical |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Historical — DESIGN.md is the freeze |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
-| [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure). | Draft 2026-08-25 |
+| [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure + increment 0+1 field maps). | Draft 2026-08-25; field maps 2026-08-27 |
 | [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
 | [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table. | Draft 2026-08-25 |
 | [`docs/IVP.md`](IVP.md) | Integration/verification plan (IEEE 1012 + ECSS methods). Closed log IDs when gates pass. | Living 2026-08-25 |
+| [`docs/GLOSSARY.md`](GLOSSARY.md) | Terms and Blue Book section cites. README holds the short list. | Living 2026-08-27 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |
+| [`AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md) | Starcom-only active flags (graphify, shelf holes, sittings). Not a second RC board. | Live 2026-08-27 |
 
 ### At Rocket-Chip repo root (firmware-owned — do not copy into `starcom/`)
 
 | File | Starcom relationship |
 |---|---|
 | Root [`CHANGELOG.md`](../../CHANGELOG.md) | Rocket-Chip firmware and integration history. Not for Starcom-only sittings. |
-| [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | Cross-session RC flags. Starcom-specific notes may appear here **briefly** with a link to `starcom/` — not a second whiteboard. |
+| [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | RC firmware flags. Starcom-only items belong on [`starcom/AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md); the root board keeps a **pointer row**, not a copy. |
 | [`docs/PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md) | RC phase/blockers. Starcom progress does not belong here except "RC blocked on Starcom MVP". |
 | [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan (board bring-up checklist). Starcom’s plan is [`docs/IVP.md`](IVP.md), not a clone. |
 | [`docs/decisions/*`](../../docs/decisions/) | RC architectural decisions (STOP-GAP retry map, Stage T, etc.). Not Starcom library decisions. |
@@ -145,8 +149,9 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 
 - **`CODEOWNERS`** — when Starcom has its own GitHub repo or monorepo path owners
 - **Issue/PR templates** — when external contributors are expected; comparison doc suggests frame hexdumps in PR template
-- **`starcom/AGENT_WHITEBOARD.md`** — avoid; use root whiteboard + `STATUS.md` + `comparison.md` append-only instead (one coordination surface per concern)
 - **Separate Starcom `PROJECT_STATUS.md`** — overkill until implementation; `STATUS.md` is enough
+
+The old “no `starcom/AGENT_WHITEBOARD.md`” rule buried Starcom flags on the RC board (firmware leftover sittings). One coordination surface **per concern**: Starcom flags here, RC flags on the root board. `STATUS.md` is still phase, not a whiteboard.
 
 ---
 

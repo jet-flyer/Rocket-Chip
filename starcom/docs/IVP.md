@@ -1,120 +1,130 @@
 # Starcom Integration and Verification Plan
 
-**Status:** living
-**Date:** 2026-08-25
+**Status:** living  
+**Date:** 2026-08-25 (structure clarified 2026-08-27)
 
-Tailored from IEEE 1012 (plan skeleton) and ECSS-E-ST-10-02 (verification methods). Not a clone of Rocket-Chip `docs/IVP.md`. Not a second claims table: claims live in `CONFORMANCE.md`. This file is the order we prove them, and the pass criteria.
+Order we prove CONFORMANCE claims, and the pass criteria. Shape follows IEEE 1012 (plan skeleton: purpose, methods, increments, records). Verification **methods** follow ECSS-E-ST-10-02 (Test / Analysis / Review-of-design / Inspection). Claims themselves live in `CONFORMANCE.md`.
 
-Living rule: the next increment is detailed enough to code against. Later increments stay sketched, except where we already have the detail. When an increment starts, expand it here in the same commit as the code.
+Living rule: the next increment is detailed enough to code against. Later increments stay sketched until that sitting. Expand this file in the same commit as the code.
 
-**IDs are a done log, not a roadmap.** Do not pre-allocate `SC-01`…`SC-50`. When a gate actually passes, mint the next `SC-NNN` in Closed, and put that id on the CONFORMANCE row’s test pointer. Forward plan stays increment names (0+1, 2, 3…).
+Pass criteria that restate wire formats are working copies. If a vector here disagrees with the cited Blue Book, the book wins.
 
-## 1. Purpose
+Closed-log IDs (`SC-NNN`) are minted **when a gate passes**, not in advance.
 
-Prove the Starcom library (`starcom::ccsds`) bottom-up on the host, with no hardware, before any adapter or Rocket-Chip integration. Each increment adds one layer of the stack and has a pass/fail gate. Do not start the next increment until the gate passes.
+## How to read this file
 
-## 2. References
+The **work sequence is the increment numbers** (0+1, then 2, then 3…). Those are the steps to perform.
 
-| Doc | Job here |
-|-----|----------|
-| `WORKING_HERE.md` | Door. Vocabulary. |
-| `DESIGN.md` | Research freeze. Do not re-derive Blue Book facts here. |
-| `SAD.md` | Map and on-the-wire picture. |
-| `ICD.md` | Handshake (named verbs). Signatures land with the first codec. |
-| `CONFORMANCE.md` | The claim list this plan traces to. |
-| `STATUS.md` | Current phase. Short. This file holds the gates. |
+The headings **Purpose, Methods, Increments, Closed** are the plan’s parts (IEEE 1012-style front matter). They are not extra steps before increment 0+1.
 
-## 3. Methods and tools
+Inside increment 0+1, the numbered codec list (PLTU, V-3, …) is build order **within** that increment.
 
-ECSS methods, in the usual confidence order:
+## Purpose
 
-| Code | Method | Used for |
-|------|--------|----------|
-| T | Test | Codecs, COP tables, round-trips. Default. Protocol functions are verified by test. |
-| A | Analysis | CRC coverage (ASM not in CRC-32), length accounting vs SAD figure. |
-| R | Review-of-design | CMake target shape, no-RC-types in `include/starcom`, C++20 / `tl::expected` / span. |
-| I | Inspection | Public headers have no Pico SDK, sockets, SPI, GPIO, or Rocket-Chip types. |
+Prove `starcom::ccsds` bottom-up on the **host**, then adapters, then Rocket-Chip integration. Each increment has a pass/fail gate. Start the next increment after the gate passes.
 
-Tools for the core: host compiler, CMake, ctest, golden octet vectors, table-driven state tests. Sanitizers once there is code. No Pico SDK, no radio, no FPGA for host tests of `starcom::ccsds`.
+## Methods (T / A / R / I)
 
-FPGA, when that work exists: HDL sim / testbench before bitstream, same vectors as the software codecs where possible. Researcher owns guidelines. Buzz owns flash. Not this MVP.
+From **ECSS-E-ST-10-02** (verification methods), same family as IEEE 1012’s test/analysis/inspection/demonstration split. Rocket-Chip’s IVP uses the same letters for firmware gates; this file is the library plan, not a copy of the board checklist.
 
-## 4. Integration order
+| Code | Method | Typical use |
+|------|--------|-------------|
+| **T** | Test | Codecs, COP tables, round-trips. **Default** for protocol functions. |
+| **A** | Analysis | CRC coverage (ASM vs frame), length accounting vs SAD figure. |
+| **R** | Review-of-design | CMake target shape, C++20 / `expected` / span, public-header contract. |
+| **I** | Inspection | Public headers: no Pico SDK, sockets, SPI, GPIO, or Rocket-Chip types. |
 
-Bottom-up, same cut as STATUS. MVP is increments 0–2. USLP and COP-1 are in, sequenced next, not optional. CMake is not a solo sitting: it lands with the first `.cpp`.
+**Not every increment uses all four.** The increment table lists the methods that **gate** that increment. T is enough when the proof is “the test passed.” Add A/R/I when the claim is a property tests cannot fully see (header search path, no-heap, CRC coverage argument).
 
-| Inc | Adds | Proves (CONFORMANCE) | Method | Detail |
-|-----|------|----------------------|--------|--------|
-| 0+1 | Static `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLTU repeater, PLCW/CLCW pack | PLTU, V-3, Space Packet, PLTU repeater, PLCW codec, CLCW codec | T, R, I | Full below |
-| 2 | FOP-P / FARM-P | COP-P procedures | T | Full below |
-| 3 | USLP in the same PLTU | Version-4 in PLTU; mixed versions forbidden | T | Sketch |
-| 4 | FOP-1 / FARM-1 | COP-1 procedures | T | Sketch |
-| 5 | Host loopback, then generic radio port | (no new Blue Book claim) | T | Sketch |
-| 6 | Sanitizers, fuzz smoke, `0.1.0` | Honesty of claims vs tests | T, R | Sketch |
+Tools for the core: host compiler, CMake, ctest, golden octet vectors, table-driven state tests. Sanitizers once there is code. Host tests of `starcom::ccsds` use canned octets (ICD). FPGA/PIO ports, when they exist, get HDL sim / testbench against the **same** codec vectors.
 
-Not in this sequence: 211.1 PHY, 131.0 long-haul, convolutional/LDPC, JPL User Terminal, F' as a dependency. Prox-1 §6 MAC/hailing is not decided (full module vs out). Decide when we implement it. No stub.
+## Increments
 
-## 5. Increment 0+1 — skeleton and codecs
+Bottom-up, same cut as `STATUS.md`. MVP is **0+1 then 2**. USLP and COP-1 follow in order. CMake lands with the first `.cpp`.
+
+| Increment | Adds | Proves (CONFORMANCE) | Methods |
+|-----------|------|----------------------|---------|
+| **0+1** | `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLCW/CLCW pack | Those codecs | T, R, I (detail below) |
+| **2** | FOP-P / FARM-P | COP-P procedures | T |
+| **3** | USLP in the same PLTU | Version-4 in PLTU | T (sketch) |
+| **4** | FOP-1 / FARM-1 | COP-1 procedures | T (sketch) |
+| **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T (sketch) |
+| **6** | Sanitizers, fuzz smoke, `0.1.0` | Claims match tests | T, R (sketch) |
+
+Repeater (early RC-facing, after 0+1 codecs exist): own sitting; grade bent vs buffered by RAM/CPU. Prox-1 §6 MAC/hailing: later. PIO/FPGA ports: increment 5 or a dedicated port sitting.
+
+### Increment 0+1 — skeleton and codecs
 
 CMake (`Starcom::starcom` static lib, `tl::expected` + span seams, host ctest) lands with the first codec file.
 
-Build order inside this increment, because each layer needs the one under it:
+Build order **inside** this increment:
 
-1. PLTU (ASM `FAF320` + CRC-32). Envelope. CRC covers the transfer frame only, not the ASM. 211.2-B-3 Fig 3-1.
-2. Version-3 frame (5-octet header, 2 KiB cap, TFVN bits `10`). First insides. 211.0-B-6 Fig 3-2. PCID / Port ID here, not VCID / MAP.
-3. PLTU repeater. After (1) and (2): valid PLTU → emit the **original octets** (bit-exact, do not re-encode). Drop bad ASM, bad CRC-32, or duplicate V-3 FSN. Do not parse the Space Packet. Do not run COP-P. TX-ready stays with the caller.
-4. Space Packet SDU (6-octet header + N). 133.0-B-2 Fig 4-1. Not required to forward a PLTU.
-5. `Plcw16` pack/unpack (211.0-B-6 §3.2.4.3.2.1.1). Pack only. Not the ARQ.
-6. `Clcw32` pack/unpack (232.0-B-4 §4.2.1). Distinct type. No generic OCF.
+1. PLTU (ASM `FAF320` + CRC-32). Envelope. CRC covers the transfer frame only. 211.2-B-3 Fig 3-1 and Annex C.
+2. Version-3 frame (5-octet header, 2 KiB cap, TFVN bits `10`). 211.0-B-6 Fig 3-2. PCID / Port ID here.
+3. Space Packet SDU (6-octet header + N). 133.0-B-2 Fig 4-1.
+4. `Plcw16` pack/unpack (211.0-B-6 §3.2.4.3.2.1.1). Pack only.
+5. `Clcw32` pack/unpack (232.0-B-4 §4.2.1). Distinct type.
 
-Pass when all of these hold:
+**Gate (all of):**
 
-- `cmake` + `ctest` on host, no Pico SDK, no Rocket-Chip headers in the core.
-- Core built exceptionless, no-RTTI. Tests may use exceptions because gtest does.
-- Public search path is `include/starcom/` only. Namespace `starcom::ccsds`. Alias `Starcom::starcom`.
-- Golden encode/decode for each codec. Bad ASM and bad CRC are rejected.
-- Repeater: good PLTU forwards the same bytes; bad CRC drops; duplicate FSN drops; no COP tables on that path.
+- `cmake` + `ctest` on host.
+- Core: exceptionless, no-RTTI. Tests may use exceptions.
+- D-5 malloc/`operator new` trap is pass/fail on host tests of the core (armed around codec calls; positive-control that the trap counts an allocation).
+- Public search path `include/starcom/`. Namespace `starcom::ccsds`. Alias `Starcom::starcom`.
+- Golden encode/decode. Bad ASM and bad CRC rejected. Vectors match 211.2 Annex C.
 - One Space Packet of N user octets inside a V-3 inside a PLTU is 18+N octets (SAD figure). Round-trip.
-- Inspection: no radio, socket, SPI, GPIO, or `rocketchip::` in `include/` or `src/ccsds/`.
+- Inspection: public core headers stay portable (no Pico SDK, sockets, SPI, GPIO, `rocketchip::`).
 
-Codecs are pure functions over spans. They do not grow `receive_bytes`. Signatures land here; do not invent them in the ICD first.
+Codecs are pure functions over spans. ICD has the handshake.
 
-## 6. Increment 2 — COP-P
+#### Named vectors (increment 0+1)
 
-After a V-3+PLTU can pack a frame. This is the Prox ARQ (211.0-B-6 §7), not optional.
+Names for tests. Hex remainders are computed from 211.2 Annex C when the codec lands.
 
-Adds FOP-P (sender) and FARM-P (receiver) as table-driven C++ from the book tables. Engine verbs become real: `receive_bytes`, `bytes_to_send`, `poll_event`, `handle_timeout`/`tick`, `submit_sdu`. Caller owns state and buffers. Caller passes `now`. Core owns no clock. Managed parameters configurable, not hard-coded. PLCW comes from FARM-P state, not a second truth.
+**Accept**
 
-Pass when:
+| Name | What it is | Book |
+|------|------------|------|
+| `v3-header-only` | 5-octet V-3, empty data field, C = 4. PLTU = ASM + 5 + CRC-32. | 211.0 §3.2.2.10 |
+| `v3-one-sp-n` | One Space Packet, no secondary header, N ≥ 1 user octets. PLTU 18+N. | 133.0 §4.1.2; 211.0 length |
+| `sp-idle` | Space Packet APID all-ones, secondary header flag 0. | 133.0 §4.1.3.3.4.4 |
+| `plcw-zero-report` | 16-bit PLCW, Format ID `1`, Type ID `0`, spare `0`. | 211.0 Fig 3-5 |
+| `clcw-cop1` | 32-bit CLCW, Control Word Type `0`, version `00`, COP in Effect `01`. | 232.0 §4.2.1 |
 
-- Table-driven host tests cover the book events used in the MVP (accept, reject, retransmit, wait as the tables specify). Transcribe the tables. Do not invent a different machine.
-- `tick(now)` advances timers. The core does not call a clock.
-- A canned inbound PLTU with a V-3 produces the expected FARM-P outcome and a `Plcw16` that matches that state.
-- FOP-P, given a submitted Space Packet and a PLCW, emits octets a FARM-P test can consume (host loop of the two machines).
-- COP-P is not COP-1. No CLCW path here.
+**Reject**
 
-USLP can later host this same COP-P. It does not replace it.
+| Name | Condition | Book |
+|------|-----------|------|
+| `bad-asm` | First 3 octets not `FAF320`. | 211.2 §3.2.3 |
+| `truncated` | Shorter than ASM + min frame + CRC, or shorter than Frame Length implies. | 211.2 §3.6.4 |
+| `bad-crc` | Annex C syndrome not all-zero. | 211.2 §3.6.5–3.6.6, Annex C |
+| `asm-in-crc` | Remainder over ASM+frame is not the PLTU CRC. | 211.2 §3.2.5.4 |
+| `tfvn-unknown` | First bits of the frame are not V-3 `10` (this sitting; USLP `1100` comes in increment 3). | 211.2 §3.6.4 |
+| `v3-length-oob` | C implies frame &lt; 5 or &gt; 2048 octets. | 211.0 §3.2.2.10 |
+| `sp-too-short` | Packet shorter than 7 octets, or Data Length implies that. | 133.0 §4.1.2.2 |
+| `sp-pvn` | Packet Version Number not `000`. | 133.0 §4.1.3.2 |
 
-## 7. Later increments (sketch)
+### Increment 2 — COP-P
 
-**3 — USLP.** Same PLTU, Version-4 in lieu of V-3, never nested in the V-3 data field, never mixed on one stream. Truncated USLP-in-PLTU is also 18+N (SAD). Optional FECF CRC-16 is not the Prox-1 CRC; keep PLTU CRC-32. Can host the increment-2 COP-P on a VC. Gate: golden USLP in PLTU; negative test that mixed versions fail.
+After a V-3+PLTU can pack a frame. Prox ARQ (211.0-B-6 §7).
 
-**4 — COP-1.** FOP-1 / FARM-1 from 232.1-B-2. The other ARQ. Distinct machines, `Clcw32`, not a substitute for COP-P. Gate: table tests like increment 2, CLCW not PLCW.
+FOP-P (sender) and FARM-P (receiver) as table-driven C++ from the book tables. Engine verbs become real: `receive_bytes`, `bytes_to_send`, `poll_event`, `handle_timeout`/`tick`, `submit_sdu`. Caller owns state, buffers, and `now`. PLCW comes from FARM-P state.
 
-**5 — Adapters.** Host loopback first (bytes in a test, no socket required to start). Then a generic radio port under `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip. Core still has no I/O object. Gate: loopback of increment 2 (and 3 if present) through an adapter without changing core tests.
+**Gate:** table-driven host tests of the book events used in the MVP; `tick(now)` advances timers; canned inbound PLTU → FARM-P + matching `Plcw16`; FOP-P + FARM-P host loop. CLCW stays with increment 4.
 
-**6 — Hardening.** ASan/UBSan on host tests, a short fuzz of the codecs, docs match CONFORMANCE pointers, first `0.1.0` when we mean it.
+### Increments 3–6 (sketch)
 
-## 8. Not yet
+**3 — USLP.** Same PLTU, Version-4 in lieu of V-3. Optional FECF CRC-16 is a USLP field; Prox-1 link CRC stays PLTU CRC-32. Can host increment-2 COP-P on a VC. Gate: golden USLP in PLTU.
 
-- Prox-1 §6 session / MAC / hailing: full module vs out is decided when we implement it. No stub, no gates.
-- FPGA / 211.1: later port. Host tests never wait on it.
-- LICENSE / VERSIONING: release stubs.
-- Buffered PLTU repeater (caller-owned queue). Fleshed out with the Rocket-Chip relay mission profile (PSRAM instead of IMU working set). Not increment 0+1. Do not invent a depth in this file.
+**4 — COP-1.** FOP-1 / FARM-1 from 232.1-B-2. `Clcw32`. Gate: table tests like increment 2.
 
-## 9. Closed
+**5 — Adapters.** Host loopback first (bytes in a test). Then a generic radio port under `starcom/adapters/`. PIO (ASM/timing/bitstream) and FPGA (211.1 C&S/PHY) attach here when those sittings run; same codec vectors. Rocket-Chip pins and AO stay in Rocket-Chip.
 
-Empty until a gate passes. Newest first. Template:
+**6 — Hardening.** ASan/UBSan on host tests, short fuzz of the codecs, CONFORMANCE pointers, first `0.1.0`.
+
+## Closed
+
+Empty until a gate passes. Newest first.
 
 ```
 ### SC-NNN | YYYY-MM-DD | increment
@@ -123,4 +133,4 @@ Method: T | A | R | I
 Test: <path or ctest name>
 ```
 
-When a CONFORMANCE row is implemented, add the `SC-NNN` pointer on that row. Do not mark Implemented without it.
+When a CONFORMANCE row is implemented, put `SC-NNN` on that row.

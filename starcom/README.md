@@ -2,20 +2,27 @@
 
 Starcom is a CCSDS comms **stack** incubating inside Rocket-Chip until it extracts to its own repository.
 
-The portable piece is the **Starcom library** (`starcom::ccsds`): a sans-I/O data-link core. Rocket-Chip is the first consumer, not the owner.
+**Core library** (`starcom::ccsds`): sans-I/O data-link — caller feeds octets and `tick(now)`, the core returns octets and events. **Ports** (this tree) attach radios, host loopback, later PIO/FPGA. **Rocket-Chip** is the first consumer.
 
-PHY and claim language live in [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). There is no blanket 211.1 Physical Layer claim.
+| Term | One line | More |
+|------|----------|------|
+| **PLTU** | On-air unit: ASM `FAF320` + one transfer frame + CRC-32 | [Glossary](docs/GLOSSARY.md), 211.2 Fig 3-1 |
+| **Version-3** | Native Prox-1 frame (5-octet header) inside a PLTU | 211.0 Fig 3-2 |
+| **USLP** | Version-4 frame in the same PLTU, in lieu of V-3 | 732.1 |
+| **Space Packet** | 6-octet header + user data; usual payload inside the frame | 133.0 Fig 4-1 |
+| **COP-P / COP-1** | Reliability machines (Proximity vs Earth TC) | 211.0 §7, 232.1 |
 
-Read [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md) first. Map: [`docs/SAD.md`](docs/SAD.md). Handshake: [`docs/ICD.md`](docs/ICD.md). Phase: [`STATUS.md`](STATUS.md). Locks and research freeze: [`docs/DESIGN.md`](docs/DESIGN.md).
+Full acronym list with Blue Book section cites: [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
+
+Read [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md) first. Map: [`docs/SAD.md`](docs/SAD.md). Handshake: [`docs/ICD.md`](docs/ICD.md). Proof order: [`docs/IVP.md`](docs/IVP.md). Phase: [`STATUS.md`](STATUS.md). Claims: [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md).
 
 ```
 starcom/
-  include/starcom/   public API (empty of real headers until Phase 0)
-  src/ccsds/         core implementation
-  adapters/          first-party ports (host, radio)
-  tests/             host tests, no hardware
-  docs/              DESIGN, SAD, ICD, CONFORMANCE, WORKING_HERE
-  CMakeLists.txt     scaffold until Phase 0
+  include/starcom/   public API
+  src/ccsds/         core
+  adapters/          first-party ports
+  tests/             host tests
+  docs/              DESIGN, SAD, ICD, IVP, GLOSSARY, …
+  CMakeLists.txt     Starcom::starcom lands with the first codec
 ```
 
-CMake still has no library target. That lands with the first codec, not as a solo sitting.
