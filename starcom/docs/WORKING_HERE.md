@@ -62,7 +62,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 ### Code quality (core targets strictest plausible adopter)
 
-In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip `CODING_STANDARDS.md` still does not govern this library’s public headers.
+In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public-header naming vs house camelBack is a later audit sitting (whiteboard), not an exemption.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 

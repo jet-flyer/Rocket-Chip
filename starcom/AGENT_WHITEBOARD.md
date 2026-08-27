@@ -41,6 +41,14 @@ Do not bake PIO or FPGA types into `include/starcom`. SAD “Later port seams”
 
 ---
 
+## Coding-standards audit — Starcom vs RC house (OPEN) (2026-08-27)
+
+Owner: RC `standards/CODING_STANDARDS.md` **applies** (WORKING_HERE + CONTRIBUTING). Not an exemption sitting.
+
+Later pass: clang-tidy / identifier-naming / JSF-adjacent checks on `starcom/src` + `include/starcom`; remediate ICD snake_case vs house camelBack; review host-loop caps (`kCoppHold`). `#pragma once` is already a project deviation. Do not mix that rename into a codec sitting.
+
+---
+
 ## Simplex + bitstream (FUTURE) (2026-08-27)
 
 Keep in mind. Not increment 0+1. Not a stub.

@@ -16,7 +16,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | PLCW 16-bit SPDU field codec | 211.0-B-6 §3.2.4.3.2.1.1 | In scope (MVP codecs) | Pack/unpack only. Not the ARQ. Distinct from CLCW. No generic OCF. |
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. |
 | COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | In scope (MVP) | Tables + `CoppEndpoint` (`tests/unit/test_copp.cpp`). SET V(R) persistent activity (7.2.3.2) is MAC — not this sitting. No SC-NNN. USLP can host this; it does not replace it. |
-| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (after COP-P) | The other ARQ. Distinct from COP-P. Not a substitute. |
+| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (MVP) | FARM-1 Table 6-1 + FOP-1 E23/AD/E8 (`tests/unit/test_cop1.cpp`). S4/S5 BC-init and remaining FOP-1 events not this sitting. No SC-NNN. |
 | Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Not decided | Decide at implementation (full module vs out). No stub now. |
 | Convolutional or LDPC coding | 211.2 → 131.0-B-3 | Deferred | 211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded PLTU. |
 | Long-haul TM C&S (131.0 ASM / FECF path) | 131.0 | Out of scope for this MVP | Different coding sublayer than PLTU. |

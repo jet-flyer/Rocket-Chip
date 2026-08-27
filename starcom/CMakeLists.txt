@@ -14,6 +14,7 @@ add_library(starcom STATIC
   src/ccsds/clcw.cpp
   src/ccsds/copp.cpp
   src/ccsds/uslp.cpp
+  src/ccsds/cop1.cpp
 )
 add_library(Starcom::starcom ALIAS starcom)
 

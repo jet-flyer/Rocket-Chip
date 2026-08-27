@@ -49,7 +49,7 @@ Bottom-up, same cut as `STATUS.md`. MVP is **0+1 then 2**. USLP and COP-1 follow
 | **0+1** | `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLCW/CLCW pack | Those codecs | T, R, I (detail below) |
 | **2** | FOP-P / FARM-P | COP-P procedures | T |
 | **3** | USLP in the same PLTU | Version-4 in PLTU | T |
-| **4** | FOP-1 / FARM-1 | COP-1 procedures | T (sketch) |
+| **4** | FOP-1 / FARM-1 | COP-1 procedures | T |
 | **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T (sketch) |
 | **6** | Sanitizers, fuzz smoke, `0.1.0` | Claims match tests | T, R (sketch) |
 
@@ -120,9 +120,13 @@ Same PLTU, Version-4 in lieu of V-3 (732.1-B-3 §4.1). Non-truncated primary hea
 
 **Gate:** golden non-truncated USLP (empty TFDZ and one Space Packet) inside a PLTU; round-trip of SCID/VCID/MAP/VCF/OCF; reject `tfvn_unknown`, `uslp_truncated`, `uslp_length_oob`.
 
-### Increments 4–6 (sketch)
+### Increment 4 — COP-1
 
-**4 — COP-1.** FOP-1 / FARM-1 from 232.1-B-2. `Clcw32`. Gate: table tests like increment 2.
+FARM-1 Table 6-1 (E1–E11) and FOP-1 Table 5-1 subset (E23 Initiate AD without CLCW check, AD send/ack E1/E2, retransmit E8). Wire: USLP + CLCW-in-OCF inside a PLTU. S4/S5 BC initialization and the remaining FOP-1 events are **not** this increment. Do not mint SC-NNN.
+
+**Gate:** FARM-1 table tests; FOP-1 initiate + AD ack + retransmit flag; host loop with `take_sdu`; D-5 heap trap.
+
+### Increments 5–6 (sketch)
 
 **5 — Adapters.** Host loopback first (bytes in a test). Then a generic radio port under `starcom/adapters/`. PIO (ASM/timing/bitstream) and FPGA (211.1 C&S/PHY) attach here when those sittings run; same codec vectors. Rocket-Chip pins and AO stay in Rocket-Chip.
 

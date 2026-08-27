@@ -266,6 +266,7 @@ int run_space_packet_tests();
 int run_ocf_tests();
 int run_copp_tests();
 int run_uslp_tests();
+int run_cop1_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -288,6 +289,7 @@ int main() {
   g_fails += run_ocf_tests();
   g_fails += run_copp_tests();
   g_fails += run_uslp_tests();
+  g_fails += run_cop1_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

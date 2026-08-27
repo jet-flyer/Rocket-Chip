@@ -259,9 +259,9 @@ NASA cFS / Yamcs / `cop1.c` are worth pulling for **Space Packet and COP-1/CLCW*
 
 Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.hpp` ↔ `src/ccsds/pltu.cpp`).
 
-**As-is:** codecs (CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP) plus COP-P (`copp.hpp` / `copp.cpp`). COP-1 not present. PHY is a port, not a core header.
+**As-is:** codecs (CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP) plus COP-P and COP-1. PHY is a port, not a core header.
 
-**Public modules.** `cop1` and a standalone `mib` module are not present yet.
+**Public modules.** A standalone `mib` module is not present yet.
 
 | Module | Job |
 |--------|-----|
