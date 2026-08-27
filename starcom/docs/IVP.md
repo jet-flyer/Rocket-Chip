@@ -110,9 +110,9 @@ Names for tests. Hex remainders are computed from 211.2 Annex C when the codec l
 
 After a V-3+PLTU can pack a frame. Prox ARQ (211.0-B-6 §7).
 
-FOP-P (sender) and FARM-P (receiver) as table-driven C++ from the book tables. Engine verbs become real: `receive_bytes`, `bytes_to_send`, `poll_event`, `handle_timeout`/`tick`, `submit_sdu`. Caller owns state, buffers, and `now`. PLCW comes from FARM-P state.
+FOP-P (sender) and FARM-P (receiver) as table-driven C++ from the book tables. Engine verbs: `receive_bytes`, `bytes_to_send`, `poll_event`, `tick`, `submit_sdu`, `take_sdu` (7.3.3 pass to I/O). Caller owns state, buffers, and `now`. PLCW comes from FARM-P state. SET V(R) persistent activity (7.2.3.2) is MAC — not this increment; S2 on SYNCH_TIMER expiry when `Resync_Local` is true.
 
-**Gate:** table-driven host tests of the book events used in the MVP; `tick(now)` advances timers; canned inbound PLTU → FARM-P + matching `Plcw16`; FOP-P + FARM-P host loop. CLCW stays with increment 4.
+**Gate:** table-driven host tests of the book events used in the MVP (RE0–RE6, SE0–SE4/SE7); `tick(now)` advances timers; canned inbound PLTU → FARM-P + matching `Plcw16`; FOP-P + FARM-P host loop with `take_sdu`. CLCW stays with increment 4. Do not mint SC-NNN until SET V(R)/MAC is in or the owner closes the increment without it.
 
 ### Increments 3–6 (sketch)
 

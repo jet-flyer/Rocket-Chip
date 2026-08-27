@@ -154,7 +154,7 @@ Sans-I/O: MIB is a caller-owned struct the core reads. Not a file, not a Rocket-
 
 Encode/decode of a single canned frame in a host test can pass IDs and lengths **on the call**. The struct exists so COP-P and real sessions do not hard-code them later.
 
-**Increment 2 (COP-P) — names only, values with that sitting:** `Transmission_Window`, `Synch_Timeout`, `PLCW_Repeat_Interval`, `Resync_*`, `Carrier_Loss_Timer_Duration`. Definitions: 211.0 Annex C and §7. Caller passes `now`; these are intervals, not a core clock.
+**Increment 2 (COP-P) `CoppMib` this sitting:** `transmission_window` (≤127), `synch_timeout` (0 = SYNCH_TIMER never expires), `resync_local`. Definitions: 211.0 Annex C and §7. Caller passes `now`; these are intervals, not a core clock. Not this sitting: `PLCW_Repeat_Interval`, `Carrier_Loss_Timer_Duration` (Annex C / §6).
 
 **Not this cut (§6 MAC / PHY / hailing — not decided):** `Hail_*`, `Comm_Change_*`, `Acquisition_Idle_Duration`, `Tail_Idle_Duration`, `Carrier_Only_Duration`, `Hailing_Channel`, `Hailing_Data_Rate`, `Send_Duration`, `Receive_Duration`, `Drop_Carrier_Duration`, `Persistence_Wait_Time`, `Interval_Clock`. They stay in Annex C. Do not stub them.
 
@@ -237,20 +237,9 @@ NASA cFS / Yamcs / `cop1.c` are worth pulling for **Space Packet and COP-1/CLCW*
 
 Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.hpp` ↔ `src/ccsds/pltu.cpp`).
 
-**As-is (scaffold, no library code):**
+**As-is:** codecs (CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW) plus COP-P (`copp.hpp` / `copp.cpp`). USLP and COP-1 not present. PHY is a port, not a core header.
 
-```
-starcom/
-  include/starcom/    public API — empty of real headers
-  src/ccsds/          core impl — empty
-  adapters/           intended ports
-  tests/              intended host tests
-  examples/
-  docs/               DESIGN, WORKING_HERE, research pair (historical)
-  CMakeLists.txt      project() only; no targets
-```
-
-**Intended public modules** (not present). PHY is a port, not a core header.
+**Public modules.** `uslp`, `cop1`, and a standalone `mib` module are not present yet.
 
 | Module | Job |
 |--------|-----|
@@ -292,7 +281,7 @@ Settled this sitting (do not reopen):
 - CRC-32 is 211.2 Annex C (G(X) = X³²+X²³+X²¹+X¹¹+X²+1, init all-zero, ASM not covered) — **verify in Annex C**, do not trust this sentence alone. Not Ethernet/ISO-HDLC CRC-32. Not TM/USLP FECF CRC-16.
 - PLTU repeater is an early RC-facing capability (RP2350 + LoRa, after codecs). Grade bent vs buffered by RAM/CPU. Not a second-link gateway. Whiteboard for the sitting, not a codec fork.
 - Duplex (full / half / simplex) is 211.0 §6, not the PLTU codec. Do not couple the core to one radio. Ports/adapters declare hardware. RC integration may lead if it does not foreclose other radios.
-- Time: caller passes `now`; the C++ typedef lands with COP-P timers, not as a Phase 0 public type.
+- Time: caller passes `now`; `starcom::ccsds::Tick` is `std::uint32_t`. MIB intervals use the same unit. No library default milliseconds.
 - Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
 - Prox-1 §6 session/MAC is not decided. Full module vs out waits until we implement it. No stub now.
 - Blue Book pins are the issues in the figure caption above. No second pin list.

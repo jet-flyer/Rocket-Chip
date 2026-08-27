@@ -264,6 +264,7 @@ void test_codecs_allocate_nothing() {
 int run_v3_tests();
 int run_space_packet_tests();
 int run_ocf_tests();
+int run_copp_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -284,6 +285,7 @@ int main() {
   g_fails += run_v3_tests();
   g_fails += run_space_packet_tests();
   g_fails += run_ocf_tests();
+  g_fails += run_copp_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

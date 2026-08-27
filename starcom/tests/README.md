@@ -8,4 +8,4 @@ cmake --build starcom/build
 ctest --test-dir starcom/build
 ```
 
-`starcom.unit` is the increment 0+1 codec binary (PLTU/CRC goldens, IVP rejects, D-5 heap trap). Table-driven FOP-P/FARM-P comes later.
+`starcom.unit` is the host binary: increment 0+1 codec goldens plus increment 2 FOP-P/FARM-P tables (`test_copp.cpp`). SET V(R) persistent activity (211.0 7.2.3.2) is not in this sitting.

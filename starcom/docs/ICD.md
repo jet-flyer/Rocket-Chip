@@ -1,6 +1,6 @@
 # Starcom core ICD
 
-**Status:** Draft. Codec handshake locked for increment 0+1. Engine verbs stay names until COP-P. Namespace `starcom::ccsds`.
+**Status:** Draft. Codec handshake locked. COP-P engine verbs landed (211.0 §7 tables). Namespace `starcom::ccsds`.
 
 This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Primary sources (the Blue Books) win over names here. `WORKING_HERE.md`.
 
@@ -18,10 +18,10 @@ A host test of codecs calls the functions below with canned octets.
 
 - Sans-I/O. The core holds no I/O object. The consumer owns radio, clock, and event loop. Starcom never keys the transmitter.
 - Caller owns buffers. Input is `std::span<const std::byte>`. Output is written into a caller `std::span<std::byte>`. No heap after init. Encode returns the octet count written, or `buffer_too_small`.
-- Caller owns state (COP-P later). Codecs are stateless functions.
+- Caller owns state (`CoppEndpoint` for increment 2). Codecs are stateless functions.
 - Value-or-error: `starcom::ccsds::Result<T>` is `tl::expected<T, Error>` by default. Compile knob `STARCOM_USE_STD_EXPECTED` later. No exceptions across the core API. `Error` is a closed `enum class : std::uint8_t`, trivially copyable.
 - C++20. `std::span` is the buffer type. Do not vendor a span backport.
-- Time: not a public type for codecs. `tick(now)` and the typedef land with COP-P.
+- Time: `starcom::ccsds::Tick` (`std::uint32_t`). Caller passes `now`; MIB intervals are in the same unit. No library default milliseconds.
 - Strong IDs for V-3: `Scid` (10-bit), `Pcid` (1-bit), `PortId` (3-bit). USLP `Vcid` / `MapId` are different types, later. Do not alias them.
 
 ## Increment 0+1 — codec API
@@ -116,21 +116,26 @@ Result<std::size_t> encode_clcw(std::span<std::byte> out, Clcw32 const&) noexcep
 
 PLCW is 16 bits (211.0 Fig 3-5). Encode writes Format ID `1`, Type ID `0`, spare `0`. CLCW is 32 bits (232.0 Fig 4-6). Encode writes Control Word Type `0`, version `00`.
 
-## Engine verbs (not increment 0+1)
+## Engine (COP-P)
 
-| Verb | Job |
-|------|-----|
-| `receive_bytes` | Caller gives inbound octets (pump / COP). |
-| `bytes_to_send` | Caller drains outbound octets. |
-| `poll_event` | Caller takes semantic events. |
-| `handle_timeout` / `tick` | Caller passes `now`. |
-| `submit_sdu` | Caller gives a Space Packet (or equivalent) to send. |
+FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loop. SET V(R) persistent activity (7.2.3.2) uses the MAC sublayer — not this sitting; S2 is entered on SYNCH_TIMER expiry when `Resync_Local` is true. Other P-frame SPDUs (SET V(R), status reports) are not parsed; inbound P-frames are treated as PLCWs.
 
-Exact engine types land with COP-P. An RC Active Object is a valid *caller* of these verbs (`tick(now)`, `receive_bytes`). The Starcom core is not itself a QP AO; SPIN models RC event topology, not this library.
+```cpp
+using Tick = std::uint32_t;
+void copp_init(CoppEndpoint&, CoppMib const&, Pcid, Scid local, Scid remote, PortId);
+void copp_tick(CoppEndpoint&, Tick now);
+void copp_receive_bytes(CoppEndpoint&, std::span<const std::byte>);
+Result<std::size_t> copp_bytes_to_send(CoppEndpoint&, std::span<std::byte> out);
+Result<std::size_t> copp_submit_sdu(CoppEndpoint&, std::span<const std::byte> packet, bool expedited);
+Result<std::size_t> copp_take_sdu(CoppEndpoint&, std::span<std::byte> out);  // 7.3.3
+CoppEvent copp_poll_event(CoppEndpoint&);
+```
+
+`CoppMib`: `transmission_window` (≤127; default 1 = stop-and-wait), `synch_timeout` (0 = never), `resync_local`. SYNCH_TIMER arms on the next `copp_tick` after an invalid PLCW (receive_bytes has no `now`). `bytes_to_send` prefers a PLCW when FARM-P `need_plcw` is set (RE0/RE2/RE4/RE5), then SE1. Both endpoints start NEED_PLCW; drain those P-frames before the first SEQ U-frame. An RC Active Object may call these verbs; the core is not a QP AO. Hold depths `kCoppHold` / `kCoppSeqSlots` are this sitting's host-loop cap, not MIB.
 
 ## Half-duplex
 
-Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. Who owns turnaround (RC scheduler vs a later Starcom MAC slice vs full §6) is **not decided** — whiteboard. Do not stub §6 in increment 0+1.
+Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. Who owns turnaround (RC scheduler vs a later Starcom MAC slice vs full §6) is **not decided** — whiteboard. Do not stub §6.
 
 ## Repeater
 

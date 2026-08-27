@@ -13,5 +13,6 @@ Consumers' only search path. Namespace `starcom::ccsds`. No Rocket-Chip types, n
 | `ccsds/space_packet.hpp` | `decode_space_packet` / `encode_space_packet` |
 | `ccsds/plcw.hpp` | `Plcw16` pack/unpack |
 | `ccsds/clcw.hpp` | `Clcw32` pack/unpack |
+| `ccsds/copp.hpp` | FOP-P / FARM-P + `CoppEndpoint` |
 
 Handshake: `docs/ICD.md`.

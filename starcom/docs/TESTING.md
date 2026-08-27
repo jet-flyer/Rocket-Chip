@@ -30,7 +30,7 @@ The book wins if a test comment and Annex C / Fig 3-1 disagree. Fix the test (an
 
 ## What waits
 
-- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets in the test TU are enough through increment 0+1. COP-P (increment 2) uses the Blue Book event tables as C++ data in the test, still not a random dump. Generated or fuzzed octet streams wait for increment 6.
+- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets in the test TU; COP-P uses the Blue Book event tables as C++ data in `tests/unit/test_copp.cpp`, still not a random dump. Generated or fuzzed octet streams wait for increment 6.
 - Radio, Pico SDK, FPGA testbench — adapters / ports. Same golden vectors when those sittings run.
 
 ## Hooks (later, keep small)
