@@ -4,7 +4,7 @@
 
 How we prove codecs on the host. What to prove, and in what order, is [`IVP.md`](IVP.md). Claims are [`CONFORMANCE.md`](CONFORMANCE.md). Handshake: [`ICD.md`](ICD.md).
 
-The suite grows with the code. Inputs and outputs for codecs are the Blue Book wire formats. We do not generate large random corpora until a later hardening sitting (IVP increment 6).
+Add tests in the same sitting as the code they prove. The suite grows with the functionality; there is no separate “write all tests later” pass. Inputs and outputs for codecs are the Blue Book wire formats. We do not generate large random corpora until a later hardening sitting (IVP increment 6).
 
 ## Run
 
