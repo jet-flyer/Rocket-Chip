@@ -67,11 +67,27 @@ Result<std::size_t> encode_pltu(std::span<std::byte> out,
 
 `encode_pltu` writes `FAF320` + `frame` + CRC-32 into `out`. Envelope cap is 5–2048 octets. V-3 field checks beyond that length are `decode_v3` / `encode_v3`.
 
-### Version-3, Space Packet, PLCW, CLCW
+### Version-3
+
+```cpp
+struct V3Fields { /* QoS, P-frame, DFC, Scid, Pcid, PortId, destination, FSN */ };
+struct V3View {
+  V3Fields fields;
+  std::span<const std::byte> data;
+};
+
+Result<V3View> decode_v3(std::span<const std::byte> frame) noexcept;
+Result<std::size_t> encode_v3(std::span<std::byte> out, V3Fields const& fields,
+                              std::span<const std::byte> data) noexcept;
+```
+
+Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.hpp`). Field map: SAD (working copy of 211.0 Fig 3-3).
+
+### Space Packet, PLCW, CLCW
 
 Same shape: `decode_*` / `encode_*`, views over caller spans, `Result`. Field maps: SAD (working copies). Pack/unpack only for PLCW/CLCW — not FOP-P/FARM-P.
 
-V-3 header is 5 octets; Space Packet primary header is 6. Encode of a V-3 with a packet inside is **composition** (encode packet, encode V-3 around it, encode PLTU around that), not one mega-function.
+Space Packet primary header is 6 octets. Encode of a V-3 with a packet inside is **composition** (encode packet, encode V-3 around it, encode PLTU around that), not one mega-function.
 
 ## Engine verbs (not increment 0+1)
 

@@ -2,15 +2,15 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 0+1 in progress. Annex C CRC-32 + PLTU + `Starcom::starcom` + host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`.
+**Phase:** increment 0+1 in progress. Annex C CRC-32 + PLTU + Version-3 + `Starcom::starcom` + host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`.
 
 ## Next
 
-Version-3, Space Packet, PLCW/CLCW pack (same increment). Then COP-P.
+Space Packet, then PLCW/CLCW pack (same increment). Then COP-P.
 
 Owner-open (whiteboard): duplex/§6; repeater grade (after remaining 0+1 codecs).
 
-1. V-3, Space Packet, `Plcw16` / `Clcw32` pack. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
+1. Space Packet, `Plcw16` / `Clcw32` pack. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
 2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
 
 After codecs + COP-P: USLP, COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
@@ -39,4 +39,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 - Annex C CRC-32 + PLTU encode/decode, `Starcom::starcom`, host `ctest` (`starcom.unit`), D-5 heap trap. Golden `v3-header-only` remainder `BCC004E7`.
 - Host testing procedure: `docs/TESTING.md`.
+- Version-3 `decode_v3` / `encode_v3`.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

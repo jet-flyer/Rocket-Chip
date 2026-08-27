@@ -1,6 +1,7 @@
 #pragma once
 
 #include "starcom/ccsds/crc.hpp"
+#include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
 
 #include <array>
@@ -11,8 +12,6 @@ namespace starcom::ccsds {
 
 inline constexpr std::size_t kPltuAsmSize = 3;
 inline constexpr std::size_t kPltuCrcSize = 4;
-inline constexpr std::size_t kTransferFrameMin = 5;     // 211.0 §3.2.2.10 empty V-3
-inline constexpr std::size_t kTransferFrameMax = 2048;  // 11-bit length; C = 2047
 
 // 211.2 §3.2.3. Not covered by the CRC.
 inline constexpr std::array<std::byte, kPltuAsmSize> kPltuAsm{

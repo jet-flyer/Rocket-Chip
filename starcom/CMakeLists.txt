@@ -8,6 +8,7 @@ include(cmake/CompilerWarnings.cmake)
 add_library(starcom STATIC
   src/ccsds/crc32.cpp
   src/ccsds/pltu.cpp
+  src/ccsds/v3.cpp
 )
 add_library(Starcom::starcom ALIAS starcom)
 
