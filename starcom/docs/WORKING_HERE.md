@@ -55,7 +55,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
   1. this file
   2. `DESIGN.md` (locks)
   3. `SAD.md` (map + codec field maps), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
-  4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass)
+  4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass), `TESTING.md` (how we write and run host tests)
   5. [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md) — Starcom-only open flags
   6. `comparison.md` / research pair as needed (historical)
 - **Do** append to research/comparison/design-record docs — **do not silently rewrite** another agent's entries (`CROSS_AGENT_REVIEW.md`).
@@ -64,7 +64,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip `CODING_STANDARDS.md` still does not govern this library’s public headers.
 
-- **Do** write host-side unit tests **before** hardware adapters. Golden vectors and table-driven state-machine tests are the first wins (see `library_craft_claude.md` §7 phased plan).
+- **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 
 ### Pedagogy (standing requirement per `design_record_claude.md` §0.6)
 
@@ -103,7 +103,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 - **Don't** edit `DESIGN.md` substantively until the condensation session merges the six research artifacts into one canonical record.
 - **Don't** delete historical comparison entries when facts change — append `Status:` lines per `comparison.md` convention.
 - **Don't** mix RC stage plans (board IVP, Stage T, AO architecture) into `starcom/docs/` — those stay in repo-root `docs/`. Starcom's IVP is `docs/IVP.md` in this tree. RC-specific migration notes may eventually live in `starcom/docs/integration/` if needed.
-- **Don't** mint a repo-root `CHANGELOG.md` entry for work that stayed entirely under `starcom/`. Use [`CHANGELOG.md`](../CHANGELOG.md) here. Root changelog is for firmware/integration sittings.
+- **Don't** mint a repo-root `CHANGELOG.md` entry for work that stayed entirely under `starcom/`. Starcom [`CHANGELOG.md`](../CHANGELOG.md) is **major pushes only** (first tagged cut, public extract, supported-API change) — not every codec sitting. Root changelog is for firmware/integration sittings.
 
 ### Process mistakes
 
@@ -114,13 +114,13 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ## Tracking documents — what goes in `starcom/` vs. repo root
 
-Starcom gets its **own** tracking files so it can extract to a standalone repo without archaeology. Wrap of a Starcom-only sitting: one entry in [`CHANGELOG.md`](../CHANGELOG.md) here, **not** a second row on repo-root `CHANGELOG.md`. Root wrap/push rules in `docs/agents/SESSION_CHECKLIST.md` still apply when the sitting also touched firmware or RC docs.
+Starcom gets its **own** tracking files so it can extract to a standalone repo without archaeology. A **major push** of Starcom-only work gets one entry in [`CHANGELOG.md`](../CHANGELOG.md) here, **not** a second row on repo-root `CHANGELOG.md`. Ordinary sittings skip the library changelog. Root wrap/push rules in `docs/agents/SESSION_CHECKLIST.md` still apply when the sitting also touched firmware or RC docs.
 
 ### In `starcom/` (library-owned)
 
 | File | Purpose | Status |
 |---|---|---|
-| [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. Starcom-only sittings log **here only** (see its scope note). | Live |
+| [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. **Major pushes only** (see its scope note and `TESTING.md`). | Live |
 | [`VERSIONING.md`](../VERSIONING.md) | SemVer rules, supported API surface (`include/starcom/` only), breaking-change policy. | Placeholder until first tagged release |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |

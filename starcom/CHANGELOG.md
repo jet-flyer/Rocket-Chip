@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases begin. See `VERSIONING.md` (placeholder).
 
-> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only: folder layout, library docs, `starcom/` CMake/tests/code. Work that stays entirely under `starcom/` is recorded **here only**. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting (wrap included). **Rocket-Chip firmware and integration** (AO, board `docs/IVP.md`, stage plans, STOP-GAP telemetry, root `docs/decisions/`) belong in the root changelog, not here. Starcom's own `docs/IVP.md` is a library doc and is logged here.
+> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only, and only on **major pushes** (first tagged cut, public extract, supported-API change). Ordinary codec sittings and graph snapshots do not mint a row. Work that stays entirely under `starcom/` is recorded **here only** when a row is warranted. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting. **Rocket-Chip firmware and integration** belong in the root changelog, not here.
 
 ## Unreleased
 

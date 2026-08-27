@@ -20,18 +20,6 @@ Last night’s “MVP lock in every living doc” overstated a missing whiteboar
 
 ---
 
-## First codec: PLTU from 211.2 Annex C (OPEN) (2026-08-27)
-
-Ready to code when scheduled. Increment 0+1. Handshake: `docs/ICD.md`. Spec: 211.2-B-3 §3.2.5 + Annex C + Fig C-1.
-
-The open-source *library* gap is real; the *spec* is not. CRC-32 for a PLTU is 211.2-B-3 §3.2.5 + Annex C (normative) + Fig C-1. One procedure. Starcom writes that encoder. Do not invent a different polynomial. Do not stitch Ethernet/`crc32()`, TM FECF CRC-16, or TC frames into it. Do not wait for Electra source.
-
-Green Book 210.0-G-2 Annex B restates the same G(X). Interop-test lessons are in that Green Book’s annex on test campaigns. Mars papers are operational color.
-
-Space Packet / CLCW / COP-1 still use cFS, Yamcs, OSDLP, `cop1.c` as prior art for *those* layers.
-
----
-
 ## Duplex / §6 / radios (OPEN) (2026-08-27)
 
 Do **not** couple the core to RC’s current half-duplex LoRa. Other radios (dual-radio, possible full duplex) stay in mind.

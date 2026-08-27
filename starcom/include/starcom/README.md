@@ -1,5 +1,12 @@
 # Public headers (`include/starcom/`)
 
-Consumers' only search path. Mirrors `starcom::ccsds`. No Rocket-Chip types, no radio objects, no hardware.
+Consumers' only search path. Namespace `starcom::ccsds`. No Rocket-Chip types, no radio objects, no hardware.
 
-Real headers arrive with the first codec. Handshake: `docs/ICD.md` (increment 0+1 codec API).
+| Header | Job |
+|--------|-----|
+| `error.hpp` | Closed `enum class Error` |
+| `result.hpp` | `Result<T>` = `tl::expected<T, Error>` |
+| `ccsds/crc.hpp` | Annex C `crc32` |
+| `ccsds/pltu.hpp` | `decode_pltu` / `encode_pltu` |
+
+Handshake: `docs/ICD.md`.

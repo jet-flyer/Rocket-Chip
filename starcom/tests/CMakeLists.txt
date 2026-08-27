@@ -1,0 +1,18 @@
+add_executable(starcom_tests
+  unit/heap_trap.cpp
+  unit/test_pltu.cpp
+)
+
+target_include_directories(starcom_tests PRIVATE unit)
+target_link_libraries(starcom_tests PRIVATE Starcom::starcom)
+starcom_set_test_flags(starcom_tests)
+
+if(NOT MSVC)
+  target_compile_definitions(starcom_tests PRIVATE STARCOM_HEAP_WRAP)
+  target_link_options(starcom_tests PRIVATE
+    -Wl,--wrap=malloc
+    -Wl,--wrap=calloc
+    -Wl,--wrap=realloc)
+endif()
+
+add_test(NAME starcom.unit COMMAND starcom_tests)

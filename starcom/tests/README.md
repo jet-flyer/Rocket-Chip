@@ -1,5 +1,11 @@
 # Tests (`tests/`)
 
-Host-side only. No Pico SDK, no radio, no FPGA. CTest once Phase 0 lands.
+Host-side only. Procedure: [`../docs/TESTING.md`](../docs/TESTING.md). Named vectors: [`../docs/IVP.md`](../docs/IVP.md).
 
-Golden vectors for codecs, then table-driven FOP-P/FARM-P. FPGA sim is a later workflow, not this tree.
+```
+cmake -S starcom -B starcom/build -G Ninja
+cmake --build starcom/build
+ctest --test-dir starcom/build
+```
+
+`starcom.unit` is the increment 0+1 codec binary (PLTU/CRC goldens, IVP rejects, D-5 heap trap). Table-driven FOP-P/FARM-P comes later.

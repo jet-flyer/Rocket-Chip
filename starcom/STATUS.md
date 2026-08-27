@@ -2,15 +2,15 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** docs cut on `docs/starcom-sad-draft` (SAD, ICD, CONFORMANCE, IVP, identity README) plus a Starcom-only graph at `starcom/graphify-out/`. No library code in the last graph snapshot commit.
+**Phase:** increment 0+1 in progress. Annex C CRC-32 + PLTU + `Starcom::starcom` + host `ctest` (`starcom.unit`). Not in the Pico firmware build. Starcom graph: `starcom/graphify-out/`.
 
 ## Next
 
-Owner-open (whiteboard): duplex/§6 (do not couple core to half-duplex LoRa); repeater grade (bent vs buffered by cost) — capability wanted after codecs.
+Version-3, Space Packet, PLCW/CLCW pack (same increment). Then COP-P.
 
-Starcom graph: `starcom/graphify-out/` (host semantic pass 2026-08-27). Repo-root graph still ignores `starcom/` by `.graphifyignore`. Query with `--graph starcom/graphify-out/graph.json`.
+Owner-open (whiteboard): duplex/§6; repeater grade (after remaining 0+1 codecs).
 
-1. First TUs: Annex C CRC-32 + PLTU. Codec handshake in `docs/ICD.md`. Then V-3, Space Packet, PLCW/CLCW pack. CMake (`Starcom::starcom` + host ctest) lands with that first `.cpp`.
+1. V-3, Space Packet, `Plcw16` / `Clcw32` pack. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
 2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
 
 After codecs + COP-P: USLP, COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
@@ -33,9 +33,10 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Blockers
 
-- None for the first codec. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
+- None for V-3. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
 
 ## Done this sitting
 
-- Starcom-only graph snapshot (`starcom/graphify-out/`).
-- Docs cut committed separately (`db1465c`).
+- Annex C CRC-32 + PLTU encode/decode, `Starcom::starcom`, host `ctest` (`starcom.unit`), D-5 heap trap. Golden `v3-header-only` remainder `BCC004E7`.
+- Host testing procedure: `docs/TESTING.md`.
+- Docs cut `db1465c`. Graph snapshot `952b913`.

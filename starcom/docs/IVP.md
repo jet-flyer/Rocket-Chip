@@ -17,6 +17,8 @@ The **work sequence is the increment numbers** (0+1, then 2, then 3…). Those a
 
 The headings **Purpose, Methods, Increments, Closed** are the plan’s parts (IEEE 1012-style front matter). They are not extra steps before increment 0+1.
 
+How to write and run the host tests that implement these gates: [`TESTING.md`](TESTING.md).
+
 Inside increment 0+1, the numbered codec list (PLTU, V-3, …) is build order **within** that increment.
 
 ## Purpose
@@ -85,7 +87,7 @@ Names for tests. Hex remainders are computed from 211.2 Annex C when the codec l
 
 | Name | What it is | Book |
 |------|------------|------|
-| `v3-header-only` | 5-octet V-3, empty data field, C = 4. PLTU = ASM + 5 + CRC-32. | 211.0 §3.2.2.10 |
+| `v3-header-only` | 5-octet V-3, empty data field, C = 4. Frame `8000000400`, CRC-32 `BCC004E7`. PLTU `FAF3208000000400BCC004E7`. | 211.0 §3.2.2.10; 211.2 Annex C |
 | `v3-one-sp-n` | One Space Packet, no secondary header, N ≥ 1 user octets. PLTU 18+N. | 133.0 §4.1.2; 211.0 length |
 | `sp-idle` | Space Packet APID all-ones, secondary header flag 0. | 133.0 §4.1.3.3.4.4 |
 | `plcw-zero-report` | 16-bit PLCW, Format ID `1`, Type ID `0`, spare `0`. | 211.0 Fig 3-5 |

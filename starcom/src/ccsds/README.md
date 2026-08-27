@@ -2,4 +2,9 @@
 
 Sans-I/O protocol core. No Pico SDK, sockets, SPI, GPIO, or Rocket-Chip includes.
 
-Order: PLTU / Version-3 / Space Packet / PLCW / CLCW pack, then COP-P procedures, then USLP, then COP-1. SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.
+| File | Job |
+|------|-----|
+| `crc32.cpp` | 211.2 Annex C CRC-32 |
+| `pltu.cpp` | PLTU envelope (ASM + frame + CRC-32) |
+
+Next in increment 0+1: Version-3, Space Packet, PLCW, CLCW pack. SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.

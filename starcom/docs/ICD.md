@@ -63,9 +63,9 @@ Result<std::size_t> encode_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept;
 ```
 
-`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It does not search a sliding window. Stream search is a later pump.
+`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It does not search a sliding window. Stream search is a later pump. It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length. USLP `1100` returns `tfvn_unknown` until increment 3.
 
-`encode_pltu` writes `FAF320` + `frame` + CRC-32 into `out`. `frame` must already be a legal Transfer Frame for the CRC; V-3 field checks are `decode_v3` / `encode_v3`.
+`encode_pltu` writes `FAF320` + `frame` + CRC-32 into `out`. Envelope cap is 5–2048 octets. V-3 field checks beyond that length are `decode_v3` / `encode_v3`.
 
 ### Version-3, Space Packet, PLCW, CLCW
 
