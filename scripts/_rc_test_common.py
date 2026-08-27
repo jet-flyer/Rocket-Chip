@@ -118,6 +118,9 @@ _VEHICLE_TOKENS = (
     # (2026-08-28, COM5): multi-line help, not the compact one-liner.
     'h  help',
     'x  erase flights',
+    # Table-driven console (grok/rcos-rework): generated help lines.
+    'c  calibration',
+    'inject launch',
 )
 
 # Mode-distinguishing tokens. Station boots in kAnsi (dashboard) and only
