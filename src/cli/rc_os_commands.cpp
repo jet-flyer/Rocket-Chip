@@ -83,6 +83,7 @@ void stage_t2_fire_pending_if_any() {
 // own-radio reconfigure on ACK receipt). For this first step we just send
 // the command and log it — operator verifies on dashboard that the NEW
 // config shows up in the echo.
+[[maybe_unused]]
 static void cmd_radio_config_cycle() {
     if constexpr (!job::kRadioModeRx) { return; }  // station-only
 
@@ -1007,7 +1008,7 @@ void cli_print_station_status() {
 // Logging / Flight Commands
 // ============================================================================
 
-static void cmd_flush_log() {
+void cmd_flush_log() {
     if (!AO_Logger_is_initialized()) {
         rc::rc_log("Logging not initialized.\n");
         return;
@@ -1127,7 +1128,7 @@ void cli_do_erase_flights() {
 // Flight Download
 // ============================================================================
 
-static void cmd_list_flights() {
+void cmd_list_flights() {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     if (!ft->loaded) {
         rc::rc_log("Flight table not loaded.\n");
@@ -1240,7 +1241,7 @@ void cli_do_download_flight(int num) {
 // Radio Status
 // ============================================================================
 
-static void cmd_radio_status() {
+void cmd_radio_status() {
     const auto* rs = AO_Radio_get_state();
     if (!rs->initialized) {
         rc::rc_log("Radio not initialized.\n");
@@ -1310,7 +1311,7 @@ static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
     return kEarthR * c;
 }
 
-static void cmd_station_gps() {
+void cmd_station_gps() {
     if constexpr (!job::kRadioModeRx) { return; }
     if (!g_gpsInitialized.load(std::memory_order_acquire)) {
         rc::rc_log("Station GPS: not connected\n");
@@ -1343,7 +1344,7 @@ static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
     return fmodf(bearing + 360.0F, 360.0F);
 }
 
-static void cmd_station_distance() {
+void cmd_station_distance() {
     if constexpr (!job::kRadioModeRx) { return; }
     if (!g_gpsInitialized.load(std::memory_order_acquire) ||
         g_bestGpsFix.fix_type < 2) {
@@ -1381,6 +1382,7 @@ static void cmd_station_distance() {
 // ============================================================================
 
 // Station GPS position push to vehicle over LoRa
+[[maybe_unused]]
 static void cmd_station_gps_push() {
     shared_sensor_data_t snap = {};
     if (seqlock_read(&g_sensorSeqlock, &snap) &&
@@ -1454,73 +1456,6 @@ void cli_print_preflight() {
 
     rc::rc_log("----------------\n");
     rc::rc_log("VERDICT:  %s\n", gng_result.all_go ? "GO" : "NO-GO");
-}
-
-void cli_handle_unhandled_key(int key) {
-    switch (key) {
-    case 'l': case 'L': cmd_flush_log(); break;
-    case 'x': AO_RCOS_start_erase_flights(); break;
-    case 'd': case 'D':
-        if constexpr (job::kRadioModeRx) { cmd_station_distance(); }
-        else { AO_RCOS_start_download_flight(); }
-        break;
-    case 'g': case 'G':
-        if constexpr (job::kRadioModeRx) { cmd_station_gps(); }
-        else { cmd_list_flights(); }
-        break;
-    case 't': case 'T': cmd_radio_status(); break;
-    case 'r':
-        if constexpr (job::kRadioModeRx) {
-            // Stage T IVP-T5.5 sub 2c: station SET_RADIO_CONFIG.
-            // Cycle through kRadioConfigTable entries, sending the next
-            // entry after the current. Operator can press repeatedly to
-            // advance. Station's own radio switches after ACK (wired via
-            // SET's own ACK-handling path — station mirrors the vehicle).
-            cmd_radio_config_cycle();
-        } else if (AO_Radio_get_state()->initialized) {
-            uint8_t new_rate = AO_Telemetry_cycle_rate();
-            rc::rc_log("[TX] Rate changed to %dHz\n", static_cast<int>(new_rate));
-        }
-        break;
-    case 'm': case 'M':
-        AO_RCOS_cycle_output_mode();
-        {
-            auto mode = AO_RCOS_get_output_mode();
-            const char* name = (mode == StationOutputMode::kAnsi) ? "ANSI" :
-                               (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
-            if (mode == StationOutputMode::kAnsi) {
-                rc::rc_log("\033[2J\033[H");
-            } else {
-                rc::rc_log("\n[RX] Output: %s\n", name);
-            }
-        }
-        break;
-    case 'a':
-        if constexpr (job::kRadioModeRx) {
-            // IVP-122: ARM confirm flow — enter multi-char confirm state
-            rc_os_start_arm_confirm();
-        }
-        break;
-    case 'X':
-        if constexpr (job::kRadioModeRx) {
-            // IVP-122: Station DISARM — single-key, no confirm, ACK-tracked.
-            // Capital X only (lowercase x is erase-flights in TX mode).
-#ifdef ROCKETCHIP_STAGE_T2_CHEAT
-            stage_t2_queue_command(kMavCmdArmDisarm, 0.0f);
-            rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
-#else
-            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
-            rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
-#endif
-        }
-        break;
-    case 'p': case 'P':
-        if constexpr (job::kRadioModeRx) {
-            cmd_station_gps_push();
-        }
-        break;
-    default: break;
-    }
 }
 
 // ============================================================================

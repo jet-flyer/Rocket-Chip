@@ -196,20 +196,13 @@ static void enter_cli_menu() {
     rc::rc_log("  RocketChip %s %s-%s — Station RX\n",
            kVersionString, kBuildConfig, kGitHash);
     rc::rc_log("  Board: %s\n", board::kBoardName);
-    rc::rc_log("========================================\n\n");
-    rc::rc_log("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");
-    rc::rc_log("Radio:   t-Status  r-Rate  m-Mode(ANSI/CSV/MAVLink)\n");
-    rc::rc_log("Station: g-GPS  d-Distance  p-GPS-Push\n");
-    rc::rc_log("Command: a-ARM(confirm)  X-DISARM\n");
-    rc::rc_log("Flight:  l-FlushLog  x-Erase\n");
     rc::rc_log("========================================\n");
-    rc::rc_log("[main] ");
+    rc_os_reset_to_main();
+    rc_os_print_help();
 }
 
 // IVP-T14d wrap-up 2026-04-22: handle_mode_cycle removed from dashboard
-// key-poll. The kMenu 'm' handler in rc_os_commands.cpp:cli_handle_unhandled_key
-// remains as the single source of truth for mode cycling. Keeping the
-// helper here would be dead code.
+// key-poll. kMenu 'm' is ActionId::kCycleOutputMode in the station tree.
 #if 0
 // Handle 'm' key — cycle output mode
 static void handle_mode_cycle() {

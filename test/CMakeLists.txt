@@ -239,6 +239,29 @@ target_compile_definitions(test_version PRIVATE
     RC_REPO_ROOT="${_rc_repo_root}")
 gtest_discover_tests(test_version)
 
+# RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
+add_executable(test_cli_keymap test_cli_keymap.cpp)
+target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_keymap PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_keymap)
+
+add_executable(test_cli_engine test_cli_engine.cpp)
+target_link_libraries(test_cli_engine PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_engine PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_engine PRIVATE ROCKETCHIP_DEV_MODE=1)
+gtest_discover_tests(test_cli_engine)
+
+add_executable(test_cli_engine_field test_cli_engine.cpp)
+target_link_libraries(test_cli_engine_field PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_engine_field PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_engine_field)
+
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
 add_executable(test_prearm_fail_ticks test_prearm_fail_ticks.cpp)
 target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)

@@ -110,8 +110,8 @@ ROCKETCHIP_USB_PID = 0x0009
 #   - src/active_objects/ao_rcos.cpp:enter_cli_menu (station kMenu banner)
 #   - src/cli/rc_os_dashboard.cpp (station kAnsi dashboard frame text)
 _STATION_TOKENS = ('ground station', 'fruit jam', 'station rx')
-_VEHICLE_TOKENS = ('profile: rocket', 'erase all',
-                   'h-help  p-preflight  c-calibration  f-flight')
+_VEHICLE_TOKENS = ('profile: rocket', 'erase flights',
+                   'c  calibration', 'inject launch')
 
 # Mode-distinguishing tokens. Station boots in kAnsi (dashboard) and only
 # enters kMenu via 'x'; vehicle boots straight into kMenu. Dashboard tokens

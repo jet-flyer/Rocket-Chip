@@ -10,6 +10,9 @@
 cmake_minimum_required(VERSION 3.25)
 
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
+option(ROCKETCHIP_DEV_MODE
+    "Compile inject, cal-reset, and runtime DEV_MODE toggle into the ELF (OFF for field images)"
+    ON)
 
 if(BUILD_TESTS)
     # ========================================================================
@@ -366,6 +369,7 @@ else()
 
         # IVP-18: RC_OS CLI
         src/cli/rc_os.cpp
+        src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
@@ -544,6 +548,7 @@ else()
         src/logging/flash_flush.cpp
         src/logging/psram_init.cpp
         src/cli/rc_os.cpp
+        src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
@@ -751,6 +756,13 @@ else()
         message(STATUS "Job: VEHICLE (default)")
     endif()
 
+    if(ROCKETCHIP_DEV_MODE)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_DEV_MODE=1)
+        message(STATUS "ROCKETCHIP_DEV_MODE: ON (inject/cal-reset in ELF; runtime v toggle)")
+    else()
+        message(STATUS "ROCKETCHIP_DEV_MODE: OFF (field: inject/cal-reset omitted)")
+    endif()
+
     # Single flight binary per role. Test affordances (fault_force_*, debug
     # submenu state-mutating commands) live in the same binary, gated at entry
     # by rc::test_mode_active() — runtime-partitioning per SWE-133. See
@@ -841,6 +853,7 @@ else()
     message(STATUS "Board: ${PICO_BOARD}")
     message(STATUS "Platform: ${PICO_PLATFORM}")
     message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "ROCKETCHIP_DEV_MODE: ${ROCKETCHIP_DEV_MODE}")
     message(STATUS "Platform: Bare-metal Pico SDK")
     message(STATUS "")
 

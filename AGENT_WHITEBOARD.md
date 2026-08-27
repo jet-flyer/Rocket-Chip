@@ -81,7 +81,19 @@ Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted.
 
 **Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Early-impl table.
 
-**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+**DEFER (not a stop):** WN-100 / Starcom / early-impl rewrites. RC_OS is the current sitting (order row). Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+
+---
+
+## Remaining pile order (PROPOSED 2026-08-26)
+
+Owner order after versioning close on `main` (`2026-08-26-002`). Starcom stays its own track (`docs/starcom-sad-draft`, `grok/sc-dev`).
+
+1. **RC_OS rework — now.** Plan + council before live-menu structure change. Worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos` (`grok/rcos-rework`). Plan: `docs/plans/RCOS_REWORK.md`.
+2. **QP/C vs QP/C++ after RC_OS.** WN-052 + FD / `action_executor` callbacks. Do not open from this sitting.
+3. **Early-impl eval later.** Balloon risk (PIO budget, I²C, beacon, seqlock, PCM, quat). Do not open that table from RC_OS.
+
+HW-agnostic domain rule already landed sitting 4 (`CODING_STANDARDS.md` + remediates A–D). Leftovers in that bucket are not a fifth pile: WN-023 / WN-028 / WN-109 wait Tiny / filename sittings; WN-320 / WN-325 ride RC_OS.
 
 ---
 
@@ -160,7 +172,7 @@ together, not in isolation.
 |-----------|---------------|-------------|
 | **I²C bus backend** | **Prefer PIO master** if advantages hold and **PIO budget** allows; keep thin `i2c_bus_*` façade either way. Flipper `i2c_master_pio` = working RP2350 prior art (license check before import). Driver residual / Fruit Jam GPS cold-boot is a trigger, not a mandate to switch tomorrow. | Research row *I²C bus backend rework-eval* below; `src/drivers/i2c_bus.*`; LL-28/41 |
 | **Fault beacon (last-gasp)** | PIO beacon is the architecturally preferred path; eval with SPI last-gasp stop-gap in one session | Research row *PIO beacon + SPI last-gasp* below |
-| **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
+| **RC_OS / CLI “pseudo-OS”** | **Now** (pulled forward 2026-08-26). Table-driven dispatch + ownership. Not the later early-impl eval. | **§ RC_OS Rework** below |
 | **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
 | **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
 | **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? `frame_count` is uint32; after wrap `stored_count` looks empty (~2.7 y at 50 Hz). Saturating counter if this ring survives. | L2-P5 **WN-059** (`pcm_frame` + log path) |
@@ -201,13 +213,15 @@ compliance claims. No mid-walk mass comment campaign.
 
 ## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
 
-**Group:** Early-impl / rework-eval candidates (see index above).
+**Group:** Early-impl / rework-eval candidates (see index above). **Pulled forward 2026-08-26** — this sitting; not part of the later early-impl eval.
 
 **Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
 
-**Intent:** Future workstream — structure RC_OS more like a proper UX/OS layer than accretion of single-key handlers: table-driven key→handler maps, clear UX vs domain ownership (AO_RCOS vs cal_manager vs FD), station/vehicle gating without copy-paste, host-testable dispatch. Entry docs: `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING §2.
+**Intent:** Two job-distinct UIs (vehicle USB **console** vs station **pad dashboard**), plus one F´-shaped onboard catalog. Not one unified CLI. Plan: `docs/plans/RCOS_REWORK.md` (is/isn't + current-function classification).
 
-**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before code.
+**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before live-menu structure change. Sitting 0 (key freeze + host test) does not change live dispatch.
+
+**HW (2026-08-27):** Vehicle Feather `02FBDDB8E1CA1281` COM5. `ROCKETCHIP_DEV_MODE` compile + runtime `v` (USB+idle) now in tree. Extra restart + 3-boot still open (OpenOCD is Fruit Jam; do not `picotool reboot -a -f`). Station `BEC71B8EDC6AEBD1` not touched.
 
 ---
 

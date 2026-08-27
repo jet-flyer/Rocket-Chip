@@ -24,7 +24,8 @@ typedef enum {
     RC_OS_MENU_MAIN = 0,
     RC_OS_MENU_CALIBRATION,
     RC_OS_MENU_FLIGHT,
-    RC_OS_MENU_DEBUG,           // IVP-109: debug sub-menu
+    RC_OS_MENU_DEBUG,
+    RC_OS_MENU_SETTINGS,
 } rc_os_menu_t;
 
 // ============================================================================
@@ -33,6 +34,8 @@ typedef enum {
 
 // Call once after stdio_init_all() and before main loop.
 void rc_os_init(void);
+void rc_os_reset_to_main(void);
+void rc_os_print_help(void);
 
 // ============================================================================
 // Main Loop Integration
@@ -61,6 +64,13 @@ void rc_os_start_arm_confirm(void);
 // must leave chars alone so rc_os_update() can feed the confirm state
 // machine.
 bool rc_os_arm_confirm_active(void);
+
+// Runtime DEV_MODE. Compile-time ROCKETCHIP_DEV_MODE must be on for the
+// toggle and inject/cal-reset rows to exist. Enable: USB + FD idle.
+// Stays on across ARM so inject can run; USB unplug clears it.
+// Probe test_mode_active() is a different gate (fault_force_*).
+bool rc_os_dev_mode_runtime(void);
+void rc_os_dev_mode_toggle(void);
 
 // ============================================================================
 // Sensor Availability Flags (set by main)
