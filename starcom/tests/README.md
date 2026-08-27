@@ -8,4 +8,4 @@ cmake --build starcom/build
 ctest --test-dir starcom/build
 ```
 
-`starcom.unit` is the host binary: codecs, COP-P (`test_copp.cpp`), USLP (`test_uslp.cpp`), COP-1 (`test_cop1.cpp`). FOP-1 S4/S5 BC-init is not this sitting.
+`starcom.unit` is the host binary: codecs, COP-P, USLP, COP-1, host loopback (`test_loopback.cpp`). UDP/SPI adapters are not this sitting.

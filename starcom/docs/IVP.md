@@ -50,7 +50,7 @@ Bottom-up, same cut as `STATUS.md`. MVP is **0+1 then 2**. USLP and COP-1 follow
 | **2** | FOP-P / FARM-P | COP-P procedures | T |
 | **3** | USLP in the same PLTU | Version-4 in PLTU | T |
 | **4** | FOP-1 / FARM-1 | COP-1 procedures | T |
-| **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T (sketch) |
+| **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T |
 | **6** | Sanitizers, fuzz smoke, `0.1.0` | Claims match tests | T, R (sketch) |
 
 Repeater (early RC-facing, after 0+1 codecs exist): own sitting; grade bent vs buffered by RAM/CPU. Prox-1 §6 MAC/hailing: later. PIO/FPGA ports: increment 5 or a dedicated port sitting.
@@ -126,9 +126,13 @@ FARM-1 Table 6-1 (E1–E11) and FOP-1 Table 5-1 subset (E23 Initiate AD without 
 
 **Gate:** FARM-1 table tests; FOP-1 initiate + AD ack + retransmit flag; host loop with `take_sdu`; D-5 heap trap.
 
-### Increments 5–6 (sketch)
+### Increment 5 — Adapters
 
-**5 — Adapters.** Host loopback first (bytes in a test). Then a generic radio port under `starcom/adapters/`. PIO (ASM/timing/bitstream) and FPGA (211.1 C&S/PHY) attach here when those sittings run; same codec vectors. Rocket-Chip pins and AO stay in Rocket-Chip.
+Host loopback (`HostLoopback` two `FrameSlot`s) then a generic `RadioPort` mailbox. No sockets, SPI, or Pico SDK. Core stays sans-I/O. Rocket-Chip pins and AO stay in Rocket-Chip. PIO/FPGA attach later on the same codec vectors. Do not mint SC-NNN.
+
+**Gate:** COP-1 AD over loopback with `take_sdu`; radio port take_tx → offer_rx; D-5 on `slot_write`/`slot_read`.
+
+### Increment 6 (sketch)
 
 **6 — Hardening.** ASan/UBSan on host tests, short fuzz of the codecs, CONFORMANCE pointers, first `0.1.0`.
 

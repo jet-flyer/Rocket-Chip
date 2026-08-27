@@ -2,17 +2,17 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 4 COP-1 in (FARM-1 Table 6-1 + FOP-1 subset; USLP+CLCW). Still sans-I/O. Host `ctest` (`starcom.unit`). S4/S5 BC-init and full FOP-1 46-event table are **not** this sitting. No SC-NNN.
+**Phase:** increment 5 host loopback + generic radio mailbox. Core still sans-I/O. UDP/SPI/Pico not this sitting. No SC-NNN.
 
 ## Next
 
-Adapters (host loopback, then generic radio port).
+Hardening (ASan/UBSan, fuzz smoke, first `0.1.0`).
 
 Owner-open (whiteboard): duplex/§6; repeater grade; coding-standards clang-tidy/naming audit.
 
-1. Increment 5 adapters. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
+1. Increment 6 hardening. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
 
-Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
+Gates: `docs/IVP.md`. FPGA/PIO sim is later (Researcher / Buzz).
 
 ## Phase sketch
 
@@ -32,7 +32,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Blockers
 
-- None for adapter start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
+- None for hardening start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
 
 ## Done this sitting
 
@@ -44,4 +44,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - FOP-P / FARM-P (`copp.hpp` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `copp_take_sdu` (7.3.3). SET V(R) persistent/MAC omitted.
 - USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF omitted.
 - COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 omitted.
+- Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

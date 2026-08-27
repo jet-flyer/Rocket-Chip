@@ -27,6 +27,8 @@ target_include_directories(starcom
 
 starcom_set_core_flags(starcom)
 
+add_subdirectory(adapters/host)
+
 if(STARCOM_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)

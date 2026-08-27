@@ -1,6 +1,6 @@
 # Public headers (`include/starcom/`)
 
-Consumers' only search path. Namespace `starcom::ccsds`. No Rocket-Chip types, no radio objects, no hardware.
+Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no hardware). Ports are `starcom::adapters` (byte mailboxes; still no Pico SDK).
 
 | Header | Job |
 |--------|-----|
@@ -16,5 +16,7 @@ Consumers' only search path. Namespace `starcom::ccsds`. No Rocket-Chip types, n
 | `ccsds/copp.hpp` | FOP-P / FARM-P + `CoppEndpoint` |
 | `ccsds/uslp.hpp` | Version-4 `decode_uslp` / `encode_uslp` |
 | `ccsds/cop1.hpp` | FOP-1 / FARM-1 + `Cop1Endpoint` |
+| `adapters/loopback.hpp` | `HostLoopback` two `FrameSlot`s |
+| `adapters/radio_port.hpp` | One TX + one RX mailbox |
 
 Handshake: `docs/ICD.md`.

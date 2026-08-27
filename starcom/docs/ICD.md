@@ -1,6 +1,6 @@
 # Starcom core ICD
 
-**Status:** Draft. Codec handshake locked (including USLP). COP-P and COP-1 engine verbs landed. Namespace `starcom::ccsds`.
+**Status:** Draft. Codec handshake locked. COP-P / COP-1 engine verbs landed. Host loopback / radio mailbox in `starcom::adapters`. Namespace `starcom::ccsds` for the core.
 
 This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Primary sources (the Blue Books) win over names here. `WORKING_HERE.md`.
 
@@ -178,6 +178,22 @@ Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. 
 ## Repeater
 
 Wanted early on RC (after codecs). No `repeat` in the increment 0+1 API. Envelope check is `decode_pltu`. Grade and dedup wait for that sitting.
+
+## Adapters (host loopback / radio port)
+
+Not the core. Namespace `starcom::adapters`. No sockets, SPI, or Pico SDK. One outstanding PLTU per slot (`kAdapterFrameMax` = ASM + 2048 + CRC-32).
+
+```cpp
+Result<std::size_t> slot_write(FrameSlot&, std::span<const std::byte>);
+Result<std::size_t> slot_read(FrameSlot&, std::span<std::byte> out);
+// HostLoopback: a_to_b / b_to_a FrameSlots
+Result<std::size_t> radio_begin_tx(RadioPort&, std::span<const std::byte>);
+Result<std::size_t> radio_take_tx(RadioPort&, std::span<std::byte>);
+Result<std::size_t> radio_offer_rx(RadioPort&, std::span<const std::byte>);
+Result<std::size_t> radio_poll_rx(RadioPort&, std::span<std::byte>);
+```
+
+The core still only sees `copp_*` / `cop1_*` byte verbs. UDP, file replay, and RP2350 SPI glue are later. No virtual `IRadio` in the core (P10-9).
 
 ## CMake (with the first `.cpp`, not a solo sitting)
 
