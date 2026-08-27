@@ -54,7 +54,7 @@ void i2c_bus_scan(void);  // Expected-sensor inventory; skips 0x10 (LL 20)
 [[nodiscard]] int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len);
 
 // Number of bytes read, or negative on error
-[[nodiscard]] int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len);
+[[nodiscard]] int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len, uint32_t timeout_us = kI2cTimeoutUs);
 
 // Number of bytes read, or negative on error
 [[nodiscard]] int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);

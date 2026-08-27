@@ -1312,11 +1312,43 @@ static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
 
 static void cmd_station_gps() {
     if constexpr (!job::kRadioModeRx) { return; }
-    if (!g_gpsInitialized.load(std::memory_order_acquire)) {
-        rc::rc_log("Station GPS: not connected\n");
+
+    const bool inited = g_gpsInitialized.load(std::memory_order_acquire);
+    rc::rc_log("Station GPS: %s (attempted=%u)\n",
+           inited ? "initialized" : "not connected",
+           g_gpsInitAttempted ? 1U : 0U);
+
+    char gps_dbg[96] = { 0 };
+    gps_pa1010d_get_debug_status(gps_dbg, sizeof(gps_dbg));
+    rc::rc_log("  %s\n", gps_dbg);
+
+    shared_sensor_data_t snap = {};
+    (void)seqlock_read(&g_sensorSeqlock, &snap);
+    rc::rc_log("  G=%lu E=%lu RMC=%c GGA=%u sats=%u valid=%u\n",
+           (unsigned long)snap.gps_read_count,
+           (unsigned long)snap.gps_error_count,
+           snap.gps_rmc_valid ? 'A' : 'V',
+           snap.gps_gga_fix,
+           snap.gps_satellites,
+           snap.gps_valid ? 1U : 0U);
+
+    const uint8_t* raw = nullptr;
+    size_t raw_len = 0;
+    if (gps_pa1010d_get_last_raw(&raw, &raw_len) && raw != nullptr && raw_len > 0) {
+        char snippet[49];
+        const size_t n = (raw_len < 48U) ? raw_len : 48U;
+        for (size_t i = 0; i < n; i++) {
+            const char c = static_cast<char>(raw[i]);
+            snippet[i] = (c >= 32 && c < 127) ? c : '.';
+        }
+        snippet[n] = '\0';
+        rc::rc_log("  raw[%u]: %s\n", static_cast<unsigned>(raw_len), snippet);
+    }
+
+    if (!inited) {
         return;
     }
-    rc::rc_log("Station GPS: fix=%u sats=%u hdop=%.1f\n",
+    rc::rc_log("  Best fix=%u sats=%u hdop=%.1f\n",
            g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
            static_cast<double>(g_bestGpsFix.hdop));
     rc::rc_log("  Lat=%.7f Lon=%.7f Alt=%.1fm\n",

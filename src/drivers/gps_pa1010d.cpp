@@ -40,13 +40,13 @@ constexpr uint8_t nmea_checksum_constexpr(const char* body) {
     return c;
 }
 
-// PMTK314 — enable RMC + GGA + GSA (rest disabled). Field 6 is GSV=0.
+// PMTK314 — I2C only: RMC + GGA. GSA=0 so one GNSS epoch fits the 255-byte
 // Field order GLL,RMC,VTG,GGA,GSA,GSV: standards/VENDOR_GUIDELINES.md.
 // Sent twice during init per the cold-boot window discovery (see init()).
-constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
+constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
 constexpr char kPmtk314Sentence[] =
-    "$PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x29,
+    "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x28,
               "PMTK314 checksum mismatch — verify literal matches sentence body");
 static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
               "PMTK314 sentence byte length mismatch");
@@ -77,6 +77,8 @@ static gps_data_t g_data;
 // At 400kHz, 255 bytes takes ~5.8ms.
 // Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
 constexpr size_t kGpsMaxRead = 255;
+// 255-byte MT3333 reads clock-stretch; 10 ms bus timeout NACKs ~90% of station polls.
+constexpr uint32_t kGpsI2cReadTimeoutUs = 50000;
 static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
 static size_t g_lastReadLen = 0;           // Last successful read length
 
@@ -98,7 +100,7 @@ static size_t g_lastReadLen = 0;           // Last successful read length
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // Read raw I2C data into a local buffer, then filter in-place
     static uint8_t g_raw[kGpsMaxRead];
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, max_len);
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, max_len, kGpsI2cReadTimeoutUs);
     if (ret <= 0) {
         return -1;  // I2C failure (NACK or timeout)
     }
@@ -187,6 +189,13 @@ bool gps_pa1010d_init() {
     i2c_bus_recover();
     sleep_ms(20);
 
+    // Wake the I2C-UART bridge with a read. Do not abort on fail.
+    // STEMMA power-cycle can leave 0x10 NACKing writes until someone reads it.
+    uint8_t wake = 0;
+    (void)i2c_bus_read(kGpsPa1010dAddr, &wake, 1, kGpsI2cReadTimeoutUs);
+    (void)i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsI2cReadTimeoutUs);
+    sleep_ms(20);
+
     // BLIND PMTK config — send the full sequence even if probe fails.
     // This is the fix for the "GPS never detected" regression: the PA1010D
     // exposes a transient ACK window at cold boot, then drops to low-power
@@ -213,7 +222,7 @@ bool gps_pa1010d_init() {
     // full-power mode by blind PMTK, read a full buffer and look for NMEA.
     bool found_nmea = false;
     for (int retry = 0; retry < 8 && !found_nmea; retry++) {
-        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead);
+        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsI2cReadTimeoutUs);
         if (ret > 0) {
             for (int32_t i = 0; i < ret; i++) {
                 if (g_buffer[i] == kNmeaStart) {

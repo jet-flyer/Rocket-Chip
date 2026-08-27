@@ -46,6 +46,11 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-27-002 | Grok Buzz (Grok Bot) | bugfix, hardware
+
+**Fruit Jam station PA1010D I2C GPS.** I2C PMTK314 is RMC+GGA only (GSA=0) so a dual-GNSS epoch fits the 255-byte MT3333 TX buffer; 50 ms I2C read timeout (10 ms was ~90% errors and wedged the module); `init_gps()` no longer probe-gates or 255-byte-drains before blind PMTK; wake-read before PMTK. Station `g` prints PMTK + seqlock G/E/RMC/GGA even without a latched 3D fix. USB 3V3 cut (not picotool reboot) recovered a wedged PA1010D. Station-to-vehicle distance can use that local fix once the telem stream is the reliable path. UART vehicle PMTK314 unchanged. Pre-commit still runs vehicle `bench_sim` on any firmware path (COM5 HEALTH-spam reclassify); owner one-time `--no-verify` for this station-GPS commit. Follow-up: I?C bus as a whole (early-impl table) using 50 ms stretch / no probe-gate / POR vs MCU reset; WB 2026-08-27. Verified: COM7 Hardware 11/11, `[PASS] GPS init`, PMTK `[51,18,51]`, `gps reads=1681 errs=0`, `g` 3D / 6 sats 30.17257, -97.86009.
+
+
 ### 2026-08-27-001 | Grok 4.6 (Build CLI) | architecture, refactor
 
 **RC_OS console rewrite on `grok/rcos-rework` (worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos`).** Table-driven engine + job-distinct vehicle/station menus. Plan: `docs/plans/RCOS_REWORK.md`. Compile-time `ROCKETCHIP_DEV_MODE` (Debug default ON) plus runtime `v` toggle (USB + idle to enable; USB unplug clears). Inject/cal-reset behind both gates; probe `test_mode_active()` unchanged. Not merged to `main` yet. Verified: host `test_cli_engine` 5/5 and `test_cli_engine_field` 5/5; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.3-dev (kmenu)`, sensors healthy — GO, `[FD] PYRO FIRED DROGUE+MAIN` (post-`picotool load` reboot; extra restart + 3-boot still open — OpenOCD is Fruit Jam). Station HW skipped this sitting.

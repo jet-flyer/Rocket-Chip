@@ -105,7 +105,7 @@ void bind_gps_i2c_backend() {
 static void init_gps() {
     // Transport-agnostic bring-up, after IMU bypass is up (LL 20).
     // UART when the pack exposes it (no shared-bus contention, LL 24);
-    // I2C probe+init otherwise, or if UART init failed.
+    // I2C init otherwise, or if UART init failed.
     if (board::kUartGpsAvailable) {
         g_gpsInitAttempted = true;
         if (gps_uart_init()) {
@@ -114,16 +114,11 @@ static void init_gps() {
             return;
         }
     }
-    // I2C fallback — probe + init AFTER IMU bypass mode is stable.
-    // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
-    if (!i2c_bus_probe(kGpsPa1010dAddr)) {
-        return;
-    }
+    // I2C fallback AFTER IMU bypass is stable. Do not probe-gate: a 10 ms
+    // 1-byte probe false-negatives on PA1010D clock-stretch, then we never
+    // call gps_pa1010d_init() (blind PMTK + $ search). Do not drain 255 B
+    // first either; that chews the same cold-boot ACK window PMTK needs.
     g_gpsInitAttempted = true;
-    uint8_t gps_drain[255];
-    // Drain the auto-streamed NMEA so gps_pa1010d_init() starts clean; the
-    // bytes are deliberately discarded (LL 20). (void) is the honest marker.
-    (void)i2c_bus_read(kGpsPa1010dAddr, gps_drain, sizeof(gps_drain));
     if (gps_pa1010d_init()) {
         g_gpsInitialized.store(true, std::memory_order_release);
         bind_gps_i2c_backend();

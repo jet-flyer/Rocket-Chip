@@ -135,12 +135,12 @@ int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len) {
     return ret;
 }
 
-int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len) {
+int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len, uint32_t timeout_us) {
     if (!g_initialized || data == nullptr || len == 0) {
         return -1;
     }
 
-    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, kI2cTimeoutUs);
+    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, timeout_us);
     return ret;
 }
 
