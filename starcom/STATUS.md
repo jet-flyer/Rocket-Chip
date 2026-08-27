@@ -39,6 +39,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - Annex C CRC-32 + PLTU encode/decode, `Starcom::starcom`, host `ctest` (`starcom.unit`), D-5 heap trap. Golden `v3-header-only` remainder `BCC004E7`.
 - Host testing procedure: `docs/TESTING.md`.
 - Version-3 `decode_v3` / `encode_v3`.
-- Space Packet `decode_sp` / `encode_sp`; IVP `v3-one-sp-n` is 18+N.
+- Space Packet `decode_space_packet` / `encode_space_packet`; IVP `v3-one-sp-n` is 18+N.
 - `Plcw16` / `Clcw32` pack/unpack.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

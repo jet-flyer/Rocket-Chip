@@ -86,15 +86,16 @@ Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) âˆ
 ### Space Packet
 
 ```cpp
-struct SpFields { /* type, secondary-header flag, Apid, seq flags, seq count */ };
-struct SpView {
-  SpFields fields;
+struct SpacePacketFields { /* type, secondary-header flag, Apid, seq flags, seq count */ };
+struct SpacePacketView {
+  SpacePacketFields fields;
   std::span<const std::byte> data;
 };
 
-Result<SpView> decode_sp(std::span<const std::byte> packet) noexcept;
-Result<std::size_t> encode_sp(std::span<std::byte> out, SpFields const& fields,
-                              std::span<const std::byte> data) noexcept;
+Result<SpacePacketView> decode_space_packet(std::span<const std::byte> packet) noexcept;
+Result<std::size_t> encode_space_packet(std::span<std::byte> out,
+                                        SpacePacketFields const& fields,
+                                        std::span<const std::byte> data) noexcept;
 ```
 
 6-octet primary header. PVN `000`. Data field 1â€“65536 octets. Idle: APID all-ones, secondary header flag 0. Field map: SAD (working copy of 133.0 Fig 4-2). Composition: encode packet, encode V-3 around it, encode PLTU around that (18+N).
@@ -125,7 +126,7 @@ PLCW is 16 bits (211.0 Fig 3-5). Encode writes Format ID `1`, Type ID `0`, spare
 | `handle_timeout` / `tick` | Caller passes `now`. |
 | `submit_sdu` | Caller gives a Space Packet (or equivalent) to send. |
 
-Exact engine types land with COP-P.
+Exact engine types land with COP-P. An RC Active Object is a valid *caller* of these verbs (`tick(now)`, `receive_bytes`). The Starcom core is not itself a QP AO; SPIN models RC event topology, not this library.
 
 ## Half-duplex
 

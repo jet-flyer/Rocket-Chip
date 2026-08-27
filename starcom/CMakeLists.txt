@@ -9,7 +9,7 @@ add_library(starcom STATIC
   src/ccsds/crc32.cpp
   src/ccsds/pltu.cpp
   src/ccsds/v3.cpp
-  src/ccsds/sp.cpp
+  src/ccsds/space_packet.cpp
   src/ccsds/plcw.cpp
   src/ccsds/clcw.cpp
 )

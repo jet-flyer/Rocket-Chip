@@ -262,7 +262,7 @@ void test_codecs_allocate_nothing() {
 }  // namespace
 
 int run_v3_tests();
-int run_sp_tests();
+int run_space_packet_tests();
 int run_ocf_tests();
 
 int main() {
@@ -282,7 +282,7 @@ int main() {
   test_heap_trap_positive_control();
   test_codecs_allocate_nothing();
   g_fails += run_v3_tests();
-  g_fails += run_sp_tests();
+  g_fails += run_space_packet_tests();
   g_fails += run_ocf_tests();
 
   if (g_fails != 0) {

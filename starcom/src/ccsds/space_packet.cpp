@@ -1,11 +1,11 @@
-#include "starcom/ccsds/sp.hpp"
+#include "starcom/ccsds/space_packet.hpp"
 
 #include <algorithm>
 
 namespace starcom::ccsds {
 
-Result<SpView> decode_sp(std::span<const std::byte> packet) noexcept {
-  if (packet.size() < kSpMinSize) {
+Result<SpacePacketView> decode_space_packet(std::span<const std::byte> packet) noexcept {
+  if (packet.size() < kSpacePacketMinSize) {
     return tl::unexpected(Error::sp_too_short);
   }
   const unsigned b0 = std::to_integer<unsigned>(packet[0]);
@@ -15,12 +15,12 @@ Result<SpView> decode_sp(std::span<const std::byte> packet) noexcept {
   const unsigned length_c = (std::to_integer<unsigned>(packet[4]) << 8) |
                             std::to_integer<unsigned>(packet[5]);
   const std::size_t data_len = static_cast<std::size_t>(length_c) + 1u;
-  const std::size_t need = kSpHeaderSize + data_len;
+  const std::size_t need = kSpacePacketHeaderSize + data_len;
   if (packet.size() < need) {
     return tl::unexpected(Error::sp_too_short);
   }
 
-  SpView view{};
+  SpacePacketView view{};
   view.fields.telecommand = (b0 & 0x10u) != 0;
   view.fields.secondary_header = (b0 & 0x08u) != 0;
   const unsigned apid =
@@ -30,16 +30,17 @@ Result<SpView> decode_sp(std::span<const std::byte> packet) noexcept {
   view.fields.seq_flags = static_cast<std::uint8_t>((b2 >> 6) & 0x03u);
   view.fields.seq_count = static_cast<std::uint16_t>(
       ((b2 & 0x3Fu) << 8) | std::to_integer<unsigned>(packet[3]));
-  view.data = packet.subspan(kSpHeaderSize, data_len);
+  view.data = packet.subspan(kSpacePacketHeaderSize, data_len);
   return view;
 }
 
-Result<std::size_t> encode_sp(std::span<std::byte> out, SpFields const& fields,
-                              std::span<const std::byte> data) noexcept {
-  if (data.size() < 1 || data.size() > kSpDataMax) {
+Result<std::size_t> encode_space_packet(std::span<std::byte> out,
+                                        SpacePacketFields const& fields,
+                                        std::span<const std::byte> data) noexcept {
+  if (data.size() < 1 || data.size() > kSpacePacketDataMax) {
     return tl::unexpected(Error::sp_too_short);
   }
-  const std::size_t need = kSpHeaderSize + data.size();
+  const std::size_t need = kSpacePacketHeaderSize + data.size();
   if (out.size() < need) {
     return tl::unexpected(Error::buffer_too_small);
   }
@@ -57,7 +58,7 @@ Result<std::size_t> encode_sp(std::span<std::byte> out, SpFields const& fields,
   out[4] = std::byte((c >> 8) & 0xFFu);
   out[5] = std::byte(c & 0xFFu);
   std::copy(data.begin(), data.end(),
-            out.begin() + static_cast<std::ptrdiff_t>(kSpHeaderSize));
+            out.begin() + static_cast<std::ptrdiff_t>(kSpacePacketHeaderSize));
   return need;
 }
 
