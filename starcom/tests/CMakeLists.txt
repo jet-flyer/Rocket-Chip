@@ -2,6 +2,7 @@ add_executable(starcom_tests
   unit/heap_trap.cpp
   unit/test_pltu.cpp
   unit/test_v3.cpp
+  unit/test_sp.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)

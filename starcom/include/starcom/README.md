@@ -10,5 +10,6 @@ Consumers' only search path. Namespace `starcom::ccsds`. No Rocket-Chip types, n
 | `ccsds/pltu.hpp` | `decode_pltu` / `encode_pltu` |
 | `ccsds/types.hpp` | `Scid`, `Pcid`, `PortId`; frame min/max |
 | `ccsds/v3.hpp` | `decode_v3` / `encode_v3` |
+| `ccsds/sp.hpp` | `decode_sp` / `encode_sp` |
 
 Handshake: `docs/ICD.md`.

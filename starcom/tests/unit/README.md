@@ -6,4 +6,5 @@ Procedure: [`../../docs/TESTING.md`](../../docs/TESTING.md).
 |------|-----|
 | `test_pltu.cpp` | Annex C CRC-32 + PLTU; IVP `v3-header-only` and PLTU rejects |
 | `test_v3.cpp` | Version-3 pack/unpack; composition with PLTU |
+| `test_sp.cpp` | Space Packet; IVP `sp-idle`, `v3-one-sp-n` (18+N) |
 | `heap_trap.cpp` | D-5 malloc/`operator new` trap (positive control + codecs allocate nothing) |

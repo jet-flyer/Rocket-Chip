@@ -262,6 +262,7 @@ void test_codecs_allocate_nothing() {
 }  // namespace
 
 int run_v3_tests();
+int run_sp_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -280,6 +281,7 @@ int main() {
   test_heap_trap_positive_control();
   test_codecs_allocate_nothing();
   g_fails += run_v3_tests();
+  g_fails += run_sp_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

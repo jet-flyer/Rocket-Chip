@@ -83,11 +83,25 @@ Result<std::size_t> encode_v3(std::span<std::byte> out, V3Fields const& fields,
 
 Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.hpp`). Field map: SAD (working copy of 211.0 Fig 3-3).
 
-### Space Packet, PLCW, CLCW
+### Space Packet
 
-Same shape: `decode_*` / `encode_*`, views over caller spans, `Result`. Field maps: SAD (working copies). Pack/unpack only for PLCW/CLCW — not FOP-P/FARM-P.
+```cpp
+struct SpFields { /* type, secondary-header flag, Apid, seq flags, seq count */ };
+struct SpView {
+  SpFields fields;
+  std::span<const std::byte> data;
+};
 
-Space Packet primary header is 6 octets. Encode of a V-3 with a packet inside is **composition** (encode packet, encode V-3 around it, encode PLTU around that), not one mega-function.
+Result<SpView> decode_sp(std::span<const std::byte> packet) noexcept;
+Result<std::size_t> encode_sp(std::span<std::byte> out, SpFields const& fields,
+                              std::span<const std::byte> data) noexcept;
+```
+
+6-octet primary header. PVN `000`. Data field 1–65536 octets. Idle: APID all-ones, secondary header flag 0. Field map: SAD (working copy of 133.0 Fig 4-2). Composition: encode packet, encode V-3 around it, encode PLTU around that (18+N).
+
+### PLCW, CLCW
+
+Same shape: `decode_*` / `encode_*`. Pack/unpack only — not FOP-P/FARM-P.
 
 ## Engine verbs (not increment 0+1)
 

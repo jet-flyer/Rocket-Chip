@@ -9,6 +9,9 @@ namespace starcom::ccsds {
 enum class Scid : std::uint16_t {};    // 10-bit
 enum class Pcid : std::uint8_t {};     // 1-bit
 enum class PortId : std::uint8_t {};   // 3-bit
+enum class Apid : std::uint16_t {};    // 11-bit; idle is all-ones
+
+inline constexpr Apid kIdleApid{0x7FF};
 
 inline constexpr std::size_t kTransferFrameMin = 5;     // 211.0 §3.2.2.10 empty V-3
 inline constexpr std::size_t kTransferFrameMax = 2048;  // 11-bit length; C = 2047
