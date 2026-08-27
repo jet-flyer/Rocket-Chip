@@ -19,8 +19,11 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 | Term | Means |
 |------|--------|
 | **PLTU** | Proximity Link Transmission Unit (211.2). The coding-and-sync wrapper: ASM + one transfer frame + CRC-32. |
+| **Repeater** | Same-link regenerative forward of a **PLTU**: check ASM + CRC-32, emit the **same octets**. Not a Prox-1 session, not a second long-haul link, not payload decode. Dedup uses the Version-3 frame sequence number. MVP is the one-unit (bent-pipe) path. A later **buffered** grade queues valid PLTUs in caller-owned storage — Rocket-Chip may use PSRAM on a dedicated relay profile. |
 | **USLP** | Unified Space Data Link Protocol (732.1). Its on-the-wire frame is Version-4. On Prox-1 it sits *in* a PLTU, in lieu of Version-3, never inside the V-3 data field. |
-| **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. |
+| **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. Starcom codecs the header; the user field is the app. |
+| **PUS** | ECSS-E-ST-70-41C Packet Utilization Standard (**ESA**, not a CCSDS Blue Book). Service type/subtype **inside** Space Packet user data (e.g. ST[20] get/set onboard parameters). Optional later stack module; not Phase 0. |
+| **cFS / F´** | NASA-world **frameworks**, not CCSDS books. They also ride Space Packets: cFS (GSFC) puts cFE command codes in the user field; F´ (JPL) uses typed PRM_SET/SAVE. US missions often leave packet *contents* to the FSW; ESA standardized those contents as PUS. Neither belongs in `starcom::ccsds` as RC settings. |
 
 
 ---
@@ -89,6 +92,8 @@ Blue Book names, not Starcom types. Picture: `SAD.md` (on the wire).
 - **Don't** make the protocol FSM **only** usable as a QP Active Object. AO wrapper = optional adapter.
 - **Don't** hard-code COP-1 managed parameters (T1, window sizes) — they must be configurable.
 - **Don't** claim 211.1-B-4 PHY compliance on SX1276/LoRa paths. Best-effort PHY must say so loudly.
+- **Don't** run COP-P (or COP-1) on the repeater path. A repeater is not a Prox-1 endpoint. Don't decode the Space Packet to forward a PLTU.
+- **Don't** describe the repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). That is a different product. This one is range-extend: valid PLTU in, same PLTU out.
 
 ### Documentation mistakes
 

@@ -167,6 +167,20 @@ Decisions from this sitting live in `SAD.md` (map), `ICD.md` (handshake), `CONFO
 
 **Prox-1 §6 session/MAC:** not decided. Full module vs out waits until we implement it. No stub in the meantime. Do not treat absence from the MVP sequence as a removal.
 
+## Note — 2026-08-27 (Hamilton + Nathan): PLTU repeater is MVP
+
+Append-only. Does not rewrite §0. Does not add a Prox-1-to-long-haul gateway.
+
+The functional RC Job (IVP-98) was a same-link regenerative repeater: check the envelope, do not decode payload, re-TX the same bytes, drop a duplicate sequence. That shape belongs in the **core** at codec time, not after COP-P, and not only as an RC integration trick.
+
+**Lock:** a Starcom node can **repeat a PLTU**. Valid ASM + CRC-32 → emit the original octets (bit-exact). Dedup on the Version-3 frame sequence number. No Space Packet parse. No FOP-P / FARM-P on that path (the repeater is not a Prox-1 endpoint). The consumer still owns half-duplex "radio is free." This is not an orbiter that terminates Prox-1 and originates a different Earth link.
+
+**Two grades (same sitting, Nathan):**
+- **Bent-pipe (MVP).** One PLTU. Right for a board that is already doing another job, or a pole/aerostat that only needs to punch through corn / LOS.
+- **Buffered (deferred).** Caller-owned queue of valid PLTUs. 133.0-B-2 §2.4 assumes the *subnetwork* provides storage and forwarding; SPP does not specify the queue. The core stays sans-I/O (span of slots in). Rocket-Chip, when it fleshes the pure relay mission profile, may back that queue with PSRAM instead of IMU/fusion RAM. Not Bundle Protocol / DTN unless a later sitting opens 734.2. Do not pick a depth now.
+
+Living map: `CONFORMANCE.md` rows, `SAD.md` repeater box, `ICD.md` repeater path, `docs/IVP.md` increment 0+1 step 3 + Not-yet buffered row, `STATUS.md` MVP cut.
+
 
 ## 3. Unique Data by Source (verbatim excerpts â€” no paraphrase)
 

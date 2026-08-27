@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases b
 
 ## Unreleased
 
+### 2026-08-27-001 | Grok 4.6 (Build CLI) | documentation, architecture
+
+**PLTU repeater locked into MVP; buffered grade deferred.** Bent-pipe: ASM + CRC-32, bit-exact octets out, V-3 FSN dedup — one unit, dual-use board or pole/aerostat. Not COP-P, not Space Packet parse, not a Prox-1/long-haul gateway. Buffered repeater (caller-owned queue; 133.0 §2.4 storage/forwarding; RC relay profile may use PSRAM instead of IMU RAM) is deferred, not DTN. Half-duplex TX-ready stays with the consumer. Living map: CONFORMANCE, SAD, ICD, IVP, STATUS, WORKING_HERE, DESIGN note. No library code. Verified: docs only, no firmware path, no HW reseat required.
+
 ### 2026-08-25-002 | Grok Hamilton (Grok Bot) | documentation, architecture
 
 **Starcom docs cut + living IVP.** SAD, ICD, CONFORMANCE, identity README, folder READMEs, DESIGN pointer (D-4 closed as PLTU wraps V-3 XOR USLP). IVP at `docs/IVP.md` (IEEE 1012 + ECSS methods; Closed log IDs when gates pass, not a projected SC-01 list). Next: first codec, CMake with it. No library code. Detail: `docs/IVP.md`, `STATUS.md`.

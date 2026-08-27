@@ -76,9 +76,21 @@ Same PLTU, truncated USLP instead of V-3 (also 18+N):
 
 USLP swap: replace the 5-octet V-3 header with a 4-to-14 octet USLP primary header plus a 1-to-3 octet TFDF header. Optional OCF (4) and FECF CRC-16 (2) would sit before the PLTU CRC-32. On Prox-1 COP-P, keep the PLTU CRC-32; do not use FECF as the link CRC.
 
-**Does include:** the PLTU envelope, Version-3 and Version-4 as the two legal insides, Space Packet as the SDU.
+**Does include:** the PLTU envelope, Version-3 and Version-4 as the two legal insides, Space Packet as the SDU, a same-link **PLTU repeater**.
 
-**Does not:** USLP nested in the V-3 data field, mixed versions on one stream, 211.1 PHY / Manchester / FPGA coding, 131.0 long-haul C&S, convolutional or LDPC, COP / MAC / hailing, radio or SPI.
+**Does not:** USLP nested in the V-3 data field, mixed versions on one stream, 211.1 PHY / Manchester / FPGA coding, 131.0 long-haul C&S, convolutional or LDPC, COP / MAC / hailing on the repeater path, radio or SPI, a Prox-1-to-long-haul gateway.
+
+Repeater (MVP, with the PLTU + V-3 codecs — not after COP-P):
+
+```
+valid PLTU in  -->  same PLTU octets out
+  drop: bad ASM, bad CRC-32, duplicate V-3 FSN
+  do not parse the Space Packet
+  do not run FOP-P / FARM-P
+  consumer decides when the radio may TX (sans-I/O)
+```
+
+Two grades. **Bent-pipe** (MVP): one unit, for a board that is already doing another job. **Buffered** (deferred): caller-owned queue of valid PLTUs; Rocket-Chip may back it with PSRAM on a pure relay profile instead of IMU/fusion RAM. The core never names PSRAM. 133.0 §2.4 assumes the subnetwork stores and forwards; that is this grade, not Bundle Protocol.
 
 PLTU = Proximity Link Transmission Unit (211.2). USLP = Unified Space Data Link Protocol (732.1, Version-4 frame). Space Packet = 133.0, the SDU inside the frame.
 
@@ -109,6 +121,7 @@ starcom/
 | result / span | Error and buffer seams. Static `Starcom::starcom` is the product. |
 | clcw / plcw | `Clcw32` and `Plcw16` — distinct. No generic OCF. |
 | pltu | C&S envelope: ASM + CRC-32 (211.2). Wraps one frame version. |
+| repeat | Bit-exact PLTU forward after C&S check. V-3 FSN dedup. Not COP. |
 | v3 | Version-3 transfer frame (211.0). First insides of PLTU. |
 | uslp | Version-4 frame + VC/MAP mux (732.1). In lieu of V-3, same PLTU. |
 | cop1 | FOP-1 / FARM-1, table-driven, no QP |
@@ -132,6 +145,7 @@ Settled this sitting (do not reopen):
 - `Clcw32` / `Plcw16` distinct. No generic OCF.
 - F' is an integration target, not a Starcom dependency.
 - Framing: PLTU wraps Version-3 XOR Version-4 (USLP), never mixed on one stream, never USLP nested in the V-3 data field. MVP includes both frame types. Implementation order: PLTU, then V-3, then USLP.
+- Repeater: in MVP with the codecs. Bit-exact PLTU pass-through after ASM + CRC-32. Dedup on V-3 FSN. No payload decode, no COP on that path, no second link. TX-ready is the consumer's. Buffered / PSRAM-backed grade is deferred with the RC relay profile; caller owns the queue.
 - Time: caller passes `now`; the C++ typedef lands with COP-P timers, not as a Phase 0 public type.
 - Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
 - Prox-1 §6 session/MAC is not decided. Full module vs out waits until we implement it. No stub now.

@@ -6,8 +6,8 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 ## Next
 
-1. Codecs: PLTU, Version-3, Space Packet SDU, PLCW/CLCW field pack. CMake (`Starcom::starcom` + host ctest + `tl::expected` / span seams) lands with the first `.cpp`, not as a solo sitting.
-2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional.
+1. Codecs: PLTU, Version-3, Space Packet SDU, PLTU repeater (bit-exact forward after CRC, FSN dedup), PLCW/CLCW field pack. CMake (`Starcom::starcom` + host ctest + `tl::expected` / span seams) lands with the first `.cpp`, not as a solo sitting.
+2. COP-P procedures (FOP-P/FARM-P). That is the Prox ARQ, not optional. Not on the repeater path.
 
 After codecs + COP-P: USLP, COP-1, adapters. Gates: `docs/IVP.md`. FPGA sim is later (Researcher / Buzz).
 
@@ -18,14 +18,14 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 | Phase | Job | Notes |
 |-------|-----|--------|
 | 0 | Skeleton | CMake static + export, `version` / `result` / span seams, empty host test. Lands with the first codec, not alone. |
-| 1 | Codecs | Pure functions. PLTU (ASM+CRC-32), Version-3 frame, Space Packet SDU, PLCW and CLCW field pack/unpack. Golden vectors. |
+| 1 | Codecs | Pure functions. PLTU (ASM+CRC-32), Version-3 frame, Space Packet SDU, PLTU repeater (same octets out, FSN dedup), PLCW and CLCW field pack/unpack. Golden vectors. |
 | 2 | COP-P | FOP-P / FARM-P. This is implementing Prox reliability, not extra. Engine verbs become real here. |
 | 3 | USLP | Version-4 frame + VC/MAP in the same PLTU. Can host COP-P. |
 | 4 | COP-1 | FOP-1 / FARM-1. The other ARQ, not a substitute for COP-P. |
 | 5 | Adapters | Host loopback first. Generic radio port in `starcom/adapters/`. RC pins/AO stay in RC. |
 | 6 | Hardening | Sanitizers, longer fuzz, docs, first `0.1.0`. |
 
-**MVP cut (2026-08-25):** Phases 0–2: CMake-with-first-codec, codecs, COP-P. USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. Prox-1 §6 hailing/MAC is not decided (full module vs out); decide when we implement it. No stub.
+**MVP cut (2026-08-25, repeater added 2026-08-27):** Phases 0–2: CMake-with-first-codec, codecs **including the bent-pipe PLTU repeater**, COP-P (endpoints only). USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. Prox-1 §6 hailing/MAC is not decided (full module vs out); decide when we implement it. No stub. Repeater is range-extend of a PLTU, not a second-link gateway. **Buffered** repeater (caller-owned queue; RC relay profile may use PSRAM) is deferred, not this cut.
 
 ## Blockers
 

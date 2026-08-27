@@ -43,6 +43,10 @@ From DESIGN / library_craft, for the engine, not for Phase 1 helpers:
 
 Exact types, error codes, and whether output is a drain or a write-into-span land with the first codec / COP-P caller. Do not invent them here.
 
+**Repeater path (MVP with codecs, not with COP-P).** Same verbs, different use: `receive_bytes` of a candidate PLTU, `bytes_to_send` of that same span if ASM + CRC-32 pass and the V-3 FSN is new. No `submit_sdu`. No COP timers. The consumer still owns "radio is free" (half-duplex). Signatures land with the PLTU codec, same rule as the rest of this file.
+
+A later buffered grade still uses those verbs; the caller passes a queue (span of slots). Depth and backing store (PSRAM on an RC relay profile, SRAM on a dual-use board, host test array) are not core types.
+
 ## Not this document
 
 PHY, adapters, COP tables, CMake, and Blue Book field maps. Wire picture: `SAD.md`. Claims: `CONFORMANCE.md`.

@@ -45,7 +45,7 @@ Bottom-up, same cut as STATUS. MVP is increments 0–2. USLP and COP-1 are in, s
 
 | Inc | Adds | Proves (CONFORMANCE) | Method | Detail |
 |-----|------|----------------------|--------|--------|
-| 0+1 | Static `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLCW/CLCW pack | PLTU, V-3, Space Packet, PLCW codec, CLCW codec | T, R, I | Full below |
+| 0+1 | Static `Starcom::starcom`, host ctest, PLTU, V-3, Space Packet, PLTU repeater, PLCW/CLCW pack | PLTU, V-3, Space Packet, PLTU repeater, PLCW codec, CLCW codec | T, R, I | Full below |
 | 2 | FOP-P / FARM-P | COP-P procedures | T | Full below |
 | 3 | USLP in the same PLTU | Version-4 in PLTU; mixed versions forbidden | T | Sketch |
 | 4 | FOP-1 / FARM-1 | COP-1 procedures | T | Sketch |
@@ -62,9 +62,10 @@ Build order inside this increment, because each layer needs the one under it:
 
 1. PLTU (ASM `FAF320` + CRC-32). Envelope. CRC covers the transfer frame only, not the ASM. 211.2-B-3 Fig 3-1.
 2. Version-3 frame (5-octet header, 2 KiB cap, TFVN bits `10`). First insides. 211.0-B-6 Fig 3-2. PCID / Port ID here, not VCID / MAP.
-3. Space Packet SDU (6-octet header + N). 133.0-B-2 Fig 4-1.
-4. `Plcw16` pack/unpack (211.0-B-6 §3.2.4.3.2.1.1). Pack only. Not the ARQ.
-5. `Clcw32` pack/unpack (232.0-B-4 §4.2.1). Distinct type. No generic OCF.
+3. PLTU repeater. After (1) and (2): valid PLTU → emit the **original octets** (bit-exact, do not re-encode). Drop bad ASM, bad CRC-32, or duplicate V-3 FSN. Do not parse the Space Packet. Do not run COP-P. TX-ready stays with the caller.
+4. Space Packet SDU (6-octet header + N). 133.0-B-2 Fig 4-1. Not required to forward a PLTU.
+5. `Plcw16` pack/unpack (211.0-B-6 §3.2.4.3.2.1.1). Pack only. Not the ARQ.
+6. `Clcw32` pack/unpack (232.0-B-4 §4.2.1). Distinct type. No generic OCF.
 
 Pass when all of these hold:
 
@@ -72,6 +73,7 @@ Pass when all of these hold:
 - Core built exceptionless, no-RTTI. Tests may use exceptions because gtest does.
 - Public search path is `include/starcom/` only. Namespace `starcom::ccsds`. Alias `Starcom::starcom`.
 - Golden encode/decode for each codec. Bad ASM and bad CRC are rejected.
+- Repeater: good PLTU forwards the same bytes; bad CRC drops; duplicate FSN drops; no COP tables on that path.
 - One Space Packet of N user octets inside a V-3 inside a PLTU is 18+N octets (SAD figure). Round-trip.
 - Inspection: no radio, socket, SPI, GPIO, or `rocketchip::` in `include/` or `src/ccsds/`.
 
@@ -108,6 +110,7 @@ USLP can later host this same COP-P. It does not replace it.
 - Prox-1 §6 session / MAC / hailing: full module vs out is decided when we implement it. No stub, no gates.
 - FPGA / 211.1: later port. Host tests never wait on it.
 - LICENSE / VERSIONING: release stubs.
+- Buffered PLTU repeater (caller-owned queue). Fleshed out with the Rocket-Chip relay mission profile (PSRAM instead of IMU working set). Not increment 0+1. Do not invent a depth in this file.
 
 ## 9. Closed
 
