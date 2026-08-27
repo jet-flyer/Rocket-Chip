@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-27-001 | Grok 4.6 (Build CLI) | architecture, refactor
+
+**RC_OS console rewrite on `grok/rcos-rework` (worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos`).** Table-driven engine + job-distinct vehicle/station menus. Plan: `docs/plans/RCOS_REWORK.md`. Compile-time `ROCKETCHIP_DEV_MODE` (Debug default ON) plus runtime `v` toggle (USB + idle to enable; USB unplug clears). Inject/cal-reset behind both gates; probe `test_mode_active()` unchanged. Not merged to `main` yet. Verified: host `test_cli_engine` 5/5 and `test_cli_engine_field` 5/5; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.3-dev (kmenu)`, sensors healthy — GO, `[FD] PYRO FIRED DROGUE+MAIN` (post-`picotool load` reboot; extra restart + 3-boot still open — OpenOCD is Fruit Jam). Station HW skipped this sitting.
+
 ### 2026-08-26-002 | Grok Hamilton (Grok Bot) | tooling, documentation
 
 **Firmware identity from RC_VERSION + git (`docs/versioning`, `3eadb82`).** Closes walk leftover R-9 / WN-010 / WN-067. Product tuple is `0.16.3-dev` in repo-root `RC_VERSION`; CMake generates `rocketchip/version.h`. Procedure SSOT: `standards/VERSIONING.md`. Not merged to `main` yet. Verified: vehicle `bench_sim` 2/2 PASS COM5; station `station_bench_sim` 3/3 PASS COM7; both boards `RocketChip 0.16.3-dev flight-3eadb82`. Host `test_version` PASS.
