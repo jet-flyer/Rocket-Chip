@@ -34,7 +34,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ## Starcom (OPEN) (2026-08-27)
 
-Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Host CMake and codecs through bent-pipe repeater are in (`0.7.0-dev`). This row is the RC-side pointer, not a second copy.
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Sans-I/O data-link core (IVP 0–12) is in (`0.12.0-dev`). Next is increment 13 (owner §6 pick). This row is the RC-side pointer, not a second copy.
 
 RC consumer link is IVP 20–22 when scheduled — not a license to `add_subdirectory` until that sitting. RF test-prep remains worktree `C:\Users\pow-w\Documents\Rocket-Chip-sc-dev` (`grok/sc-dev`), plan `docs/plans/SC_DEV_RC_TEST_PREP.md`.
 

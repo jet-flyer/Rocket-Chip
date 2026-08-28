@@ -10,9 +10,9 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Sequence: [`docs/IVP.md`](docs
 
 ## Duplex / §6 cut (OPEN) (2026-08-27)
 
-IVP increment 13. Do **not** couple the core to RC’s current half-duplex LoRa.
+IVP increment 13. Sans-I/O core 0–12 is in (`0.12.0-dev`). Do **not** start this increment until the owner picks one: full 211.0 §6 module, a small turnaround helper, or consumer-only. No stub of the unchosen paths. Grok bots must not invent the cut.
 
-Owner must pick one before code: full 211.0 §6 module, a small turnaround helper, or consumer-only. No stub of the unchosen paths. SET V(R) persistent activity (7.2.3.2) rides with this increment because the book puts it on MAC.
+Do **not** couple the core to RC’s current half-duplex LoRa. SET V(R) persistent activity (7.2.3.2) rides with this increment because the book puts it on MAC.
 
 211.0 DUPLEX = full / half / simplex. 211.1 is the Prox-1 UHF PHY (not SX1276). Adapters declare what the hardware can do. RC integration (IVP 20–22) may go first **if it does not lock the core out of full/simplex/dual-radio**.
 
@@ -28,7 +28,7 @@ Break-time only. Not mainline IVP. Lives in `starcom/examples/` when scheduled �
 
 | When | Extra on the same demo |
 |------|-------------------------|
-| Now (through IVP 8) | Dissect one PLTU; hunt a stream of several |
+| Now (through IVP 12) | Dissect one PLTU; hunt a stream of several |
 | IVP 9 | Truncated USLP, Insert Zone, FECF labeled |
 | COP already in | FSN / PLCW / CLCW as “why this octet exists” |
 | IVP 15 | File/UDP in, same display |
