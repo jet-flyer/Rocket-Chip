@@ -61,7 +61,7 @@ Bottom-up. 0–7 are in the tree (no SC-NNN yet). 8–25 is the rest of the Star
 | **11** | COP-P on a USLP VC | COP-P hosted on V-4 | T |
 | **12** | Buffered PLTU repeater | Repeater store-and-forward | T |
 | **13** | Prox-1 §6 MAC / DUPLEX + SET V(R) | Session / MAC / hailing | T, R |
-| **14** | Simplex / user-defined bitstream | V-3 DFC `11` on simplex | T |
+| **14** | User-defined DFC 11 | V-3 opaque U-frame data; simplex already 13 | T |
 | **15** | Host UDP / file replay | (port, no Blue Book claim) | T, I |
 | **16** | Generic SPI/GPIO radio port | (port, no Blue Book claim) | T, I |
 | **17** | PIO port | (port) | T, I |
@@ -211,11 +211,11 @@ Landed. `MacSession` table-drives 6-2–6-13. PHY view is 6.5 (`mac_phy`). Outpu
 
 **Gate:** CONFORMANCE row no longer “Not decided”; table tests for full / half / simplex; SET V(R) persistent; public headers still have no radio objects. Tests: `tests/unit/test_mac.cpp`. Do not mint SC-NNN.
 
-### Increment 14 — Simplex / user-defined bitstream
+### Increment 14 — User-defined DFC 11
 
-After §6 (simplex is a DUPLEX mode). V-3 DFC ID `11` (user-defined). Odyssey “Unreliable Bitstream” is Annex F (mission receiver mode), not the general codec — do not copy F4 as the library default. Same PLTU envelope. Do not couple this to LoRa FSK-continuous unless increment 17 says so.
+After section 6 (simplex is already a DUPLEX mode from increment 13). V-3 DFC ID `11` is user-defined opaque octets. Annex F Unreliable Bitstream is Odyssey-only, not a Starcom codec and not increment 17. Same PLTU envelope. PHY waveform claims wait on 211.1 (IVP 18) if we ever make one.
 
-Landed. `encode_v3_user_defined` sets U-frame DFC `11` (opaque octets, empty data field valid — 3.2.3.5). `copp_submit_user_defined` tags existing COP-P hold slots so `copp_bytes_to_send` emits DFC `11`; default `copp_submit_sdu` stays packets (`00`). Receive stays opaque (`copp_take_sdu` does not parse Space Packet). No library reassembly (2.2.2.3): caller chops at `kV3DataMax` (2043; 3.2.3 c). P-frame encode forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). DFC `10` reserved has no service. DFC `01` segmentation is not this increment. Simplex SET MODE active → S71/S72; `connecting_t` on simplex does not hail. Not Annex F4.
+Landed. `encode_v3_user_defined` sets U-frame DFC `11` (opaque octets, empty data field valid — 3.2.3.5). `copp_submit_user_defined` tags existing COP-P hold slots so `copp_bytes_to_send` emits DFC `11`; default `copp_submit_sdu` stays packets (`00`). Receive stays opaque (`copp_take_sdu` does not parse Space Packet). No library reassembly (2.2.2.3): caller chops at `kV3DataMax` (2043; 3.2.3 c). P-frame encode forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). DFC `10` reserved has no service. DFC `01` segmentation is not this increment. Simplex SET MODE active → S71/S72; `connecting_t` on simplex does not hail. Not Annex F4. Simplex is already a DUPLEX value in the section 6 MAC tables (increment 13: S71 transmit / S72 receive), not a second codec. Same PLTU envelope.
 
 **Gate:** encode/decode DFC `11` payload as opaque octets; simplex path does not require hailing (211.0 §6); D-5. Tests: `tests/unit/test_user_defined.cpp`. Do not mint SC-NNN.
 

@@ -28,7 +28,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host`). Call with `st
 | Increment | Point | Owner |
 |-----------|--------|--------|
 | 13 | Prox-1 §6 MAC / DUPLEX + SET V(R) | Owner decision, then Starcom (no stub of the unchosen cut) |
-| 14 | Simplex / user-defined bitstream | Starcom core |
+| 14 | User-defined DFC 11 | Starcom core |
 | 15–18 | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers | `adapters/` |
 | 19 | Convolutional / LDPC | Starcom (211.2 PICS; not a 131.0 long-haul product) |
 | 20 | Host `add_subdirectory(starcom)` | RC |

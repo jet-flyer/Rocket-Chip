@@ -45,6 +45,6 @@ Key concepts for a first read also sit in [`../README.md`](../README.md). Agent 
 | **Full duplex** | Both directions at once (book PHY: two frequencies). | 211.0 §6; 211.1 |
 | **Half duplex** | Both directions, not at the same time. | 211.0 §6 |
 | **Simplex** | One direction only. No hailing on that session. | 211.0 §6 |
-| **DFC ID** | Data Field Construction Identifier. `11` = user-defined data (bitstream-shaped). | 211.0 Table 3-1 |
+| **DFC ID** | Data Field Construction Identifier. `11` = user-defined data (opaque octets; not Annex F). | 211.0 Table 3-1 |
 | **Repeater** | Regenerative forward of a valid PLTU (same octets out). Starcom/RC capability; not a Blue Book product name. | 211.2 C&S check; 133.0 §2.4 (subnetwork store-and-forward) |
 | **T / A / R / I** | Verification methods: Test, Analysis, Review-of-design, Inspection. | ECSS-E-ST-10-02; this IVP |

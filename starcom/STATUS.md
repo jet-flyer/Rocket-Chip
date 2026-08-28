@@ -31,7 +31,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 | 11 | COP-P on USLP VC | Same procedures, V-4. |
 | 12 | Buffered repeater | Caller-owned queue; no invented depth. |
 | 13 | §6 MAC / DUPLEX | Full module (2026-08-27). SET V(R) persistent. |
-| 14 | Simplex / bitstream | V-3 DFC `11` (2026-08-27). Opaque octets, no reassembly. |
+| 14 | User-defined DFC 11 | Opaque U-frame data. Not Annex F. Simplex already increment 13. |
 | 15–18 | Ports | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers. |
 | 19 | Conv / LDPC | 211.2 PICS. |
 | 20–22 | RC consumer | Host link, Pico+AO, replace `telemetry_encoder` with COP. |

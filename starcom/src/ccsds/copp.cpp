@@ -310,6 +310,9 @@ Result<std::size_t> copp_submit_sdu(CoppEndpoint& e,
 Result<std::size_t> copp_submit_user_defined(CoppEndpoint& e,
                                             std::span<const std::byte> octets,
                                             bool expedited) noexcept {
+  if (octets.size() > kV3DataMax) {
+    return tl::unexpected(Error::v3_length_oob);
+  }
   return copp_hold_submit(e, octets, expedited, true);
 }
 
@@ -449,13 +452,17 @@ Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
       e.exp_len = 0;
       e.exp_user_defined = false;
     } else if (kind == FopPSend::new_seq && e.seq_n > 0) {
-      payload = std::span<const std::byte>(e.seq_q[0].data(), e.seq_len[0]);
-      user_defined = e.seq_user_defined[0];
       const auto fsn = e.fop.last_send_fsn;
-      std::copy(e.seq_q[0].begin(), e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(e.seq_len[0]),
-                e.payload_by_fsn[fsn].begin());
-      e.payload_len_by_fsn[fsn] = e.seq_len[0];
+      const std::size_t n = e.seq_len[0];
+      user_defined = e.seq_user_defined[0];
+      if (n != 0) {
+        std::copy(e.seq_q[0].begin(),
+                  e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(n),
+                  e.payload_by_fsn[fsn].begin());
+      }
+      e.payload_len_by_fsn[fsn] = n;
       e.payload_user_defined_by_fsn[fsn] = user_defined;
+      payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(), n);
       for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
         e.seq_q[i] = e.seq_q[i + 1u];
         e.seq_len[i] = e.seq_len[i + 1u];
