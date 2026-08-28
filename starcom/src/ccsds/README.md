@@ -14,4 +14,4 @@ Sans-I/O protocol core. No Pico SDK, sockets, SPI, GPIO, or Rocket-Chip includes
 | `uslp.cpp` | Version-4 transfer frame (732.1 §4.1) |
 | `cop1.cpp` | FOP-1 / FARM-1 (232.1 Tables 5-1 / 6-1) |
 
-Next: IVP 9 (USLP remainder). SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.
+Next: IVP 10 (COP-1 remainder). SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.

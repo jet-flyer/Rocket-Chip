@@ -1,8 +1,8 @@
-// IVP increment 3 — USLP Version-4 in the same PLTU (732.1 §4.1, 211.2 §3.6.4).
-// Non-truncated header. Truncated / Insert Zone / FECF not this sitting.
+// IVP increment 3 + 9 — USLP Version-4 (732.1 §4.1 / annex D / annex B).
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/clcw.hpp"
+#include "starcom/ccsds/crc.hpp"
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/space_packet.hpp"
 #include "starcom/ccsds/uslp.hpp"
@@ -21,7 +21,10 @@ using starcom::ccsds::encode_clcw;
 using starcom::ccsds::encode_pltu;
 using starcom::ccsds::encode_space_packet;
 using starcom::ccsds::encode_uslp;
+using starcom::ccsds::crc16_fecf;
 using starcom::ccsds::Error;
+using starcom::ccsds::kUslpFecfSize;
+using starcom::ccsds::kUslpTruncatedMin;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
 using starcom::ccsds::kUslpConstructionNoSeg;
@@ -30,6 +33,7 @@ using starcom::ccsds::kUslpUpidSpacePacket;
 using starcom::ccsds::MapId;
 using starcom::ccsds::SpacePacketFields;
 using starcom::ccsds::UslpFields;
+using starcom::ccsds::UslpMib;
 using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 
@@ -212,6 +216,90 @@ void test_reject_short_and_length() {
   CHECK(encode_uslp(tiny, UslpFields{}, {}).error() == Error::buffer_too_small);
 }
 
+void test_truncated_roundtrip_and_pltu() {
+  UslpFields f{};
+  f.truncated = true;
+  const std::array<std::byte, 1> tfdz{std::byte{0xAA}};
+  std::array<std::byte, 16> tf{};
+  UslpMib mib{};
+  mib.truncated_frame_length = kUslpTruncatedMin;
+  const auto n = encode_uslp(tf, f, as_span(tfdz), {}, mib);
+  CHECK(n.has_value());
+  CHECK(*n == kUslpTruncatedMin);
+  CHECK((std::to_integer<unsigned>(tf[3]) & 0x01u) == 1u);
+
+  CHECK(decode_uslp(std::span<const std::byte>(tf.data(), *n)).error() ==
+        Error::uslp_truncated);
+  const auto v =
+      decode_uslp(std::span<const std::byte>(tf.data(), *n), mib);
+  CHECK(v.has_value());
+  CHECK(v->fields.truncated);
+  CHECK(v->fields.expedited);
+  CHECK(v->tfdz.size() == 1);
+  CHECK(v->tfdz[0] == std::byte{0xAA});
+
+  std::array<std::byte, 32> pltu{};
+  const auto pn =
+      encode_pltu(pltu, std::span<const std::byte>(tf.data(), *n));
+  CHECK(pn.has_value());
+  CHECK(decode_pltu(std::span<const std::byte>(pltu.data(), *pn)).error() ==
+        Error::uslp_truncated);
+  const auto pv = decode_pltu(std::span<const std::byte>(pltu.data(), *pn),
+                              mib.truncated_frame_length);
+  CHECK(pv.has_value());
+  CHECK(pv->frame.size() == kUslpTruncatedMin);
+}
+
+void test_insert_zone() {
+  UslpMib mib{};
+  mib.insert_zone_length = 2;
+  const std::array<std::byte, 2> iz{std::byte{0x11}, std::byte{0x22}};
+  std::array<std::byte, 32> out{};
+  const auto n = encode_uslp(out, UslpFields{}, {}, {}, mib, as_span(iz));
+  CHECK(n.has_value());
+  CHECK(*n == 10u);  // 7 + 2 insert + 1 TFDF
+  const auto v =
+      decode_uslp(std::span<const std::byte>(out.data(), *n), mib);
+  CHECK(v.has_value());
+  CHECK(v->insert_zone.size() == 2);
+  CHECK(v->insert_zone[0] == std::byte{0x11});
+  CHECK(v->tfdz.empty());
+}
+
+void test_fecf_roundtrip_and_bad() {
+  UslpMib mib{};
+  mib.fecf_present = true;
+  std::array<std::byte, 32> out{};
+  const auto n = encode_uslp(out, UslpFields{}, {}, {}, mib);
+  CHECK(n.has_value());
+  CHECK(*n == kUslpFrameMin + kUslpFecfSize);
+  // Covered prefix is min frame with C = 9 (not the no-FECF C = 7 vector).
+  CHECK(out[5] == std::byte{0x09});
+  CHECK(crc16_fecf(std::span<const std::byte>(out.data(), kUslpFrameMin)) ==
+        0x59D0u);
+  CHECK(out[8] == std::byte{0x59});
+  CHECK(out[9] == std::byte{0xD0});
+  const auto v =
+      decode_uslp(std::span<const std::byte>(out.data(), *n), mib);
+  CHECK(v.has_value());
+  CHECK(v->fecf.size() == kUslpFecfSize);
+  out[9] ^= std::byte{0x01};
+  CHECK(decode_uslp(std::span<const std::byte>(out.data(), *n), mib).error() ==
+        Error::uslp_bad_fecf);
+}
+
+void test_truncated_rejects_insert_or_fecf() {
+  UslpFields f{};
+  f.truncated = true;
+  const std::array<std::byte, 1> tfdz{std::byte{0xAA}};
+  UslpMib mib{};
+  mib.truncated_frame_length = kUslpTruncatedMin;
+  mib.fecf_present = true;
+  std::array<std::byte, 16> out{};
+  CHECK(encode_uslp(out, f, as_span(tfdz), {}, mib).error() ==
+        Error::uslp_length_oob);
+}
+
 void test_heap() {
   std::array<std::byte, 32> out{};
   starcom::test::heap_trap_reset();
@@ -219,6 +307,12 @@ void test_heap() {
   const auto n = encode_uslp(out, UslpFields{}, {});
   if (n.has_value()) {
     (void)decode_uslp(std::span<const std::byte>(out.data(), *n));
+    UslpFields tr{};
+    tr.truncated = true;
+    const std::array<std::byte, 1> z{std::byte{0xAA}};
+    UslpMib mib{};
+    mib.truncated_frame_length = kUslpTruncatedMin;
+    (void)encode_uslp(out, tr, as_span(z), {}, mib);
   }
   starcom::test::heap_trap_disarm();
   CHECK(n.has_value());
@@ -236,6 +330,10 @@ int run_uslp_tests() {
   test_space_packet_in_uslp_pltu();
   test_reject_tfvn();
   test_reject_truncated_header();
+  test_truncated_roundtrip_and_pltu();
+  test_insert_zone();
+  test_fecf_roundtrip_and_bad();
+  test_truncated_rejects_insert_or_fecf();
   test_reject_short_and_length();
   test_heap();
   return g_fails;

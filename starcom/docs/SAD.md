@@ -99,7 +99,7 @@ Bit 0 = first transmitted bit = MSB of the first octet (each book’s Fig 1-1). 
 How C&S finds the CRC (211.2 §3.6.4): look at the first bits of the Transfer Frame.
 
 - First two bits `10` → Version-3. Use the 11-bit Frame Length (header bits 21–31) to locate CRC-32.
-- First two bits `11` and TFVN `1100` → Version-4. If End of Frame Primary Header Flag is `0`, use the 16-bit Frame Length (header bits 32–47). If the flag is `1` (truncated), C&S uses Truncated Transfer Frame Length (MIB) — Starcom returns `uslp_truncated` until increment 9.
+- First two bits `11` and TFVN `1100` → Version-4. If End of Frame Primary Header Flag is `0`, use the 16-bit Frame Length (header bits 32–47). If the flag is `1` (truncated), C&S uses Truncated Transfer Frame Length (MIB). 0 / omitted → `uslp_truncated`.
 - Anything else → keep searching for the next ASM.
 
 **CRC-32 (211.2 Annex C — normative, part of the Blue Book).** A language `crc32()` helper is often ISO-HDLC/Ethernet; same width, different polynomial and init. Be aware of that when picking a helper; implement from Annex C.
@@ -160,7 +160,7 @@ Encode/decode of a single canned frame in a host test can pass IDs and lengths *
 
 **Space Packet (133.0 Table 5-1):** Maximum Packet Length; per-APID service type (Packet vs Octet String); secondary-header contents (mission-specific / SANA). Sequence flags `11` if Octet String.
 
-**USLP this sitting (non-truncated):** header fields as 732.1 §4.1.2. Insert Zone length and FECF presence are §5 managed parameters — absent (length 0 / not present). Truncated Transfer Frame Length is MIB; truncated headers return `uslp_truncated`. `Frame Version in use` (3 or 4) is already in 211.0 Annex C.
+**USLP:** header fields as 732.1 §4.1.2. Insert Zone length and FECF presence are §5 managed parameters (`UslpMib`; 0 / false = absent). Truncated Transfer Frame Length is MIB (annex D; 6–32 octets). `Frame Version in use` (3 or 4) is already in 211.0 Annex C.
 
 ### Space Packet primary header — 133.0-B-2 §4.1.3, Fig 4-2
 
@@ -228,7 +228,7 @@ Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields o
 | 20 | 1 | Source-or-Destination | `0` source / `1` destination. |
 | 21–26 | 6 | VCID | 0–62; 63 = OID. |
 | 27–30 | 4 | MAP ID | |
-| 31 | 1 | End of Frame Primary Header Flag | `0` non-truncated (this sitting). `1` truncated. |
+| 31 | 1 | End of Frame Primary Header Flag | `0` non-truncated. `1` truncated (annex D). |
 | 32–47 | 16 | Frame Length | C = frame octets − 1 (max 65536). |
 | 48 | 1 | Bypass/Sequence Control | `0` Sequence-Controlled; `1` Expedited. |
 | 49 | 1 | Protocol Control Command | `1` TFDF is protocol control. |
@@ -237,7 +237,7 @@ Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields o
 | 53–55 | 3 | VCF Count Length | 0–7 octets of VC Frame Count follow. |
 | 56+ | 0–56 | VC Frame Count | Absent when length is `000`. |
 
-TFDF header (732.1 Fig 4-4): TFDZ Construction Rules (3) + UPID (5); 16-bit pointer only for rules `000`/`001`/`010`. Rule `111` = no segmentation. UPID `00000` = Space Packets (SANA). Insert Zone and FECF are MIB; absent until IVP increment 9.
+TFDF header (732.1 Fig 4-4): TFDZ Construction Rules (3) + UPID (5); 16-bit pointer only for rules `000`/`001`/`010`. Rule `111` = no segmentation. UPID `00000` = Space Packets (SANA). Insert Zone and FECF are MIB (`UslpMib`). Truncated frames: 4-octet header + 1-octet TFDF, no Insert/OCF/FECF.
 
 NASA `CFS_IO_LIB` `cop1.c` (FARM-1 + CLCW on **TC** frames) is prior art for this 32-bit layout, not for Prox-1 PLTU/PLCW. Yamcs COP-1 / CLCW path is the GCS-side counterpart. Neither is a Prox-1 stack.
 

@@ -24,7 +24,10 @@ struct PltuView {
 // Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4:
 // V-3 11-bit Frame Length, or non-truncated USLP 16-bit Frame Length.
 // Truncated USLP (flag = 1) is uslp_truncated (MIB length, IVP 9).
-Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept;
+// uslp_truncated_len: 732.1 D1.3.2 Truncated Transfer Frame Length (MIB).
+// 0 = not supplied; truncated USLP then returns uslp_truncated.
+Result<PltuView> decode_pltu(std::span<const std::byte> octets,
+                             std::size_t uslp_truncated_len = 0) noexcept;
 
 // Writes ASM + frame + CRC-32. Envelope cap is kTransferFrameMin/Max.
 Result<std::size_t> encode_pltu(std::span<std::byte> out,
@@ -42,6 +45,7 @@ struct PltuHunt {
   Result<PltuView> pltu;
 };
 
-PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept;
+PltuHunt hunt_pltu(std::span<const std::byte> octets,
+                   std::size_t uslp_truncated_len = 0) noexcept;
 
 }  // namespace starcom::ccsds

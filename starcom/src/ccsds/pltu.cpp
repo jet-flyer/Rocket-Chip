@@ -20,7 +20,8 @@ void store_be32(std::span<std::byte> dest, std::uint32_t value) noexcept {
 }
 
 // Octets of a complete PLTU starting at ASM, or why the size cannot be known.
-Result<std::size_t> encoded_pltu_size(std::span<const std::byte> octets) noexcept {
+Result<std::size_t> encoded_pltu_size(std::span<const std::byte> octets,
+                                      std::size_t uslp_truncated_len) noexcept {
   if (octets.size() < kPltuAsmSize) {
     return tl::unexpected(Error::truncated);
   }
@@ -56,19 +57,26 @@ Result<std::size_t> encoded_pltu_size(std::span<const std::byte> octets) noexcep
     if (rest.size() < 4) {
       return tl::unexpected(Error::truncated);
     }
-    // 211.2 §3.6.4 b2: truncated USLP has no length field — MIB, IVP 9.
+    // 211.2 §3.6.4 b2: truncated USLP uses Truncated Transfer Frame Length (MIB).
     if ((std::to_integer<unsigned>(rest[3]) & 0x01u) != 0) {
-      return tl::unexpected(Error::uslp_truncated);
-    }
-    if (rest.size() < 6) {
-      return tl::unexpected(Error::truncated);
-    }
-    const unsigned length_c = (std::to_integer<unsigned>(rest[4]) << 8) |
-                              std::to_integer<unsigned>(rest[5]);
-    frame_len = static_cast<std::size_t>(length_c) + 1u;
-    // PLTU envelope is still 5–2048 (211.2 Fig 3-1 / V-3 cap reused).
-    if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
-      return tl::unexpected(Error::v3_length_oob);
+      if (uslp_truncated_len == 0) {
+        return tl::unexpected(Error::uslp_truncated);
+      }
+      if (uslp_truncated_len < 6u || uslp_truncated_len > 32u) {
+        return tl::unexpected(Error::uslp_length_oob);
+      }
+      frame_len = uslp_truncated_len;
+    } else {
+      if (rest.size() < 6) {
+        return tl::unexpected(Error::truncated);
+      }
+      const unsigned length_c = (std::to_integer<unsigned>(rest[4]) << 8) |
+                                std::to_integer<unsigned>(rest[5]);
+      frame_len = static_cast<std::size_t>(length_c) + 1u;
+      // PLTU envelope is still 5–2048 (211.2 Fig 3-1 / V-3 cap reused).
+      if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
+        return tl::unexpected(Error::v3_length_oob);
+      }
     }
   } else {
     return tl::unexpected(Error::tfvn_unknown);
@@ -96,8 +104,9 @@ std::size_t asm_prefix_keep(std::span<const std::byte> octets) noexcept {
 
 }  // namespace
 
-Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept {
-  const auto need = encoded_pltu_size(octets);
+Result<PltuView> decode_pltu(std::span<const std::byte> octets,
+                             std::size_t uslp_truncated_len) noexcept {
+  const auto need = encoded_pltu_size(octets, uslp_truncated_len);
   if (!need) {
     return tl::unexpected(need.error());
   }
@@ -141,7 +150,8 @@ Result<std::size_t> repeat_pltu(std::span<std::byte> out,
   return n;
 }
 
-PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept {
+PltuHunt hunt_pltu(std::span<const std::byte> octets,
+                   std::size_t uslp_truncated_len) noexcept {
   std::size_t i = 0;
   while (i + kPltuAsmSize <= octets.size()) {
     if (!std::equal(kPltuAsm.begin(), kPltuAsm.end(),
@@ -150,7 +160,7 @@ PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept {
       continue;
     }
     const auto cand = octets.subspan(i);
-    const auto view = decode_pltu(cand);
+    const auto view = decode_pltu(cand, uslp_truncated_len);
     if (view) {
       const std::size_t n =
           kPltuAsmSize + view->frame.size() + kPltuCrcSize;
@@ -161,7 +171,7 @@ PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept {
       return PltuHunt{i, tl::unexpected(e)};
     }
     if (e == Error::bad_crc) {
-      const auto need = encoded_pltu_size(cand);
+      const auto need = encoded_pltu_size(cand, uslp_truncated_len);
       if (need) {
         return PltuHunt{i + *need, tl::unexpected(e)};
       }

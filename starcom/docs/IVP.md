@@ -175,9 +175,9 @@ Landed. `hunt_pltu` searches a caller span for exact ASM `FAF320` (211.2 §3.6.3
 
 ### Increment 9 — USLP remainder
 
-Truncated primary header (End of Frame Primary Header Flag = 1), Insert Zone, optional FECF CRC-16 (732.1 §4 / §5). Truncated Transfer Frame Length, Insert Zone length, and FECF presence are **MIB** — caller supplies them; no Starcom default. Prox-1 link CRC stays PLTU CRC-32; FECF does not replace it.
+Landed. Truncated primary header (annex D), Insert Zone, FECF CRC-16 (Annex B). Lengths/presence are caller `UslpMib` — no Starcom default. Truncated frames have no Insert/OCF/FECF. Prox-1 link CRC stays PLTU CRC-32. `decode_pltu` / `hunt_pltu` take optional truncated length.
 
-**Gate:** truncated header round-trip using caller MIB length; Insert Zone present/absent; FECF present/absent vs 732.1; reject truncated without MIB length; D-5. Do not mint SC-NNN until those three land.
+**Gate:** truncated round-trip with MIB; without MIB still `uslp_truncated`; Insert Zone; FECF Annex B (`59D0` on the min frame with C=9) and `uslp_bad_fecf`; truncated rejects insert/FECF; D-5. Tests: `tests/unit/test_uslp.cpp`. Do not mint SC-NNN.
 
 ### Increment 10 — COP-1 remainder
 

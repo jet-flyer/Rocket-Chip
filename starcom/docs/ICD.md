@@ -41,8 +41,9 @@ First TUs: CRC-32 (Annex C) then PLTU. Then V-3, Space Packet, `Plcw16`, `Clcw32
 | `sp_too_short` | Space Packet &lt; 7 octets, or Data Length implies that. |
 | `sp_pvn` | Packet Version Number not `000`. |
 | `buffer_too_small` | Output span cannot hold the encoded unit. |
-| `uslp_truncated` | USLP End of Frame Primary Header Flag = 1. C&S needs Truncated Transfer Frame Length (MIB); IVP increment 9. |
-| `uslp_length_oob` | USLP C implies frame &lt; 8 or &gt; 65536 octets. |
+| `uslp_truncated` | End of Frame Primary Header Flag = 1 and Truncated Transfer Frame Length (MIB) not supplied. |
+| `uslp_length_oob` | USLP C implies frame &lt; 8 or &gt; 65536 octets (truncated: not 6–32, 732.1 D1.3.2). |
+| `uslp_bad_fecf` | FECF present and Annex B CRC-16 syndrome not zero. |
 
 `asm_in_crc` is a **test** (IVP), not an `Error` the decoder returns — the decoder never feeds ASM to CRC-32.
 
@@ -74,7 +75,7 @@ struct PltuHunt {
 PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept;
 ```
 
-`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) returns `uslp_truncated` — the length is a MIB parameter, not in the frame (increment 9). Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that).
+`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) uses optional `uslp_truncated_len` (MIB); 0 returns `uslp_truncated`. Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that). Truncated USLP itself is 6–32 octets (732.1 D1.3.2).
 
 `hunt_pltu` (IVP 8) is 211.2 §3.6 receive: search the span for ASM `FAF320` (exact — the book *allows* bit errors; we do not). One PLTU per call. `consumed` is octets the caller may drop. Success: `pltu` is the view, leftover starts at `consumed`. Need more: `truncated`, leftover starts at `consumed` (at the ASM, or a 1–2 octet ASM prefix). Complete candidate with bad CRC: `bad_crc`, `consumed` includes that unit (3.6.6 mark invalid, then search after). Unrecognized TFVN / length OOB / truncated USLP: skip one octet and keep searching in this call (3.6.4 c). No library buffer.
 
@@ -134,21 +135,31 @@ PLCW is 16 bits (211.0 Fig 3-5). Encode writes Format ID `1`, Type ID `0`, spare
 ### USLP (Version-4)
 
 ```cpp
-struct UslpFields { /* UslpScid, dest, Vcid, MapId, expedited, PCC, OCF flag,
-                       VCF count length/value, TFDZ construction, UPID, pointer */ };
+struct UslpMib {
+  std::size_t truncated_frame_length;  // 0 = not supplied
+  std::size_t insert_zone_length;      // 0 = absent
+  bool fecf_present;
+};
+struct UslpFields { /* truncated, UslpScid, dest, Vcid, MapId, expedited, PCC,
+                       OCF flag, VCF count length/value, TFDZ construction, UPID */ };
 struct UslpView {
   UslpFields fields;
+  std::span<const std::byte> insert_zone;
   std::span<const std::byte> tfdz;
   std::span<const std::byte> ocf;
+  std::span<const std::byte> fecf;
 };
 
-Result<UslpView> decode_uslp(std::span<const std::byte> frame) noexcept;
+Result<UslpView> decode_uslp(std::span<const std::byte> frame,
+                             UslpMib const& mib = {}) noexcept;
 Result<std::size_t> encode_uslp(std::span<std::byte> out, UslpFields const&,
                                 std::span<const std::byte> tfdz,
-                                std::span<const std::byte> ocf = {}) noexcept;
+                                std::span<const std::byte> ocf = {},
+                                UslpMib const& mib = {},
+                                std::span<const std::byte> insert = {}) noexcept;
 ```
 
-Transfer Frame only (no ASM / PLTU CRC-32). Non-truncated primary header (7–14 octets). TFVN `1100`. Frame Length C = total frame octets − 1 (max 65536). TFDF header 1 octet, or 3 when construction rule is `000`/`001`/`010`. Optional OCF is 4 octets when the OCF Flag is set (may hold a `Clcw32`). Insert Zone, FECF CRC-16, and truncated headers are IVP increment 9. On Prox-1 the link CRC stays PLTU CRC-32. Field map: SAD (working copy of 732.1 Fig 4-2 / 4-4). UPID `0` = Space Packets (SANA `uslp_protocol_id`).
+Transfer Frame only (no ASM / PLTU CRC-32). TFVN `1100`. Non-truncated: 7–14 octet header, C = frame octets − 1. Truncated (flag = 1): 4-octet header + 1-octet TFDF, no Insert/OCF/FECF (732.1 annex D); length is MIB `truncated_frame_length` (6–32). Insert Zone length and FECF presence are MIB (732.1 §5). FECF is Annex B CRC-16 (init all-ones); on Prox-1 the link CRC stays PLTU CRC-32. Truncated frames are expedited user data (D1.3 note 3). Field map: SAD.
 
 ## Engine (COP-P)
 

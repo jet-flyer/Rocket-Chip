@@ -6,13 +6,13 @@ Dependency is always **consumer → Starcom**. Starcom never includes consumer h
 
 Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
 
-## Now (`0.8.0-dev`, through IVP 8)
+## Now (`0.9.0-dev`, through IVP 9)
 
 Link `Starcom::starcom` (and optionally `Starcom::adapters_host`). Call with `std::span` and, for COP, caller `now`. The core does not key a transmitter.
 
 | Point | Who can use it | What it does | Not yet (IVP) |
 |-------|----------------|--------------|----------------|
-| Codecs | Anyone | PLTU, V-3, USLP, Space Packet, PLCW, CLCW pack/unpack; `hunt_pltu` | Truncated USLP / Insert / FECF (9) |
+| Codecs | Anyone | PLTU, V-3, USLP (incl. truncated/Insert/FECF), Space Packet, PLCW, CLCW; `hunt_pltu` | — |
 | COP-P | Anyone who owns a loop | `copp_*` on Version-3 PLTUs | SET V(R) persistent / §6 MAC (13); COP-P on USLP VC (11) |
 | COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU | S4/S5 + remaining Table 5-1 (10) |
 | Host loopback / `RadioPort` | Tests, desktop sims | One-PLTU mailboxes | UDP/file (15); SPI/GPIO (16) |
@@ -23,11 +23,10 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host`). Call with `st
 
 **Others (cubesat / HAB / GCS):** same library. They bring their own event loop and radio port. No RC types required.
 
-## Rest of the stack (IVP 9–25)
+## Rest of the stack (IVP 10–25)
 
 | Increment | Point | Owner |
 |-----------|--------|--------|
-| 9 | Truncated USLP, Insert Zone, FECF | Starcom core (MIB lengths from caller) |
 | 10 | COP-1 remainder | Starcom core |
 | 11 | COP-P on USLP VC | Starcom core |
 | 12 | Buffered repeater / dedup | Starcom core (caller-owned queue; no invented depth) |

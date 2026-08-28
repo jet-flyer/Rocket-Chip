@@ -19,3 +19,20 @@ Owner must pick one before code: full 211.0 §6 module, a small turnaround helpe
 ELRS Gemini is **not** CCSDS full duplex (see DESIGN note). Hardware with two transceivers *can* TX on one and RX on the other; that is a port (IVP 18), not a codec fork.
 
 ---
+
+## Host dissect demo — teaching tool (SIDETRACK) (2026-08-27)
+
+Break-time only. Not mainline IVP. Lives in `starcom/examples/` when scheduled — host CLI, not `starcom::ccsds`, not Rocket-Chip firmware (RC’s station dashboard / `telemetry_encoder` stay in RC until IVP 20–22).
+
+**Input is a telem source or the line**, not typed junk as the whole package. Pipe/file/canned encoder output of PLTUs (and later a stream for `hunt_pltu`). Typing is only the Space Packet *user field* (the small N in 18+N). Helper text per section cites the Blue Book (SAD field maps as a working copy).
+
+| When | Extra on the same demo |
+|------|-------------------------|
+| Now (through IVP 8) | Dissect one PLTU; hunt a stream of several |
+| IVP 9 | Truncated USLP, Insert Zone, FECF labeled |
+| COP already in | FSN / PLCW / CLCW as “why this octet exists” |
+| IVP 15 | File/UDP in, same display |
+
+Do not invent a GUI. Do not couple to RC pins or SX1276.
+
+---
