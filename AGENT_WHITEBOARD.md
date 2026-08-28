@@ -46,9 +46,9 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ## Starcom (OPEN) (2026-08-28)
 
-Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP). Prep worktree `Rocket-Chip-sc-dev` / `grok/sc-dev` is closed.
 
-**IVP 20–23 landed** on `grok/sc-dev`. 23 is an **initial** standards pass (public camelBack + gated tidy subset), not exhaustive. Next library increment is **24** (ASan/fuzz/size; blocked here — no libasan). Default OFF stays STOP-GAP. Barebones vehicle+station ON soak is the RC consumer gate before more data. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22: `2026-08-28-002`.
+**Still RC:** barebones vehicle+station ON soak before more SDU fields. **Still Starcom library:** IVP 24 ASan/fuzz/size (no libasan on this MinGW); 23 was an initial tidy/camelBack pass, not exhaustive. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Logs: `2026-08-28-001` / `2026-08-28-002` / land `2026-08-28-003`.
 
 ---
 

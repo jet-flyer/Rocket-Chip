@@ -129,7 +129,7 @@ existing `AO_Radio`.
 | COP-P | Adapter + two-engine host pipe |
 | First RF (ON ELF) | Nav over PLTU. LoRa MAVLink compiled out. Pad ARM keys refuse. Not the pad computer. |
 | Commands on COP-P | Then ARM. `dispatch_command` stays app policy. |
-| Library merge | Option default OFF on `main`. |
+| Library merge | **Landed** on `main` (`3181e65`). Option default OFF. Prep worktree down. |
 | Ops cutover | After Stage 17 (or owner promote). Flag gone. One air protocol. |
 
 ```

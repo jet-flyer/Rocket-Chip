@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-28-003 | Grok 4.6 (Build CLI) | architecture, feature
+
+**Starcom RC consumer landed on `main` (`3181e65`).** Dual-build `ROCKETCHIP_USE_STARCOM` (default OFF = STOP-GAP). ON air is COP-P + nav/cmd/ACK SDUs. IVP 23 is an initial tidy/camelBack pass, not a full standards audit. Prep worktree `Rocket-Chip-sc-dev` closed; further RC work is on `main`. Two-board ON soak is still open (Fruit Jam not on USB this sitting). Starcom library IVP 24 (ASan) is not this land. Verified: FF merge of `grok/sc-dev`; host ctest 865/865 and vehicle `bench_sim` 2/2 PASS on the merge commit; default OFF.
+
 ### 2026-08-28-002 | Grok 4.6 (Build CLI) | feature, bugfix
 
 **RC Starcom consumer IVP 21–22 on `grok/sc-dev` (`225b648`).** Pico links `Starcom::starcom` (`byte_pump`). ON air path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`); nav/cmd/ACK Space Packets in `starcom_adapt`. STOP-GAP encoder and LoRa MAVLink COMMAND_LONG off that image. Default OFF stays STOP-GAP. First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack — library fix is `starcom/CHANGELOG.md` `2026-08-28-002` (`1090959`). Drain one PLTU per send so COP-P resend does not flood half-duplex LoRa. Not merged. Next Starcom increment is 23. Verified: host `StarcomHostLink` / `StarcomBytePump` / `CmdSdu` PASS; vehicle ON COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS, sensors healthy — GO.
