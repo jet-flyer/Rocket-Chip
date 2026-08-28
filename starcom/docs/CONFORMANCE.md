@@ -16,7 +16,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | PLCW 16-bit SPDU field codec | 211.0-B-6 §3.2.4.3.2.1.1 | In scope (MVP codecs) | Pack/unpack only. Not the ARQ. Distinct from CLCW. No generic OCF. Tests: `tests/unit/test_ocf.cpp`. |
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. Tests: `tests/unit/test_ocf.cpp`. |
 | COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | In scope (MVP; remainder IVP 11, 13) | Tables + `CoppEndpoint` (`tests/unit/test_copp.cpp`). SET V(R) persistent activity (7.2.3.2) is MAC — increment 13. COP-P on a USLP VC is increment 11. No SC-NNN. |
-| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (MVP; remainder IVP 10) | FARM-1 Table 6-1 + FOP-1 E23/AD/E8 (`tests/unit/test_cop1.cpp`). S4/S5 BC-init and remaining FOP-1 events are increment 10. No SC-NNN. |
+| COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | In scope (MVP + IVP 10 S4/S5) | FARM-1 Table 6-1 + FOP-1 E23/S4/S5/E29 (`tests/unit/test_cop1.cpp`). Suspend/resume E30–E34 and LLIF E41–E46 not this sitting. No SC-NNN. |
 | Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Not decided (IVP 13) | Decision gate first (full module vs turnaround helper vs consumer-only). No stub of the unchosen cut. |
 | Convolutional or LDPC coding | 211.2 → 131.0-B-3 | Deferred (IVP 19) | 211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded PLTU. |
 | Long-haul TM C&S (131.0 ASM / FECF path) | 131.0 | Out of scope for this MVP | Different coding sublayer than PLTU. |

@@ -181,9 +181,9 @@ Landed. Truncated primary header (annex D), Insert Zone, FECF CRC-16 (Annex B). 
 
 ### Increment 10 — COP-1 remainder
 
-232.1-B-2 Table 5-1 remainder: S4/S5 (Initiate AD with CLCW check / Unlock / Set V(R) BC) and the rest of the FOP-1 events. BC Unlock is the single octet `00`; Set V(R) is `82 00 V*(R)` (232.0 §4.1.3.3). Still USLP-in-PLTU, not TC 232.0 frames.
+Landed S4/S5 BC-init: E24 (CLCW check → S4), E25 (Unlock BC → S5), E27 (Set V(R) BC → S5), E29 terminate. Wire: Unlock `00`, Set V(R) `82 00 V*(R)` (232.0 §4.1.3.3) as USLP-in-PLTU BC (expedited + protocol control). Still not TC 232.0 frames. Suspend/resume E30–E34 and LLIF E41–E46 not this sitting.
 
-**Gate:** table-driven tests against Table 5-1 / Table 6-1 for the events added; host loop still `take_sdu`; D-5. The book is the event list — do not invent a second subset.
+**Gate:** S4 clean CLCW → S1; S5 Unlock/Set V(R) + host loop Unlock then AD; terminate → S6; D-5. Tests: `tests/unit/test_cop1.cpp`. Do not mint SC-NNN.
 
 ### Increment 11 — COP-P on a USLP VC
 

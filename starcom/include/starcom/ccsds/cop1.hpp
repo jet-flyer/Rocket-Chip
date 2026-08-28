@@ -61,13 +61,23 @@ enum class Fop1State : std::uint8_t {
   s6_initial,
 };
 
-enum class Fop1Send : std::uint8_t { none = 0, ad, bd, bc_unlock, resend_ad };
+enum class Fop1Send : std::uint8_t {
+  none = 0,
+  ad,
+  bd,
+  bc_unlock,
+  bc_set_vr,
+  resend_ad
+};
+
+enum class Fop1Bc : std::uint8_t { none = 0, unlock, set_vr };
 
 // 232.1 §5.1.12 K ≤ 255. T1_Initial 0 = timer never expires (caller unit).
 struct Cop1Mib {
   std::uint8_t k = 1;
   Tick t1_initial = 0;
   std::uint8_t transmission_limit = 1;  // 1 = no retransmission (5.1.10.2)
+  std::uint8_t timeout_type = 0;        // 232.1 Table 7-1; 0 or 1
   Farm1Mib farm{};
 };
 
@@ -87,10 +97,17 @@ struct Fop1 {
   std::array<std::uint8_t, kFop1SentCap> sent{};
   std::array<bool, kFop1SentCap> to_retransmit{};
   std::uint8_t sent_n = 0;
+  Fop1Bc pending_bc = Fop1Bc::none;
+  std::uint8_t set_vr_value = 0;
+  bool bc_to_send = false;
 };
 
 void fop_1_init(Fop1& f, Cop1Mib const& mib) noexcept;
-bool fop_1_initiate_ad(Fop1& f) noexcept;  // E23; true if accepted
+bool fop_1_initiate_ad(Fop1& f) noexcept;               // E23 without CLCW check
+bool fop_1_initiate_ad_with_clcw_check(Fop1& f) noexcept;  // E24 → S4
+bool fop_1_initiate_ad_unlock(Fop1& f) noexcept;           // E25 → S5
+bool fop_1_initiate_ad_set_vr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 → S5
+void fop_1_terminate_ad(Fop1& f) noexcept;                 // E29
 Fop1Send fop_1_need_frame(Fop1& f, bool bd_available, bool ad_available) noexcept;
 void fop_1_on_clcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept;
 void fop_1_tick(Fop1& f, Tick now) noexcept;
@@ -130,6 +147,10 @@ struct Cop1Endpoint {
 void cop1_init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
                Vcid vcid, MapId map) noexcept;
 bool cop1_initiate_ad(Cop1Endpoint& e) noexcept;
+bool cop1_initiate_ad_with_clcw_check(Cop1Endpoint& e) noexcept;
+bool cop1_initiate_ad_unlock(Cop1Endpoint& e) noexcept;
+bool cop1_initiate_ad_set_vr(Cop1Endpoint& e, std::uint8_t v_star) noexcept;
+void cop1_terminate_ad(Cop1Endpoint& e) noexcept;
 void cop1_tick(Cop1Endpoint& e, Tick now) noexcept;
 void cop1_receive_bytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept;
 Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint& e, std::span<std::byte> out) noexcept;

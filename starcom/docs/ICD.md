@@ -180,11 +180,15 @@ CoppEvent copp_poll_event(CoppEndpoint&);
 
 ## Engine (COP-1)
 
-FARM-1 Table 6-1 and a FOP-1 subset from 232.1-B-2 Table 5-1. Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 (Initiate AD with CLCW check / Unlock / Set V(R) BC) and the rest of the FOP-1 events are IVP increment 10.
+FARM-1 Table 6-1 and FOP-1 Table 5-1 (232.1-B-2). Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 BC-init is in (E24/E25/E27, E29 terminate). Suspend/resume (E30–E34) and LLIF Accept/Reject (E41–E46) are not this sitting.
 
 ```cpp
 void cop1_init(Cop1Endpoint&, Cop1Mib const&, UslpScid local, UslpScid remote, Vcid, MapId);
 bool cop1_initiate_ad(Cop1Endpoint&);  // E23 without CLCW check
+bool cop1_initiate_ad_with_clcw_check(Cop1Endpoint&);  // E24 → S4
+bool cop1_initiate_ad_unlock(Cop1Endpoint&);           // E25 → S5, Unlock BC `00`
+bool cop1_initiate_ad_set_vr(Cop1Endpoint&, std::uint8_t v_star);  // E27
+void cop1_terminate_ad(Cop1Endpoint&);                 // E29
 void cop1_tick(Cop1Endpoint&, Tick now);
 void cop1_receive_bytes(Cop1Endpoint&, std::span<const std::byte>);
 Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint&, std::span<std::byte> out);
@@ -193,7 +197,7 @@ Result<std::size_t> cop1_take_sdu(Cop1Endpoint&, std::span<std::byte> out);
 Cop1Event cop1_poll_event(Cop1Endpoint&);
 ```
 
-`Cop1Mib`: `k` (≤255), `t1_initial` (0 = never), `transmission_limit` (1 = no retransmission, 232.1 §5.1.10.2), `farm.w` (even, 2–254). BC Unlock is the single octet `00`; Set V(R) is `82 00 V*(R)` (232.0 §4.1.3.3). Hold depths `kCop1Hold` / `kCop1SeqSlots` are host-loop caps, not MIB.
+`Cop1Mib`: `k` (≤255), `t1_initial` (0 = never), `transmission_limit` (1 = no retransmission, 232.1 §5.1.10.2), `timeout_type` (0 or 1), `farm.w` (even, 2–254). BC Unlock is the single octet `00`; Set V(R) is `82 00 V*(R)` (232.0 §4.1.3.3). Hold depths `kCop1Hold` / `kCop1SeqSlots` are host-loop caps, not MIB.
 
 ## Half-duplex
 

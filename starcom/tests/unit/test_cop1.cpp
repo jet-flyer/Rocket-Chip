@@ -1,6 +1,5 @@
-// IVP increment 4 — COP-1 (232.1 Tables 6-1 / 5-1 subset). docs/TESTING.md
-// FARM-1 E1–E11; FOP-1 E23 + AD send/ack + E8 retransmit; USLP+CLCW host loop.
-// S4/S5 BC-init and full 46-event FOP-1 table are not this sitting.
+// IVP increment 4 + 10 — COP-1 (232.1 Tables 6-1 / 5-1). docs/TESTING.md
+// FARM-1 E1–E11; FOP-1 E23 + S4/S5 BC-init (E24/E25/E27) + E29 terminate.
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/cop1.hpp"
@@ -19,6 +18,10 @@ using starcom::ccsds::Cop1Endpoint;
 using starcom::ccsds::Cop1Event;
 using starcom::ccsds::cop1_init;
 using starcom::ccsds::cop1_initiate_ad;
+using starcom::ccsds::cop1_initiate_ad_set_vr;
+using starcom::ccsds::cop1_initiate_ad_unlock;
+using starcom::ccsds::cop1_initiate_ad_with_clcw_check;
+using starcom::ccsds::cop1_terminate_ad;
 using starcom::ccsds::Cop1Mib;
 using starcom::ccsds::cop1_poll_event;
 using starcom::ccsds::cop1_receive_bytes;
@@ -39,6 +42,10 @@ using starcom::ccsds::Farm1State;
 using starcom::ccsds::Fop1;
 using starcom::ccsds::fop_1_init;
 using starcom::ccsds::fop_1_initiate_ad;
+using starcom::ccsds::fop_1_initiate_ad_set_vr;
+using starcom::ccsds::fop_1_initiate_ad_unlock;
+using starcom::ccsds::fop_1_initiate_ad_with_clcw_check;
+using starcom::ccsds::fop_1_terminate_ad;
 using starcom::ccsds::fop_1_need_frame;
 using starcom::ccsds::fop_1_on_clcw;
 using starcom::ccsds::Fop1Send;
@@ -154,6 +161,91 @@ void test_fop_1_retransmit_flag() {
   CHECK(f.last_send_ns == 0);
 }
 
+void test_fop_1_s4_clcw_check() {
+  Cop1Mib mib{};
+  Fop1 f{};
+  fop_1_init(f, mib);
+  CHECK(fop_1_initiate_ad_with_clcw_check(f));
+  CHECK(f.state == Fop1State::s4_init_no_bc);
+  CHECK(!fop_1_initiate_ad(f));
+  Clcw32 w{};
+  w.cop_in_effect = 0b01;
+  w.report_value = 0;
+  fop_1_on_clcw(f, w, true);
+  CHECK(f.state == Fop1State::s1_active);
+}
+
+void test_fop_1_s5_unlock_and_terminate() {
+  Cop1Mib mib{};
+  Fop1 f{};
+  fop_1_init(f, mib);
+  CHECK(fop_1_initiate_ad_unlock(f));
+  CHECK(f.state == Fop1State::s5_init_bc);
+  CHECK(fop_1_need_frame(f, false, false) == Fop1Send::bc_unlock);
+  Clcw32 w{};
+  w.cop_in_effect = 0b01;
+  w.report_value = 0;
+  fop_1_on_clcw(f, w, true);
+  CHECK(f.state == Fop1State::s1_active);
+  fop_1_terminate_ad(f);
+  CHECK(f.state == Fop1State::s6_initial);
+}
+
+void test_fop_1_s5_set_vr() {
+  Cop1Mib mib{};
+  Fop1 f{};
+  fop_1_init(f, mib);
+  CHECK(fop_1_initiate_ad_set_vr(f, 7));
+  CHECK(f.v_s == 7);
+  CHECK(f.nn_r == 7);
+  CHECK(fop_1_need_frame(f, false, false) == Fop1Send::bc_set_vr);
+  Clcw32 w{};
+  w.cop_in_effect = 0b01;
+  w.report_value = 7;
+  fop_1_on_clcw(f, w, true);
+  CHECK(f.state == Fop1State::s1_active);
+}
+
+void test_host_loop_unlock() {
+  Cop1Mib mib{};
+  mib.k = 4;
+  mib.transmission_limit = 4;
+  mib.farm.w = 8;
+  Cop1Endpoint tx{};
+  Cop1Endpoint rx{};
+  cop1_init(tx, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+  cop1_init(rx, mib, UslpScid{2}, UslpScid{1}, Vcid{1}, MapId{0});
+  CHECK(cop1_initiate_ad_unlock(tx));
+
+  std::array<std::byte, 256> wire{};
+  const auto n_bc = cop1_bytes_to_send(tx, wire);
+  CHECK(n_bc.has_value());
+  CHECK(*n_bc > 0);
+  cop1_receive_bytes(rx, std::span<const std::byte>(wire.data(), *n_bc));
+  CHECK(rx.farm.state == Farm1State::s1_open);
+
+  const auto n_clcw = cop1_bytes_to_send(rx, wire);
+  CHECK(n_clcw.has_value());
+  CHECK(*n_clcw > 0);
+  cop1_receive_bytes(tx, std::span<const std::byte>(wire.data(), *n_clcw));
+  CHECK(tx.fop.state == Fop1State::s1_active);
+
+  SpacePacketFields sp{};
+  const std::array<std::byte, 1> user{std::byte{0xAA}};
+  std::array<std::byte, 16> pkt{};
+  const auto pn = encode_space_packet(pkt, sp, user);
+  CHECK(pn.has_value());
+  CHECK(cop1_submit_sdu(tx, std::span<const std::byte>(pkt.data(), *pn), false)
+            .has_value());
+  const auto n_ad = cop1_bytes_to_send(tx, wire);
+  CHECK(n_ad.has_value());
+  CHECK(*n_ad > 0);
+  cop1_receive_bytes(rx, std::span<const std::byte>(wire.data(), *n_ad));
+  CHECK(cop1_poll_event(rx) == Cop1Event::farm_accepted);
+  cop1_terminate_ad(tx);
+  CHECK(tx.fop.state == Fop1State::s6_initial);
+}
+
 void test_host_loop() {
   Cop1Mib mib{};
   mib.k = 4;
@@ -201,6 +293,8 @@ void test_heap() {
   starcom::test::heap_trap_arm();
   farm_1_init(farm, mib.farm);
   fop_1_init(fop, mib);
+  (void)fop_1_initiate_ad_unlock(fop);
+  (void)fop_1_need_frame(fop, false, false);
   (void)fop_1_initiate_ad(fop);
   (void)farm_1_on_ad(farm, 0, true);
   Clcw32 w{};
@@ -218,6 +312,10 @@ int run_cop1_tests() {
   test_farm_1_table();
   test_fop_1_initiate_and_ack();
   test_fop_1_retransmit_flag();
+  test_fop_1_s4_clcw_check();
+  test_fop_1_s5_unlock_and_terminate();
+  test_fop_1_s5_set_vr();
+  test_host_loop_unlock();
   test_host_loop();
   test_heap();
   return g_fails;

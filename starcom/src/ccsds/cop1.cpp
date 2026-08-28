@@ -51,9 +51,19 @@ void cancel_t1(Fop1& f) noexcept {
   f.t1_deadline = 0;
 }
 
-void fop_alert(Fop1& f) noexcept {
-  cancel_t1(f);
+void fop_initialize(Fop1& f) noexcept {
   f.sent_n = 0;
+  f.v_s = 0;
+  f.nn_r = 0;
+  f.transmission_count = 1;
+  f.pending_bc = Fop1Bc::none;
+  f.set_vr_value = 0;
+  f.bc_to_send = false;
+  cancel_t1(f);
+}
+
+void fop_alert(Fop1& f) noexcept {
+  fop_initialize(f);
   f.alert_latched = true;
   f.state = Fop1State::s6_initial;
 }
@@ -190,17 +200,64 @@ bool fop_1_initiate_ad(Fop1& f) noexcept {
   if (f.state != Fop1State::s6_initial) {
     return false;  // E23 Reject except S6
   }
-  f.sent_n = 0;
-  f.v_s = 0;
-  f.nn_r = 0;
-  f.transmission_count = 1;
+  fop_initialize(f);
   f.state = Fop1State::s1_active;
   return true;
 }
 
+bool fop_1_initiate_ad_with_clcw_check(Fop1& f) noexcept {
+  if (f.state != Fop1State::s6_initial) {
+    return false;  // E24
+  }
+  fop_initialize(f);
+  start_t1(f);
+  f.state = Fop1State::s4_init_no_bc;
+  return true;
+}
+
+bool fop_1_initiate_ad_unlock(Fop1& f) noexcept {
+  if (f.state != Fop1State::s6_initial) {
+    return false;  // E25
+  }
+  fop_initialize(f);
+  f.pending_bc = Fop1Bc::unlock;
+  f.bc_to_send = true;
+  start_t1(f);
+  f.state = Fop1State::s5_init_bc;
+  return true;
+}
+
+bool fop_1_initiate_ad_set_vr(Fop1& f, std::uint8_t v_star) noexcept {
+  if (f.state != Fop1State::s6_initial) {
+    return false;  // E27
+  }
+  fop_initialize(f);
+  f.v_s = v_star;
+  f.nn_r = v_star;
+  f.set_vr_value = v_star;
+  f.pending_bc = Fop1Bc::set_vr;
+  f.bc_to_send = true;
+  start_t1(f);
+  f.state = Fop1State::s5_init_bc;
+  return true;
+}
+
+void fop_1_terminate_ad(Fop1& f) noexcept {
+  fop_alert(f);  // E29 Alert [term] → S6
+}
+
 Fop1Send fop_1_need_frame(Fop1& f, bool bd_available, bool ad_available) noexcept {
   if (bd_available) {
-    return Fop1Send::bd;  // BD allowed in S6 and S1 (5.1.2)
+    return Fop1Send::bd;  // E21 BD in every state
+  }
+  if (f.state == Fop1State::s5_init_bc && f.bc_to_send) {
+    f.bc_to_send = false;
+    if (f.pending_bc == Fop1Bc::unlock) {
+      return Fop1Send::bc_unlock;
+    }
+    if (f.pending_bc == Fop1Bc::set_vr) {
+      return Fop1Send::bc_set_vr;
+    }
   }
   if (f.state == Fop1State::s2_retransmit) {
     for (std::uint8_t i = 0; i < f.sent_n; ++i) {
@@ -234,9 +291,38 @@ Fop1Send fop_1_need_frame(Fop1& f, bool bd_available, bool ad_available) noexcep
 
 void fop_1_on_clcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept {
   if (!format_ok || w.cop_in_effect != 0b01) {
+    if (f.state != Fop1State::s6_initial) {
+      fop_alert(f);  // E15
+    }
     return;
   }
   if (f.state == Fop1State::s6_initial) {
+    return;
+  }
+  if (f.state == Fop1State::s4_init_no_bc ||
+      f.state == Fop1State::s5_init_bc) {
+    const std::uint8_t nr = w.report_value;
+    if (w.lockout) {
+      if (f.state == Fop1State::s4_init_no_bc) {
+        fop_alert(f);  // E14 S4
+      }
+      return;  // E14 S5 Ignore
+    }
+    if (w.wait) {
+      fop_alert(f);  // E3
+      return;
+    }
+    if (w.retransmit) {
+      if (f.state == Fop1State::s4_init_no_bc) {
+        fop_alert(f);  // E4 S4
+      }
+      return;  // E4 S5 Ignore
+    }
+    if (nr == f.v_s) {
+      cancel_t1(f);
+      f.pending_bc = Fop1Bc::none;
+      f.state = Fop1State::s1_active;  // E1 S4/S5
+    }
     return;
   }
   const std::uint8_t nr = w.report_value;
@@ -311,6 +397,20 @@ void fop_1_tick(Fop1& f, Tick now) noexcept {
   }
   f.t1_expired_latched = true;
   cancel_t1(f);
+  if (f.state == Fop1State::s5_init_bc) {
+    if (f.transmission_count >= f.mib.transmission_limit) {
+      fop_alert(f);  // E17
+      return;
+    }
+    ++f.transmission_count;
+    f.bc_to_send = true;  // E16 Initiate BC retransmission
+    start_t1(f);
+    return;
+  }
+  if (f.state == Fop1State::s4_init_no_bc) {
+    fop_alert(f);  // E16 S4 Alert [T1]
+    return;
+  }
   if (f.transmission_count >= f.mib.transmission_limit) {
     fop_alert(f);
     return;
@@ -335,6 +435,20 @@ void cop1_init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid rem
 }
 
 bool cop1_initiate_ad(Cop1Endpoint& e) noexcept { return fop_1_initiate_ad(e.fop); }
+
+bool cop1_initiate_ad_with_clcw_check(Cop1Endpoint& e) noexcept {
+  return fop_1_initiate_ad_with_clcw_check(e.fop);
+}
+
+bool cop1_initiate_ad_unlock(Cop1Endpoint& e) noexcept {
+  return fop_1_initiate_ad_unlock(e.fop);
+}
+
+bool cop1_initiate_ad_set_vr(Cop1Endpoint& e, std::uint8_t v_star) noexcept {
+  return fop_1_initiate_ad_set_vr(e.fop, v_star);
+}
+
+void cop1_terminate_ad(Cop1Endpoint& e) noexcept { fop_1_terminate_ad(e.fop); }
 
 void cop1_tick(Cop1Endpoint& e, Tick now) noexcept { fop_1_tick(e.fop, now); }
 
@@ -451,6 +565,9 @@ Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint& e,
     return std::size_t{0};
   }
 
+  std::array<std::byte, 3> bc{};
+  std::span<const std::byte> tfdz{};
+
   UslpFields hdr{};
   hdr.scid = e.remote_scid;
   hdr.destination = true;
@@ -461,8 +578,21 @@ Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint& e,
   hdr.tfdz_construction = kUslpConstructionNoSeg;
   hdr.upid = kUslpUpidSpacePacket;
 
-  std::span<const std::byte> tfdz{};
-  if (kind == Fop1Send::bd) {
+  if (kind == Fop1Send::bc_unlock) {
+    hdr.expedited = true;
+    hdr.protocol_control = true;
+    hdr.upid = kUslpUpidCop1Control;
+    bc[0] = kCop1Unlock;
+    tfdz = std::span<const std::byte>(bc.data(), 1);
+  } else if (kind == Fop1Send::bc_set_vr) {
+    hdr.expedited = true;
+    hdr.protocol_control = true;
+    hdr.upid = kUslpUpidCop1Control;
+    bc[0] = kCop1SetVr0;
+    bc[1] = kCop1SetVr1;
+    bc[2] = std::byte{e.fop.set_vr_value};
+    tfdz = std::span<const std::byte>(bc.data(), 3);
+  } else if (kind == Fop1Send::bd) {
     hdr.expedited = true;
     hdr.upid = kUslpUpidSpacePacket;
     tfdz = std::span<const std::byte>(e.bd_q.data(), e.bd_len);
