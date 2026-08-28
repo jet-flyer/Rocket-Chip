@@ -37,7 +37,7 @@ When scheduled: own stack module above `starcom::ccsds`, not a codec sitting.
 
 Not 19. Not a license to start tonight. Nathan 2026-08-27: flesh this out next sitting so it is not a skip.
 
-**Already in (do not redo):** increment 18 uncoded `PhyTier` none / best_effort on the host path. Increment 19 is host encode (conv K=7 r=1/2 with G2 inversion, LDPC (2048,1024) + CSM + codeword randomize). Host goldens close 19. Buzz: Snickerdoodle / Pi stay off the bench while 19 is host encode.
+**Already in (do not redo):** increment 18 uncoded `PhyTier` none / best_effort on the host path. Increment 19 is host encode (conv K=7 r=1/2 with G2 inversion, LDPC (2048,1024) + CSM + codeword randomize). Host goldens close 19. Buzz: Forgix / Snickerdoodle / Pi stay off the bench while 19 is host encode.
 
 **Held — cut these as their own sittings, not as 19 leftovers:**
 
@@ -47,6 +47,7 @@ Not 19. Not a license to start tonight. Nathan 2026-08-27: flesh this out next s
    - Honest default for this stack: **Pi as GCS decode** (can hang on HW Nathan already has, after encode goldens exist).
    - Hook the Snickerdoodle when we want a **real utilization number** for a decode port, not to close 19.
 
+**Board order (Nathan 2026-08-28):** Forgix first, Snickerdoodle later. Snickerdoodle was only in play because it is on hand. Forgix T8 is the encode / `PhyTier::compliant` vehicle (encode is tiny). Snickerdoodle 7020 remains the first fabric in the decode-P&R ballpark.
 
 Owner split: Researcher FPGA / Blue Book / sim-before-bitstream. Hamilton decode as a later software port (Pi first). Buzz bench bring-up when Nathan says.
 
