@@ -30,4 +30,9 @@ Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept;
 Result<std::size_t> encode_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept;
 
+// Regenerative: decode_pltu must pass; copy ASM+frame+CRC bit-exact. No V-3
+// or Space Packet decode. No COP. Trailing octets after a complete PLTU ignored.
+Result<std::size_t> repeat_pltu(std::span<std::byte> out,
+                                std::span<const std::byte> octets) noexcept;
+
 }  // namespace starcom::ccsds

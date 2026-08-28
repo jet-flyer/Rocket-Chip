@@ -14,7 +14,8 @@ Library docs live here, not under repo-root `docs/research/`.
 2. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
 3. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
 4. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof; [`TESTING.md`](TESTING.md) — how host tests are written and run
-5. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
+5. [`integration/CONSUMERS.md`](integration/CONSUMERS.md) — what RC and other stacks can call now vs later
+6. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
 
 ## Tracking (`starcom/` root)
 

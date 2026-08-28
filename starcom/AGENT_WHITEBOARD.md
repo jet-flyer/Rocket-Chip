@@ -8,15 +8,11 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Living locks: SAD / ICD / CONF
 
 ---
 
-## PLTU repeater — early RC capability (OPEN) (2026-08-27)
+## PLTU repeater — buffered / dedup (OPEN) (2026-08-27)
 
-Owner: RP2350 + LoRa should be able to **repeat a PLTU** (regenerative: check envelope, same octets out, no payload decode). Not a Prox-1/long-haul gateway.
+Bent-pipe is in: `repeat_pltu` (envelope check, bit-exact octets out, no payload decode, no COP).
 
-**Not the first `.cpp`.** Codecs (Annex C CRC + PLTU) come first — you cannot honestly repeat without the envelope check. Repeater is in mind from day one; it is not a LoRa-shaped fork in the core.
-
-**Grade:** bent-pipe (one unit) vs buffered (caller-owned queue; 133.0 §2.4 store-and-forward). Owner: full/buffered can follow immediately, or skip bent-pipe if buffered is cheap enough in RAM/CPU. Measure at implementation; do not invent a depth now. Dedup key not locked.
-
-Last night’s “MVP lock in every living doc” overstated a missing whiteboard. This row is the home until a sitting implements it.
+Still open: caller-owned queue (133.0 §2.4 store-and-forward) and dedup key. Do not invent a depth. Not a Prox-1/long-haul gateway. Radio/AO stay in the consumer.
 
 ---
 

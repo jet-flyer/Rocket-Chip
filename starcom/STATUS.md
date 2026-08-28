@@ -8,7 +8,7 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 Whiteboard: duplex/§6; PLTU repeater grade; coding-standards clang-tidy/naming audit. RC integration when scheduled. FPGA/PIO later.
 
-1. Owner-open rows on `AGENT_WHITEBOARD.md`. Handshake still `docs/ICD.md`.
+1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`.
 
 Gates: `docs/IVP.md`.
 
@@ -45,4 +45,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI.
 - Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.6.0-dev` after increment 6. No tag this sitting.
 - Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan).
+- Consumer map: `docs/integration/CONSUMERS.md`. Bent-pipe `repeat_pltu`. Buffered repeater still whiteboard.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

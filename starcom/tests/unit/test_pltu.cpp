@@ -20,6 +20,7 @@
 using starcom::ccsds::crc32;
 using starcom::ccsds::decode_pltu;
 using starcom::ccsds::encode_pltu;
+using starcom::ccsds::repeat_pltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsm;
 using starcom::ccsds::kPltuAsmSize;
@@ -96,6 +97,32 @@ void test_encode_decode_roundtrip() {
   CHECK(view->frame.size() == kV3HeaderOnly.size());
   CHECK(std::equal(view->frame.begin(), view->frame.end(),
                    kV3HeaderOnly.begin()));
+}
+
+void test_repeat_bit_exact_and_rejects() {
+  ByteBuf src{};
+  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  CHECK(n.has_value());
+  src[*n] = std::byte{0xFF};  // trailing must not be copied
+  ByteBuf dst{};
+  const auto r =
+      repeat_pltu(dst, std::span<const std::byte>(src.data(), *n + 1));
+  CHECK(r.has_value());
+  CHECK(*r == *n);
+  CHECK(std::equal(src.begin(), src.begin() + static_cast<std::ptrdiff_t>(*n),
+                   dst.begin()));
+  CHECK(dst[*n] == std::byte{0});
+
+  ByteBuf bad{};
+  const auto n2 = encode_pltu(bad, as_span(kV3HeaderOnly));
+  CHECK(n2.has_value());
+  bad[*n2 - 1] ^= std::byte{0x01};
+  CHECK(repeat_pltu(dst, std::span<const std::byte>(bad.data(), *n2)).error() ==
+        Error::bad_crc);
+
+  CHECK(repeat_pltu(std::span<std::byte>(dst.data(), 1),
+                    std::span<const std::byte>(src.data(), *n))
+            .error() == Error::buffer_too_small);
 }
 
 void test_decode_ignores_trailing() {
@@ -253,6 +280,8 @@ void test_codecs_allocate_nothing() {
   const auto n = encode_pltu(out, as_span(kV3HeaderOnly));
   if (n.has_value()) {
     (void)decode_pltu(std::span<const std::byte>(out.data(), *n));
+    ByteBuf rpt{};
+    (void)repeat_pltu(rpt, std::span<const std::byte>(out.data(), *n));
   }
   starcom::test::heap_trap_disarm();
   CHECK(n.has_value());
@@ -276,6 +305,7 @@ int main() {
   test_crc_v3_header_only();
   test_asm_in_crc();
   test_encode_decode_roundtrip();
+  test_repeat_bit_exact_and_rejects();
   test_decode_ignores_trailing();
   test_reject_bad_asm();
   test_reject_truncated();

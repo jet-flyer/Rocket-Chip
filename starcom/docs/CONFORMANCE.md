@@ -9,7 +9,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | Claim | Book | Status | Notes |
 |-------|------|--------|--------|
 | PLTU: ASM `FAF320` + transfer frame + CRC-32, uncoded | 211.2-B-3 Fig 3-1 | In scope (MVP) | Envelope. One frame version per stream. Host tests: `tests/unit/test_pltu.cpp` (`starcom.unit`). No SC-NNN until the increment 0+1 gate. |
-| PLTU repeater (bent-pipe and/or buffered) | Not a Blue Book product. Related: 211.2 C&S check; 133.0-B-2 §2.4 (subnetwork storage/forwarding assumed, not an SPP procedure) | In scope (after codecs; early RC-facing) | Regenerative range-extend. Grade (one unit vs caller-owned queue) by RAM/CPU at implementation. Not the first `.cpp`. Not a session and not a second-link gateway. Whiteboard. |
+| PLTU repeater (bent-pipe and/or buffered) | Not a Blue Book product. Related: 211.2 C&S check; 133.0-B-2 §2.4 (subnetwork storage/forwarding assumed, not an SPP procedure) | In scope (MVP bent-pipe) | `repeat_pltu` (`tests/unit/test_pltu.cpp`). Bit-exact after `decode_pltu`. Buffered grade / dedup still whiteboard. No COP on this path. |
 | Version-3 transfer frame | 211.0-B-6 Fig 3-2 | In scope (MVP) | First insides of PLTU. 5-octet header, 2 KiB cap. Tests: `tests/unit/test_v3.cpp`. |
 | Version-4 / USLP transfer frame in the same PLTU | 732.1-B-3 Fig 4-1 | In scope (MVP) | Non-truncated header + TFDF (`tests/unit/test_uslp.cpp`). Truncated header / Insert Zone / FECF not this sitting. Not nested in the V-3 data field. No SC-NNN. |
 | Space Packet as SDU | 133.0-B-2 Fig 4-1 | In scope (MVP) | 6-octet header + user data. Not a Starcom product name. Tests: `tests/unit/test_space_packet.cpp`. |

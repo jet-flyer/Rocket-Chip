@@ -103,4 +103,20 @@ Result<std::size_t> encode_pltu(std::span<std::byte> out,
   return need;
 }
 
+Result<std::size_t> repeat_pltu(std::span<std::byte> out,
+                                std::span<const std::byte> octets) noexcept {
+  const auto pltu = decode_pltu(octets);
+  if (!pltu) {
+    return tl::unexpected(pltu.error());
+  }
+  const std::size_t n =
+      kPltuAsmSize + pltu->frame.size() + kPltuCrcSize;
+  if (out.size() < n) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  std::copy(octets.begin(),
+            octets.begin() + static_cast<std::ptrdiff_t>(n), out.begin());
+  return n;
+}
+
 }  // namespace starcom::ccsds

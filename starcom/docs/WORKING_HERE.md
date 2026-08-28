@@ -163,7 +163,8 @@ The old “no `starcom/AGENT_WHITEBOARD.md`” rule buried Starcom flags on the 
 | `starcom/adapters/host/` | Desktop transports (UDP, file replay, SDR bridge) |
 | `starcom/adapters/rp2350/` | Generic SPI/GPIO radio port. Board pins and AO stay in Rocket-Chip. |
 | `starcom/tests/` | Host-side unit, property, fuzz tests |
-| `starcom/docs/` | Library design, research, comparison, future `DESIGN.md` |
+| `starcom/docs/` | Library design, research, comparison |
+| `starcom/docs/integration/` | What RC and other consumers can call today vs later |
 | Rocket-Chip `src/telemetry/telemetry_encoder.*` | STOP-GAP — stays until replaced by Starcom + RC adapter |
 | Rocket-Chip `src/active_objects/ao_telemetry.*` | RC integration — not Starcom core |
 | Rocket-Chip `docs/decisions/CURRENT_COMMAND_RETRY_ACK_*` | RC STOP-GAP baseline — input to future TC-layer work, not library docs |

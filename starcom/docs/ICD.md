@@ -178,7 +178,7 @@ Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. 
 
 ## Repeater
 
-Wanted early on RC (after codecs). No `repeat` in the increment 0+1 API. Envelope check is `decode_pltu`. Grade and dedup wait for that sitting.
+Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies ASM+frame+CRC bit-exact. No V-3/Space Packet decode, no COP. Buffered queue and dedup are not this sitting — whiteboard.
 
 ## Adapters (host loopback / radio port)
 
