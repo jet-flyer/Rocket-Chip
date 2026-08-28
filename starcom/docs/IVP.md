@@ -223,7 +223,20 @@ Landed. `encode_v3_user_defined` sets U-frame DFC `11` (opaque octets, empty dat
 
 WORKING_HERE `adapters/host/`. Desktop transports. No sockets in `include/starcom` or `src/ccsds/`. Caller owns bind/path. Do not invent a port number.
 
-Landed. `replay_pltu_file` hunts concatenated PLTUs from a caller path into a function-pointer sink (`copp_receive_bytes` / `repeat_pltu`). `udp_bind` / `udp_send_to` / `udp_recv` are IPv4 datagrams; port `0` is the OS ephemeral port, not a Starcom service number. Public headers have no socket includes. `ws2_32` links only on `Starcom::adapters_host`.
+Landed. `replay_pltu_file` hunts concatenated PLTUs from a caller path into a function-pointer sink (`copp_receive_bytes` / `repeat_pltu`). `udp_bind` / `udp_send_to` / `udp_recv` are IPv4 datagrams; port `0` is the OS ephemeral port, not a Starcom service number. Public headers have no socket includes. `ws2_32` links only on `Starcom::adapters_host`. Core is inspected not to link `ws2_32` / `socket` / `nsl`.
+
+```cpp
+using PltuSink = ccsds::Result<std::size_t> (*)(void* ctx, std::span<const std::byte> pltu);
+Result<std::size_t> replay_pltu_file(char const* path, std::span<std::byte> scratch,
+                                     PltuSink sink, void* ctx) noexcept;
+
+struct UdpSocket { std::uintptr_t native = 0; };
+Result<std::uint16_t> udp_bind(UdpSocket&, char const* host, std::uint16_t port) noexcept;
+void udp_close(UdpSocket&) noexcept;
+Result<std::size_t> udp_send_to(UdpSocket&, std::span<const std::byte>,
+                                char const* host, std::uint16_t port) noexcept;
+Result<std::size_t> udp_recv(UdpSocket&, std::span<std::byte> out) noexcept;
+```
 
 **Gate:** file replay of canned PLTUs through the adapter into COP or `repeat_pltu`; inspection that the core target does not link sockets. Tests: `tests/unit/test_host_io.cpp`. Do not mint SC-NNN.
 

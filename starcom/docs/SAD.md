@@ -259,7 +259,7 @@ NASA cFS / Yamcs / `cop1.c` are worth pulling for **Space Packet and COP-1/CLCW*
 
 Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.hpp` ↔ `src/ccsds/pltu.cpp`).
 
-**As-is:** codecs plus COP-P, COP-1, and host loopback / `RadioPort` mailboxes (`starcom::adapters`). PHY/SPI/UDP not present. Core never depends on adapter targets.
+**As-is:** codecs plus COP-P, COP-1, and host loopback / `RadioPort` / UDP / file replay (`starcom::adapters`). PHY/SPI not present. Core never depends on adapter targets.
 
 **Public modules.** A standalone `mib` module is not present yet.
 
@@ -281,7 +281,7 @@ Public headers (`include/starcom`) are `starcom::ccsds` and portable C++ only. H
 
 A generic radio port lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip.
 
-**Later port seams (IVP 15–18 — core stays byte-level):**
+**Later port seams (IVP 16–18 — core stays byte-level):**
 
 | Seam | Where it attaches | Why |
 |------|-------------------|-----|

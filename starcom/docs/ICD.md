@@ -1,6 +1,6 @@
 # Starcom core ICD
 
-**Status:** Draft. Codec handshake locked. COP-P / COP-1 engine verbs landed. Host loopback / radio mailbox in `starcom::adapters`. Namespace `starcom::ccsds` for the core.
+**Status:** Draft. Codec handshake locked. COP-P / COP-1 engine verbs landed. Host loopback / radio mailbox / UDP / file replay in `starcom::adapters`. Namespace `starcom::ccsds` for the core.
 
 This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Primary sources (the Blue Books) win over names here. `WORKING_HERE.md`.
 
@@ -249,13 +249,15 @@ Result<std::size_t> radio_begin_tx(RadioPort&, std::span<const std::byte>);
 Result<std::size_t> radio_take_tx(RadioPort&, std::span<std::byte>);
 Result<std::size_t> radio_offer_rx(RadioPort&, std::span<const std::byte>);
 Result<std::size_t> radio_poll_rx(RadioPort&, std::span<std::byte>);
+using PltuSink = Result<std::size_t> (*)(void* ctx, std::span<const std::byte> pltu);
 Result<std::size_t> replay_pltu_file(char const* path, std::span<std::byte> scratch,
-                                    PltuSink, void* ctx);
-Result<std::uint16_t> udp_bind(UdpSocket&, char const* host, std::uint16_t port);
-void udp_close(UdpSocket&);
+                                    PltuSink, void* ctx) noexcept;
+struct UdpSocket { std::uintptr_t native = 0; };
+Result<std::uint16_t> udp_bind(UdpSocket&, char const* host, std::uint16_t port) noexcept;
+void udp_close(UdpSocket&) noexcept;
 Result<std::size_t> udp_send_to(UdpSocket&, std::span<const std::byte>,
-                               char const* host, std::uint16_t port);
-Result<std::size_t> udp_recv(UdpSocket&, std::span<std::byte> out);
+                               char const* host, std::uint16_t port) noexcept;
+Result<std::size_t> udp_recv(UdpSocket&, std::span<std::byte> out) noexcept;
 ```
 
 `udp_recv` polls like `slot_read` (0 if nothing ready). The core still only sees `copp_*` / `cop1_*` byte verbs. RP2350 SPI glue is increment 16. No virtual `IRadio` in the core (P10-9).
