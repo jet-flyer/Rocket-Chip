@@ -46,6 +46,11 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-28-001 | Grok Hamilton (Grok Bot) | architecture, tooling
+
+**RC host consumer of Starcom 0.19.0-dev on `grok/sc-dev` (`f90ed02`).** Host tests with `ROCKETCHIP_USE_STARCOM=ON` add_subdirectory(starcom) and link `Starcom::starcom`; default OFF stays STOP-GAP. Pico/AO is increment 21. Rebaselined `banked_turn_10s` replay golden (IVP-42c). Classifier recognizes live `h` leftover after banner drain. `bench_sim` resets FD to IDLE then sends `v` until DEV_MODE on. Not merged to `main`. Starcom wrap 13?19 stays on `docs/starcom-sad-draft` (`c2aaacc`). Verified: Trajectories 5/5; `test__rc_test_common` ALL CHECKS PASS; host ctest 865/865; vehicle `bench_sim` 2/2 PASS COM5 already-flashed image, no HW reseat required.
+
+
 ### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation, architecture
 
 **Starcom PLTU repeater locked on `docs/starcom-sad-draft`.** Bent-pipe range-extend is MVP (ASM + CRC-32, bit-exact, V-3 FSN dedup; no COP-P). Buffered grade (caller-owned queue; RC relay profile may use PSRAM instead of IMU) is deferred. Not a Prox-1/long-haul gateway. Detail: `starcom/CHANGELOG.md` `2026-08-27-001`. Not merged. Verified: docs only, host ctest 860/860 on the feature commit, no HW reseat required.
