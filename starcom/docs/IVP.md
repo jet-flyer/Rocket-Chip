@@ -195,9 +195,9 @@ Landed. `copp_init_uslp`: same FOP-P/FARM-P on Version-4 VC/MAP (732.1 C1.11 VCF
 
 ### Increment 12 — Buffered PLTU repeater
 
-133.0-B-2 §2.4 (subnetwork storage/forwarding assumed, not an SPP procedure). Caller-owned queue of complete PLTUs. **Do not invent a depth** — the caller provides storage. Dedup key is the already-on-wire sequence field (V-3 FSN, or USLP VC Frame Count). Still no payload decode and no COP on the repeat path.
+Landed. `PltuRepeatQ` is caller-owned slots. Depth is `slots.size()`. Dedup key is V-3 FSN or USLP VC Frame Count. Duplicate with `dedup` returns 0. Bad envelope rejected before queue. No COP.
 
-**Gate:** enqueue / dequeue bit-exact PLTUs; reject bad envelope before queue; duplicate FSN/VC count dropped when the caller enables dedup; D-5; queue-full is the caller's storage limit (`buffer_too_small` or equivalent), not a Starcom constant.
+**Gate:** FIFO bit-exact; dedup drop; full → `buffer_too_small`; `bad_crc`; D-5. Tests: `tests/unit/test_pltu.cpp`. Do not mint SC-NNN.
 
 ### Increment 13 — Prox-1 §6 MAC / DUPLEX
 

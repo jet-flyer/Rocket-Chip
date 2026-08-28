@@ -48,4 +48,22 @@ struct PltuHunt {
 PltuHunt hunt_pltu(std::span<const std::byte> octets,
                    std::size_t uslp_truncated_len = 0) noexcept;
 
+// IVP 12: caller-owned store-and-forward. slots.size() is the depth — not a
+// Starcom constant. seq is V-3 FSN or USLP VC Frame Count.
+struct PltuRepeatSlot {
+  std::span<std::byte> buf;
+  std::size_t len = 0;
+  std::uint64_t seq = 0;
+};
+
+struct PltuRepeatQ {
+  std::span<PltuRepeatSlot> slots;
+  std::size_t head = 0;
+  std::size_t count = 0;
+};
+
+Result<std::size_t> enqueue_pltu(PltuRepeatQ& q, std::span<const std::byte> octets,
+                                 bool dedup) noexcept;
+Result<std::size_t> dequeue_pltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept;
+
 }  // namespace starcom::ccsds

@@ -19,8 +19,12 @@
 
 using starcom::ccsds::crc32;
 using starcom::ccsds::decode_pltu;
+using starcom::ccsds::dequeue_pltu;
 using starcom::ccsds::encode_pltu;
+using starcom::ccsds::enqueue_pltu;
 using starcom::ccsds::hunt_pltu;
+using starcom::ccsds::PltuRepeatQ;
+using starcom::ccsds::PltuRepeatSlot;
 using starcom::ccsds::repeat_pltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsm;
@@ -235,6 +239,43 @@ void test_hunt_bad_crc_consumes_unit() {
   CHECK(h2.consumed == *n2);
 }
 
+void test_buffered_repeat_fifo_dedup_full() {
+  ByteBuf a{};
+  const auto na = encode_pltu(a, as_span(kV3HeaderOnly));
+  CHECK(na.has_value());
+  std::array<std::byte, 32> s0{};
+  std::array<std::byte, 32> s1{};
+  std::array<PltuRepeatSlot, 2> slots{
+      PltuRepeatSlot{std::span<std::byte>(s0)},
+      PltuRepeatSlot{std::span<std::byte>(s1)}};
+  PltuRepeatQ q{std::span<PltuRepeatSlot>(slots)};
+
+  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+            .value() == *na);
+  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), true)
+            .value() == 0u);  // same FSN
+  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+            .value() == *na);
+  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+            .error() == Error::buffer_too_small);
+
+  ByteBuf out{};
+  const auto d0 = dequeue_pltu(q, out);
+  CHECK(d0.value() == *na);
+  CHECK(std::equal(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(*na),
+                   out.begin()));
+  const auto d1 = dequeue_pltu(q, out);
+  CHECK(d1.value() == *na);
+  CHECK(dequeue_pltu(q, out).value() == 0u);
+
+  ByteBuf bad{};
+  const auto nb = encode_pltu(bad, as_span(kV3HeaderOnly));
+  CHECK(nb.has_value());
+  bad[*nb - 1] ^= std::byte{0x01};
+  CHECK(enqueue_pltu(q, std::span<const std::byte>(bad.data(), *nb), false)
+            .error() == Error::bad_crc);
+}
+
 void test_decode_ignores_trailing() {
   ByteBuf out{};
   const auto n = encode_pltu(out, as_span(kV3HeaderOnly));
@@ -393,6 +434,11 @@ void test_codecs_allocate_nothing() {
     ByteBuf rpt{};
     (void)repeat_pltu(rpt, std::span<const std::byte>(out.data(), *n));
     (void)hunt_pltu(std::span<const std::byte>(out.data(), *n));
+    ByteBuf slotbuf{};
+    PltuRepeatSlot slot{std::span<std::byte>(slotbuf)};
+    PltuRepeatQ q{std::span<PltuRepeatSlot>(&slot, 1)};
+    (void)enqueue_pltu(q, std::span<const std::byte>(out.data(), *n), false);
+    (void)dequeue_pltu(q, rpt);
   }
   starcom::test::heap_trap_disarm();
   CHECK(n.has_value());
@@ -422,6 +468,7 @@ int main() {
   test_hunt_idle_then_pltu();
   test_hunt_partial_asm_kept();
   test_hunt_bad_crc_consumes_unit();
+  test_buffered_repeat_fifo_dedup_full();
   test_decode_ignores_trailing();
   test_reject_bad_asm();
   test_reject_truncated();

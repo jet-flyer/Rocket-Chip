@@ -1,5 +1,8 @@
 #include "starcom/ccsds/pltu.hpp"
 
+#include "starcom/ccsds/uslp.hpp"
+#include "starcom/ccsds/v3.hpp"
+
 #include <algorithm>
 
 namespace starcom::ccsds {
@@ -183,6 +186,72 @@ PltuHunt hunt_pltu(std::span<const std::byte> octets,
   }
   const std::size_t keep = asm_prefix_keep(octets);
   return PltuHunt{octets.size() - keep, tl::unexpected(Error::truncated)};
+}
+
+std::uint64_t repeat_seq(PltuView const& view) noexcept {
+  const auto v3 = decode_v3(view.frame);
+  if (v3) {
+    return v3->fields.fsn;
+  }
+  const auto u = decode_uslp(view.frame);
+  if (u) {
+    return u->fields.vcf_count;
+  }
+  return 0;
+}
+
+Result<std::size_t> enqueue_pltu(PltuRepeatQ& q, std::span<const std::byte> octets,
+                                 bool dedup) noexcept {
+  if (q.slots.empty()) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  const auto pltu = decode_pltu(octets);
+  if (!pltu) {
+    return tl::unexpected(pltu.error());
+  }
+  const std::size_t n =
+      kPltuAsmSize + pltu->frame.size() + kPltuCrcSize;
+  const std::uint64_t seq = repeat_seq(*pltu);
+  if (dedup) {
+    for (std::size_t i = 0; i < q.count; ++i) {
+      const std::size_t idx = (q.head + i) % q.slots.size();
+      if (q.slots[idx].len != 0 && q.slots[idx].seq == seq) {
+        return std::size_t{0};
+      }
+    }
+  }
+  if (q.count >= q.slots.size()) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  const std::size_t idx = (q.head + q.count) % q.slots.size();
+  auto& slot = q.slots[idx];
+  if (slot.buf.size() < n) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  std::copy(octets.begin(), octets.begin() + static_cast<std::ptrdiff_t>(n),
+            slot.buf.begin());
+  slot.len = n;
+  slot.seq = seq;
+  ++q.count;
+  return n;
+}
+
+Result<std::size_t> dequeue_pltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept {
+  if (q.count == 0) {
+    return std::size_t{0};
+  }
+  auto& slot = q.slots[q.head];
+  if (out.size() < slot.len) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  std::copy(slot.buf.begin(),
+            slot.buf.begin() + static_cast<std::ptrdiff_t>(slot.len), out.begin());
+  const std::size_t n = slot.len;
+  slot.len = 0;
+  slot.seq = 0;
+  q.head = (q.head + 1u) % q.slots.size();
+  --q.count;
+  return n;
 }
 
 }  // namespace starcom::ccsds

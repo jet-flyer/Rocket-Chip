@@ -207,7 +207,9 @@ Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. 
 
 ## Repeater
 
-Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies ASM+frame+CRC bit-exact. No V-3/Space Packet decode, no COP. Buffered queue and dedup are IVP increment 12.
+Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies ASM+frame+CRC bit-exact. No V-3/Space Packet decode, no COP.
+
+Buffered (IVP 12): caller-owned `PltuRepeatQ` / `PltuRepeatSlot`. Depth is `slots.size()`, not a Starcom constant. `enqueue_pltu` / `dequeue_pltu`. Dedup key is V-3 FSN or USLP VC Frame Count. Duplicate with `dedup` true returns 0. No COP on this path.
 
 ## Adapters (host loopback / radio port)
 
