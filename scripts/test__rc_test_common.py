@@ -60,6 +60,13 @@ h-Help  p-Preflight  c-Calibration  f-Flight
 [main]
 """
 
+# Live leftover after banner drain + 'h' (Buzz 2026-08-28, COM5 0.16.3-dev).
+VEHICLE_HELP_AFTER_DRAIN = """\
+h  help
+x  erase flights
+[main]
+"""
+
 STATION_KMENU_BANNER = """\
 ========================================
   RocketChip v0.16.0  RCOS v0.5.0 - Station RX
@@ -157,6 +164,13 @@ def test_classify_station_dashboard_waiting() -> None:
     b = classify_banner(STATION_DASHBOARD_WAITING)
     check('role is STATION',  b.role is Role.STATION,      f'got {b.role}')
     check('mode is DASHBOARD', b.mode is Mode.DASHBOARD,   f'got {b.mode}')
+
+
+def test_classify_vehicle_help_after_banner_drain() -> None:
+    print('test_classify_vehicle_help_after_banner_drain')
+    b = classify_banner(VEHICLE_HELP_AFTER_DRAIN)
+    check('role is VEHICLE after h leftover', b.role is Role.VEHICLE, str(b))
+    check('mode is KMENU', b.mode is Mode.KMENU, str(b))
 
 
 def test_classify_vehicle_modes() -> None:
@@ -513,6 +527,7 @@ def main() -> int:
         test_classify_station_dashboard,
         test_classify_station_dashboard_waiting,
         test_classify_vehicle_modes,
+        test_classify_vehicle_help_after_banner_drain,
         test_classify_unknown,
         test_classify_empty,
         test_target_matches,

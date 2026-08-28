@@ -1,0 +1,35 @@
+#pragma once
+
+// GENERATED. Do not edit. Template: include/starcom/version.hpp.in
+// Product numbers: STARCOM_VERSION. Git identity: the build. VERSIONING.md.
+
+#include <cstdint>
+
+#define STARCOM_VERSION_MAJOR @STARCOM_VERSION_MAJOR@
+#define STARCOM_VERSION_MINOR @STARCOM_VERSION_MINOR@
+#define STARCOM_VERSION_PATCH @STARCOM_VERSION_PATCH@
+#define STARCOM_VERSION_TWEAK @STARCOM_VERSION_TWEAK@
+#define STARCOM_BUILD_NUMBER  @STARCOM_BUILD_NUMBER@
+
+#define STARCOM_VERSION_STR_X(a, b, c) #a "." #b "." #c
+#define STARCOM_VERSION_STR(a, b, c) STARCOM_VERSION_STR_X(a, b, c)
+
+namespace starcom {
+
+inline constexpr std::uint8_t  kVersionMajor = STARCOM_VERSION_MAJOR;
+inline constexpr std::uint8_t  kVersionMinor = STARCOM_VERSION_MINOR;
+inline constexpr std::uint8_t  kVersionPatch = STARCOM_VERSION_PATCH;
+inline constexpr std::uint32_t kBuildNumber  = STARCOM_BUILD_NUMBER;
+
+// MAJOR.MINOR.PATCH (no EXTRA)
+inline constexpr char const* kLibraryVersion =
+    STARCOM_VERSION_STR(STARCOM_VERSION_MAJOR, STARCOM_VERSION_MINOR,
+                        STARCOM_VERSION_PATCH);
+
+// MAJOR.MINOR.PATCH[-EXTRA]
+inline constexpr char const* kVersionString = "@STARCOM_VERSION_STRING@";
+
+inline constexpr char const* kGitHash       = "@STARCOM_GIT_HASH@";
+inline constexpr char const* kBuildIdentity = "@STARCOM_BUILD_IDENTITY@";
+
+}  // namespace starcom

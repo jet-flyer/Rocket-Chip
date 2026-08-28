@@ -1,0 +1,297 @@
+{
+  "starcom/docs/scripts/assemble_design.ps1": {
+    "mtime": 1782182747.5742862,
+    "ast_hash": "13f5fef2c04caad5b6e472ea19940a02",
+    "semantic_hash": "13f5fef2c04caad5b6e472ea19940a02"
+  },
+  "starcom/docs/scripts/capture_condensation_evidence.ps1": {
+    "mtime": 1782182747.5747862,
+    "ast_hash": "4b76f498ac0198fd77779f5484d65d3b",
+    "semantic_hash": "4b76f498ac0198fd77779f5484d65d3b"
+  },
+  "starcom/include/starcom/ccsds/crc.hpp": {
+    "mtime": 1787864917.0173514,
+    "ast_hash": "8b397f59245a1979310500b3cac60fc6",
+    "semantic_hash": "8b397f59245a1979310500b3cac60fc6"
+  },
+  "starcom/include/starcom/ccsds/pltu.hpp": {
+    "mtime": 1787864917.0188513,
+    "ast_hash": "afa7fe600080b173b6d9fc25ea320df5",
+    "semantic_hash": "afa7fe600080b173b6d9fc25ea320df5"
+  },
+  "starcom/include/starcom/error.hpp": {
+    "mtime": 1787864917.0173514,
+    "ast_hash": "5dd04353e5aa0f96b769ae14dd1ee8a4",
+    "semantic_hash": "5dd04353e5aa0f96b769ae14dd1ee8a4"
+  },
+  "starcom/include/starcom/result.hpp": {
+    "mtime": 1787864917.0173514,
+    "ast_hash": "5db319eae7246a3639123b97b5af0705",
+    "semantic_hash": "5db319eae7246a3639123b97b5af0705"
+  },
+  "starcom/src/ccsds/crc32.cpp": {
+    "mtime": 1787864984.8679929,
+    "ast_hash": "ca11d9dd4298e872a0acc7487b99a6d5",
+    "semantic_hash": "ca11d9dd4298e872a0acc7487b99a6d5"
+  },
+  "starcom/src/ccsds/pltu.cpp": {
+    "mtime": 1787865007.164674,
+    "ast_hash": "ef450c85b95bfe54b409c3ecfec5ceb7",
+    "semantic_hash": "ef450c85b95bfe54b409c3ecfec5ceb7"
+  },
+  "starcom/tests/unit/heap_trap.cpp": {
+    "mtime": 1787864984.8684926,
+    "ast_hash": "2fab0ce02a123f62e82b37a6816778a5",
+    "semantic_hash": "2fab0ce02a123f62e82b37a6816778a5"
+  },
+  "starcom/tests/unit/heap_trap.hpp": {
+    "mtime": 1787864984.8679929,
+    "ast_hash": "a521f05e7d75974515ed0243bcca2e19",
+    "semantic_hash": "a521f05e7d75974515ed0243bcca2e19"
+  },
+  "starcom/tests/unit/test_pltu.cpp": {
+    "mtime": 1787865168.8312128,
+    "ast_hash": "df11ec42a62800c251920abf7d013455",
+    "semantic_hash": "df11ec42a62800c251920abf7d013455"
+  },
+  "starcom/AGENT_WHITEBOARD.md": {
+    "mtime": 1787865219.2135713,
+    "ast_hash": "5b30e26d13aed38b42a45923935b3ba3",
+    "semantic_hash": "5b30e26d13aed38b42a45923935b3ba3"
+  },
+  "starcom/CHANGELOG.md": {
+    "mtime": 1787865106.8450975,
+    "ast_hash": "24fbdf7e1388d72d3ec05023cdf1c133",
+    "semantic_hash": "24fbdf7e1388d72d3ec05023cdf1c133"
+  },
+  "starcom/CMakeLists.txt": {
+    "mtime": 1787865007.165174,
+    "ast_hash": "29d8befe482e68349666a3ae46258593",
+    "semantic_hash": "29d8befe482e68349666a3ae46258593"
+  },
+  "starcom/CONTRIBUTING.md": {
+    "mtime": 1787710014.1437137,
+    "ast_hash": "c23afbb8bba61427870a10be101dee18",
+    "semantic_hash": "c23afbb8bba61427870a10be101dee18"
+  },
+  "starcom/README.md": {
+    "mtime": 1787863669.1209927,
+    "ast_hash": "f92b225affef27f6bb1f0e940b3e9bf0",
+    "semantic_hash": "f92b225affef27f6bb1f0e940b3e9bf0"
+  },
+  "starcom/STATUS.md": {
+    "mtime": 1787865242.1314213,
+    "ast_hash": "57bdab946f2da589a934ee78ecb11c64",
+    "semantic_hash": "57bdab946f2da589a934ee78ecb11c64"
+  },
+  "starcom/VERSIONING.md": {
+    "mtime": 1787710014.597247,
+    "ast_hash": "eedf801a645b85d7423c51e4773ab44c",
+    "semantic_hash": "eedf801a645b85d7423c51e4773ab44c"
+  },
+  "starcom/adapters/README.md": {
+    "mtime": 1787710020.4350693,
+    "ast_hash": "ddb7a3771250ce4eaff09afc5f4feedd",
+    "semantic_hash": "ddb7a3771250ce4eaff09afc5f4feedd"
+  },
+  "starcom/adapters/host/README.md": {
+    "mtime": 1787710020.4355683,
+    "ast_hash": "da9b85f03a919fd0392651355c809512",
+    "semantic_hash": "da9b85f03a919fd0392651355c809512"
+  },
+  "starcom/adapters/rp2350/README.md": {
+    "mtime": 1787710020.4350693,
+    "ast_hash": "1299b0df995e035c6e421c29dc4dd1c7",
+    "semantic_hash": "1299b0df995e035c6e421c29dc4dd1c7"
+  },
+  "starcom/cmake/README.md": {
+    "mtime": 1787865219.2135713,
+    "ast_hash": "db036d203918394384b813b25e5150e6",
+    "semantic_hash": "db036d203918394384b813b25e5150e6"
+  },
+  "starcom/docs/CONFORMANCE.md": {
+    "mtime": 1787865219.2140725,
+    "ast_hash": "7e8b0be40f7ba18ac806bec91afcef6c",
+    "semantic_hash": "7e8b0be40f7ba18ac806bec91afcef6c"
+  },
+  "starcom/docs/DATA_PRESERVATION_MANIFEST.md": {
+    "mtime": 1782182747.571789,
+    "ast_hash": "eded3232abf1f68ab8e4764cba611846",
+    "semantic_hash": "eded3232abf1f68ab8e4764cba611846"
+  },
+  "starcom/docs/DESIGN.md": {
+    "mtime": 1787861362.5760775,
+    "ast_hash": "ae22ea5036a8b1b46f1f66c2cdc42723",
+    "semantic_hash": "ae22ea5036a8b1b46f1f66c2cdc42723"
+  },
+  "starcom/docs/EXCERPT_MANIFEST.md": {
+    "mtime": 1782182747.5727873,
+    "ast_hash": "4e00a17b7216c739d1640c487b8da77e",
+    "semantic_hash": "4e00a17b7216c739d1640c487b8da77e"
+  },
+  "starcom/docs/GLOSSARY.md": {
+    "mtime": 1787863624.0715613,
+    "ast_hash": "68854d43f7ec5a71baf28efadbc1b15d",
+    "semantic_hash": "68854d43f7ec5a71baf28efadbc1b15d"
+  },
+  "starcom/docs/ICD.md": {
+    "mtime": 1787865219.2140725,
+    "ast_hash": "a2ee01716f0b2d05ffcc98175c853127",
+    "semantic_hash": "a2ee01716f0b2d05ffcc98175c853127"
+  },
+  "starcom/docs/IVP.md": {
+    "mtime": 1787865219.2140725,
+    "ast_hash": "2c983f06cfd31edcdbf3750bfa3a698a",
+    "semantic_hash": "2c983f06cfd31edcdbf3750bfa3a698a"
+  },
+  "starcom/docs/README.md": {
+    "mtime": 1787863669.1209927,
+    "ast_hash": "29b317787aac5651b02834bd52bb2ed6",
+    "semantic_hash": "29b317787aac5651b02834bd52bb2ed6"
+  },
+  "starcom/docs/SAD.md": {
+    "mtime": 1787863678.7256649,
+    "ast_hash": "48eaa990909846e7dc907205f5235580",
+    "semantic_hash": "48eaa990909846e7dc907205f5235580"
+  },
+  "starcom/docs/WORKING_HERE.md": {
+    "mtime": 1787863678.7256649,
+    "ast_hash": "f5a2c4cc3de3d53ceb573e145e7b44c3",
+    "semantic_hash": "f5a2c4cc3de3d53ceb573e145e7b44c3"
+  },
+  "starcom/docs/comparison.md": {
+    "mtime": 1787710015.1613934,
+    "ast_hash": "de6102e7f9dd417a22e59714466d92b4",
+    "semantic_hash": "de6102e7f9dd417a22e59714466d92b4"
+  },
+  "starcom/docs/design_record_claude.md": {
+    "mtime": 1787192944.0725005,
+    "ast_hash": "6071681dc65b1b5a60dddca191c451ac",
+    "semantic_hash": "6071681dc65b1b5a60dddca191c451ac"
+  },
+  "starcom/docs/research/ccsds_domain_claude.md": {
+    "mtime": 1781886819.423862,
+    "ast_hash": "3a5d7a39d9ce378309d80690067da1c1",
+    "semantic_hash": "3a5d7a39d9ce378309d80690067da1c1"
+  },
+  "starcom/docs/research/ccsds_domain_grok.md": {
+    "mtime": 1781886819.439362,
+    "ast_hash": "e5f15a9ddabfb59e6f4dc20a8991d0c3",
+    "semantic_hash": "e5f15a9ddabfb59e6f4dc20a8991d0c3"
+  },
+  "starcom/docs/research/library_craft_claude.md": {
+    "mtime": 1781886819.454362,
+    "ast_hash": "42da4bf0c117c0b71b0192737b160fa7",
+    "semantic_hash": "42da4bf0c117c0b71b0192737b160fa7"
+  },
+  "starcom/docs/research/library_craft_grok.md": {
+    "mtime": 1781886819.469862,
+    "ast_hash": "8fa005ac83012a4fa6410770e7f0b253",
+    "semantic_hash": "8fa005ac83012a4fa6410770e7f0b253"
+  },
+  "starcom/examples/README.md": {
+    "mtime": 1787710020.4350693,
+    "ast_hash": "1db25ecd58fb3cf51ebd199ef2b1ccd8",
+    "semantic_hash": "1db25ecd58fb3cf51ebd199ef2b1ccd8"
+  },
+  "starcom/include/starcom/README.md": {
+    "mtime": 1787865219.213073,
+    "ast_hash": "a2c4bac4a755654645b2e7d0098a5e3a",
+    "semantic_hash": "a2c4bac4a755654645b2e7d0098a5e3a"
+  },
+  "starcom/src/ccsds/README.md": {
+    "mtime": 1787865219.213073,
+    "ast_hash": "9c422debfa489c47c715618dfc0bdd78",
+    "semantic_hash": "9c422debfa489c47c715618dfc0bdd78"
+  },
+  "starcom/tests/CMakeLists.txt": {
+    "mtime": 1787865007.165174,
+    "ast_hash": "f8a4c727f4ba44e6d63814abdd66881e",
+    "semantic_hash": "f8a4c727f4ba44e6d63814abdd66881e"
+  },
+  "starcom/tests/README.md": {
+    "mtime": 1787865219.2135713,
+    "ast_hash": "a5de29fe612be587cc798049b5c84a2c",
+    "semantic_hash": "a5de29fe612be587cc798049b5c84a2c"
+  },
+  "starcom/tests/unit/README.md": {
+    "mtime": 1787865219.2135713,
+    "ast_hash": "d21e6643659dbb3eb73aabb74f761be4",
+    "semantic_hash": "d21e6643659dbb3eb73aabb74f761be4"
+  },
+  "standards/starcom/README.md": {
+    "mtime": 1787850701.2682407,
+    "ast_hash": "5ae5053f5de257a0f284b35cdac19ee5",
+    "semantic_hash": "5ae5053f5de257a0f284b35cdac19ee5"
+  },
+  "standards/starcom/ccsds/README.md": {
+    "mtime": 1787850701.2682407,
+    "ast_hash": "cefdc35b16ad75b252cf1b196c8592ec",
+    "semantic_hash": "cefdc35b16ad75b252cf1b196c8592ec"
+  },
+  "standards/starcom/fpga/README.md": {
+    "mtime": 1787676201.4284663,
+    "ast_hash": "35c76cb606c8afc10183af2618de1c76",
+    "semantic_hash": "35c76cb606c8afc10183af2618de1c76"
+  },
+  "standards/starcom/ccsds/CCSDS-131.0-B-5.pdf": {
+    "mtime": 1787676205.4349234,
+    "ast_hash": "d550503c0a9e76815ad9b15dc1fdaeb1",
+    "semantic_hash": "d550503c0a9e76815ad9b15dc1fdaeb1"
+  },
+  "standards/starcom/ccsds/CCSDS-133.0-B-2.pdf": {
+    "mtime": 1787676205.4554236,
+    "ast_hash": "7c0dd969062a01df5fe669e59b9e5965",
+    "semantic_hash": "7c0dd969062a01df5fe669e59b9e5965"
+  },
+  "standards/starcom/ccsds/CCSDS-211.0-B-6.pdf": {
+    "mtime": 1787676204.149587,
+    "ast_hash": "0156a4d98d9a2614d8594be29f5e5a79",
+    "semantic_hash": "0156a4d98d9a2614d8594be29f5e5a79"
+  },
+  "standards/starcom/ccsds/CCSDS-211.1-B-4.pdf": {
+    "mtime": 1787676204.468674,
+    "ast_hash": "f25c100eaa5e5845c24264356c2df6cb",
+    "semantic_hash": "f25c100eaa5e5845c24264356c2df6cb"
+  },
+  "standards/starcom/ccsds/CCSDS-211.2-B-3.pdf": {
+    "mtime": 1787676204.9333606,
+    "ast_hash": "7362947b51e17854b8429f7319ea02d2",
+    "semantic_hash": "7362947b51e17854b8429f7319ea02d2"
+  },
+  "standards/starcom/ccsds/CCSDS-232.0-B-4.pdf": {
+    "mtime": 1787850617.8871605,
+    "ast_hash": "b74154c0ba8abf5eeae7b793c65192b2",
+    "semantic_hash": "b74154c0ba8abf5eeae7b793c65192b2"
+  },
+  "standards/starcom/ccsds/CCSDS-232.1-B-2.pdf": {
+    "mtime": 1787850615.3429246,
+    "ast_hash": "d4c68984947bb7a19304f47affeaf7ba",
+    "semantic_hash": "d4c68984947bb7a19304f47affeaf7ba"
+  },
+  "standards/starcom/ccsds/CCSDS-732.1-B-3.pdf": {
+    "mtime": 1787850616.8857615,
+    "ast_hash": "943b816f7e16c0d99a33ad363d9563cd",
+    "semantic_hash": "943b816f7e16c0d99a33ad363d9563cd"
+  },
+  "standards/starcom/fpga/ESA-ASIC-001.pdf": {
+    "mtime": 1787676203.1157906,
+    "ast_hash": "26c512fa1327caa4bb7c74e899c0e33a",
+    "semantic_hash": "26c512fa1327caa4bb7c74e899c0e33a"
+  },
+  "standards/starcom/fpga/GSFC-500-PG-8700.2.7.pdf": {
+    "mtime": 1787676203.7134168,
+    "ast_hash": "b2ede30c0ae1b4fbd8edf319b0a487bc",
+    "semantic_hash": "b2ede30c0ae1b4fbd8edf319b0a487bc"
+  },
+  "standards/starcom/fpga/NASA-HDBK-4008.pdf": {
+    "mtime": 1787676202.843043,
+    "ast_hash": "b74ecd085c6d87f0489b31769cd33f4e",
+    "semantic_hash": "b74ecd085c6d87f0489b31769cd33f4e"
+  },
+  "standards/starcom/fpga/NASA-HDBK-4011.pdf": {
+    "mtime": 1787676202.5045826,
+    "ast_hash": "06fc06afc97395cf1c2c50a9c115ce63",
+    "semantic_hash": "06fc06afc97395cf1c2c50a9c115ce63"
+  }
+}

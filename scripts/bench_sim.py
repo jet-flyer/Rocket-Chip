@@ -316,6 +316,23 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     else:
         print('WARNING: sensor health timeout — tests may fail due to NO-GO')
 
+    # Inject keys are compile-time ROCKETCHIP_DEV_MODE + runtime toggle.
+    # Toggle needs USB + IDLE (ABORT leftover from a prior run refuses).
+    # DTR on open clears it. v is a toggle: send until ON (at most twice).
+    if not reset_target(ser, args.verbose):
+        print('WARNING: could not reset FD to IDLE before DEV_MODE')
+    send_key(ser, 'z', 1.0)
+    time.sleep(0.2)
+    ser.read(4096)
+    out = ''
+    for _ in range(2):
+        out = send_key(ser, 'v', 2.0)
+        if 'DEV_MODE on' in out:
+            break
+    if 'DEV_MODE on' not in out:
+        print('WARNING: DEV_MODE toggle did not print ON - inject tests may fail')
+        print(f'  toggle: {out[:160]!r}')
+
     # --- Enter flight menu ---
     enter_flight_menu(ser, args.verbose)
 

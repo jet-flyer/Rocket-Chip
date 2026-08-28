@@ -2,23 +2,27 @@
 
 Library docs live here, not under repo-root `docs/research/`.
 
-**Living (this sitting):** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`../STATUS.md`](../STATUS.md).
+**Living:** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`TESTING.md`](TESTING.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
 
 **Research freeze:** [`DESIGN.md`](DESIGN.md) is the condensed record. Historical research and `comparison.md` stay append-only.
+
+**Primary sources win.** Repeated field maps and diagrams in these files are working copies. Always check the cited Blue Book first; trust that over anything restated here (`WORKING_HERE.md`).
 
 ## Reading order
 
 1. [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts and vocabulary
 2. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
 3. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
-4. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof and Closed log
-5. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
+4. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof through increment 25; [`TESTING.md`](TESTING.md) — how host tests are written and run
+5. [`integration/CONSUMERS.md`](integration/CONSUMERS.md) — what RC and other stacks can call now vs later
+6. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
 
 ## Tracking (`starcom/` root)
 
 - [`CHANGELOG.md`](../CHANGELOG.md) — library-scoped only
 - [`STATUS.md`](../STATUS.md) — phase
-- [`VERSIONING.md`](../VERSIONING.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md) — stubs until release / Phase 0
+- [`VERSIONING.md`](../VERSIONING.md) — SemVer + `STARCOM_VERSION` (live)
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — still interim (build/test + coding bar)
 - [`WORKING_HERE.md`](WORKING_HERE.md) — tracking-doc map
 
 ## Relocation mapping (2026-06-18, content unchanged)

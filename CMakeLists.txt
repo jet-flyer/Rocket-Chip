@@ -12,10 +12,10 @@ cmake_minimum_required(VERSION 3.25)
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 
 # Dual-build soak for the Starcom consumer. Default OFF = today's STOP-GAP
-# air path. ON compiles RC prep (banner, nav SDU packer, LoRa commands
-# refuse). Does NOT add_subdirectory(starcom) until Starcom::starcom exists.
-# Dies at ops cutover. See docs/plans/SC_DEV_RC_TEST_PREP.md.
-option(ROCKETCHIP_USE_STARCOM "Starcom consumer prep (no library link yet)" OFF)
+# air path. ON: host BUILD_TESTS add_subdirectory(starcom) and link
+# Starcom::starcom. Pico link is IVP 21. Dies at ops cutover.
+# See docs/plans/SC_DEV_RC_TEST_PREP.md.
+option(ROCKETCHIP_USE_STARCOM "Link Starcom on host tests; Pico link is IVP 21" OFF)
 
 if(BUILD_TESTS)
     # ========================================================================
@@ -30,7 +30,14 @@ if(BUILD_TESTS)
 
     if(ROCKETCHIP_USE_STARCOM)
         add_compile_definitions(ROCKETCHIP_USE_STARCOM=1)
-        message(STATUS "Starcom consumer prep: ON (host; Starcom::starcom not linked)")
+        # Nested consumer: Starcom's own ctest stays in the library tree (IVP 20).
+        # Do not enable STARCOM_SANITIZE here — this host has no libasan.
+        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
+        # Host PLTU round-trip does not need UDP/file. Skip adapters_host
+        # (MSVC CRT fopen deprecation is -Werror in the Starcom host adapter).
+        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 20 does not need UDP/file" FORCE)
+        add_subdirectory(starcom)
+        message(STATUS "Starcom consumer: ON (host; linking Starcom::starcom)")
     endif()
 
     # Google Test (pinned v1.14.0)
@@ -842,7 +849,7 @@ else()
 
     if(ROCKETCHIP_USE_STARCOM)
         target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_USE_STARCOM=1)
-        message(STATUS "Starcom consumer prep: ON (not linking Starcom::starcom — no library target yet)")
+        message(STATUS "Starcom consumer: ON (Pico link is IVP 21; host tests link Starcom::starcom)")
     endif()
 
     # USB configuration

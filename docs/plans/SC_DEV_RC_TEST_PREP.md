@@ -124,8 +124,8 @@ existing `AO_Radio`.
 
 | Starcom ready | RC does |
 |---------------|---------|
-| Docs only / RC prep (this sitting) | CMake option (does not link Starcom). Banner `Air: starcom-prep`. Nav SDU packer. LoRa commands refuse on ON. No `add_subdirectory`. |
-| Codecs + library target | Link `Starcom::starcom` + host PLTU round-trip; reject STOP-GAP frames as PLTUs |
+| Docs only / RC prep | CMake option. Banner `Air: starcom-prep`. Nav SDU packer. LoRa commands refuse on ON. |
+| Codecs + library target (IVP 20, landed) | Host `add_subdirectory(starcom)` + link `Starcom::starcom`; PLTU round-trip; reject STOP-GAP frames as PLTUs |
 | COP-P | Adapter + two-engine host pipe |
 | First RF (ON ELF) | Nav over PLTU. LoRa MAVLink compiled out. Pad ARM keys refuse. Not the pad computer. |
 | Commands on COP-P | Then ARM. `dispatch_command` stays app policy. |
@@ -170,11 +170,10 @@ as a Starcom SDU. Not open: replacing Stage 17's motor image in this tree.
 
 ## 10. Next sitting (when scheduled)
 
-RC prep without a Starcom library is in tree (`ROCKETCHIP_USE_STARCOM`,
-`src/starcom_adapt/`, fail-closed LoRa commands). Next:
+IVP 20 host link is in tree (`add_subdirectory(starcom)` when
+`ROCKETCHIP_USE_STARCOM=ON`, host PLTU round-trip, STOP-GAP reject as
+PLTU). Default OFF stays STOP-GAP air. Next:
 
-1. Confirm open questions 1 and 3.
-2. When `Starcom::starcom` exists: link it and add the host PLTU
-   round-trip (this tree already has the STOP-GAP reject fixture).
-3. Air-path strip of STOP-GAP **nav** only when an RF sitting is opened
-   by name and Starcom can fill the hole.
+1. IVP 21: Pico link + first AO byte pump (Buzz).
+2. Air-path strip of STOP-GAP **nav** only when an RF sitting is opened
+   by name and Starcom can fill the hole. Not 22 unless scheduled.

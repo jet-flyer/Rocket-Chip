@@ -1,10 +1,32 @@
 # Starcom Changelog
 
-Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer once releases begin. See `VERSIONING.md` (placeholder).
+Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONING.md`](VERSIONING.md).
 
-> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only: folder layout, library docs, `starcom/` CMake/tests/code. Work that stays entirely under `starcom/` is recorded **here only**. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting (wrap included). **Rocket-Chip firmware and integration** (AO, board `docs/IVP.md`, stage plans, STOP-GAP telemetry, root `docs/decisions/`) belong in the root changelog, not here. Starcom's own `docs/IVP.md` is a library doc and is logged here.
+> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only, and only on **major pushes** (first tagged cut, public extract, supported-API change). Ordinary codec sittings and graph snapshots do not mint a row. Work that stays entirely under `starcom/` is recorded **here only** when a row is warranted. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting. **Rocket-Chip firmware and integration** belong in the root changelog, not here.
 
 ## Unreleased
+
+### 2026-08-28-001 | Grok Hamilton (Grok Bot) | feature
+
+**IVP 13–19 cut.** Product `0.19.0-dev`. Full 211.0 §6 MAC + SET V(R) (13). V-3 DFC 11 user-defined octets, not bitstream (14). Host file replay + UDP; sockets only on `Starcom::adapters_host` (15). Generic SPI/GPIO `BusOps`, host fake bus, no Pico/RFM in the core (16). PIO bit pipe, not 211.1 (17). PHY adapter tiers; uncoded host path; `PhyTier::compliant` not offered (18). Conv K=7 r=1/2 with G2 inversion + LDPC (2048,1024) encode, CSM `0347 76C7 2728 95B0`, codeword-only randomize; decode later GCS/Pi (19). Next is increment 20 (RC host `add_subdirectory`). FPGA/decode hold is on `AGENT_WHITEBOARD.md` (Forgix first, then Snickerdoodle). No merge to main. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`.
+
+Verified: pure-software change, `starcom.unit` 1/1 PASS, host ctest 862/862 PASS, no HW reseat required.
+
+### 2026-08-27-003 | Grok 4.6 (Build CLI) | feature, architecture
+
+**Sans-I/O data-link core cut (IVP 0–12).** Product `0.12.0-dev`. Codecs: Annex C CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP (truncated / Insert / FECF), COP-P (incl. `copp_init_uslp`), COP-1 subset (FARM-1 + FOP-1 S4/S5). Host loopback + `RadioPort`. `repeat_pltu`, `hunt_pltu`, caller-owned `PltuRepeatQ`. Versioning SSOT (`STARCOM_VERSION`; same scheme as RC 2026-08-26; humans edit that file only; CMake writes `generated/starcom/version.hpp`; git is the live discriminant; incubating tags `starcom-v*`). Starcom-only graph snapshot in `starcom/graphify-out/` (query `--graph starcom/graphify-out/graph.json`; repo-root graph still excludes this tree). Prefix smoke + `STARCOM_SANITIZE` option (not run — this MinGW has no libasan). Consumer map: `docs/integration/CONSUMERS.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. Next is increment 13 — owner §6 pick; do not stub the unchosen cut. No RC `add_subdirectory`. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`, `VERSIONING.md`.
+
+Verified: pure-software change, `starcom.unit` 1/1 PASS, host ctest 862/862 PASS, no HW reseat required.
+
+### 2026-08-27-002 | Grok 4.6 (Build CLI) | documentation
+
+**Docs cut before first codec.** Glossary with Blue Book section cites; README key-concept table. IVP work sequence is the increment numbers; Purpose / Methods / Closed are plan parts, not steps to run first. T/A/R/I from ECSS-E-ST-10-02; T is default; not all four on every increment. ICD codec handshake locked (`crc32`, `decode_pltu`, `encode_pltu`). Public docs state what the system is; hung-up corrections live on WORKING_HERE / `starcom/AGENT_WHITEBOARD.md`. Repeater walked back from the increment-0+1 lock in 2026-08-27-001 — early RC capability after codecs, grade still open. PIO/FPGA called out as later port seams. Blue Books 232.0-B-4, 232.1-B-2, 732.1-B-3 on the shelf. No library code in this commit.
+
+Verified: documentation only, no firmware path, no HW reseat required.
+
+### 2026-08-27-001 | Grok 4.6 (Build CLI) | documentation, architecture
+
+**PLTU repeater locked into MVP; buffered grade deferred.** Bent-pipe: ASM + CRC-32, bit-exact octets out, V-3 FSN dedup — one unit, dual-use board or pole/aerostat. Not COP-P, not Space Packet parse, not a Prox-1/long-haul gateway. Buffered repeater (caller-owned queue; 133.0 §2.4 storage/forwarding; RC relay profile may use PSRAM instead of IMU RAM) is deferred, not DTN. Half-duplex TX-ready stays with the consumer. Living map: CONFORMANCE, SAD, ICD, IVP, STATUS, WORKING_HERE, DESIGN note. No library code. Verified: docs only, no firmware path, no HW reseat required.
 
 ### 2026-08-25-002 | Grok Hamilton (Grok Bot) | documentation, architecture
 

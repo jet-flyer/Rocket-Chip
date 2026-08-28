@@ -40,6 +40,9 @@ JPL C coding standard (lars-lab) did not serve a public PDF from this environmen
 | [`ccsds/CCSDS-211.2-B-3.pdf`](ccsds/CCSDS-211.2-B-3.pdf) | Proximity-1 Space Link Protocol—Coding and Synchronization Sublayer | Blue Book, Issue 3, October 2019 | <https://ccsds.org/Pubs/211x2b3.pdf> | Proximity-1 C&S (current issue; 211.2-B-2 404) |
 | [`ccsds/CCSDS-131.0-B-5.pdf`](ccsds/CCSDS-131.0-B-5.pdf) | TM Synchronization and Channel Coding | Blue Book, Issue 5, September 2023 | <https://public.ccsds.org/Pubs/131x0b5.pdf> | TM coding, including LDPC (2048,1024) and convolutional |
 | [`ccsds/CCSDS-133.0-B-2.pdf`](ccsds/CCSDS-133.0-B-2.pdf) | Space Packet Protocol | Blue Book, Issue 2, June 2020 (e2 file) | <https://public.ccsds.org/Pubs/133x0b2e2.pdf> | Space Packet used this sitting |
+| [`ccsds/CCSDS-232.0-B-4.pdf`](ccsds/CCSDS-232.0-B-4.pdf) | TC Space Data Link Protocol | Blue Book, Issue 4, October 2021 (TC1 Oct 2023) | <https://public.ccsds.org/Pubs/232x0b4e1c1.pdf> | CLCW field format §4.2.1 |
+| [`ccsds/CCSDS-232.1-B-2.pdf`](ccsds/CCSDS-232.1-B-2.pdf) | Communications Operation Procedure-1 | Blue Book, Issue 2, September 2010 (TC1 Apr 2019) | <https://public.ccsds.org/Pubs/232x1b2e2c1.pdf> | FOP-1 / FARM-1 tables |
+| [`ccsds/CCSDS-732.1-B-3.pdf`](ccsds/CCSDS-732.1-B-3.pdf) | Unified Space Data Link Protocol | Blue Book, Issue 3, June 2024 | <https://public.ccsds.org/Pubs/732x1b3e1.pdf> | Version-4 frame in a PLTU |
 | *(URL only)* [`../protocols/SPACEWIRE_LITE.md`](../protocols/SPACEWIRE_LITE.md) | SpaceWire-Lite draft (Rocket-Chip) | 0.1 Draft, 2026-01-19 | (in-repo) | Draft stays under `standards/protocols/`; not duplicated here |
 
 ## URL-only (no PDF in tree)

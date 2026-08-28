@@ -13,6 +13,16 @@
 #include "crc16_ccitt.h"
 #include <cstring>
 #include <cmath>
+#ifdef ROCKETCHIP_USE_STARCOM
+#include "starcom/ccsds/pltu.hpp"
+#include "starcom/ccsds/space_packet.hpp"
+#include "starcom/ccsds/v3.hpp"
+#include "starcom/version.hpp"
+#include "starcom_adapt/nav_sdu.h"
+#include <algorithm>
+#include <array>
+#include <span>
+#endif
 
 extern "C" {
 #include "common/mavlink.h"
@@ -75,12 +85,21 @@ TEST_F(CcsdsEncoderTest, PacketSize) {
 }
 
 TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
-    // Fixture for a later Starcom PLTU test: reject this 54 B packet
-    // (ASM is FAF320). Do not invent a PLTU encoder here.
+    // STOP-GAP 54 B nav is not a PLTU (ASM is FAF320). Do not invent a
+    // second ARQ; Starcom decode_pltu rejects this as bad_asm when linked.
     enc.encode_nav(telem, 12345, result);
     ASSERT_TRUE(result.ok);
     EXPECT_EQ(result.buf[0] & 0xE0, 0x00);
     EXPECT_NE(result.buf[0], 0xFA);
+#ifdef ROCKETCHIP_USE_STARCOM
+    const auto octets = std::span<const std::byte>(
+        reinterpret_cast<const std::byte*>(result.buf), result.len);
+    const auto view = starcom::ccsds::decode_pltu(octets);
+    ASSERT_FALSE(view.has_value());
+    EXPECT_EQ(view.error(), starcom::ccsds::Error::bad_asm);
+    const auto hunt = starcom::ccsds::hunt_pltu(octets);
+    EXPECT_FALSE(hunt.pltu.has_value());
+#endif
 }
 
 TEST_F(CcsdsEncoderTest, MaxPacketSize) {
@@ -777,3 +796,88 @@ TEST(CcsdsCommandAck, CorruptCrcRejected) {
     rc::ccsds::CommandAckPayload decoded{};
     EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen, decoded));
 }
+
+#ifdef ROCKETCHIP_USE_STARCOM
+
+TEST(StarcomHostLink, VersionHeaderVisible) {
+    EXPECT_EQ(starcom::kVersionMajor, 0);
+    EXPECT_EQ(starcom::kVersionMinor, 19);
+    EXPECT_EQ(starcom::kVersionPatch, 0);
+    EXPECT_STREQ(starcom::kVersionString, "0.19.0-dev");
+}
+
+TEST(StarcomHostLink, PltuV3HeaderOnlyRoundTrip) {
+    // IVP named vector v3-header-only: PLTU FAF320 8000000400 BCC004E7.
+    constexpr std::array<std::byte, 5> kV3HeaderOnly{
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
+        std::byte{0x00}};
+    std::array<std::byte, 16> out{};
+    const auto n = starcom::ccsds::encode_pltu(out, kV3HeaderOnly);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_EQ(*n, 12u);
+    EXPECT_EQ(out[0], std::byte{0xFA});
+    EXPECT_EQ(out[1], std::byte{0xF3});
+    EXPECT_EQ(out[2], std::byte{0x20});
+    EXPECT_EQ(out[8], std::byte{0xBC});
+    EXPECT_EQ(out[9], std::byte{0xC0});
+    EXPECT_EQ(out[10], std::byte{0x04});
+    EXPECT_EQ(out[11], std::byte{0xE7});
+
+    const auto view = starcom::ccsds::decode_pltu(
+        std::span<const std::byte>(out.data(), *n));
+    ASSERT_TRUE(view.has_value());
+    ASSERT_EQ(view->frame.size(), kV3HeaderOnly.size());
+    EXPECT_TRUE(std::equal(view->frame.begin(), view->frame.end(),
+                           kV3HeaderOnly.begin()));
+}
+
+TEST(StarcomHostLink, NavSduPltuEighteenPlusN) {
+    // Consumer-shaped 18+N: nav SDU user octets inside V-3 inside a PLTU.
+    const TelemetryState in = make_test_telem();
+    uint8_t user[rc::kNavSduUserBytes] = {};
+    ASSERT_EQ(rc::pack_nav_sdu_user(user, sizeof(user), in), rc::kNavSduUserBytes);
+
+    std::array<std::byte, rc::kNavSduUserBytes> user_b{};
+    for (std::size_t i = 0; i < user_b.size(); ++i) {
+        user_b[i] = std::byte{user[i]};
+    }
+
+    starcom::ccsds::SpacePacketFields sp{};
+    sp.apid = starcom::ccsds::Apid{0x001};
+    std::array<std::byte, 64> packet{};
+    const auto pn = starcom::ccsds::encode_space_packet(packet, sp, user_b);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_EQ(*pn, 6u + rc::kNavSduUserBytes);
+
+    starcom::ccsds::V3Fields v3{};
+    std::array<std::byte, 80> frame{};
+    const auto fn = starcom::ccsds::encode_v3(
+        frame, v3, std::span<const std::byte>(packet.data(), *pn));
+    ASSERT_TRUE(fn.has_value());
+
+    std::array<std::byte, 96> pltu{};
+    const auto plen = starcom::ccsds::encode_pltu(
+        pltu, std::span<const std::byte>(frame.data(), *fn));
+    ASSERT_TRUE(plen.has_value());
+    EXPECT_EQ(*plen, 18u + rc::kNavSduUserBytes);
+
+    const auto env = starcom::ccsds::decode_pltu(
+        std::span<const std::byte>(pltu.data(), *plen));
+    ASSERT_TRUE(env.has_value());
+    const auto vf = starcom::ccsds::decode_v3(env->frame);
+    ASSERT_TRUE(vf.has_value());
+    const auto spv = starcom::ccsds::decode_space_packet(vf->data);
+    ASSERT_TRUE(spv.has_value());
+    ASSERT_EQ(spv->data.size(), rc::kNavSduUserBytes);
+
+    uint8_t back[rc::kNavSduUserBytes] = {};
+    for (std::size_t i = 0; i < spv->data.size(); ++i) {
+        back[i] = std::to_integer<uint8_t>(spv->data[i]);
+    }
+    TelemetryState out{};
+    ASSERT_TRUE(rc::unpack_nav_sdu_user(back, sizeof(back), &out));
+    EXPECT_EQ(out.lat_1e7, in.lat_1e7);
+    EXPECT_EQ(out.battery_mv, in.battery_mv);
+}
+
+#endif  // ROCKETCHIP_USE_STARCOM
