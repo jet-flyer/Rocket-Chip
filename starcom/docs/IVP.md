@@ -223,7 +223,9 @@ Landed. `encode_v3_user_defined` sets U-frame DFC `11` (opaque octets, empty dat
 
 WORKING_HERE `adapters/host/`. Desktop transports. No sockets in `include/starcom` or `src/ccsds/`. Caller owns bind/path. Do not invent a port number.
 
-**Gate:** file replay of canned PLTUs through the adapter into COP or `repeat_pltu`; inspection that the core target does not link sockets.
+Landed. `replay_pltu_file` hunts concatenated PLTUs from a caller path into a function-pointer sink (`copp_receive_bytes` / `repeat_pltu`). `udp_bind` / `udp_send_to` / `udp_recv` are IPv4 datagrams; port `0` is the OS ephemeral port, not a Starcom service number. Public headers have no socket includes. `ws2_32` links only on `Starcom::adapters_host`.
+
+**Gate:** file replay of canned PLTUs through the adapter into COP or `repeat_pltu`; inspection that the core target does not link sockets. Tests: `tests/unit/test_host_io.cpp`. Do not mint SC-NNN.
 
 ### Increment 16 — Generic SPI/GPIO radio port
 

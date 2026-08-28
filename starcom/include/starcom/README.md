@@ -19,5 +19,7 @@ Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no 
 | `ccsds/cop1.hpp` | FOP-1 / FARM-1 + `Cop1Endpoint` |
 | `adapters/loopback.hpp` | `HostLoopback` two `FrameSlot`s |
 | `adapters/radio_port.hpp` | One TX + one RX mailbox |
+| `adapters/file_replay.hpp` | Host file hunt into a PLTU sink |
+| `adapters/udp.hpp` | Host UDP bearer (opaque handle; caller host/port) |
 
 Handshake: `docs/ICD.md`.

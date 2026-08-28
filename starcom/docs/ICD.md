@@ -237,9 +237,9 @@ Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies
 
 Buffered (IVP 12): caller-owned `PltuRepeatQ` / `PltuRepeatSlot`. Depth is `slots.size()`, not a Starcom constant. `enqueue_pltu` / `dequeue_pltu`. Dedup key is V-3 FSN or USLP VC Frame Count. Duplicate with `dedup` true returns 0. No COP on this path.
 
-## Adapters (host loopback / radio port)
+## Adapters (host loopback / radio port / UDP / file replay)
 
-Not the core. Namespace `starcom::adapters`. No sockets, SPI, or Pico SDK. One outstanding PLTU per slot (`kAdapterFrameMax` = ASM + 2048 + CRC-32).
+Not the core. Namespace `starcom::adapters`. No SPI or Pico SDK in these headers. No socket includes in `include/starcom`. One outstanding PLTU per slot (`kAdapterFrameMax` = ASM + 2048 + CRC-32). Caller owns bind host, path, and port. Port `0` is OS ephemeral.
 
 ```cpp
 Result<std::size_t> slot_write(FrameSlot&, std::span<const std::byte>);
@@ -249,9 +249,16 @@ Result<std::size_t> radio_begin_tx(RadioPort&, std::span<const std::byte>);
 Result<std::size_t> radio_take_tx(RadioPort&, std::span<std::byte>);
 Result<std::size_t> radio_offer_rx(RadioPort&, std::span<const std::byte>);
 Result<std::size_t> radio_poll_rx(RadioPort&, std::span<std::byte>);
+Result<std::size_t> replay_pltu_file(char const* path, std::span<std::byte> scratch,
+                                    PltuSink, void* ctx);
+Result<std::uint16_t> udp_bind(UdpSocket&, char const* host, std::uint16_t port);
+void udp_close(UdpSocket&);
+Result<std::size_t> udp_send_to(UdpSocket&, std::span<const std::byte>,
+                               char const* host, std::uint16_t port);
+Result<std::size_t> udp_recv(UdpSocket&, std::span<std::byte> out);
 ```
 
-The core still only sees `copp_*` / `cop1_*` byte verbs. UDP, file replay, and RP2350 SPI glue are later. No virtual `IRadio` in the core (P10-9).
+`udp_recv` polls like `slot_read` (0 if nothing ready). The core still only sees `copp_*` / `cop1_*` byte verbs. RP2350 SPI glue is increment 16. No virtual `IRadio` in the core (P10-9).
 
 ## CMake (with the first `.cpp`, not a solo sitting)
 

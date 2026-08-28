@@ -10,3 +10,4 @@ Procedure: [`../../docs/TESTING.md`](../../docs/TESTING.md).
 | `test_ocf.cpp` | `Plcw16` / `Clcw32`; IVP `plcw-zero-report`, `clcw-cop1` |
 | `heap_trap.cpp` | D-5 malloc/`operator new` trap (positive control + codecs allocate nothing) |
 | `test_user_defined.cpp` | IVP 14 DFC `11` user-defined + simplex without hailing |
+| `test_host_io.cpp` | IVP 15 host file replay + UDP |

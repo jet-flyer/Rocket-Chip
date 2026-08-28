@@ -8,4 +8,4 @@ cmake --build starcom/build
 ctest --test-dir starcom/build
 ```
 
-`starcom.unit` is the host binary: codecs, COP-P, USLP, COP-1, loopback, version, prefix smoke (`test_fuzz.cpp`), MAC, user-defined DFC `11`. `-DSTARCOM_SANITIZE=ON` when libasan is present.
+`starcom.unit` is the host binary: codecs, COP-P, USLP, COP-1, loopback, version, prefix smoke (`test_fuzz.cpp`), MAC, user-defined DFC `11`, host UDP/file replay. `-DSTARCOM_SANITIZE=ON` when libasan is present.
