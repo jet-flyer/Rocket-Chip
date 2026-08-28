@@ -16,6 +16,7 @@ using starcom::ccsds::copp_bytes_to_send;
 using starcom::ccsds::CoppEndpoint;
 using starcom::ccsds::CoppEvent;
 using starcom::ccsds::copp_init;
+using starcom::ccsds::copp_init_uslp;
 using starcom::ccsds::CoppMib;
 using starcom::ccsds::copp_poll_event;
 using starcom::ccsds::copp_receive_bytes;
@@ -43,6 +44,9 @@ using starcom::ccsds::Scid;
 using starcom::ccsds::seq_lt;
 using starcom::ccsds::SpacePacketFields;
 using starcom::ccsds::Tick;
+using starcom::ccsds::UslpScid;
+using starcom::ccsds::Vcid;
+using starcom::ccsds::MapId;
 
 namespace {
 
@@ -212,6 +216,43 @@ void test_canned_pltu_to_plcw() {
   CHECK(tx.fop.nn_r == 1);
 }
 
+void test_uslp_host_loop() {
+  CoppMib mib{};
+  mib.transmission_window = 4;
+  CoppEndpoint rx{};
+  CoppEndpoint tx{};
+  copp_init_uslp(rx, mib, UslpScid{2}, UslpScid{1}, Vcid{1}, MapId{0});
+  copp_init_uslp(tx, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+
+  SpacePacketFields sp{};
+  const std::array<std::byte, 1> user{std::byte{0xAA}};
+  std::array<std::byte, 16> pkt{};
+  const auto pn = encode_space_packet(pkt, sp, user);
+  CHECK(pn.has_value());
+  CHECK(copp_submit_sdu(tx, std::span<const std::byte>(pkt.data(), *pn), false)
+            .has_value());
+
+  std::array<std::byte, 128> wire{};
+  const auto p0 = copp_bytes_to_send(rx, wire);
+  CHECK(p0.has_value());
+  CHECK(*p0 > 0);
+  copp_receive_bytes(tx, std::span<const std::byte>(wire.data(), *p0));
+  const auto t0 = copp_bytes_to_send(tx, wire);
+  CHECK(t0.has_value());
+  CHECK(*t0 > 0);
+  copp_receive_bytes(rx, std::span<const std::byte>(wire.data(), *t0));
+
+  const auto p1 = copp_bytes_to_send(tx, wire);
+  CHECK(p1.has_value());
+  CHECK(*p1 > 0);
+  copp_receive_bytes(rx, std::span<const std::byte>(wire.data(), *p1));
+  CHECK(copp_poll_event(rx) == CoppEvent::farm_accepted);
+  std::array<std::byte, 16> sdu{};
+  const auto tn = copp_take_sdu(rx, sdu);
+  CHECK(tn.has_value());
+  CHECK(*tn == *pn);
+}
+
 void test_heap() {
   CoppMib mib{};
   FarmP farm{};
@@ -238,6 +279,7 @@ int run_copp_tests() {
   test_fop_p_send_and_ack();
   test_fop_p_invalid_plcw_and_timer();
   test_canned_pltu_to_plcw();
+  test_uslp_host_loop();
   test_heap();
   return g_fails;
 }

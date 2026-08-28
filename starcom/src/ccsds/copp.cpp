@@ -1,6 +1,7 @@
 #include "starcom/ccsds/copp.hpp"
 
 #include "starcom/ccsds/pltu.hpp"
+#include "starcom/ccsds/uslp.hpp"
 #include "starcom/ccsds/v3.hpp"
 
 #include <algorithm>
@@ -220,6 +221,18 @@ void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
   fop_p_init(e.fop, mib);
 }
 
+void copp_init_uslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
+                    UslpScid remote, Vcid vcid, MapId map) noexcept {
+  e = CoppEndpoint{};
+  e.uslp = true;
+  e.uslp_local = local;
+  e.uslp_remote = remote;
+  e.vcid = vcid;
+  e.map_id = map;
+  farm_p_init(e.farm);
+  fop_p_init(e.fop, mib);
+}
+
 void copp_tick(CoppEndpoint& e, Tick now) noexcept { fop_p_tick(e.fop, now); }
 
 CoppEvent copp_poll_event(CoppEndpoint& e) noexcept {
@@ -283,6 +296,32 @@ void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noex
     (void)farm_p_on_frame(e.farm, false, false, 0);
     return;
   }
+  if (e.uslp) {
+    const auto u = decode_uslp(pltu->frame);
+    if (!u) {
+      (void)farm_p_on_frame(e.farm, false, false, 0);
+      return;
+    }
+    if (u->fields.protocol_control) {
+      const auto plcw = decode_plcw(u->tfdz);
+      fop_p_on_plcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
+      return;
+    }
+    const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+    const auto d =
+        farm_p_on_frame(e.farm, true, u->fields.expedited, fsn);
+    if (d != FarmPDisposition::accepted) {
+      return;
+    }
+    e.farm_accepted_latched = true;
+    if (e.rx_n >= kCoppSeqSlots || u->tfdz.size() > kCoppHold) {
+      return;
+    }
+    std::copy(u->tfdz.begin(), u->tfdz.end(), e.rx_q[e.rx_n].begin());
+    e.rx_len[e.rx_n] = u->tfdz.size();
+    ++e.rx_n;
+    return;
+  }
   const auto v3 = decode_v3(pltu->frame);
   if (!v3) {
     (void)farm_p_on_frame(e.farm, false, false, 0);
@@ -307,6 +346,28 @@ void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noex
   ++e.rx_n;
 }
 
+Result<std::size_t> copp_encode_uslp(CoppEndpoint& e, std::span<std::byte> out,
+                                     bool p_frame, bool expedited, std::uint8_t fsn,
+                                     std::span<const std::byte> payload) noexcept {
+  UslpFields hdr{};
+  hdr.scid = e.uslp_remote;
+  hdr.destination = true;
+  hdr.vcid = e.vcid;
+  hdr.map_id = e.map_id;
+  hdr.expedited = expedited;
+  hdr.protocol_control = p_frame;
+  hdr.vcf_count_len = 1;  // 732.1 C1.11 Prox-1
+  hdr.vcf_count = fsn;
+  hdr.tfdz_construction = kUslpConstructionNoSeg;
+  hdr.upid = kUslpUpidSpacePacket;
+  std::array<std::byte, kTransferFrameMax> tf{};
+  const auto vn = encode_uslp(tf, hdr, payload);
+  if (!vn) {
+    return vn;
+  }
+  return encode_pltu(out, std::span<const std::byte>(tf.data(), *vn));
+}
+
 Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
                                        std::span<std::byte> out) noexcept {
   std::array<std::byte, kTransferFrameMax> tf{};
@@ -316,6 +377,11 @@ Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
     const auto n = encode_plcw(raw, farm_p_report(e.farm, e.pcid));
     if (!n) {
       return n;
+    }
+    e.farm.need_plcw = false;
+    if (e.uslp) {
+      return copp_encode_uslp(e, out, true, true, 0,
+                              std::span<const std::byte>(raw.data(), *n));
     }
     V3Fields hdr{};
     hdr.p_frame = true;
@@ -329,7 +395,6 @@ Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
       return vn;
     }
     tf_n = *vn;
-    e.farm.need_plcw = false;
   } else {
     const FopPSend kind = fop_p_need_frame(e.fop, e.exp_full, e.seq_n != 0);
     if (kind == FopPSend::none) {
@@ -362,6 +427,9 @@ Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
       const auto fsn = e.fop.last_send_fsn;
       payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(),
                                            e.payload_len_by_fsn[fsn]);
+    }
+    if (e.uslp) {
+      return copp_encode_uslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
     }
     const auto vn = encode_v3(tf, hdr, payload);
     if (!vn) {

@@ -2,6 +2,7 @@
 
 #include "starcom/ccsds/plcw.hpp"
 #include "starcom/ccsds/types.hpp"
+#include "starcom/ccsds/uslp.hpp"
 #include "starcom/result.hpp"
 
 #include <array>
@@ -102,10 +103,15 @@ inline constexpr std::size_t kCoppSeqSlots = 4;
 struct CoppEndpoint {
   FarmP farm{};
   FopP fop{};
+  bool uslp = false;  // IVP 11: Version-4 VC/MAP; PLCW still the Prox report
   Pcid pcid{};
   Scid local_scid{};
   Scid remote_scid{};
   PortId port_id{};
+  UslpScid uslp_local{};
+  UslpScid uslp_remote{};
+  Vcid vcid{};
+  MapId map_id{};
   bool farm_accepted_latched = false;
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> seq_q{};
   std::array<std::size_t, kCoppSeqSlots> seq_len{};
@@ -122,6 +128,8 @@ struct CoppEndpoint {
 
 void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
                Scid remote, PortId port) noexcept;
+void copp_init_uslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
+                    UslpScid remote, Vcid vcid, MapId map) noexcept;
 void copp_tick(CoppEndpoint& e, Tick now) noexcept;
 void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept;
 Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e, std::span<std::byte> out) noexcept;

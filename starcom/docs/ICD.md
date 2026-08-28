@@ -168,6 +168,8 @@ FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loo
 ```cpp
 using Tick = std::uint32_t;
 void copp_init(CoppEndpoint&, CoppMib const&, Pcid, Scid local, Scid remote, PortId);
+void copp_init_uslp(CoppEndpoint&, CoppMib const&, UslpScid local, UslpScid remote,
+                    Vcid, MapId);  // IVP 11; PLCW still the Prox report
 void copp_tick(CoppEndpoint&, Tick now);
 void copp_receive_bytes(CoppEndpoint&, std::span<const std::byte>);
 Result<std::size_t> copp_bytes_to_send(CoppEndpoint&, std::span<std::byte> out);

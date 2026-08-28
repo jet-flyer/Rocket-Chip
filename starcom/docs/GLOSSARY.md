@@ -38,6 +38,8 @@ Key concepts for a first read also sit in [`../README.md`](../README.md). Agent 
 | **FOP-P / FARM-P** | Frame Operation Procedure / Frame Acceptance and Reporting Mechanism (Proximity). Sender / receiver of COP-P. | 211.0 §7.2 / §7.3 |
 | **COP-1** | Communications Operation Procedure-1 (Earth TC reliability). | 232.1 |
 | **FOP-1 / FARM-1** | Sender / receiver of COP-1. | 232.1 Tables 5-1 / 6-1 |
+| **CFDP** | CCSDS File Delivery Protocol. Post-mission data offload with a checksum over the file. Rides in Space Packet user data. Wanted; not IVP 0–25. | 727.0 |
+| **SDLS** | Space Data Link Security. Authenticated/encrypted *frames* (typically telecommand). Not file offload. | 355.0 |
 | **MIB** | Management Information Base — long-lived parameters (max frame length, SCIDs, timers). | 211.0 Annex C (normative); 133.0 §5 |
 | **DUPLEX** | MAC variable: full, half, or simplex. | 211.0 §6 |
 | **Full duplex** | Both directions at once (book PHY: two frequencies). | 211.0 §6; 211.1 |

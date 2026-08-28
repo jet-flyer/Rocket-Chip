@@ -76,6 +76,8 @@ Bottom-up. 0–7 are in the tree (no SC-NNN yet). 8–25 is the rest of the Star
 
 **Not Starcom increments** (CONFORMANCE out of scope): mixed V-3 and V-4 on one PLTU stream; F' as a dependency; JPL User Terminal / Electra as a product claim; 131.0 long-haul TM C&S as a Starcom product (distinct from increment 19 Prox-1 coding). PUS / cFS / F´ *contents* of the Space Packet user field stay out of `starcom::ccsds` until the owner schedules a separate stack module.
 
+**Wanted later (not 0–25):** **CFDP** (CCSDS 727.0) — post-mission data offload: file delivery with a checksum over the blob, riding in Space Packet user data. Owner-wanted. Distinct from SDLS 355.0 (telecommand frame auth) and from PLTU CRC-32. Schedule as its own stack module after the data-link core.
+
 ### Increment 0+1 — skeleton and codecs
 
 CMake (`Starcom::starcom` static lib, `tl::expected` + span seams, host ctest) lands with the first codec file.
@@ -187,9 +189,9 @@ Landed S4/S5 BC-init: E24 (CLCW check → S4), E25 (Unlock BC → S5), E27 (Set 
 
 ### Increment 11 — COP-P on a USLP VC
 
-SAD: USLP can host COP-P; it does not replace it. Same FOP-P/FARM-P procedures on a Version-4 VC/MAP instead of a Version-3 PCID/Port. PLCW remains the Prox report (not CLCW).
+Landed. `copp_init_uslp`: same FOP-P/FARM-P on Version-4 VC/MAP (732.1 C1.11 VCF length 1). PLCW still a 16-bit SPDU in a protocol-control TFDZ, not CLCW. V-3 `copp_init` unchanged.
 
-**Gate:** canned USLP+PLTU host loop with FOP-P/FARM-P and `take_sdu`; V-3 `CoppEndpoint` path still works; D-5.
+**Gate:** USLP+PLTU host loop with `take_sdu`; existing V-3 canned loop still passes; D-5. Tests: `tests/unit/test_copp.cpp`. Do not mint SC-NNN.
 
 ### Increment 12 — Buffered PLTU repeater
 

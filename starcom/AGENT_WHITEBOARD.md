@@ -36,3 +36,11 @@ Break-time only. Not mainline IVP. Lives in `starcom/examples/` when scheduled �
 Do not invent a GUI. Do not couple to RC pins or SX1276.
 
 ---
+
+## CFDP post-mission offload (WANTED) (2026-08-27)
+
+Owner-wanted. **CCSDS 727.0** file delivery with a checksum over the blob — data offload after a mission, not live TM. Rides in Space Packet user data. Not IVP 0–25. Not SDLS 355.0 (that is telecommand frame auth; RC whiteboard has SDLS for the Rocket profile). Not PLTU CRC-32.
+
+When scheduled: own stack module above `starcom::ccsds`, not a codec sitting.
+
+---

@@ -6,14 +6,14 @@ Dependency is always **consumer → Starcom**. Starcom never includes consumer h
 
 Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
 
-## Now (`0.10.0-dev`, through IVP 10)
+## Now (`0.11.0-dev`, through IVP 11)
 
 Link `Starcom::starcom` (and optionally `Starcom::adapters_host`). Call with `std::span` and, for COP, caller `now`. The core does not key a transmitter.
 
 | Point | Who can use it | What it does | Not yet (IVP) |
 |-------|----------------|--------------|----------------|
 | Codecs | Anyone | PLTU, V-3, USLP (incl. truncated/Insert/FECF), Space Packet, PLCW, CLCW; `hunt_pltu` | — |
-| COP-P | Anyone who owns a loop | `copp_*` on Version-3 PLTUs | SET V(R) persistent / §6 MAC (13); COP-P on USLP VC (11) |
+| COP-P | Anyone who owns a loop | `copp_*` on V-3 or USLP (`copp_init_uslp`) PLTUs | SET V(R) persistent / §6 MAC (13) |
 | COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU (incl. S4/S5 BC-init) | Suspend/resume E30–E34; LLIF E41–E46 |
 | Host loopback / `RadioPort` | Tests, desktop sims | One-PLTU mailboxes | UDP/file (15); SPI/GPIO (16) |
 | PLTU repeater | Anyone with bytes in/out | `repeat_pltu`: envelope check, same octets out | Buffered queue / FSN dedup (12) |
@@ -23,11 +23,10 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host`). Call with `st
 
 **Others (cubesat / HAB / GCS):** same library. They bring their own event loop and radio port. No RC types required.
 
-## Rest of the stack (IVP 11–25)
+## Rest of the stack (IVP 12–25)
 
 | Increment | Point | Owner |
 |-----------|--------|--------|
-| 11 | COP-P on USLP VC | Starcom core |
 | 12 | Buffered repeater / dedup | Starcom core (caller-owned queue; no invented depth) |
 | 13 | Prox-1 §6 MAC / DUPLEX + SET V(R) | Owner decision, then Starcom (no stub of the unchosen cut) |
 | 14 | Simplex / user-defined bitstream | Starcom core |

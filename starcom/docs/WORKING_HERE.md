@@ -23,6 +23,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 | **USLP** | Unified Space Data Link Protocol (732.1). Its on-the-wire frame is Version-4. On Prox-1 it sits *in* a PLTU, in lieu of Version-3, never inside the V-3 data field. |
 | **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. Starcom codecs the header; the user field is the app. |
 | **PUS** | ECSS-E-ST-70-41C Packet Utilization Standard (**ESA**, not a CCSDS Blue Book). Service type/subtype **inside** Space Packet user data (e.g. ST[20] get/set onboard parameters). Optional later stack module; not in IVP 0–25. |
+| **CFDP** | CCSDS 727.0 File Delivery Protocol. Post-mission **data offload**: files with a checksum, in Space Packet user data. Owner-wanted; not IVP 0–25. Not SDLS. |
 | **cFS / F´** | NASA-world **frameworks**, not CCSDS books. They also ride Space Packets: cFS (GSFC) puts cFE command codes in the user field; F´ (JPL) uses typed PRM_SET/SAVE. US missions often leave packet *contents* to the FSW; ESA standardized those contents as PUS. Neither belongs in `starcom::ccsds` as RC settings. |
 
 
