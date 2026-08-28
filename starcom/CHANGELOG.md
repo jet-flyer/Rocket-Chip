@@ -6,23 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
-### 2026-08-27-005 | Grok 4.6 (Build CLI) | feature, architecture
+### 2026-08-27-003 | Grok 4.6 (Build CLI) | feature, architecture
 
-**Sans-I/O data-link core cut (IVP 0–12).** Product `0.12.0-dev`. Codecs: Annex C CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP (truncated / Insert / FECF), COP-P (incl. `copp_init_uslp`), COP-1 subset (FARM-1 + FOP-1 S4/S5). Host loopback + `RadioPort`. `repeat_pltu`, `hunt_pltu`, caller-owned `PltuRepeatQ`. Versioning SSOT (`STARCOM_VERSION`). Prefix smoke + `STARCOM_SANITIZE` option (not run — this MinGW has no libasan). Consumer map: `docs/integration/CONSUMERS.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. Next is increment 13 — owner §6 pick; do not stub the unchosen cut. No RC `add_subdirectory`. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`.
+**Sans-I/O data-link core cut (IVP 0–12).** Product `0.12.0-dev`. Codecs: Annex C CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP (truncated / Insert / FECF), COP-P (incl. `copp_init_uslp`), COP-1 subset (FARM-1 + FOP-1 S4/S5). Host loopback + `RadioPort`. `repeat_pltu`, `hunt_pltu`, caller-owned `PltuRepeatQ`. Versioning SSOT (`STARCOM_VERSION`; same scheme as RC 2026-08-26; humans edit that file only; CMake writes `generated/starcom/version.hpp`; git is the live discriminant; incubating tags `starcom-v*`). Starcom-only graph snapshot in `starcom/graphify-out/` (query `--graph starcom/graphify-out/graph.json`; repo-root graph still excludes this tree). Prefix smoke + `STARCOM_SANITIZE` option (not run — this MinGW has no libasan). Consumer map: `docs/integration/CONSUMERS.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. Next is increment 13 — owner §6 pick; do not stub the unchosen cut. No RC `add_subdirectory`. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`, `VERSIONING.md`.
 
-Verified: pure-software change, host `ctest --test-dir starcom/build` (`starcom.unit` 1/1 PASS), no HW reseat required.
-
-### 2026-08-27-004 | Grok 4.6 (Build CLI) | tooling
-
-**Library versioning SSOT.** Same scheme as Rocket-Chip 2026-08-26: humans edit `STARCOM_VERSION` only; CMake writes `generated/starcom/version.hpp`; git hash / `git describe` is the live discriminant. Product tuple `0.5.0-dev` (MINOR = last completed IVP increment). Tags while incubating: `starcom-v*`. No annotated tag this sitting. Detail: `VERSIONING.md`.
-
-Verified: pure-software change, host ctest `starcom.unit` 1/1 PASS, no HW reseat required.
-
-### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation
-
-**Starcom-only graph snapshot.** Host semantic pass of `starcom/` + `standards/starcom/` (living docs, first codec symbols, Blue Books). Outputs in `starcom/graphify-out/` (`graph.json`, `graph.html`, `GRAPH_REPORT.md`). Repo-root graph still excludes this tree. Query with `--graph starcom/graphify-out/graph.json`. No library code in this commit.
-
-Verified: documentation/graph artifacts only, no firmware path, no HW reseat required.
+Verified: pure-software change, `starcom.unit` 1/1 PASS, host ctest 862/862 PASS, no HW reseat required.
 
 ### 2026-08-27-002 | Grok 4.6 (Build CLI) | documentation
 
