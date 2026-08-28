@@ -6,7 +6,7 @@ Dependency is always **consumer → Starcom**. Starcom never includes consumer h
 
 Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
 
-## Now (`0.16.0-dev`, through IVP 16)
+## Now (`0.17.0-dev`, through IVP 17)
 
 Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::adapters_rp2350`). Call with `std::span` and, for COP, caller `now`. The core does not key a transmitter.
 
@@ -15,7 +15,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | Codecs | Anyone | PLTU, V-3, USLP (incl. truncated/Insert/FECF), Space Packet, PLCW, CLCW; `hunt_pltu` | — |
 | COP-P | Anyone who owns a loop | `copp_*` on V-3 or USLP (`copp_init_uslp`) PLTUs | — |
 | COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU (incl. S4/S5 BC-init) | Suspend/resume E30–E34; LLIF E41–E46 |
-| Host loopback / `RadioPort` / UDP / file / SPI-GPIO bus | Tests, desktop sims | Mailboxes, `replay_pltu_file`, `udp_*`, `BusOps` | PIO (17) |
+| Host loopback / `RadioPort` / UDP / file / SPI-GPIO / PIO | Tests, desktop sims | Mailboxes, `udp_*`, `BusOps`, `pio_shift_*` | PHY tiers (18) |
 | PLTU repeater | Anyone with bytes in/out | `repeat_pltu`; buffered `enqueue_pltu` / `dequeue_pltu` (caller-owned slots) | — |
 | Version | Anyone | `#include "starcom/version.hpp"` | Annotated tag (25) |
 
@@ -31,7 +31,8 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | 14 | User-defined DFC 11 | Landed |
 | 15 | Host UDP / file replay | Landed |
 | 16 | Generic SPI/GPIO radio port | Landed |
-| 17–18 | PIO, PHY/FPGA tiers | `adapters/` |
+| 17 | PIO PLTU symbol pipe | Landed |
+| 18 | PHY adapter tiers + FPGA C&S | `adapters/` |
 | 19 | Convolutional / LDPC | Starcom (211.2 PICS; not a 131.0 long-haul product) |
 | 20 | Host `add_subdirectory(starcom)` | RC |
 | 21 | Pico link + first AO byte pump | RC |

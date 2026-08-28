@@ -21,6 +21,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | Prox-1 session / MAC / hailing | 211.0-B-6 §6 | In scope (IVP 13 full module) | Owner pick 2026-08-27: full §6, not turnaround helper, not consumer-only. Tables 6-2–6-13 + SET V(R) 7.2.3.2 (`tests/unit/test_mac.cpp`). No radio objects in the core. No SC-NNN. |
 | Host UDP / file replay | — | In scope (IVP 15) | Port, no Blue Book claim. `replay_pltu_file` / `udp_*` in `starcom::adapters`. No sockets in the core (`tests/unit/test_host_io.cpp`). No SC-NNN. |
 | Generic SPI/GPIO radio port | — | In scope (IVP 16) | Port, no Blue Book claim, not 211.1. `BusOps` + `radio_bus_shift_*` (`tests/unit/test_radio_bus.cpp`). No Pico SDK in `include/starcom`. RFM95W/LoRa is a later ISM adapter, not this row. No SC-NNN. |
+| PIO PLTU symbol pipe | — | In scope (IVP 17) | Port, no Blue Book PHY claim. `pio_shift_out` / `pio_shift_in` (`tests/unit/test_pio_port.cpp`). Same 0+1 PLTU octets. Not 211.1 PM. No `hardware/pio.h` in `include/starcom`. No SC-NNN. |
 | Convolutional or LDPC coding | 211.2 → 131.0-B-3 | Deferred (IVP 19) | 211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded PLTU. |
 | Long-haul TM C&S (131.0 ASM / FECF path) | 131.0 | Out of scope for this MVP | Different coding sublayer than PLTU. |
 | 211.1-B-4 Physical Layer | 211.1-B-4 | Out of scope as a blanket claim (IVP 18 tiers) | No Electra/UT product claim. Adapters declare none / best-effort / compliant. |

@@ -268,7 +268,19 @@ Result<std::size_t> radio_bus_shift_rx(RadioPort&, BusOps const&, std::span<std:
 
 SAD later seam. ASM hunt, symbol timing, Manchester / FSK-continuous clocks on RP2350. Same codec vectors as the host tests. Do not bake PIO types into `include/starcom`.
 
-**Gate:** host or device testbench that yields the same PLTU octets as increment 0+1 vectors; inspection of the public header boundary.
+Landed. `PioOps` is a caller-owned bit pipe (MSB first, same order as 211.2 Annex C). Host fake PIO round-trips increment 0+1 `v3-header-only` PLTU octets. Not 211.1 residual-carrier PM (Researcher 2026-08-27). Manchester / FSK-continuous waveform claims wait on increment 18.
+
+```cpp
+struct PioOps {
+  void* ctx;
+  void (*put_bit)(void* ctx, bool bit) noexcept;
+  bool (*get_bit)(void* ctx) noexcept;
+};
+Result<std::size_t> pio_shift_out(PioOps const&, std::span<const std::byte>);
+Result<std::size_t> pio_shift_in(PioOps const&, std::span<std::byte> out, std::size_t n_octets);
+```
+
+**Gate:** host or device testbench that yields the same PLTU octets as increment 0+1 vectors; inspection of the public header boundary. Tests: `tests/unit/test_pio_port.cpp`. Do not mint SC-NNN.
 
 ### Increment 18 — PHY adapter tiers + FPGA C&S
 

@@ -1,5 +1,6 @@
 add_library(starcom_adapters_rp2350 STATIC
   radio_bus.cpp
+  pio_port.cpp
 )
 add_library(Starcom::adapters_rp2350 ALIAS starcom_adapters_rp2350)
 
@@ -14,7 +15,7 @@ foreach(_h IN LISTS _sc_hdrs)
     continue()
   endif()
   file(READ "${_h}" _txt)
-  if(_txt MATCHES "#include[^\n]*(pico\\.h|hardware/spi|hardware/gpio|pico/stdlib|sx1276)")
-    message(FATAL_ERROR "Pico SDK or named radio include in public header: ${_h} (IVP 16)")
+  if(_txt MATCHES "#include[^\n]*(pico\\.h|hardware/spi|hardware/gpio|pico/stdlib|hardware/pio|sx1276)")
+    message(FATAL_ERROR "Pico SDK or named radio include in public header: ${_h} (IVP 16/17)")
   endif()
 endforeach()

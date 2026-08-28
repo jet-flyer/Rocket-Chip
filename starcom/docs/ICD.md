@@ -272,7 +272,15 @@ Result<std::size_t> radio_bus_shift_rx(RadioPort&, BusOps const&, std::span<std:
                                        std::size_t n);
 ```
 
-Caller owns line IDs (no Starcom pin map). Scratch is caller-owned. The core still only sees `copp_*` / `cop1_*` byte verbs. PIO is increment 17. Not 211.1. No virtual `IRadio` in the core (P10-9).
+Caller owns line IDs (no Starcom pin map). Scratch is caller-owned. The core still only sees `copp_*` / `cop1_*` byte verbs. PIO bit pipe (IVP 17):
+
+```cpp
+struct PioOps { void* ctx; put_bit / get_bit; };
+Result<std::size_t> pio_shift_out(PioOps const&, std::span<const std::byte>);
+Result<std::size_t> pio_shift_in(PioOps const&, std::span<std::byte>, std::size_t n_octets);
+```
+
+MSB first. Caller owns the clock. Not 211.1 residual-carrier PM. PHY tiers are increment 18. No virtual `IRadio` in the core (P10-9).
 
 ## CMake (with the first `.cpp`, not a solo sitting)
 

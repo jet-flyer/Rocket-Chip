@@ -22,5 +22,6 @@ Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no 
 | `adapters/file_replay.hpp` | Host file hunt into a PLTU sink |
 | `adapters/udp.hpp` | Host UDP bearer (opaque handle; caller host/port) |
 | `adapters/radio_bus.hpp` | Generic SPI/GPIO `BusOps` + RadioPort byte pump |
+| `adapters/pio_port.hpp` | PIO-shaped PLTU bit pipe (MSB first; not 211.1) |
 
 Handshake: `docs/ICD.md`.

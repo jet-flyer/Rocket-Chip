@@ -460,6 +460,7 @@ int run_mac_tests();
 int run_user_defined_tests();
 int run_host_io_tests();
 int run_radio_bus_tests();
+int run_pio_port_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -497,6 +498,7 @@ int main() {
   g_fails += run_user_defined_tests();
   g_fails += run_host_io_tests();
   g_fails += run_radio_bus_tests();
+  g_fails += run_pio_port_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);
