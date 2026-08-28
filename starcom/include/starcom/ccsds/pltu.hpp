@@ -23,7 +23,7 @@ struct PltuView {
 
 // Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4:
 // V-3 11-bit Frame Length, or non-truncated USLP 16-bit Frame Length.
-// Truncated USLP (flag = 1) is uslp_truncated (MIB length, not this sitting).
+// Truncated USLP (flag = 1) is uslp_truncated (MIB length, IVP 9).
 Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept;
 
 // Writes ASM + frame + CRC-32. Envelope cap is kTransferFrameMin/Max.
@@ -34,5 +34,14 @@ Result<std::size_t> encode_pltu(std::span<std::byte> out,
 // or Space Packet decode. No COP. Trailing octets after a complete PLTU ignored.
 Result<std::size_t> repeat_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> octets) noexcept;
+
+// 211.2 §3.6: search span for exact ASM. One PLTU per call. leftover is the
+// caller's span (no library buffer). Handshake: ICD.
+struct PltuHunt {
+  std::size_t consumed;
+  Result<PltuView> pltu;
+};
+
+PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept;
 
 }  // namespace starcom::ccsds

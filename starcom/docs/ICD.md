@@ -66,9 +66,17 @@ Result<std::size_t> encode_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept;
 Result<std::size_t> repeat_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> octets) noexcept;
+
+struct PltuHunt {
+  std::size_t consumed;
+  Result<PltuView> pltu;
+};
+PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept;
 ```
 
-`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It does not search a sliding window. Stream search is IVP increment 8. It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) returns `uslp_truncated` — the length is a MIB parameter, not in the frame (increment 9). Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that).
+`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) returns `uslp_truncated` — the length is a MIB parameter, not in the frame (increment 9). Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that).
+
+`hunt_pltu` (IVP 8) is 211.2 §3.6 receive: search the span for ASM `FAF320` (exact — the book *allows* bit errors; we do not). One PLTU per call. `consumed` is octets the caller may drop. Success: `pltu` is the view, leftover starts at `consumed`. Need more: `truncated`, leftover starts at `consumed` (at the ASM, or a 1–2 octet ASM prefix). Complete candidate with bad CRC: `bad_crc`, `consumed` includes that unit (3.6.6 mark invalid, then search after). Unrecognized TFVN / length OOB / truncated USLP: skip one octet and keep searching in this call (3.6.4 c). No library buffer.
 
 `encode_pltu` writes `FAF320` + `frame` + CRC-32 into `out`. Envelope cap is 5–2048 octets. V-3 field checks beyond that length are `decode_v3` / `encode_v3`.
 

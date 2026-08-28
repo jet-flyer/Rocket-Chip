@@ -8,7 +8,7 @@ Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no 
 | `error.hpp` | Closed `enum class Error` |
 | `result.hpp` | `Result<T>` = `tl::expected<T, Error>` |
 | `ccsds/crc.hpp` | Annex C `crc32` |
-| `ccsds/pltu.hpp` | `decode_pltu` / `encode_pltu` / `repeat_pltu` |
+| `ccsds/pltu.hpp` | `decode_pltu` / `encode_pltu` / `repeat_pltu` / `hunt_pltu` |
 | `ccsds/types.hpp` | `Scid`, `Pcid`, `PortId`, `Apid`, `UslpScid`, `Vcid`, `MapId`; frame min/max |
 | `ccsds/v3.hpp` | `decode_v3` / `encode_v3` |
 | `ccsds/space_packet.hpp` | `decode_space_packet` / `encode_space_packet` |

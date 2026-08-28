@@ -20,6 +20,7 @@
 using starcom::ccsds::crc32;
 using starcom::ccsds::decode_pltu;
 using starcom::ccsds::encode_pltu;
+using starcom::ccsds::hunt_pltu;
 using starcom::ccsds::repeat_pltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsm;
@@ -123,6 +124,115 @@ void test_repeat_bit_exact_and_rejects() {
   CHECK(repeat_pltu(std::span<std::byte>(dst.data(), 1),
                     std::span<const std::byte>(src.data(), *n))
             .error() == Error::buffer_too_small);
+}
+
+void test_hunt_leading_junk_and_back_to_back() {
+  ByteBuf a{};
+  ByteBuf b{};
+  const auto na = encode_pltu(a, as_span(kV3HeaderOnly));
+  const auto nb = encode_pltu(b, as_span(kV3HeaderOnly));
+  CHECK(na.has_value());
+  CHECK(nb.has_value());
+
+  std::array<std::byte, 48> stream{};
+  stream[0] = std::byte{0x00};
+  stream[1] = std::byte{0x11};
+  std::copy(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(*na),
+            stream.begin() + 2);
+  std::copy(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(*nb),
+            stream.begin() + 2 + static_cast<std::ptrdiff_t>(*na));
+  const std::size_t total = 2u + *na + *nb;
+
+  const auto first =
+      hunt_pltu(std::span<const std::byte>(stream.data(), total));
+  CHECK(first.pltu.has_value());
+  CHECK(first.consumed == 2u + *na);
+  CHECK(first.pltu->frame.size() == kV3HeaderOnly.size());
+
+  const auto second = hunt_pltu(std::span<const std::byte>(
+      stream.data() + first.consumed, total - first.consumed));
+  CHECK(second.pltu.has_value());
+  CHECK(second.consumed == *nb);
+}
+
+void test_hunt_split_across_calls() {
+  ByteBuf src{};
+  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  CHECK(n.has_value());
+  std::array<std::byte, 20> chunk1{};
+  chunk1[0] = std::byte{0xAA};
+  const std::size_t first_n = 7;  // ASM + 4 header octets; CRC not here
+  std::copy(src.begin(), src.begin() + static_cast<std::ptrdiff_t>(first_n),
+            chunk1.begin() + 1);
+
+  const auto h1 =
+      hunt_pltu(std::span<const std::byte>(chunk1.data(), 1 + first_n));
+  CHECK(!h1.pltu.has_value());
+  CHECK(h1.pltu.error() == Error::truncated);
+  CHECK(h1.consumed == 1u);
+
+  std::array<std::byte, 20> chunk2{};
+  std::copy(chunk1.begin() + static_cast<std::ptrdiff_t>(h1.consumed),
+            chunk1.begin() + static_cast<std::ptrdiff_t>(1 + first_n),
+            chunk2.begin());
+  const std::size_t kept = 1u + first_n - h1.consumed;
+  std::copy(src.begin() + static_cast<std::ptrdiff_t>(first_n),
+            src.begin() + static_cast<std::ptrdiff_t>(*n),
+            chunk2.begin() + static_cast<std::ptrdiff_t>(kept));
+  const auto h2 = hunt_pltu(
+      std::span<const std::byte>(chunk2.data(), kept + (*n - first_n)));
+  CHECK(h2.pltu.has_value());
+  CHECK(h2.consumed == *n);
+}
+
+void test_hunt_idle_then_pltu() {
+  // 211.2 §3.3.2.2 idle PN. Receive discards it until the next ASM.
+  ByteBuf src{};
+  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  CHECK(n.has_value());
+  std::array<std::byte, 32> stream{
+      std::byte{0x35}, std::byte{0x2E}, std::byte{0xF8}, std::byte{0x53}};
+  std::copy(src.begin(), src.begin() + static_cast<std::ptrdiff_t>(*n),
+            stream.begin() + 4);
+  const auto h =
+      hunt_pltu(std::span<const std::byte>(stream.data(), 4 + *n));
+  CHECK(h.pltu.has_value());
+  CHECK(h.consumed == 4u + *n);
+}
+
+void test_hunt_partial_asm_kept() {
+  const std::array<std::byte, 3> tail{std::byte{0x00}, std::byte{0xFA},
+                                      std::byte{0xF3}};
+  const auto h = hunt_pltu(as_span(tail));
+  CHECK(!h.pltu.has_value());
+  CHECK(h.pltu.error() == Error::truncated);
+  CHECK(h.consumed == 1u);
+}
+
+void test_hunt_bad_crc_consumes_unit() {
+  ByteBuf bad{};
+  ByteBuf good{};
+  const auto n1 = encode_pltu(bad, as_span(kV3HeaderOnly));
+  const auto n2 = encode_pltu(good, as_span(kV3HeaderOnly));
+  CHECK(n1.has_value());
+  CHECK(n2.has_value());
+  bad[*n1 - 1] ^= std::byte{0x01};
+  std::array<std::byte, 32> stream{};
+  std::copy(bad.begin(), bad.begin() + static_cast<std::ptrdiff_t>(*n1),
+            stream.begin());
+  std::copy(good.begin(), good.begin() + static_cast<std::ptrdiff_t>(*n2),
+            stream.begin() + static_cast<std::ptrdiff_t>(*n1));
+
+  const auto h1 =
+      hunt_pltu(std::span<const std::byte>(stream.data(), *n1 + *n2));
+  CHECK(!h1.pltu.has_value());
+  CHECK(h1.pltu.error() == Error::bad_crc);
+  CHECK(h1.consumed == *n1);
+
+  const auto h2 = hunt_pltu(std::span<const std::byte>(
+      stream.data() + h1.consumed, *n2));
+  CHECK(h2.pltu.has_value());
+  CHECK(h2.consumed == *n2);
 }
 
 void test_decode_ignores_trailing() {
@@ -282,6 +392,7 @@ void test_codecs_allocate_nothing() {
     (void)decode_pltu(std::span<const std::byte>(out.data(), *n));
     ByteBuf rpt{};
     (void)repeat_pltu(rpt, std::span<const std::byte>(out.data(), *n));
+    (void)hunt_pltu(std::span<const std::byte>(out.data(), *n));
   }
   starcom::test::heap_trap_disarm();
   CHECK(n.has_value());
@@ -306,6 +417,11 @@ int main() {
   test_asm_in_crc();
   test_encode_decode_roundtrip();
   test_repeat_bit_exact_and_rejects();
+  test_hunt_leading_junk_and_back_to_back();
+  test_hunt_split_across_calls();
+  test_hunt_idle_then_pltu();
+  test_hunt_partial_asm_kept();
+  test_hunt_bad_crc_consumes_unit();
   test_decode_ignores_trailing();
   test_reject_bad_asm();
   test_reject_truncated();

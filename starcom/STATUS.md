@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 7 bent-pipe repeater in. Product `0.7.0-dev`. Core still sans-I/O. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** increment 8 ASM hunt in. Product `0.8.0-dev`. Core still sans-I/O. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 8 (PLTU stream ASM hunt). Sequence through 25 is in `docs/IVP.md`. Open decision: increment 13 §6 cut. RC integration is 20–22 when scheduled.
+IVP increment 9 (USLP remainder: truncated / Insert / FECF). Sequence through 25 is in `docs/IVP.md`. Open decision: increment 13 §6 cut. RC integration (IVP 20–22) when scheduled — not this sitting.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- None for increment 8. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
+- None for increment 9. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
 
 ## Done this sitting
 
@@ -54,8 +54,9 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF is increment 9.
 - COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 is increment 10.
 - Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI (15–16).
-- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.7.0-dev` after increment 7. No tag this sitting.
+- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (same scheme as RC's 2026-08-26 `RC_VERSION` close — Starcom file is `STARCOM_VERSION`). Product `0.8.0-dev` after increment 8. No tag this sitting.
 - Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan). Close is 24.
 - Consumer map: `docs/integration/CONSUMERS.md`. Bent-pipe `repeat_pltu` (increment 7).
-- IVP sequence through increment 25 (rest of the stack). No Starcom stop-gap.
+- Increment 8: `hunt_pltu` (211.2 §3.6 exact-ASM search, caller leftover, no library buffer).
+- IVP sequence through increment 25 (rest of the stack). No Starcom stop-gap. RC `telemetry_encoder` is RC firmware until increment 22.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

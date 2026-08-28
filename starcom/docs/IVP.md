@@ -169,9 +169,9 @@ Landed. Regenerative: `repeat_pltu` runs `decode_pltu` and copies ASM+frame+CRC 
 
 ### Increment 8 — PLTU stream ASM hunt
 
-`decode_pltu` today expects a complete candidate starting at ASM. 211.2 C&S **searches** for the next ASM (211.2 §3.6). A framing pump consumes a caller span and yields complete PLTUs plus the octet count consumed. No invented search window: the caller feeds bytes; the pump reports `truncated` until a full unit exists or keeps searching after a failed candidate.
+Landed. `hunt_pltu` searches a caller span for exact ASM `FAF320` (211.2 §3.6.3; the book allows bit errors — we do not). One PLTU per call. `consumed` is the droppable prefix. No library buffer. Unrecognized TFVN keeps searching (3.6.4 c). Bad CRC is reported and consumes the unit (3.6.6). `decode_pltu` still expects a complete candidate starting at ASM.
 
-**Gate:** canned stream with leading junk, two back-to-back PLTUs, and a split PLTU across two `receive` calls; same accept/reject as increment 0+1 once a candidate is complete; D-5. Core stays sans-I/O.
+**Gate:** leading junk; two back-to-back PLTUs; split across two calls; idle PN then PLTU; partial ASM suffix kept; `bad_crc` then next unit; D-5. Tests: `tests/unit/test_pltu.cpp`. Do not mint SC-NNN.
 
 ### Increment 9 — USLP remainder
 

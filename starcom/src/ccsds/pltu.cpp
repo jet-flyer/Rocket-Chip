@@ -19,9 +19,8 @@ void store_be32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   dest[3] = std::byte(value & 0xFFu);
 }
 
-}  // namespace
-
-Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept {
+// Octets of a complete PLTU starting at ASM, or why the size cannot be known.
+Result<std::size_t> encoded_pltu_size(std::span<const std::byte> octets) noexcept {
   if (octets.size() < kPltuAsmSize) {
     return tl::unexpected(Error::truncated);
   }
@@ -57,7 +56,7 @@ Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept {
     if (rest.size() < 4) {
       return tl::unexpected(Error::truncated);
     }
-    // 211.2 §3.6.4 b2: truncated USLP has no length field — MIB, not this sitting.
+    // 211.2 §3.6.4 b2: truncated USLP has no length field — MIB, IVP 9.
     if ((std::to_integer<unsigned>(rest[3]) & 0x01u) != 0) {
       return tl::unexpected(Error::uslp_truncated);
     }
@@ -79,9 +78,32 @@ Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept {
   if (octets.size() < need) {
     return tl::unexpected(Error::truncated);
   }
+  return need;
+}
 
-  const auto frame = octets.subspan(kPltuAsmSize, frame_len);
-  const auto crc_bytes = octets.subspan(kPltuAsmSize + frame_len, kPltuCrcSize);
+std::size_t asm_prefix_keep(std::span<const std::byte> octets) noexcept {
+  const std::size_t n = octets.size();
+  const std::size_t max_keep = n < (kPltuAsmSize - 1u) ? n : (kPltuAsmSize - 1u);
+  for (std::size_t k = max_keep; k > 0; --k) {
+    if (std::equal(kPltuAsm.begin(),
+                   kPltuAsm.begin() + static_cast<std::ptrdiff_t>(k),
+                   octets.end() - static_cast<std::ptrdiff_t>(k))) {
+      return k;
+    }
+  }
+  return 0;
+}
+
+}  // namespace
+
+Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept {
+  const auto need = encoded_pltu_size(octets);
+  if (!need) {
+    return tl::unexpected(need.error());
+  }
+  const auto frame = octets.subspan(kPltuAsmSize, *need - kPltuAsmSize - kPltuCrcSize);
+  const auto crc_bytes =
+      octets.subspan(kPltuAsmSize + frame.size(), kPltuCrcSize);
   if (crc32(frame) != load_be32(crc_bytes.first<kPltuCrcSize>())) {
     return tl::unexpected(Error::bad_crc);
   }
@@ -117,6 +139,40 @@ Result<std::size_t> repeat_pltu(std::span<std::byte> out,
   std::copy(octets.begin(),
             octets.begin() + static_cast<std::ptrdiff_t>(n), out.begin());
   return n;
+}
+
+PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept {
+  std::size_t i = 0;
+  while (i + kPltuAsmSize <= octets.size()) {
+    if (!std::equal(kPltuAsm.begin(), kPltuAsm.end(),
+                    octets.begin() + static_cast<std::ptrdiff_t>(i))) {
+      ++i;
+      continue;
+    }
+    const auto cand = octets.subspan(i);
+    const auto view = decode_pltu(cand);
+    if (view) {
+      const std::size_t n =
+          kPltuAsmSize + view->frame.size() + kPltuCrcSize;
+      return PltuHunt{i + n, *view};
+    }
+    const Error e = view.error();
+    if (e == Error::truncated) {
+      return PltuHunt{i, tl::unexpected(e)};
+    }
+    if (e == Error::bad_crc) {
+      const auto need = encoded_pltu_size(cand);
+      if (need) {
+        return PltuHunt{i + *need, tl::unexpected(e)};
+      }
+      ++i;
+      continue;
+    }
+    // 211.2 §3.6.4 c: unrecognized version — keep searching for the next ASM.
+    ++i;
+  }
+  const std::size_t keep = asm_prefix_keep(octets);
+  return PltuHunt{octets.size() - keep, tl::unexpected(Error::truncated)};
 }
 
 }  // namespace starcom::ccsds
