@@ -6,11 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
-### 2026-08-28-003 | Grok 4.6 (Build CLI) | bugfix, tooling
+### 2026-08-28-003 | Grok 4.6 (Build CLI) | architecture, bugfix, documentation
 
-**IVP 24 hardening close.** ASan+UBSan `starcom.unit` PASS on WSL Ubuntu 13.3 (`-DSTARCOM_SANITIZE=ON`; this MinGW still has no libasan). Fuzz longer than increment-6 prefix: book-max PLTU envelope, golden v3-header-only mutate, `huntPltu`, COP receive. Size report (measured): `CoppEndpoint=19544` `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096 (`g_tfScratch` + `g_cop1TfScratch`). `-Wstack-usage=1024` already on the core (MCU stack fix). Product still `0.19.0-dev`. Next is increment 25 (owner tag). No SC-NNN.
+**Starcom wrap through IVP 25.** MCU: COP encode scratch in BSS; `fop1Init`/`fopPInit` memset in place; GNU `-Wstack-usage=1024`. IVP 24: WSL ASan+UBSan, book-max fuzz, measured size. IVP 10 remainder: FOP-1 Resume/setup/LLIF, TT=1 suspend (232.1 Table 5-1). Sent copies off 256-FSN tables (`CoppEndpoint` 19544→10136). Consumer `docs/USER_GUIDE.md`. Product **`0.2.25`** (owner: `0.2.N`, N = increment), EXTRA empty, tag `starcom-v0.2.25`. FPGA PHY/decode still held; CFDP wanted, not 0–25. No SC-NNN.
 
-Verified: pure-software change, `starcom.unit` PASS (MinGW + WSL ASan/UBSan), no HW reseat required.
+Verified: pure-software change, `starcom.unit` PASS, no HW reseat required.
 
 ### 2026-08-28-002 | Grok 4.6 (Build CLI) | bugfix
 

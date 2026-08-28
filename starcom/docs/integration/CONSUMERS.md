@@ -6,7 +6,7 @@ Dependency is always **consumer → Starcom**. Starcom never includes consumer h
 
 Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
 
-## Now (`0.19.0-dev`, through IVP 22 on `grok/sc-dev`)
+## Now (`0.2.25`, IVP 0–25; FPGA PHY/decode held)
 
 Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::adapters_rp2350`). Call with `std::span` and, for COP, caller `now`. The core does not key a transmitter.
 
@@ -39,7 +39,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | 22 | Replace `telemetry_encoder` with COP | Landed (`grok/sc-dev`) |
 | 23 | Initial clang-tidy / camelBack pass (not exhaustive) | Landed (`688ff00`; no Starcom deviation row) |
 | 24 | ASan host, longer fuzz, size report | Landed (WSL ASan; sizeof in IVP.md) |
-| 25 | First `starcom-v*` tag | Owner cut |
+| 25 | First `starcom-v*` tag | Landed (`starcom-v0.2.25`) |
 
 ## How to call (shape)
 

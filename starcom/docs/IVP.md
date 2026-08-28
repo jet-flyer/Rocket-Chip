@@ -384,9 +384,11 @@ Host sizeof (printed by `tests/unit/test_size.cpp`, same on MinGW 15.2 and WSL 1
 
 ### Increment 25 — First annotated tag
 
-Owner picks the cut. `STARCOM_VERSION` EXTRA empty. Tag `starcom-vMAJOR.MINOR.PATCH`. Not a marketing `0.1.0` that disagrees with MINOR (`VERSIONING.md`).
+Owner pick 2026-08-28: product **`0.2.N`** with **N = IVP increment**. This cut is **`0.2.25`**. `STARCOM_VERSION` EXTRA empty. Tag `starcom-v0.2.25`. Not a marketing `0.1.0`. FPGA `PhyTier::compliant` / decode still held. Scheme: [`VERSIONING.md`](../VERSIONING.md).
 
 **Gate:** tag matches `STARCOM_VERSION`; `kBuildIdentity` is that tag; no `-dev`.
+
+Landed. `STARCOM_VERSION` is `0.2.25` (EXTRA empty). Annotated tag `starcom-v0.2.25`. FPGA remains held until board verification. Do not mint SC-NNN.
 
 ## Closed
 

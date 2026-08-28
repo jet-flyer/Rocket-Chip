@@ -59,4 +59,4 @@ events    →  coppPollEvent / cop1PollEvent
 - Encode ≠ decode for conv/LDPC.
 - ASan on a desktop stack is not an MCU stack proof. Sizeof the endpoint vs 4 KiB is.
 
-Product tuple: `STARCOM_VERSION` (`0.24.0-dev`). First annotated tag is increment 25 (owner pick).
+Product tuple: `STARCOM_VERSION` **`0.2.25`** (IVP 25 tag; `0.2.N` with N = increment). FPGA `compliant` PHY / decode still held.

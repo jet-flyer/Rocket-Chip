@@ -4,7 +4,7 @@
 
 Same shape as the 2026-08-26 Rocket-Chip close (Zephyr `VERSION` + generated header; git as the live discriminant). Product numbers are human; every other build is identified by git.
 
-[Semantic Versioning](https://semver.org): MAJOR for incompatible changes to the supported API, MINOR for backward-compatible additions, PATCH for compatible fixes. While MAJOR is 0 the API may still move; MINOR still ticks with completed increments so the tuple is not advertising.
+[Semantic Versioning](https://semver.org): MAJOR for incompatible changes to the supported API, MINOR for backward-compatible additions, PATCH for compatible fixes. While MAJOR is 0 the API may still move. Owner pick for the first tagged cut (IVP 25): **`0.2.N`** where **N is the IVP increment number**.
 
 ---
 
@@ -15,12 +15,12 @@ Same shape as the 2026-08-26 Rocket-Chip close (Zephyr `VERSION` + generated hea
 | **Product version** | `MAJOR.MINOR.PATCH[-EXTRA]` | Humans, in `STARCOM_VERSION` only | Starcom IVP increment close, or a tagged cut |
 | **Build identity** | `git describe --abbrev=12 --always --dirty` plus short hash | Nobody. CMake captures it | Every configure whose git HEAD or index moved |
 
-- `MAJOR` stays 0 until a first tagged operational/extract cut (`1.0.0`).
-- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 24 (hardening close): **`0.24.0-dev`**. Increment 25 is the first annotated tag (EXTRA empty).
-- `PATCH` = remediates inside that increment (usually 0).
-- `EXTRAVERSION = dev` until an annotated tag with empty EXTRA.
+- `MAJOR` stays 0 until an extract / operational `1.0.0`.
+- `MINOR` = **2** for this incubation line (owner pick, IVP 25). Not the IVP number.
+- `PATCH` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. First tagged cut is increment 25 → **`0.2.25`**.
+- `EXTRAVERSION` empty on an annotated tag; `dev` on untagged work after that.
 
-The old IVP phrase “first `0.1.0`” is **not** a second product line. The first tag is `starcom-vMAJOR.MINOR.PATCH` matching this file with EXTRA empty (increment 25; not a marketing `0.1.0` that disagrees with MINOR).
+The old IVP phrase “first `0.1.0`” and the pre-tag `0.N.0-dev` (MINOR = increment) are **not** a second product line. The first tag is `starcom-v0.2.25`.
 
 Filename is `STARCOM_VERSION`, never `VERSION`: on Windows a repo-root `VERSION` file is the C++20 header `<version>` (same reason Rocket-Chip uses `RC_VERSION`).
 
@@ -42,10 +42,10 @@ Adapters (`starcom::adapters`) are first-party ports, still under SemVer for thi
 
 ```
 VERSION_MAJOR = 0
-VERSION_MINOR = 15
-PATCHLEVEL = 0
+VERSION_MINOR = 2
+PATCHLEVEL = 25
 VERSION_TWEAK = 0
-EXTRAVERSION = dev
+EXTRAVERSION =
 ```
 
 Never hand-edit:
@@ -67,7 +67,7 @@ Do **not** bump product numbers on ordinary codec commits. Git identity already 
 |--------|--------|
 | `starcom::kVersionMajor` / `Minor` / `Patch` | From `STARCOM_VERSION` |
 | `starcom::kLibraryVersion` | `"MAJOR.MINOR.PATCH"` |
-| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.15.0-dev`) |
+| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.2.25`) |
 | `starcom::kGitHash` | `git rev-parse --short HEAD` |
 | `starcom::kBuildIdentity` | `git describe --abbrev=12 --always --dirty` |
 | `starcom::kBuildNumber` | Generated count; do not hand-edit |
@@ -83,14 +83,14 @@ No product-version literals in `src/` or `include/` except `STARCOM_VERSION` and
 3. Wrap `CHANGELOG.md` for that sitting (major push).
 4. Record sha256 of the released static lib / install tree if one is published.
 
-### First tagged cut (later)
+### First tagged cut (IVP 25)
 
-This sitting installs the scheme. It does **not** mint `starcom-v0.5.0` or empty EXTRA.
+Owner pick: **`0.2.25`** (`PATCH` = increment 25). FPGA PHY/decode still held.
 
-- [ ] Confirm advertised product is the intended `MAJOR.MINOR.PATCH`
-- [ ] Set `EXTRAVERSION` empty
-- [ ] Tag `starcom-vMAJOR.MINOR.PATCH`
-- [ ] Changelog wrap
+- [x] Advertised product `0.2.25`
+- [x] `EXTRAVERSION` empty
+- [x] Tag `starcom-v0.2.25`
+- [x] Starcom `CHANGELOG.md` wrap for the whole close (not versioning-only)
 
 ---
 

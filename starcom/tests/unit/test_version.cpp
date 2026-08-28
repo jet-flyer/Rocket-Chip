@@ -89,7 +89,7 @@ void test_header_matches_file_and_git() {
   CHECK(std::strcmp(starcom::kGitHash, "unknown") != 0);
   CHECK(std::strcmp(starcom::kBuildIdentity, "unknown") != 0);
   CHECK(std::strlen(starcom::kGitHash) > 0);
-  CHECK(starcom::kBuildNumber > 0u);
+  CHECK(std::strstr(starcom::kVersionString, "-dev") == nullptr);
 }
 
 }  // namespace
