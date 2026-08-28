@@ -2,7 +2,7 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** IVP 24 hardening close in (ASan+UBSan on WSL, longer fuzz, measured size report). IVP 23 remains an **initial** coding-standards pass, not a full house-bar walk. Product `0.19.0-dev`. Next is 25 (first annotated `starcom-v*` tag — owner pick). No tag. No SC-NNN.
+**Phase:** IVP 0–24 in. Increment 10 Table 5-1 remainder (Resume/setup/LLIF, TT=1 suspend) closed from 232.1-B-2. Product `0.24.0-dev`. Next is 25 (first annotated `starcom-v*` tag — owner pick; not a “work is done” cut). No tag. No SC-NNN.
 
 ## Next
 
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- None for increment 24. MinGW g++ 15.2 still has no libasan; the sanitizer *run* is WSL Ubuntu 13.3. Increment 25 is an owner tag pick.
+- Increment 25 is an owner tag pick (`STARCOM_VERSION` EXTRA empty). Held outside 0–25: FPGA `PhyTier::compliant` / decode (WB), CFDP, house-bar remainder from 23, `payload_by_fsn` 256×64 BSS.
 
 ## Done this sitting
 
@@ -73,5 +73,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 20: RC host `addSubdirectory(starcom)` when `ROCKETCHIP_USE_STARCOM=ON`; `Starcom::starcom` linked from host PLTU round-trip / STOP-GAP reject-as-PLTU. Nested `STARCOM_BUILD_TESTS=OFF`. Pico link is 21. Product stays `0.19.0-dev`.
 - Increment 23: **initial** pass only — public-verb camelBack + gated tidy subset (size/cognitive/unused-return/reserved-id) on `starcom/src/ccsds` + adapters. Not a full house-bar walk. `kCoppHold`/`kCop1Hold` stay host-loop caps (64). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
 - Increment 24: WSL ASan+UBSan `starcom.unit` PASS; fuzz to book-max PLTU envelope + golden mutate + COP receive; sizeof `CoppEndpoint=19544` / `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096. Detail: `docs/IVP.md`.
+- Increment 10 remainder: FOP-1 Resume/setup/LLIF + TT=1 suspend (232.1 Table 5-1 E18/E30–E46). Product tuple `0.24.0-dev`.
 
 - Docs cut `db1465c`. Graph snapshot `952b913`.

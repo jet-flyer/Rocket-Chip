@@ -183,9 +183,11 @@ Landed. Truncated primary header (annex D), Insert Zone, FECF CRC-16 (Annex B). 
 
 ### Increment 10 — COP-1 remainder
 
-Landed S4/S5 BC-init: E24 (CLCW check → S4), E25 (Unlock BC → S5), E27 (Set V(R) BC → S5), E29 terminate. Wire: Unlock `00`, Set V(R) `82 00 V*(R)` (232.0 §4.1.3.3) as USLP-in-PLTU BC (expedited + protocol control). Still not TC 232.0 frames. Suspend/resume E30–E34 and LLIF E41–E46 not this sitting.
+Landed S4/S5 BC-init: E24 (CLCW check → S4), E25 (Unlock BC → S5), E27 (Set V(R) BC → S5), E29 terminate. Wire: Unlock `00`, Set V(R) `82 00 V*(R)` (232.0 §4.1.3.3) as USLP-in-PLTU BC (expedited + protocol control). Still not TC 232.0 frames.
 
-**Gate:** S4 clean CLCW → S1; S5 Unlock/Set V(R) + host loop Unlock then AD; terminate → S6; D-5. Tests: `tests/unit/test_cop1.cpp`. Do not mint SC-NNN.
+Table 5-1 remainder (232.1-B-2): Resume E30–E34 (`ss` 0 reject / 1–4 → S1–S4); Set V(S) E35; setup E36–E39 (K, T1_Initial, Transmission_Limit, Timeout_Type); LLIF E41–E46 (null LLIF defaults Ready). Timer TT=1: E18/E104 suspend instead of Alert (S5 still Alert [T1]). `Cop1Event::suspend`.
+
+**Gate:** S4 clean CLCW → S1; S5 Unlock/Set V(R) + host loop Unlock then AD; terminate → S6; E18 suspend + E31 resume; E35/E36; E42 Alert [LLIF]; D-5. Tests: `tests/unit/test_cop1.cpp`. Do not mint SC-NNN.
 
 ### Increment 11 — COP-P on a USLP VC
 

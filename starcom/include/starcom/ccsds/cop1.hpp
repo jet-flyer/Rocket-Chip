@@ -100,6 +100,11 @@ struct Fop1 {
   Fop1Bc pending_bc = Fop1Bc::none;
   std::uint8_t set_vr_value = 0;
   bool bc_to_send = false;
+  std::uint8_t ss = 0;  // 232.1 §5.1.11 Suspend_State; 0 = not suspended
+  bool suspend_latched = false;
+  bool ad_out_ready = true;  // null LLIF default Ready
+  bool bc_out_ready = true;
+  bool bd_out_ready = true;
 };
 
 void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept;
@@ -108,6 +113,18 @@ bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept;  // E24 → S4
 bool fop1InitiateAdUnlock(Fop1& f) noexcept;           // E25 → S5
 bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 → S5
 void fop1TerminateAd(Fop1& f) noexcept;                 // E29
+bool fop1ResumeAd(Fop1& f) noexcept;                    // E30–E34
+bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept;  // E35
+void fop1SetK(Fop1& f, std::uint8_t k) noexcept;        // E36
+void fop1SetT1Initial(Fop1& f, Tick t1) noexcept;       // E37
+void fop1SetTransmissionLimit(Fop1& f, std::uint8_t n) noexcept;  // E38
+void fop1SetTimeoutType(Fop1& f, std::uint8_t tt) noexcept;      // E39
+void fop1AdAccept(Fop1& f) noexcept;   // E41
+void fop1AdReject(Fop1& f) noexcept;   // E42 Alert [LLIF]
+void fop1BcAccept(Fop1& f) noexcept;   // E43
+void fop1BcReject(Fop1& f) noexcept;   // E44
+void fop1BdAccept(Fop1& f) noexcept;   // E45
+void fop1BdReject(Fop1& f) noexcept;   // E46
 Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept;
 void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept;
 void fop1Tick(Fop1& f, Tick now) noexcept;
@@ -118,7 +135,13 @@ inline constexpr std::byte kCop1SetVr0{0x82};
 inline constexpr std::byte kCop1SetVr1{0x00};
 inline constexpr std::uint8_t kUslpUpidCop1Control = 0b00001;
 
-enum class Cop1Event : std::uint8_t { none = 0, farm_accepted, fop_alert, t1_expired };
+enum class Cop1Event : std::uint8_t {
+  none = 0,
+  farm_accepted,
+  fop_alert,
+  t1_expired,
+  suspend,
+};
 
 inline constexpr std::size_t kCop1Hold = 64;      // host-loop cap, not MIB
 inline constexpr std::size_t kCop1SeqSlots = 4;  // host-loop cap, not MIB
@@ -153,6 +176,18 @@ bool cop1InitiateAdWithClcwCheck(Cop1Endpoint& e) noexcept;
 bool cop1InitiateAdUnlock(Cop1Endpoint& e) noexcept;
 bool cop1InitiateAdSetVr(Cop1Endpoint& e, std::uint8_t v_star) noexcept;
 void cop1TerminateAd(Cop1Endpoint& e) noexcept;
+bool cop1ResumeAd(Cop1Endpoint& e) noexcept;
+bool cop1SetVs(Cop1Endpoint& e, std::uint8_t v_star) noexcept;
+void cop1SetK(Cop1Endpoint& e, std::uint8_t k) noexcept;
+void cop1SetT1Initial(Cop1Endpoint& e, Tick t1) noexcept;
+void cop1SetTransmissionLimit(Cop1Endpoint& e, std::uint8_t n) noexcept;
+void cop1SetTimeoutType(Cop1Endpoint& e, std::uint8_t tt) noexcept;
+void cop1AdAccept(Cop1Endpoint& e) noexcept;
+void cop1AdReject(Cop1Endpoint& e) noexcept;
+void cop1BcAccept(Cop1Endpoint& e) noexcept;
+void cop1BcReject(Cop1Endpoint& e) noexcept;
+void cop1BdAccept(Cop1Endpoint& e) noexcept;
+void cop1BdReject(Cop1Endpoint& e) noexcept;
 void cop1Tick(Cop1Endpoint& e, Tick now) noexcept;
 void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept;
 Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e, std::span<std::byte> out) noexcept;

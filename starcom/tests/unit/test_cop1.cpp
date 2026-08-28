@@ -1,5 +1,5 @@
 // IVP increment 4 + 10 — COP-1 (232.1 Tables 6-1 / 5-1). docs/TESTING.md
-// FARM-1 E1–E11; FOP-1 E23 + S4/S5 BC-init (E24/E25/E27) + E29 terminate.
+// FARM-1 E1–E11; FOP-1 E23 + S4/S5 + E29; Resume E30–E34; E35–E39; LLIF E41–E46.
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/cop1.hpp"
@@ -46,6 +46,11 @@ using starcom::ccsds::fop1InitiateAdSetVr;
 using starcom::ccsds::fop1InitiateAdUnlock;
 using starcom::ccsds::fop1InitiateAdWithClcwCheck;
 using starcom::ccsds::fop1TerminateAd;
+using starcom::ccsds::fop1ResumeAd;
+using starcom::ccsds::fop1SetVs;
+using starcom::ccsds::fop1SetK;
+using starcom::ccsds::fop1SetTimeoutType;
+using starcom::ccsds::fop1AdReject;
 using starcom::ccsds::fop1NeedFrame;
 using starcom::ccsds::fop1OnClcw;
 using starcom::ccsds::Fop1Send;
@@ -285,6 +290,46 @@ void test_host_loop() {
   CHECK(tx.fop.sent_n == 0);
 }
 
+void test_fop_1_suspend_resume() {
+  Cop1Mib mib{};
+  mib.t1_initial = 10;
+  mib.transmission_limit = 1;
+  mib.timeout_type = 1;
+  Fop1 f{};
+  fop1Init(f, mib);
+  CHECK(fop1InitiateAd(f));
+  CHECK(f.state == Fop1State::s1_active);
+  CHECK(!fop1ResumeAd(f));  // E30 SS=0
+  CHECK(fop1NeedFrame(f, false, true) == Fop1Send::ad);
+  fop1Tick(f, 1);   // arm deadline
+  fop1Tick(f, 20);  // E18 S1 SS:=1 Suspend
+  CHECK(f.state == Fop1State::s6_initial);
+  CHECK(f.ss == 1);
+  CHECK(!f.alert_latched);
+  CHECK(f.suspend_latched);
+  CHECK(fop1ResumeAd(f));  // E31
+  CHECK(f.ss == 0);
+  CHECK(f.state == Fop1State::s1_active);
+}
+
+void test_fop_1_setup_and_llif() {
+  Fop1 f{};
+  Cop1Mib mib{};
+  fop1Init(f, mib);
+  CHECK(fop1SetVs(f, 7));  // E35 S6 SS=0
+  CHECK(f.v_s == 7);
+  CHECK(f.nn_r == 7);
+  fop1SetK(f, 4);
+  CHECK(f.mib.k == 4);
+  fop1SetTimeoutType(f, 1);
+  CHECK(f.mib.timeout_type == 1);
+  CHECK(fop1InitiateAd(f));
+  CHECK(!fop1SetVs(f, 0));  // E35 reject in S1
+  fop1AdReject(f);          // E42 Alert [LLIF]
+  CHECK(f.state == Fop1State::s6_initial);
+  CHECK(f.alert_latched);
+}
+
 void test_heap() {
   Cop1Mib mib{};
   Farm1 farm{};
@@ -317,6 +362,8 @@ int run_cop1_tests() {
   test_fop_1_s5_set_vr();
   test_host_loop_unlock();
   test_host_loop();
+  test_fop_1_suspend_resume();
+  test_fop_1_setup_and_llif();
   test_heap();
   return g_fails;
 }

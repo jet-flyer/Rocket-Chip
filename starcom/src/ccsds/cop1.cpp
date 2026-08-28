@@ -63,6 +63,7 @@ void fopInitialize(Fop1& f) noexcept {
   f.pending_bc = Fop1Bc::none;
   f.set_vr_value = 0;
   f.bc_to_send = false;
+  f.ss = 0;
   cancelT1(f);
 }
 
@@ -70,6 +71,24 @@ void fopAlert(Fop1& f) noexcept {
   fopInitialize(f);
   f.alert_latched = true;
   f.state = Fop1State::s6_initial;
+}
+
+void fopSuspend(Fop1& f, std::uint8_t ss) noexcept {
+  f.ss = ss;
+  f.suspend_latched = true;
+  cancelT1(f);
+  f.state = Fop1State::s6_initial;
+}
+
+void initiateAdRetrans(Fop1& f) noexcept {
+  for (std::uint8_t i = 0; i < f.sent_n; ++i) {
+    f.to_retransmit[i] = true;
+  }
+  ++f.transmission_count;
+  startT1(f);
+  if (f.state != Fop1State::s1_active && f.state != Fop1State::s2_retransmit) {
+    f.state = Fop1State::s2_retransmit;
+  }
 }
 
 bool nrInRange(Fop1 const& f, std::uint8_t nr) noexcept {
@@ -223,6 +242,9 @@ bool fop1InitiateAdUnlock(Fop1& f) noexcept {
   if (f.state != Fop1State::s6_initial) {
     return false;  // E25
   }
+  if (!f.bc_out_ready) {
+    return false;  // E26
+  }
   fopInitialize(f);
   f.pending_bc = Fop1Bc::unlock;
   f.bc_to_send = true;
@@ -234,6 +256,9 @@ bool fop1InitiateAdUnlock(Fop1& f) noexcept {
 bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept {
   if (f.state != Fop1State::s6_initial) {
     return false;  // E27
+  }
+  if (!f.bc_out_ready) {
+    return false;  // E28
   }
   fopInitialize(f);
   f.v_s = v_star;
@@ -247,14 +272,65 @@ bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept {
 }
 
 void fop1TerminateAd(Fop1& f) noexcept {
-  fopAlert(f);  // E29 Alert [term] → S6
+  if (f.state == Fop1State::s6_initial) {
+    return;  // E29 S6: Confirm, remain (incl. suspended)
+  }
+  fopAlert(f);  // E29 S1–S5 Alert [term] → S6
 }
 
-Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
-  if (bd_available) {
-    return Fop1Send::bd;  // E21 BD in every state
+bool fop1ResumeAd(Fop1& f) noexcept {
+  if (f.ss == 0u || f.state != Fop1State::s6_initial) {
+    return false;  // E30
   }
-  if (f.state == Fop1State::s5_init_bc && f.bc_to_send) {
+  Fop1State dest = Fop1State::s1_active;
+  if (f.ss == 2u) {
+    dest = Fop1State::s2_retransmit;
+  } else if (f.ss == 3u) {
+    dest = Fop1State::s3_retransmit_wait;
+  } else if (f.ss == 4u) {
+    dest = Fop1State::s4_init_no_bc;
+  }
+  f.ss = 0;
+  startT1(f);  // 5.2.17 Resume
+  f.state = dest;
+  return true;
+}
+
+bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
+  if (f.state != Fop1State::s6_initial || f.ss != 0u) {
+    return false;  // E35
+  }
+  f.v_s = v_star;
+  f.nn_r = v_star;
+  return true;
+}
+
+void fop1SetK(Fop1& f, std::uint8_t k) noexcept {
+  f.mib.k = (k == 0u) ? 1u : k;  // E36; 232.1 §5.1.12 1 ≤ K < 256
+}
+
+void fop1SetT1Initial(Fop1& f, Tick t1) noexcept { f.mib.t1_initial = t1; }
+
+void fop1SetTransmissionLimit(Fop1& f, std::uint8_t n) noexcept {
+  f.mib.transmission_limit = (n == 0u) ? 1u : n;
+}
+
+void fop1SetTimeoutType(Fop1& f, std::uint8_t tt) noexcept {
+  f.mib.timeout_type = (tt == 0u) ? 0u : 1u;
+}
+
+void fop1AdAccept(Fop1& f) noexcept { f.ad_out_ready = true; }
+void fop1AdReject(Fop1& f) noexcept { fopAlert(f); }
+void fop1BcAccept(Fop1& f) noexcept { f.bc_out_ready = true; }
+void fop1BcReject(Fop1& f) noexcept { fopAlert(f); }
+void fop1BdAccept(Fop1& f) noexcept { f.bd_out_ready = true; }
+void fop1BdReject(Fop1& f) noexcept { fopAlert(f); }
+
+Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
+  if (bd_available && f.bd_out_ready) {
+    return Fop1Send::bd;  // E21
+  }
+  if (f.state == Fop1State::s5_init_bc && f.bc_to_send && f.bc_out_ready) {
     f.bc_to_send = false;
     if (f.pending_bc == Fop1Bc::unlock) {
       return Fop1Send::bc_unlock;
@@ -278,7 +354,8 @@ Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
     return Fop1Send::none;
   }
   const std::uint8_t unacked = cop1SeqDelta(f.v_s, f.nn_r);
-  if (ad_available && unacked < f.mib.k && f.sent_n < kFop1SentCap) {
+  if (ad_available && f.ad_out_ready && unacked < f.mib.k &&
+      f.sent_n < kFop1SentCap) {
     f.last_send_ns = f.v_s;
     f.sent[f.sent_n] = f.v_s;
     f.to_retransmit[f.sent_n] = false;
@@ -412,30 +489,44 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
   }
   f.t1_expired_latched = true;
   cancelT1(f);
+  const bool tt1 = f.mib.timeout_type == 1u;
+  const bool at_limit = f.transmission_count >= f.mib.transmission_limit;
   if (f.state == Fop1State::s5_init_bc) {
-    if (f.transmission_count >= f.mib.transmission_limit) {
-      fopAlert(f);  // E17
+    if (at_limit) {
+      fopAlert(f);  // E17/E18 S5 Alert [T1]
       return;
     }
     ++f.transmission_count;
-    f.bc_to_send = true;  // E16 Initiate BC retransmission
+    f.bc_to_send = true;  // E16/E104 S5 Initiate BC retransmission
     startT1(f);
     return;
   }
+  if (f.state == Fop1State::s3_retransmit_wait) {
+    return;  // E16/E104 S3 Ignore
+  }
   if (f.state == Fop1State::s4_init_no_bc) {
-    fopAlert(f);  // E16 S4 Alert [T1]
+    if (tt1) {
+      fopSuspend(f, 4);  // E104/E18 S4
+      return;
+    }
+    fopAlert(f);  // E16/E17 S4 Alert [T1]
     return;
   }
-  if (f.transmission_count >= f.mib.transmission_limit) {
-    fopAlert(f);
+  if (at_limit) {
+    if (tt1) {
+      std::uint8_t ss = 1;
+      if (f.state == Fop1State::s2_retransmit) {
+        ss = 2;
+      } else if (f.state == Fop1State::s3_retransmit_wait) {
+        ss = 3;
+      }
+      fopSuspend(f, ss);  // E18
+      return;
+    }
+    fopAlert(f);  // E17
     return;
   }
-  for (std::uint8_t i = 0; i < f.sent_n; ++i) {
-    f.to_retransmit[i] = true;
-  }
-  ++f.transmission_count;
-  startT1(f);
-  f.state = Fop1State::s2_retransmit;
+  initiateAdRetrans(f);  // E16/E104 S1/S2
 }
 
 void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
@@ -468,12 +559,37 @@ bool cop1InitiateAdSetVr(Cop1Endpoint& e, std::uint8_t v_star) noexcept {
 
 void cop1TerminateAd(Cop1Endpoint& e) noexcept { fop1TerminateAd(e.fop); }
 
+bool cop1ResumeAd(Cop1Endpoint& e) noexcept { return fop1ResumeAd(e.fop); }
+bool cop1SetVs(Cop1Endpoint& e, std::uint8_t v_star) noexcept {
+  return fop1SetVs(e.fop, v_star);
+}
+void cop1SetK(Cop1Endpoint& e, std::uint8_t k) noexcept { fop1SetK(e.fop, k); }
+void cop1SetT1Initial(Cop1Endpoint& e, Tick t1) noexcept {
+  fop1SetT1Initial(e.fop, t1);
+}
+void cop1SetTransmissionLimit(Cop1Endpoint& e, std::uint8_t n) noexcept {
+  fop1SetTransmissionLimit(e.fop, n);
+}
+void cop1SetTimeoutType(Cop1Endpoint& e, std::uint8_t tt) noexcept {
+  fop1SetTimeoutType(e.fop, tt);
+}
+void cop1AdAccept(Cop1Endpoint& e) noexcept { fop1AdAccept(e.fop); }
+void cop1AdReject(Cop1Endpoint& e) noexcept { fop1AdReject(e.fop); }
+void cop1BcAccept(Cop1Endpoint& e) noexcept { fop1BcAccept(e.fop); }
+void cop1BcReject(Cop1Endpoint& e) noexcept { fop1BcReject(e.fop); }
+void cop1BdAccept(Cop1Endpoint& e) noexcept { fop1BdAccept(e.fop); }
+void cop1BdReject(Cop1Endpoint& e) noexcept { fop1BdReject(e.fop); }
+
 void cop1Tick(Cop1Endpoint& e, Tick now) noexcept { fop1Tick(e.fop, now); }
 
 Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
   if (e.fop.alert_latched) {
     e.fop.alert_latched = false;
     return Cop1Event::fop_alert;
+  }
+  if (e.fop.suspend_latched) {
+    e.fop.suspend_latched = false;
+    return Cop1Event::suspend;
   }
   if (e.fop.t1_expired_latched) {
     e.fop.t1_expired_latched = false;

@@ -193,7 +193,7 @@ CoppEvent coppPollEvent(CoppEndpoint&);
 
 ## Engine (COP-1)
 
-FARM-1 Table 6-1 and FOP-1 Table 5-1 (232.1-B-2). Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 BC-init is in (E24/E25/E27, E29 terminate). Suspend/resume (E30–E34) and LLIF Accept/Reject (E41–E46) are not this sitting.
+FARM-1 Table 6-1 and FOP-1 Table 5-1 (232.1-B-2). Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 BC-init (E24/E25/E27, E29 terminate). Resume E30–E34, Set V(S) E35, setup E36–E39, LLIF E41–E46 (out-flags default Ready). Timer `timeout_type=1` suspends (E18) instead of Alert.
 
 ```cpp
 void cop1Init(Cop1Endpoint&, Cop1Mib const&, UslpScid local, UslpScid remote, Vcid, MapId);
@@ -202,6 +202,18 @@ bool cop1InitiateAdWithClcwCheck(Cop1Endpoint&);  // E24 → S4
 bool cop1InitiateAdUnlock(Cop1Endpoint&);           // E25 → S5, Unlock BC `00`
 bool cop1InitiateAdSetVr(Cop1Endpoint&, std::uint8_t v_star);  // E27
 void cop1TerminateAd(Cop1Endpoint&);                 // E29
+bool cop1ResumeAd(Cop1Endpoint&);                    // E30–E34
+bool cop1SetVs(Cop1Endpoint&, std::uint8_t v_star);  // E35
+void cop1SetK(Cop1Endpoint&, std::uint8_t k);        // E36
+void cop1SetT1Initial(Cop1Endpoint&, Tick);          // E37
+void cop1SetTransmissionLimit(Cop1Endpoint&, std::uint8_t);  // E38
+void cop1SetTimeoutType(Cop1Endpoint&, std::uint8_t);        // E39
+void cop1AdAccept(Cop1Endpoint&);  // E41
+void cop1AdReject(Cop1Endpoint&);  // E42
+void cop1BcAccept(Cop1Endpoint&);  // E43
+void cop1BcReject(Cop1Endpoint&);  // E44
+void cop1BdAccept(Cop1Endpoint&);  // E45
+void cop1BdReject(Cop1Endpoint&);  // E46
 void cop1Tick(Cop1Endpoint&, Tick now);
 void cop1ReceiveBytes(Cop1Endpoint&, std::span<const std::byte>);
 Result<std::size_t> cop1BytesToSend(Cop1Endpoint&, std::span<std::byte> out);

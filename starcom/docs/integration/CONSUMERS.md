@@ -14,7 +14,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 |-------|----------------|--------------|----------------|
 | Codecs | Anyone | PLTU, V-3, USLP (incl. truncated/Insert/FECF), Space Packet, PLCW, CLCW; `huntPltu`; conv / LDPC encode | Decode (GCS/Pi) |
 | COP-P | Anyone who owns a loop | `copp_*` on V-3 or USLP (`coppInitUslp`) PLTUs | — |
-| COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU (incl. S4/S5 BC-init) | Suspend/resume E30–E34; LLIF E41–E46 |
+| COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU (S4/S5, Resume, setup, null-LLIF Ready) | TC 232.0 frames |
 | Host loopback / UDP / file / SPI-GPIO / PIO / PHY tiers | Tests, desktop sims | Mailboxes, `udp_*`, `BusOps`, `pio_shift_*`, `PhyDecl` | — |
 | PLTU repeater | Anyone with bytes in/out | `repeatPltu`; buffered `enqueuePltu` / `dequeuePltu` (caller-owned slots) | — |
 | Version | Anyone | `#include "starcom/version.hpp"` | Annotated tag (25) |
