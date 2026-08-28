@@ -321,7 +321,7 @@ Landed on `grok/sc-dev`. RC `add_subdirectory(starcom)` when `ROCKETCHIP_USE_STA
 
 **Gate:** host ctest consumer case; Starcom still builds and tests independently; inspection: Starcom does not include RC headers. Tests: `test/test_telemetry_encoder.cpp` (`StarcomHostLink.*`, `CcsdsEncoderTest.StopGapFrameIsNotPltuAsm`). Do not mint SC-NNN.
 
-### Increment 21 ? Pico link + first AO byte pump
+### Increment 21 — Pico link + first AO byte pump
 
 RC `src/starcom_adapt/byte_pump.*`. `target_link_libraries(rocketchip Starcom::starcom)` when `ROCKETCHIP_USE_STARCOM=ON`. `AO_Telemetry` owns one `BytePump`: `tick(now)`, nav SDU to PLTU on TX, COP-P verbs on the same object. RadioScheduler / SX1276 stay in RC. Soak SCIDs are RC IDs (vehicle 1 / station 2), not a Starcom MIB default. No pin map. Flash size (Debug, this sitting): vehicle ON text 264020 / bss 324484 (`g_pump` 18476 B); vehicle OFF same tree text 231584 / bss 324752; text delta +32436. Station ON text 251844 / bss 115668. Default OFF stays STOP-GAP. Product stays `0.19.0-dev`. COP replace is increment 22.
 
@@ -340,11 +340,25 @@ void pump_tick(BytePump&, Tick now) noexcept;
 
 **Gate:** Pico image links; host test that the pump can `encode_pltu` / `repeat_pltu` / `copp_*` with no radio; no Starcom default pin map. Tests: `test/test_starcom_byte_pump.cpp`. Do not mint SC-NNN.
 
+Landed on `grok/sc-dev` (`783a994` + `copp_init` stack-smash `1090959`). Vehicle ON boots `Air: starcom-prep`. COP replace is increment 22.
+
 ### Increment 22 — Replace RC `telemetry_encoder` with COP
 
-This is the real replacement of RC's pre-Starcom retry/ACK layer (`src/telemetry/telemetry_encoder.*`, `docs/decisions/CURRENT_COMMAND_RETRY_ACK_*`). **Not a new stop-gap.** COP-P and/or COP-1 already in the library; RC becomes a caller. Do not port the old encoder into `starcom::ccsds`.
+ON image only (`ROCKETCHIP_USE_STARCOM`). COP-P on the existing `BytePump` (not COP-1 / USLP). Do not port the old encoder into `starcom::ccsds`. Default OFF stays STOP-GAP. USB MAVLink stays. `dispatch_command` stays app policy.
 
-**Gate:** RC command path uses `copp_*` or `cop1_*` for reliability; old encoder is not on the flight path; host tests of the RC caller; Starcom core unchanged except as needed for the documented ICD.
+RC `src/starcom_adapt/cmd_sdu.*` packs COMMAND_LONG fields (cmd_id/seq/p1..p5) and `CommandAckPayload` as Space Packet user data. APID 0x001 nav, 0x003 command (TC) / ACK (TM) — RC IDs from `telemetry_encoder.h`, not a Starcom MIB. `kCoppHold` is 64; nav packet 48, cmd 30, ack 16.
+
+```cpp
+Result<size_t> pump_pack_nav_packet(span<byte> out, TelemetryState const&);
+Result<size_t> pump_pack_cmd_packet(span<byte> out, uint16_t cmd_id, uint8_t seq,
+                                    float p1, float p2, float p3, float p4, float p5);
+Result<size_t> pump_pack_ack_packet(span<byte> out, CommandAckPayload const&);
+// Air: submit_sdu + bytes_to_send + receive_bytes + take_sdu (COP-P).
+```
+
+AO_Telemetry ON: nav/cmd/ACK go through those verbs; `ccsds_encoder.encode_nav_with_config`, `ccsds_encode_cmd_ack`, LoRa MAVLink COMMAND_LONG, and `cmd_retry_tick` are not on the air. AO_Radio skips STOP-GAP CRC-16 on PLTU ASM `FA F3 20`.
+
+**Gate:** RC command path uses `copp_*`; old encoder is not on the ON flight path; host tests of the RC caller (`StarcomBytePump.CoppNavSduNotOldEncoder`, `CoppCommandSduRoundTrip`, `test_cmd_sdu`); Starcom core unchanged. Do not mint SC-NNN.
 
 ### Increment 23 — Coding-standards audit
 

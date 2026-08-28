@@ -130,10 +130,22 @@ target_include_directories(test_nav_sdu PRIVATE
 )
 gtest_discover_tests(test_nav_sdu)
 
+add_executable(test_cmd_sdu
+    test_cmd_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
+)
+target_link_libraries(test_cmd_sdu PRIVATE GTest::gtest_main)
+target_include_directories(test_cmd_sdu PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_cmd_sdu)
+
 if(ROCKETCHIP_USE_STARCOM)
     add_executable(test_starcom_byte_pump
         test_starcom_byte_pump.cpp
         ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
         ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
     )
     target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)

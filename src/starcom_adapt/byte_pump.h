@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// First AO byte pump (IVP 21). RC-owned. RadioScheduler / SX1276 stay in RC.
+// AO byte pump (IVP 21–22). RC-owned. RadioScheduler / SX1276 stay in RC.
 // No Starcom default pin map. Soak SCIDs are RC IDs, not a Starcom MIB.
+// IVP 22: air path is COP-P (submit_sdu / bytes_to_send / receive_bytes).
 
 #ifndef ROCKETCHIP_STARCOM_BYTE_PUMP_H
 #define ROCKETCHIP_STARCOM_BYTE_PUMP_H
@@ -15,6 +16,7 @@
 #include "starcom/ccsds/v3.hpp"
 #include "starcom/result.hpp"
 #include "rocketchip/telemetry_state.h"
+#include "rocketchip/telemetry_encoder.h"
 
 #include <array>
 #include <cstddef>
@@ -26,6 +28,8 @@ namespace rc::starcom_adapt {
 // SX1276 FIFO is 255 octets. Consumer MTU, not a Starcom book cap.
 inline constexpr std::size_t kAirMtu = 255;
 inline constexpr starcom::ccsds::Apid kNavApid{0x001};
+// RC kApidCmdAck (include/rocketchip/telemetry_encoder.h). TC=command, TM=ACK.
+inline constexpr starcom::ccsds::Apid kCmdApid{0x003};
 inline constexpr starcom::ccsds::Pcid kSoakPcid{0};
 inline constexpr starcom::ccsds::PortId kSoakPort{1};
 
@@ -46,6 +50,14 @@ starcom::ccsds::Result<std::size_t> pump_repeat_pltu(
 starcom::ccsds::Result<std::size_t> pump_encode_nav(
     BytePump& p, std::span<std::byte> out,
     const TelemetryState& telem) noexcept;
+
+starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
+    std::span<std::byte> out, const TelemetryState& telem) noexcept;
+starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
+    std::span<std::byte> out, uint16_t cmd_id, uint8_t seq, float p1, float p2,
+    float p3, float p4, float p5) noexcept;
+starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
+    std::span<std::byte> out, const ccsds::CommandAckPayload& ack) noexcept;
 
 starcom::ccsds::Result<std::size_t> pump_submit_sdu(
     BytePump& p, std::span<const std::byte> packet, bool expedited) noexcept;

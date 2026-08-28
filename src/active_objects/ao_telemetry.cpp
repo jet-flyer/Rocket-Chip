@@ -29,6 +29,8 @@
 #include "starcom_adapt/sc_air.h"
 #ifdef ROCKETCHIP_USE_STARCOM
 #include "starcom_adapt/byte_pump.h"
+#include "starcom_adapt/nav_sdu.h"
+#include "starcom_adapt/cmd_sdu.h"
 #endif
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
@@ -44,6 +46,7 @@
 
 #include "rocketchip/rc_log.h"
 #include <string.h>
+#include <span>
 
 using namespace job;
 
@@ -142,16 +145,59 @@ static uint32_t now_ms() {
 // Vehicle-side pending ACK (queued for next TX opportunity)
 static rc::ccsds::CommandAckPayload g_pendingAck = {};
 static bool g_pendingAckValid = false;
+#ifndef ROCKETCHIP_USE_STARCOM
 static uint16_t g_ackSeq = 0;
+#endif
 
 // Radio reconfigure lives in AO_Radio. After SET_RADIO_CONFIG validates,
 // AO_Radio_set_pending_config() applies on the next TxDone (outgoing ACK).
 
 // Send pending command ACK before nav frame
+#ifdef ROCKETCHIP_USE_STARCOM
+// One PLTU per call. COP-P resends unacked seq if no peer PLCW; draining
+// a window of frames every 10 Hz tick floods the half-duplex radio.
+static constexpr uint8_t kStarcomDrainCap = 1;
+
+static void starcom_post_pltu(std::span<const std::byte> octets) {
+    if (octets.empty() || octets.size() > sizeof(rc::RadioTxEvt::buf)) {
+        return;
+    }
+    static rc::RadioTxEvt g_txEvtSc;
+    g_txEvtSc.super.sig = rc::SIG_RADIO_TX;
+    g_txEvtSc.super.refCtr_ = 0;
+    memcpy(g_txEvtSc.buf, octets.data(), octets.size());
+    g_txEvtSc.len = static_cast<uint8_t>(octets.size());
+    QACTIVE_POST(AO_Radio, &g_txEvtSc.super, AO_Telemetry);
+}
+
+static void starcom_drain_to_radio() {
+    for (uint8_t i = 0; i < kStarcomDrainCap; ++i) {
+        std::byte buf[rc::starcom_adapt::kAirMtu];
+        const auto n = rc::starcom_adapt::pump_bytes_to_send(
+            g_pump, std::span<std::byte>(buf, sizeof(buf)));
+        if (!n.has_value() || *n == 0) {
+            return;
+        }
+        starcom_post_pltu(std::span<const std::byte>(buf, *n));
+    }
+}
+#endif
+
 static void send_pending_ack_if_any() {
     if (!g_pendingAckValid) return;
     g_pendingAckValid = false;
 
+#ifdef ROCKETCHIP_USE_STARCOM
+    std::byte pkt[6u + rc::kAckSduUserBytes];
+    const auto n = rc::starcom_adapt::pump_pack_ack_packet(
+        pkt, g_pendingAck);
+    if (n.has_value() && *n > 0) {
+        (void)rc::starcom_adapt::pump_submit_sdu(
+            g_pump, std::span<const std::byte>(pkt, *n), false);
+        starcom_drain_to_radio();
+    }
+    return;
+#else
     uint8_t ack_buf[rc::ccsds::kCmdAckPacketLen];
     uint8_t ack_len = rc::ccsds_encode_cmd_ack(g_pendingAck, g_ackSeq, ack_buf);
     g_ackSeq = static_cast<uint16_t>((g_ackSeq + 1) & 0x3FFF);
@@ -163,6 +209,7 @@ static void send_pending_ack_if_any() {
     memcpy(g_ackTxEvt.buf, ack_buf, ack_len);
     g_ackTxEvt.len = ack_len;
     QACTIVE_POST(AO_Radio, &g_ackTxEvt.super, AO_Telemetry);
+#endif
 }
 
 static void encode_and_send(TelemAo* me) {
@@ -177,17 +224,13 @@ static void encode_and_send(TelemAo* me) {
 
 #ifdef ROCKETCHIP_USE_STARCOM
     if (rc::kDefaultRocketRadioConfig.protocol != rc::EncoderType::kMavlink) {
-        std::byte pltu[rc::starcom_adapt::kAirMtu];
-        const auto n = rc::starcom_adapt::pump_encode_nav(
-            g_pump, std::span<std::byte>(pltu, sizeof(pltu)), me->latest_telem);
+        std::byte pkt[6u + rc::kNavSduUserBytes];
+        const auto n = rc::starcom_adapt::pump_pack_nav_packet(
+            pkt, me->latest_telem);
         if (!n.has_value() || *n == 0) { return; }
-        static rc::RadioTxEvt g_txEvtSc;
-        g_txEvtSc.super.sig = rc::SIG_RADIO_TX;
-        g_txEvtSc.super.refCtr_ = 0;
-        if (*n > sizeof(g_txEvtSc.buf)) { return; }
-        memcpy(g_txEvtSc.buf, pltu, *n);
-        g_txEvtSc.len = static_cast<uint8_t>(*n);
-        QACTIVE_POST(AO_Radio, &g_txEvtSc.super, me);
+        (void)rc::starcom_adapt::pump_submit_sdu(
+            g_pump, std::span<const std::byte>(pkt, *n), false);
+        starcom_drain_to_radio();
         return;
     }
 #endif
@@ -466,11 +509,7 @@ static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
     }
 }
 
-static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
-    rc::ccsds::CommandAckPayload ack{};
-    if (!rc::ccsds_decode_cmd_ack(rx_evt->buf, rx_evt->len, ack)) {
-        return false;
-    }
+static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 #ifdef ROCKETCHIP_JOB_STATION
     // Inject ACK suppression (runtime-gated; 0 on production boots).
     if (g_fault_station_ack_suppress_remaining > 0) {
@@ -519,6 +558,14 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
     return true;
 }
 
+static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
+    rc::ccsds::CommandAckPayload ack{};
+    if (!rc::ccsds_decode_cmd_ack(rx_evt->buf, rx_evt->len, ack)) {
+        return false;
+    }
+    return apply_cmd_ack_payload(ack);
+}
+
 // Dispatch a decoded Nav packet to the station-side output mode (MAVLink,
 // CSV, ANSI, Menu). Extracted from handle_rx_packet for JSF AV rule 1
 // compliance. Host-test builds skip the switch entirely.
@@ -564,7 +611,109 @@ static void dispatch_nav_output(TelemAo* me,
 }
 #endif
 
+#ifdef ROCKETCHIP_USE_STARCOM
+static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
+    const auto pkt = starcom::ccsds::decode_space_packet(sdu);
+    if (!pkt) {
+        return false;
+    }
+    if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
+        rc::TelemetryState telem = {};
+        uint8_t user[rc::kNavSduUserBytes];
+        if (pkt->data.size() != rc::kNavSduUserBytes) {
+            return false;
+        }
+        for (std::size_t i = 0; i < rc::kNavSduUserBytes; ++i) {
+            user[i] = static_cast<uint8_t>(pkt->data[i]);
+        }
+        if (!rc::unpack_nav_sdu_user(user, rc::kNavSduUserBytes, &telem)) {
+            return false;
+        }
+        me->rx_snapshot.telem = telem;
+        me->rx_snapshot.valid = true;
+        return true;
+    }
+    if (pkt->fields.apid != rc::starcom_adapt::kCmdApid) {
+        return false;
+    }
+    if (pkt->fields.telecommand) {
+        uint16_t cmd_id = 0;
+        uint8_t seq = 0;
+        float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
+        uint8_t user[rc::kCmdSduUserBytes];
+        if (pkt->data.size() != rc::kCmdSduUserBytes) {
+            return false;
+        }
+        for (std::size_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
+            user[i] = static_cast<uint8_t>(pkt->data[i]);
+        }
+        if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, &cmd_id, &seq,
+                                     &p1, &p2, &p3, &p4, &p5)) {
+            return false;
+        }
+        mavlink_command_long_t cmd{};
+        cmd.command = cmd_id;
+        cmd.confirmation = seq;
+        cmd.param1 = p1;
+        cmd.param2 = p2;
+        cmd.param3 = p3;
+        cmd.param4 = p4;
+        cmd.param5 = p5;
+        const uint8_t ack_result = dispatch_command(me, cmd);
+        stage_cmd_ack(cmd, ack_result);
+        send_pending_ack_if_any();
+        return false;
+    }
+    rc::ccsds::CommandAckPayload ack{};
+    uint8_t user[rc::kAckSduUserBytes];
+    if (pkt->data.size() != rc::kAckSduUserBytes) {
+        return false;
+    }
+    for (std::size_t i = 0; i < rc::kAckSduUserBytes; ++i) {
+        user[i] = static_cast<uint8_t>(pkt->data[i]);
+    }
+    if (rc::unpack_ack_sdu_user(user, rc::kAckSduUserBytes, &ack)) {
+        (void)apply_cmd_ack_payload(ack);
+    }
+    return false;
+}
+
+static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
+    std::byte in[256];
+    const uint8_t n = rx_evt->len;
+    if (n == 0) {
+        return;
+    }
+    for (uint8_t i = 0; i < n; ++i) {
+        in[i] = std::byte{rx_evt->buf[i]};
+    }
+    rc::starcom_adapt::pump_receive_bytes(
+        g_pump, std::span<const std::byte>(in, n));
+    starcom_drain_to_radio();
+    for (uint8_t i = 0; i < kStarcomDrainCap; ++i) {
+        std::byte sdu[starcom::ccsds::kCoppHold];
+        const auto got = rc::starcom_adapt::pump_take_sdu(
+            g_pump, std::span<std::byte>(sdu, sizeof(sdu)));
+        if (!got.has_value() || *got == 0) {
+            break;
+        }
+        if (starcom_handle_sdu(me, std::span<const std::byte>(sdu, *got))) {
+#ifndef ROCKETCHIP_HOST_TEST
+            dispatch_nav_output(me, me->rx_snapshot.telem, rx_evt,
+                                me->rx_snapshot.seq);
+#else
+            (void)me;
+#endif
+        }
+    }
+}
+#endif
+
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
+#ifdef ROCKETCHIP_USE_STARCOM
+    starcom_handle_rx(me, rx_evt);
+    return;
+#endif
 #ifdef ROCKETCHIP_JOB_STATION
     // Inject RX drop (runtime-gated; 0 on production boots).
     if (g_fault_station_rx_drop_remaining > 0) {
@@ -826,6 +975,7 @@ void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 // Tracked command — pending-cmd state for ACK tracking.
 static uint8_t g_cmdSeq = 0;
 
+#ifndef ROCKETCHIP_USE_STARCOM
 // ARM and ABORT skip newest-wins dedupe so each press is its own ACK
 // window. DISARM may dedupe (safer than ARM; mash is a no-op if disarmed).
 static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
@@ -838,7 +988,10 @@ static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
     return false;
 }
 
+#endif  // !ROCKETCHIP_USE_STARCOM
+
 #ifndef ROCKETCHIP_HOST_TEST
+#ifndef ROCKETCHIP_USE_STARCOM
 // Encode and TX a MAVLink COMMAND_LONG with the given seq/params.
 static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
                                     const MavCmdParams& params) {
@@ -858,6 +1011,7 @@ static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
         QACTIVE_POST(AO_Radio, &g_txEvt.super, &l_telemAo.super);
     }
 }
+#endif  // !ROCKETCHIP_USE_STARCOM
 
 // Populate s_pending_cmd + params (used by both fresh-send and dedupe-replace).
 static void populate_pending(uint16_t command, uint8_t seq,
@@ -880,12 +1034,27 @@ static void populate_pending(uint16_t command, uint8_t seq,
     // Clear last-result so dashboard shows pending, not stale ACK.
     g_lastCmdResult.valid = false;
 }
-#endif
+#endif  // !ROCKETCHIP_HOST_TEST
 
 void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
                                        float p2, float p3,
                                        float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
+#ifdef ROCKETCHIP_USE_STARCOM
+    {
+        uint8_t seq = g_cmdSeq++;
+        const MavCmdParams params{p1, p2, p3, p4, p5};
+        populate_pending(command, seq, params);
+        std::byte pkt[6u + rc::kCmdSduUserBytes];
+        const auto n = rc::starcom_adapt::pump_pack_cmd_packet(
+            pkt, command, seq, p1, p2, p3, p4, p5);
+        if (n.has_value() && *n > 0) {
+            (void)rc::starcom_adapt::pump_submit_sdu(
+                g_pump, std::span<const std::byte>(pkt, *n), false);
+            starcom_drain_to_radio();
+        }
+    }
+#else
     if constexpr (!rc::kAirLoraCommandsEnabled) {
         rc::rc_log("[SC] LoRa command refused (starcom-prep; COP-P not linked)\n");
         (void)command;
@@ -913,6 +1082,7 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     const MavCmdParams params{p1, p2, p3, p4, p5};
     populate_pending(command, seq, params);
     tx_tracked_command_wire(command, seq, params);
+#endif  // ROCKETCHIP_USE_STARCOM
 #else
     (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
 #endif
@@ -981,6 +1151,10 @@ static void resend_pending_cmd() {
 
 void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
 #ifndef ROCKETCHIP_HOST_TEST
+#ifdef ROCKETCHIP_USE_STARCOM
+    (void)now_ms;
+    return;  // COP-P owns resend; homemade ACK retry stays OFF-image only
+#endif
     if (!g_pendingCmd.pending) return;
 
     uint32_t elapsed = now_ms - g_pendingCmd.sent_ms;

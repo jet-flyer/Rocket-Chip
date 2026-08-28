@@ -6,6 +6,7 @@
 #ifdef ROCKETCHIP_USE_STARCOM
 
 #include "starcom_adapt/nav_sdu.h"
+#include "starcom_adapt/cmd_sdu.h"
 #include "starcom/error.hpp"
 
 #include <tl/expected.hpp>
@@ -42,23 +43,72 @@ starcom::ccsds::Result<std::size_t> pump_repeat_pltu(
   return starcom::ccsds::repeat_pltu(out, octets);
 }
 
-starcom::ccsds::Result<std::size_t> pump_encode_nav(
-    BytePump& p, std::span<std::byte> out,
-    const TelemetryState& telem) noexcept {
+namespace {
+
+starcom::ccsds::Result<std::size_t> pack_user_packet(
+    std::span<std::byte> out, starcom::ccsds::SpacePacketFields const& sp,
+    std::span<const std::byte> user) noexcept {
+  return starcom::ccsds::encode_space_packet(out, sp, user);
+}
+
+void copy_user(std::span<std::byte> dst, const uint8_t* src, std::size_t n) noexcept {
+  for (std::size_t i = 0; i < n; ++i) {
+    dst[i] = std::byte{src[i]};
+  }
+}
+
+}  // namespace
+
+starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
+    std::span<std::byte> out, const TelemetryState& telem) noexcept {
   uint8_t user[kNavSduUserBytes] = {};
   if (pack_nav_sdu_user(user, sizeof(user), telem) != kNavSduUserBytes) {
     return starcom::ccsds::Result<std::size_t>{
         tl::unexpect, starcom::ccsds::Error::buffer_too_small};
   }
   std::array<std::byte, kNavSduUserBytes> user_b{};
-  for (std::size_t i = 0; i < user_b.size(); ++i) {
-    user_b[i] = std::byte{user[i]};
-  }
-
+  copy_user(user_b, user, user_b.size());
   starcom::ccsds::SpacePacketFields sp{};
   sp.apid = kNavApid;
+  return pack_user_packet(out, sp, user_b);
+}
+
+starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
+    std::span<std::byte> out, uint16_t cmd_id, uint8_t seq, float p1, float p2,
+    float p3, float p4, float p5) noexcept {
+  uint8_t user[kCmdSduUserBytes] = {};
+  if (pack_cmd_sdu_user(user, sizeof(user), cmd_id, seq, p1, p2, p3, p4, p5) !=
+      kCmdSduUserBytes) {
+    return starcom::ccsds::Result<std::size_t>{
+        tl::unexpect, starcom::ccsds::Error::buffer_too_small};
+  }
+  std::array<std::byte, kCmdSduUserBytes> user_b{};
+  copy_user(user_b, user, user_b.size());
+  starcom::ccsds::SpacePacketFields sp{};
+  sp.telecommand = true;
+  sp.apid = kCmdApid;
+  return pack_user_packet(out, sp, user_b);
+}
+
+starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
+    std::span<std::byte> out, const ccsds::CommandAckPayload& ack) noexcept {
+  uint8_t user[kAckSduUserBytes] = {};
+  if (pack_ack_sdu_user(user, sizeof(user), ack) != kAckSduUserBytes) {
+    return starcom::ccsds::Result<std::size_t>{
+        tl::unexpect, starcom::ccsds::Error::buffer_too_small};
+  }
+  std::array<std::byte, kAckSduUserBytes> user_b{};
+  copy_user(user_b, user, user_b.size());
+  starcom::ccsds::SpacePacketFields sp{};
+  sp.apid = kCmdApid;
+  return pack_user_packet(out, sp, user_b);
+}
+
+starcom::ccsds::Result<std::size_t> pump_encode_nav(
+    BytePump& p, std::span<std::byte> out,
+    const TelemetryState& telem) noexcept {
   std::array<std::byte, 6u + kNavSduUserBytes> packet{};
-  const auto pn = starcom::ccsds::encode_space_packet(packet, sp, user_b);
+  const auto pn = pump_pack_nav_packet(packet, telem);
   if (!pn) {
     return pn;
   }

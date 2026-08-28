@@ -128,6 +128,7 @@ if(BUILD_TESTS)
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
@@ -464,6 +465,7 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
 
         # -------------------------------------------------------------------------
@@ -608,6 +610,7 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp

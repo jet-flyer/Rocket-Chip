@@ -424,6 +424,13 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
     s.last_rx_ms = now_ms();
     s.rx_count++;
 
+#ifdef ROCKETCHIP_USE_STARCOM
+    // PLTU ASM FA F3 20 (211.2). STOP-GAP CRC-16-CCITT is the old encoder.
+    if (len >= 3 && buf[0] == 0xFA && buf[1] == 0xF3 && buf[2] == 0x20) {
+        return true;
+    }
+#endif
+
     // CCSDS validation: check CRC only if it looks like a CCSDS packet
     // (version bits 000 in first byte). MAVLink starts with 0xFD (v2).
     if (len >= kCcsdsMinLen && (buf[0] & 0xE0) == 0x00) {

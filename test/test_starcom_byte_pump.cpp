@@ -27,6 +27,9 @@ using rc::starcom_adapt::pump_repeat_pltu;
 using rc::starcom_adapt::pump_submit_sdu;
 using rc::starcom_adapt::pump_take_sdu;
 using rc::starcom_adapt::pump_tick;
+using rc::starcom_adapt::pump_pack_nav_packet;
+using rc::starcom_adapt::pump_pack_cmd_packet;
+using rc::starcom_adapt::pump_pack_ack_packet;
 
 TEST(StarcomBytePump, NoRadioIncludesInPumpHeader) {
     // Compile-time: this TU includes the pump and never the radio.
@@ -110,6 +113,82 @@ TEST(StarcomBytePump, CoppHostLoopNoRadio) {
     const auto tn = pump_take_sdu(rx, sdu);
     ASSERT_TRUE(tn.has_value());
     ASSERT_EQ(*tn, *pn);
+}
+
+TEST(StarcomBytePump, CoppNavSduNotOldEncoder) {
+    static BytePump tx{};
+    static BytePump rx{};
+    pump_init(tx, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_init(rx, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_nav_packet(pkt, telem);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(tx, std::span<const std::byte>(pkt.data(), *pn),
+                                false)
+                    .has_value());
+
+    std::array<std::byte, 255> wire{};
+    const auto p0 = pump_bytes_to_send(rx, wire);
+    ASSERT_TRUE(p0.has_value());
+    ASSERT_GT(*p0, 0u);
+    pump_receive_bytes(tx, std::span<const std::byte>(wire.data(), *p0));
+    const auto t0 = pump_bytes_to_send(tx, wire);
+    ASSERT_TRUE(t0.has_value());
+    ASSERT_GT(*t0, 0u);
+    pump_receive_bytes(rx, std::span<const std::byte>(wire.data(), *t0));
+    const auto t1 = pump_bytes_to_send(tx, wire);
+    ASSERT_TRUE(t1.has_value());
+    ASSERT_GT(*t1, 0u);
+    pump_receive_bytes(rx, std::span<const std::byte>(wire.data(), *t1));
+
+    std::array<std::byte, 64> sdu{};
+    const auto tn = pump_take_sdu(rx, sdu);
+    ASSERT_TRUE(tn.has_value());
+    ASSERT_EQ(*tn, *pn);
+    EXPECT_EQ(sdu[0] & std::byte{0xE0}, std::byte{0x00});
+}
+
+TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_cmd_packet(pkt, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    station, std::span<const std::byte>(pkt.data(), *pn), false)
+                    .has_value());
+
+    std::array<std::byte, 255> wire{};
+    const auto v0 = pump_bytes_to_send(vehicle, wire);
+    ASSERT_TRUE(v0.has_value());
+    ASSERT_GT(*v0, 0u);
+    pump_receive_bytes(station, std::span<const std::byte>(wire.data(), *v0));
+    const auto s0 = pump_bytes_to_send(station, wire);
+    ASSERT_TRUE(s0.has_value());
+    ASSERT_GT(*s0, 0u);
+    pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s0));
+    const auto s1 = pump_bytes_to_send(station, wire);
+    ASSERT_TRUE(s1.has_value());
+    ASSERT_GT(*s1, 0u);
+    pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s1));
+
+    std::array<std::byte, 64> sdu{};
+    const auto tn = pump_take_sdu(vehicle, sdu);
+    ASSERT_TRUE(tn.has_value());
+    ASSERT_EQ(*tn, *pn);
+
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_seq = 1;
+    ack.cmd_id = 400;
+    const auto an = pump_pack_ack_packet(pkt, ack);
+    ASSERT_TRUE(an.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *an), false)
+                    .has_value());
 }
 
 #endif  // ROCKETCHIP_USE_STARCOM

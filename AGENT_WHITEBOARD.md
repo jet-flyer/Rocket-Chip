@@ -36,7 +36,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 21** (Pico + AO `byte_pump`) — not 20 (host `add_subdirectory`, already in). First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack, not RC pin wiring. Fix is in-place memset; wrap log on `starcom/CHANGELOG.md`, not the fix commit. Vehicle ON now boots: COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS. Host `StarcomBytePump` 5/5. Next: RC wiring tests on this sitting (nav PLTU on `AO_Telemetry`, LoRa MAVLink compiled out). Default OFF stays STOP-GAP. Not 22. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main for 20: `2026-08-28-001` (`82f24f0`).
+**IVP 22 in progress** on `grok/sc-dev` (RC wiring, not a Starcom core sitting). 21 landed (Pico + `byte_pump`; `copp_init` stack-smash `1090959`). 20 was host `add_subdirectory`. Wrap log for the stack-smash still on `starcom/CHANGELOG.md`. Default OFF stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main for 20: `2026-08-28-001` (`82f24f0`).
 
 ---
 

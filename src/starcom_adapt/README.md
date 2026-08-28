@@ -3,9 +3,9 @@
 RC-owned glue. Starcom core stays in `starcom/` and must not include
 these headers.
 
-**Now (IVP 21):** host and Pico link `Starcom::starcom` when
-`ROCKETCHIP_USE_STARCOM=ON`. `byte_pump` is the first AO byte pump:
-`encode_pltu` / `repeat_pltu` / `copp_*` plus nav SDU ? PLTU. Default
-OFF stays STOP-GAP air. COP replace of `telemetry_encoder` is 22.
+**Now (IVP 22 in progress):** host and Pico link `Starcom::starcom` when
+`ROCKETCHIP_USE_STARCOM=ON`. `byte_pump` + `cmd_sdu` / `nav_sdu`. ON air
+path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`). Default
+OFF stays STOP-GAP air.
 
 Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`.

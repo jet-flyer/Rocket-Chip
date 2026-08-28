@@ -6,7 +6,7 @@ Dependency is always **consumer → Starcom**. Starcom never includes consumer h
 
 Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
 
-## Now (`0.19.0-dev`, through IVP 20)
+## Now (`0.19.0-dev`, through IVP 21; 22 in progress on `grok/sc-dev`)
 
 Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::adapters_rp2350`). Call with `std::span` and, for COP, caller `now`. The core does not key a transmitter.
 
@@ -19,7 +19,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | PLTU repeater | Anyone with bytes in/out | `repeat_pltu`; buffered `enqueue_pltu` / `dequeue_pltu` (caller-owned slots) | — |
 | Version | Anyone | `#include "starcom/version.hpp"` | Annotated tag (25) |
 
-**Rocket-Chip specifically:** host CMake `add_subdirectory(starcom)` and links `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON` (increment 20). Default OFF does not link Starcom and stays STOP-GAP air. Pico + first AO byte pump is increment 21. Pre-Starcom `telemetry_encoder` remains the flight path until increment 22. RadioScheduler / SX1276 stay in RC. No RC types in `include/starcom`.
+**Rocket-Chip specifically:** host CMake `add_subdirectory(starcom)` and links `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON` (increment 20). Pico + `byte_pump` is increment 21. Increment 22 puts COP-P on the ON air path (`submit_sdu` / `bytes_to_send` / `receive_bytes`); default OFF stays STOP-GAP. RadioScheduler / SX1276 stay in RC. No RC types in `include/starcom`.
 
 **Others (cubesat / HAB / GCS):** same library. They bring their own event loop and radio port. No RC types required.
 
@@ -35,8 +35,8 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | 18 | PHY adapter tiers (uncoded host; FPGA later) | Landed |
 | 19 | Convolutional / LDPC encode | Landed |
 | 20 | Host `add_subdirectory(starcom)` | Landed (RC host) |
-| 21 | Pico link + first AO byte pump | RC |
-| 22 | Replace `telemetry_encoder` with COP | RC (real replacement) |
+| 21 | Pico link + first AO byte pump | Landed (`grok/sc-dev`) |
+| 22 | Replace `telemetry_encoder` with COP | RC (in progress) |
 | 23 | clang-tidy / camelBack vs ICD snake_case | Starcom audit |
 | 24 | ASan host, longer fuzz, size report | Starcom |
 | 25 | First `starcom-v*` tag | Owner cut |

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Compile-time air dialect for the Starcom consumer soak.
-// ROCKETCHIP_USE_STARCOM links Starcom::starcom on host tests and Pico (IVP 21).
-// Default OFF remains STOP-GAP air. COP replace is 22.
+// ROCKETCHIP_USE_STARCOM links Starcom::starcom on host tests and Pico (IVP 21–22).
+// Default OFF remains STOP-GAP air. kAirLoraCommandsEnabled is the STOP-GAP
+// MAVLink-on-LoRa switch; ON uses COP-P instead.
 
 #ifndef ROCKETCHIP_SC_AIR_H
 #define ROCKETCHIP_SC_AIR_H
