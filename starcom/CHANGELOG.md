@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-08-28-001 | Grok Hamilton (Grok Bot) | feature
+
+**IVP 13–19 cut.** Product `0.19.0-dev`. Full 211.0 §6 MAC + SET V(R) (13). V-3 DFC 11 user-defined octets, not bitstream (14). Host file replay + UDP; sockets only on `Starcom::adapters_host` (15). Generic SPI/GPIO `BusOps`, host fake bus, no Pico/RFM in the core (16). PIO bit pipe, not 211.1 (17). PHY adapter tiers; uncoded host path; `PhyTier::compliant` not offered (18). Conv K=7 r=1/2 with G2 inversion + LDPC (2048,1024) encode, CSM `0347 76C7 2728 95B0`, codeword-only randomize; decode later GCS/Pi (19). Next is increment 20 (RC host `add_subdirectory`). FPGA/decode hold is on `AGENT_WHITEBOARD.md` (Forgix first, then Snickerdoodle). No merge to main. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`.
+
+Verified: pure-software change, `starcom.unit` 1/1 PASS, host ctest 862/862 PASS, no HW reseat required.
+
 ### 2026-08-27-003 | Grok 4.6 (Build CLI) | feature, architecture
 
 **Sans-I/O data-link core cut (IVP 0–12).** Product `0.12.0-dev`. Codecs: Annex C CRC-32, PLTU, V-3, Space Packet, PLCW, CLCW, USLP (truncated / Insert / FECF), COP-P (incl. `copp_init_uslp`), COP-1 subset (FARM-1 + FOP-1 S4/S5). Host loopback + `RadioPort`. `repeat_pltu`, `hunt_pltu`, caller-owned `PltuRepeatQ`. Versioning SSOT (`STARCOM_VERSION`; same scheme as RC 2026-08-26; humans edit that file only; CMake writes `generated/starcom/version.hpp`; git is the live discriminant; incubating tags `starcom-v*`). Starcom-only graph snapshot in `starcom/graphify-out/` (query `--graph starcom/graphify-out/graph.json`; repo-root graph still excludes this tree). Prefix smoke + `STARCOM_SANITIZE` option (not run — this MinGW has no libasan). Consumer map: `docs/integration/CONSUMERS.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. Next is increment 13 — owner §6 pick; do not stub the unchosen cut. No RC `add_subdirectory`. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`, `VERSIONING.md`.
