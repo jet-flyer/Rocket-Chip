@@ -203,11 +203,13 @@ Landed. `PltuRepeatQ` is caller-owned slots. Depth is `slots.size()`. Dedup key 
 
 211.0-B-6 §6 (session, hailing, full / half / simplex). SET V(R) persistent activity (7.2.3.2) belongs here because the book puts it on the MAC sublayer.
 
-**Decision gate first (R):** owner picks one cut — full §6 module, a small turnaround helper, or consumer-only. Record the pick on CONFORMANCE. **No stub of the unchosen paths.**
+**Decision (2026-08-27):** full §6 module. Not a turnaround helper. Not consumer-only. No stub of the unchosen paths.
 
-Then implement that cut (T). MIB timers (`Hail_*`, `Carrier_Loss_Timer_Duration`, …) are Annex C names; caller supplies intervals in `Tick`; no library default milliseconds. Adapters declare what the hardware can do. Do not couple the core to SX1276 or to RC half-duplex LoRa.
+MIB timers (`Hail_*`, `Carrier_Loss_Timer_Duration`, …) are Annex C names; caller supplies intervals in `Tick`; no library default milliseconds. Adapters declare what the hardware can do. Do not couple the core to SX1276 or to RC half-duplex LoRa.
 
-**Gate:** CONFORMANCE row no longer “Not decided”; table tests for the chosen DUPLEX; SET V(R) persistent activity if the chosen cut includes it; inspection that public headers still have no radio objects.
+Landed. `MacSession` table-drives 6-2–6-13. PHY view is 6.5 (`mac_phy`). Output selection is table 6-14 (`mac_fifo_source`). SET V(R) Annex B1.5 + 7.2.3.2 (`mac_drive_set_vr` / inbound RE2).
+
+**Gate:** CONFORMANCE row no longer “Not decided”; table tests for full / half / simplex; SET V(R) persistent; public headers still have no radio objects. Tests: `tests/unit/test_mac.cpp`. Do not mint SC-NNN.
 
 ### Increment 14 — Simplex / user-defined bitstream
 

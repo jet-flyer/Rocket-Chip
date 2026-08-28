@@ -3,6 +3,7 @@
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/uslp.hpp"
 #include "starcom/ccsds/v3.hpp"
+#include "starcom/ccsds/mac.hpp"
 
 #include <algorithm>
 
@@ -303,6 +304,11 @@ void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noex
       return;
     }
     if (u->fields.protocol_control) {
+      const auto vr = decode_set_vr(u->tfdz, nullptr);
+      if (vr) {
+        farm_p_set_vr(e.farm, *vr);
+        return;
+      }
       const auto plcw = decode_plcw(u->tfdz);
       fop_p_on_plcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
       return;
@@ -328,6 +334,11 @@ void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noex
     return;
   }
   if (v3->fields.p_frame) {
+    const auto vr = decode_set_vr(v3->data, nullptr);
+    if (vr) {
+      farm_p_set_vr(e.farm, *vr);
+      return;
+    }
     const auto plcw = decode_plcw(v3->data);
     fop_p_on_plcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
     return;

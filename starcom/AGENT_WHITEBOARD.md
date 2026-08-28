@@ -8,18 +8,6 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Sequence: [`docs/IVP.md`](docs
 
 ---
 
-## Duplex / §6 cut (OPEN) (2026-08-27)
-
-IVP increment 13. Sans-I/O core 0–12 is in (`0.12.0-dev`). Do **not** start this increment until the owner picks one: full 211.0 §6 module, a small turnaround helper, or consumer-only. No stub of the unchosen paths. Grok bots must not invent the cut.
-
-Do **not** couple the core to RC’s current half-duplex LoRa. SET V(R) persistent activity (7.2.3.2) rides with this increment because the book puts it on MAC.
-
-211.0 DUPLEX = full / half / simplex. 211.1 is the Prox-1 UHF PHY (not SX1276). Adapters declare what the hardware can do. RC integration (IVP 20–22) may go first **if it does not lock the core out of full/simplex/dual-radio**.
-
-ELRS Gemini is **not** CCSDS full duplex (see DESIGN note). Hardware with two transceivers *can* TX on one and RX on the other; that is a port (IVP 18), not a codec fork.
-
----
-
 ## Host dissect demo — teaching tool (SIDETRACK) (2026-08-27)
 
 Break-time only. Not mainline IVP. Lives in `starcom/examples/` when scheduled — host CLI, not `starcom::ccsds`, not Rocket-Chip firmware (RC’s station dashboard / `telemetry_encoder` stay in RC until IVP 20–22).

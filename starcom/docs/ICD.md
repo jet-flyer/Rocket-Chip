@@ -163,7 +163,7 @@ Transfer Frame only (no ASM / PLTU CRC-32). TFVN `1100`. Non-truncated: 7–14 o
 
 ## Engine (COP-P)
 
-FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loop. SET V(R) persistent activity (7.2.3.2) uses the MAC sublayer — IVP increment 13. S2 is entered on SYNCH_TIMER expiry when `Resync_Local` is true. Other P-frame SPDUs (SET V(R), status reports) are not parsed until increment 13; inbound P-frames are treated as PLCWs.
+FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loop. SET V(R) persistent activity (7.2.3.2) is MAC (`mac_drive_set_vr`). S2 is entered on SYNCH_TIMER expiry when `Resync_Local` is true. Inbound P-frames: SET V(R) (Annex B1.5 type `011`) runs FARM-P RE2; otherwise PLCW.
 
 ```cpp
 using Tick = std::uint32_t;
@@ -201,9 +201,24 @@ Cop1Event cop1_poll_event(Cop1Endpoint&);
 
 `Cop1Mib`: `k` (≤255), `t1_initial` (0 = never), `transmission_limit` (1 = no retransmission, 232.1 §5.1.10.2), `timeout_type` (0 or 1), `farm.w` (even, 2–254). BC Unlock is the single octet `00`; Set V(R) is `82 00 V*(R)` (232.0 §4.1.3.3). Hold depths `kCop1Hold` / `kCop1SeqSlots` are host-loop caps, not MIB.
 
-## Half-duplex
+## Engine (MAC / §6)
 
-Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. Who owns turnaround (RC scheduler vs a later Starcom MAC slice vs full §6) is **not decided** — IVP increment 13 (decision gate first). Do not stub §6.
+Full 211.0-B-6 §6 module (owner pick 2026-08-27). Caller owns `now`, PHY bits, and `CoppEndpoint`. Core never keys a radio.
+
+```cpp
+void mac_init(MacSession&, MacMib const&, MacDuplex, CoppEndpoint* = nullptr);
+void mac_set_initialize_mode(MacSession&, Tick now);
+void mac_set_mode(MacSession&, MacMode, Tick now);
+void mac_set_duplex(MacSession&, MacDuplex);  // S1 only
+void mac_tick(MacSession&, Tick now);
+MacPhy mac_phy(MacSession const&);           // 6.5 via C&S: receive / TRANSMIT / MODULATION
+MacFifoSource mac_fifo_source(MacSession const&);  // table 6-14
+MacNotify mac_poll_notify(MacSession&);
+Result<std::size_t> encode_set_vr(std::span<std::byte>, std::uint8_t seq_ctrl_fsn, Pcid);
+Result<std::uint8_t> decode_set_vr(std::span<const std::byte>, Pcid* = nullptr);
+```
+
+`MacMib` timers are Annex C names in `Tick` (0 = never). Hail_Response may be a valid TF or `SYMBOL_INLOCK_STATUS` (book option). Adapters declare what the hardware can do. No SX1276 / RC half-duplex lock-in.
 
 ## Repeater
 

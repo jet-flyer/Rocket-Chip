@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 12 buffered repeater in. Product `0.12.0-dev`. **Sans-I/O data-link core cut (0–12).** Next is 13 (§6 decision). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** increment 13 full §6 MAC in. Product `0.13.0-dev`. **Sans-I/O data-link core cut (0–13).** Next is 14 (simplex / DFC 11). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 13 (Prox-1 §6 MAC / DUPLEX — owner pick). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25. Grok bots can pick up at 13+.
+IVP increment 14 (simplex / V-3 DFC `11`). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -30,7 +30,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 | 10 | COP-1 remainder | S4/S5 + remaining Table 5-1. |
 | 11 | COP-P on USLP VC | Same procedures, V-4. |
 | 12 | Buffered repeater | Caller-owned queue; no invented depth. |
-| 13 | §6 MAC / DUPLEX | Decision first; SET V(R) persistent. |
+| 13 | §6 MAC / DUPLEX | Full module (2026-08-27). SET V(R) persistent. |
 | 14 | Simplex / bitstream | V-3 DFC `11`. |
 | 15–18 | Ports | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers. |
 | 19 | Conv / LDPC | 211.2 PICS. |
