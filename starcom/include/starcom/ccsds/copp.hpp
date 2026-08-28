@@ -115,12 +115,15 @@ struct CoppEndpoint {
   bool farm_accepted_latched = false;
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> seq_q{};
   std::array<std::size_t, kCoppSeqSlots> seq_len{};
+  std::array<bool, kCoppSeqSlots> seq_user_defined{};
   std::uint8_t seq_n = 0;
   std::array<std::byte, kCoppHold> exp_q{};
   std::size_t exp_len = 0;
   bool exp_full = false;
+  bool exp_user_defined = false;
   std::array<std::array<std::byte, kCoppHold>, 256> payload_by_fsn{};
   std::array<std::size_t, 256> payload_len_by_fsn{};
+  std::array<bool, 256> payload_user_defined_by_fsn{};
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> rx_q{};
   std::array<std::size_t, kCoppSeqSlots> rx_len{};
   std::uint8_t rx_n = 0;
@@ -135,6 +138,12 @@ void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noex
 Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e, std::span<std::byte> out) noexcept;
 Result<std::size_t> copp_submit_sdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
+// User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3
+// U-frames. Same hold/slots as copp_submit_sdu. Empty data field is valid.
+// Caller chops at kV3DataMax; library does not reassemble.
+Result<std::size_t> copp_submit_user_defined(CoppEndpoint& e,
+                                            std::span<const std::byte> octets,
+                                            bool expedited) noexcept;
 Result<std::size_t> copp_take_sdu(CoppEndpoint& e, std::span<std::byte> out) noexcept;
 CoppEvent copp_poll_event(CoppEndpoint& e) noexcept;
 

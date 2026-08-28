@@ -49,9 +49,13 @@ Result<std::size_t> encode_v3(std::span<std::byte> out, V3Fields const& fields,
   }
   const unsigned scid = static_cast<unsigned>(fields.scid) & 0x3FFu;
   const unsigned c = static_cast<unsigned>(frame_len - 1u);
-  const unsigned dfc = static_cast<unsigned>(fields.dfc_id) & 0x03u;
+  unsigned dfc = static_cast<unsigned>(fields.dfc_id) & 0x03u;
   const unsigned pcid = static_cast<unsigned>(fields.pcid) & 0x01u;
-  const unsigned port = static_cast<unsigned>(fields.port_id) & 0x07u;
+  unsigned port = static_cast<unsigned>(fields.port_id) & 0x07u;
+  if (fields.p_frame) {
+    dfc = kDfcPackets;  // 3.2.2.5.2
+    port = 0u;          // 3.2.2.8.2
+  }
 
   out[0] = std::byte((kTfvnV3 << 6) | (fields.qos_expedited ? 0x20u : 0u) |
                      (fields.p_frame ? 0x10u : 0u) | (dfc << 2) |
@@ -66,6 +70,18 @@ Result<std::size_t> encode_v3(std::span<std::byte> out, V3Fields const& fields,
               out.begin() + static_cast<std::ptrdiff_t>(kV3HeaderSize));
   }
   return frame_len;
+}
+
+Result<std::size_t> encode_v3_user_defined(std::span<std::byte> out,
+                                          V3Fields const& fields,
+                                          std::span<const std::byte> data) noexcept {
+  if (data.size() > kV3DataMax) {
+    return tl::unexpected(Error::v3_length_oob);
+  }
+  V3Fields f = fields;
+  f.p_frame = false;
+  f.dfc_id = kDfcUserDefined;
+  return encode_v3(out, f, data);
 }
 
 }  // namespace starcom::ccsds

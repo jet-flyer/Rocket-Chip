@@ -457,6 +457,7 @@ int run_loopback_tests();
 int run_version_tests();
 int run_fuzz_tests();
 int run_mac_tests();
+int run_user_defined_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -491,6 +492,7 @@ int main() {
   g_fails += run_version_tests();
   g_fails += run_fuzz_tests();
   g_fails += run_mac_tests();
+  g_fails += run_user_defined_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

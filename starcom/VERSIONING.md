@@ -16,7 +16,7 @@ Same shape as the 2026-08-26 Rocket-Chip close (Zephyr `VERSION` + generated hea
 | **Build identity** | `git describe --abbrev=12 --always --dirty` plus short hash | Nobody. CMake captures it | Every configure whose git HEAD or index moved |
 
 - `MAJOR` stays 0 until a first tagged operational/extract cut (`1.0.0`).
-- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 13 (full §6 MAC): **`0.13.0-dev`**.
+- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 14 (user-defined DFC `11`): **`0.14.0-dev`**.
 - `PATCH` = remediates inside that increment (usually 0).
 - `EXTRAVERSION = dev` until an annotated tag with empty EXTRA.
 
@@ -42,7 +42,7 @@ Adapters (`starcom::adapters`) are first-party ports, still under SemVer for thi
 
 ```
 VERSION_MAJOR = 0
-VERSION_MINOR = 13
+VERSION_MINOR = 14
 PATCHLEVEL = 0
 VERSION_TWEAK = 0
 EXTRAVERSION = dev
@@ -67,7 +67,7 @@ Do **not** bump product numbers on ordinary codec commits. Git identity already 
 |--------|--------|
 | `starcom::kVersionMajor` / `Minor` / `Patch` | From `STARCOM_VERSION` |
 | `starcom::kLibraryVersion` | `"MAJOR.MINOR.PATCH"` |
-| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.12.0-dev`) |
+| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.14.0-dev`) |
 | `starcom::kGitHash` | `git rev-parse --short HEAD` |
 | `starcom::kBuildIdentity` | `git describe --abbrev=12 --always --dirty` |
 | `starcom::kBuildNumber` | Generated count; do not hand-edit |

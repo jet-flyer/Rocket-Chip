@@ -215,7 +215,9 @@ Landed. `MacSession` table-drives 6-2–6-13. PHY view is 6.5 (`mac_phy`). Outpu
 
 After §6 (simplex is a DUPLEX mode). V-3 DFC ID `11` (user-defined). Odyssey “Unreliable Bitstream” is Annex F (mission receiver mode), not the general codec — do not copy F4 as the library default. Same PLTU envelope. Do not couple this to LoRa FSK-continuous unless increment 17 says so.
 
-**Gate:** encode/decode DFC `11` payload as opaque octets; simplex path does not require hailing (211.0 §6); D-5.
+Landed. `encode_v3_user_defined` sets U-frame DFC `11` (opaque octets, empty data field valid — 3.2.3.5). `copp_submit_user_defined` tags existing COP-P hold slots so `copp_bytes_to_send` emits DFC `11`; default `copp_submit_sdu` stays packets (`00`). Receive stays opaque (`copp_take_sdu` does not parse Space Packet). No library reassembly (2.2.2.3): caller chops at `kV3DataMax` (2043; 3.2.3 c). P-frame encode forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). DFC `10` reserved has no service. DFC `01` segmentation is not this increment. Simplex SET MODE active → S71/S72; `connecting_t` on simplex does not hail. Not Annex F4.
+
+**Gate:** encode/decode DFC `11` payload as opaque octets; simplex path does not require hailing (211.0 §6); D-5. Tests: `tests/unit/test_user_defined.cpp`. Do not mint SC-NNN.
 
 ### Increment 15 — Host UDP / file replay
 

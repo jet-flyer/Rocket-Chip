@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 13 full §6 MAC in. Product `0.13.0-dev`. **Sans-I/O data-link core cut (0–13).** Next is 14 (simplex / DFC 11). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** increment 14 user-defined DFC `11` in. Product `0.14.0-dev`. **Sans-I/O data-link core cut (0–14).** Next is 15 (host UDP / file replay). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 14 (simplex / V-3 DFC `11`). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
+IVP increment 15 (host UDP / file replay). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -31,7 +31,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 | 11 | COP-P on USLP VC | Same procedures, V-4. |
 | 12 | Buffered repeater | Caller-owned queue; no invented depth. |
 | 13 | §6 MAC / DUPLEX | Full module (2026-08-27). SET V(R) persistent. |
-| 14 | Simplex / bitstream | V-3 DFC `11`. |
+| 14 | Simplex / bitstream | V-3 DFC `11` (2026-08-27). Opaque octets, no reassembly. |
 | 15–18 | Ports | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers. |
 | 19 | Conv / LDPC | 211.2 PICS. |
 | 20–22 | RC consumer | Host link, Pico+AO, replace `telemetry_encoder` with COP. |
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- None for increment 13 except the owner §6 cut. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
+- None for increment 14. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
 
 ## Done this sitting
 
@@ -63,4 +63,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 11: `copp_init_uslp` — COP-P on Version-4 VC/MAP; PLCW still SPDU. V-3 path unchanged.
 - Increment 12: caller-owned `PltuRepeatQ` / `enqueue_pltu` / `dequeue_pltu`. No invented depth.
 - IVP sequence through increment 25 (rest of the stack). No Starcom stop-gap. RC `telemetry_encoder` is RC firmware until increment 22.
+- Increment 13: full §6 MAC (`mac.hpp` / `mac.cpp`). SET V(R) persistent. Simplex S71/S72.
+- Increment 14: V-3 DFC `11` user-defined (`encode_v3_user_defined`, `copp_submit_user_defined`). Opaque octets, no reassembly. Not Annex F4.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

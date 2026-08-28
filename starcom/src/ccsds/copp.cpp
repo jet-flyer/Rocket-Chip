@@ -267,28 +267,50 @@ Result<std::size_t> copp_take_sdu(CoppEndpoint& e,
   return n;
 }
 
-Result<std::size_t> copp_submit_sdu(CoppEndpoint& e,
-                                    std::span<const std::byte> packet,
-                                    bool expedited) noexcept {
-  if (packet.empty() || packet.size() > kCoppHold) {
+namespace {
+
+Result<std::size_t> copp_hold_submit(CoppEndpoint& e,
+                                    std::span<const std::byte> octets,
+                                    bool expedited, bool user_defined) noexcept {
+  if ((!user_defined && octets.empty()) || octets.size() > kCoppHold) {
     return tl::unexpected(Error::truncated);
   }
   if (expedited) {
     if (e.exp_full) {
       return tl::unexpected(Error::buffer_too_small);
     }
-    std::copy(packet.begin(), packet.end(), e.exp_q.begin());
-    e.exp_len = packet.size();
+    if (!octets.empty()) {
+      std::copy(octets.begin(), octets.end(), e.exp_q.begin());
+    }
+    e.exp_len = octets.size();
     e.exp_full = true;
-    return packet.size();
+    e.exp_user_defined = user_defined;
+    return octets.size();
   }
   if (e.seq_n >= kCoppSeqSlots) {
     return tl::unexpected(Error::buffer_too_small);
   }
-  std::copy(packet.begin(), packet.end(), e.seq_q[e.seq_n].begin());
-  e.seq_len[e.seq_n] = packet.size();
+  if (!octets.empty()) {
+    std::copy(octets.begin(), octets.end(), e.seq_q[e.seq_n].begin());
+  }
+  e.seq_len[e.seq_n] = octets.size();
+  e.seq_user_defined[e.seq_n] = user_defined;
   ++e.seq_n;
-  return packet.size();
+  return octets.size();
+}
+
+}  // namespace
+
+Result<std::size_t> copp_submit_sdu(CoppEndpoint& e,
+                                    std::span<const std::byte> packet,
+                                    bool expedited) noexcept {
+  return copp_hold_submit(e, packet, expedited, false);
+}
+
+Result<std::size_t> copp_submit_user_defined(CoppEndpoint& e,
+                                            std::span<const std::byte> octets,
+                                            bool expedited) noexcept {
+  return copp_hold_submit(e, octets, expedited, true);
 }
 
 void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept {
@@ -418,31 +440,39 @@ Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
     hdr.port_id = e.port_id;
     hdr.fsn = e.fop.last_send_fsn;
     std::span<const std::byte> payload{};
+    bool user_defined = false;
     if (kind == FopPSend::expedited) {
       hdr.qos_expedited = true;
       payload = std::span<const std::byte>(e.exp_q.data(), e.exp_len);
+      user_defined = e.exp_user_defined;
       e.exp_full = false;
       e.exp_len = 0;
+      e.exp_user_defined = false;
     } else if (kind == FopPSend::new_seq && e.seq_n > 0) {
       payload = std::span<const std::byte>(e.seq_q[0].data(), e.seq_len[0]);
+      user_defined = e.seq_user_defined[0];
       const auto fsn = e.fop.last_send_fsn;
       std::copy(e.seq_q[0].begin(), e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(e.seq_len[0]),
                 e.payload_by_fsn[fsn].begin());
       e.payload_len_by_fsn[fsn] = e.seq_len[0];
+      e.payload_user_defined_by_fsn[fsn] = user_defined;
       for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
         e.seq_q[i] = e.seq_q[i + 1u];
         e.seq_len[i] = e.seq_len[i + 1u];
+        e.seq_user_defined[i] = e.seq_user_defined[i + 1u];
       }
       --e.seq_n;
     } else {
       const auto fsn = e.fop.last_send_fsn;
       payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(),
                                            e.payload_len_by_fsn[fsn]);
+      user_defined = e.payload_user_defined_by_fsn[fsn];
     }
     if (e.uslp) {
       return copp_encode_uslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
     }
-    const auto vn = encode_v3(tf, hdr, payload);
+    const auto vn = user_defined ? encode_v3_user_defined(tf, hdr, payload)
+                                 : encode_v3(tf, hdr, payload);
     if (!vn) {
       return vn;
     }

@@ -11,6 +11,7 @@ add_executable(starcom_tests
   unit/test_version.cpp
   unit/test_fuzz.cpp
   unit/test_mac.cpp
+  unit/test_user_defined.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)

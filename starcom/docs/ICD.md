@@ -86,18 +86,28 @@ PltuHunt hunt_pltu(std::span<const std::byte> octets) noexcept;
 ### Version-3
 
 ```cpp
+inline constexpr std::uint8_t kDfcPackets = 0;      // 3.2.3.2
+inline constexpr std::uint8_t kDfcSegment = 1;      // 3.2.3.3 (not IVP 14)
+inline constexpr std::uint8_t kDfcReserved = 2;     // Table 3-1; no service
+inline constexpr std::uint8_t kDfcUserDefined = 3;  // 3.2.3.5
+inline constexpr std::size_t kV3DataMax = 2043;     // 2048-5; 3.2.3 c
+
 struct V3Fields { /* QoS, P-frame, DFC, Scid, Pcid, PortId, destination, FSN */ };
 struct V3View {
   V3Fields fields;
   std::span<const std::byte> data;
 };
 
+bool v3_is_user_defined(V3Fields const&);  // U-frame and DFC 11
 Result<V3View> decode_v3(std::span<const std::byte> frame) noexcept;
 Result<std::size_t> encode_v3(std::span<std::byte> out, V3Fields const& fields,
                               std::span<const std::byte> data) noexcept;
+Result<std::size_t> encode_v3_user_defined(std::span<std::byte> out,
+                                          V3Fields const& fields,
+                                          std::span<const std::byte> data) noexcept;
 ```
 
-Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.hpp`). Field map: SAD (working copy of 211.0 Fig 3-3).
+Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Data field 0..`kV3DataMax` octets (3.2.3 c). Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.hpp`). Field map: SAD (working copy of 211.0 Fig 3-3). `encode_v3` on a P-frame forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). `encode_v3_user_defined` is the User Defined Data service (3.2.3.5 / 2.2.2.3): U-frame, DFC `11`, opaque octets, empty data field valid, no reassembly. Callers branch on `dfc_id` / `v3_is_user_defined` — DFC `11` is not a Space Packet. Raw `encode_v3` still packs reserved DFC `10` if the caller sets it; there is no reserved service. DFC `01` segmentation is not this increment. Not Odyssey Annex F4.
 
 ### Space Packet
 
@@ -174,11 +184,12 @@ void copp_tick(CoppEndpoint&, Tick now);
 void copp_receive_bytes(CoppEndpoint&, std::span<const std::byte>);
 Result<std::size_t> copp_bytes_to_send(CoppEndpoint&, std::span<std::byte> out);
 Result<std::size_t> copp_submit_sdu(CoppEndpoint&, std::span<const std::byte> packet, bool expedited);
+Result<std::size_t> copp_submit_user_defined(CoppEndpoint&, std::span<const std::byte> octets, bool expedited);
 Result<std::size_t> copp_take_sdu(CoppEndpoint&, std::span<std::byte> out);  // 7.3.3
 CoppEvent copp_poll_event(CoppEndpoint&);
 ```
 
-`CoppMib`: `transmission_window` (≤127; default 1 = stop-and-wait), `synch_timeout` (0 = never), `resync_local`. SYNCH_TIMER arms on the next `copp_tick` after an invalid PLCW (receive_bytes has no `now`). `bytes_to_send` prefers a PLCW when FARM-P `need_plcw` is set (RE0/RE2/RE4/RE5), then SE1. Both endpoints start NEED_PLCW; drain those P-frames before the first SEQ U-frame. An RC Active Object may call these verbs; the core is not a QP AO. Hold depths `kCoppHold` / `kCoppSeqSlots` are this sitting's host-loop cap, not MIB.
+`CoppMib`: `transmission_window` (≤127; default 1 = stop-and-wait), `synch_timeout` (0 = never), `resync_local`. SYNCH_TIMER arms on the next `copp_tick` after an invalid PLCW (receive_bytes has no `now`). `bytes_to_send` prefers a PLCW when FARM-P `need_plcw` is set (RE0/RE2/RE4/RE5), then SE1. Both endpoints start NEED_PLCW; drain those P-frames before the first SEQ U-frame. An RC Active Object may call these verbs; the core is not a QP AO. Hold depths `kCoppHold` / `kCoppSeqSlots` are this sitting's host-loop cap, not MIB. Default `copp_submit_sdu` is packets (DFC `00`). `copp_submit_user_defined` uses the same queues and COP-P QoS, tagging the slot so the V-3 U-frame DFC is `11`. Receive copies `v3->data` opaquely; the library does not reassemble a multi-frame SDU (2.2.2.3). USLP `copp_init_uslp` has no DFC field — this increment does not invent a 732.1 UPID for user-defined.
 
 ## Engine (COP-1)
 
@@ -218,7 +229,7 @@ Result<std::size_t> encode_set_vr(std::span<std::byte>, std::uint8_t seq_ctrl_fs
 Result<std::uint8_t> decode_set_vr(std::span<const std::byte>, Pcid* = nullptr);
 ```
 
-`MacMib` timers are Annex C names in `Tick` (0 = never). Hail_Response may be a valid TF or `SYMBOL_INLOCK_STATUS` (book option). Adapters declare what the hardware can do. No SX1276 / RC half-duplex lock-in.
+`MacMib` timers are Annex C names in `Tick` (0 = never). Hail_Response may be a valid TF or `SYMBOL_INLOCK_STATUS` (book option). Adapters declare what the hardware can do. No SX1276 / RC half-duplex lock-in. Simplex: SET MODE active → S71 (transmit) / S72 (receive). Hailing is not used (211.0 §6); `connecting_t` on simplex does not enter S31/S11.
 
 ## Repeater
 
