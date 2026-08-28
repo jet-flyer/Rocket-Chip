@@ -16,6 +16,16 @@ ctest --test-dir starcom/build --output-on-failure
 
 Today that is one binary: `starcom.unit`. Tests may use exceptions; the core does not.
 
+ASan+UBSan (when the toolchain has libasan/libubsan):
+
+```
+cmake -S starcom -B starcom/build-san -G Ninja -DSTARCOM_SANITIZE=ON
+cmake --build starcom/build-san
+ctest --test-dir starcom/build-san --output-on-failure
+```
+
+Turns off the D-5 `--wrap=malloc` trap (ASan owns the allocator). This tree's MinGW g++ 15.2 has the flags but not the libs.
+
 ## When a codec lands
 
 Do these in the same sitting as the `.cpp`. Names come from the IVP table for that increment.
@@ -30,7 +40,7 @@ The book wins if a test comment and Annex C / Fig 3-1 disagree. Fix the test (an
 
 ## What waits
 
-- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets in the test TU; COP-P uses the Blue Book event tables as C++ data in `tests/unit/test_copp.cpp`, still not a random dump. Generated or fuzzed octet streams wait for increment 6.
+- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets. Increment 6 prefix smoke is `tests/unit/test_fuzz.cpp` (bounded lengths, TFVN/ASM fills), not a random dump.
 - Radio, Pico SDK, FPGA testbench — adapters / ports. Same golden vectors when those sittings run.
 
 ## Hooks (later, keep small)

@@ -2,17 +2,15 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 5 host loopback + generic radio mailbox. Core still sans-I/O. UDP/SPI/Pico not this sitting. No SC-NNN.
+**Phase:** increment 6 hardening in (prefix smoke + `STARCOM_SANITIZE`). Product `0.6.0-dev`. Core still sans-I/O. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-Hardening (ASan/UBSan, fuzz smoke). Versioning SSOT is `STARCOM_VERSION` / `VERSIONING.md` (`0.5.0-dev`). First tag later, not this sitting.
+Whiteboard: duplex/§6; PLTU repeater grade; coding-standards clang-tidy/naming audit. RC integration when scheduled. FPGA/PIO later.
 
-Owner-open (whiteboard): duplex/§6; repeater grade; coding-standards clang-tidy/naming audit.
+1. Owner-open rows on `AGENT_WHITEBOARD.md`. Handshake still `docs/ICD.md`.
 
-1. Increment 6 hardening. Handshake: `docs/ICD.md`. Tests: `docs/TESTING.md`.
-
-Gates: `docs/IVP.md`. FPGA/PIO sim is later (Researcher / Buzz).
+Gates: `docs/IVP.md`.
 
 ## Phase sketch
 
@@ -32,7 +30,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 
 ## Blockers
 
-- None for hardening start. RC half-duplex flight pain drives *when* RC integrates; it does not block the host core.
+- None for whiteboard/RC-integration start. This MinGW g++ has no libasan/libubsan; sanitizer option waits for Clang/Linux.
 
 ## Done this sitting
 
@@ -45,5 +43,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF omitted.
 - COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 omitted.
 - Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI.
-- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.5.0-dev`. No tag this sitting.
+- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.6.0-dev` after increment 6. No tag this sitting.
+- Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan).
 - Docs cut `db1465c`. Graph snapshot `952b913`.

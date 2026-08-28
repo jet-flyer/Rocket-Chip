@@ -21,3 +21,17 @@ function(starcom_set_test_flags tgt)
     target_compile_options(${tgt} PRIVATE -Wall -Wextra -Wpedantic -Werror)
   endif()
 endfunction()
+
+# ASan + UBSan. Off by default: this tree's MinGW g++ 15.2 has the flags
+# but not libasan/libubsan. Enable on Clang/Linux: -DSTARCOM_SANITIZE=ON.
+# Incompatible with STARCOM_HEAP_WRAP (--wrap=malloc).
+function(starcom_apply_sanitizer tgt)
+  if(NOT STARCOM_SANITIZE)
+    return()
+  endif()
+  if(MSVC)
+    message(FATAL_ERROR "STARCOM_SANITIZE is not wired for MSVC")
+  endif()
+  target_compile_options(${tgt} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(${tgt} PRIVATE -fsanitize=address,undefined)
+endfunction()

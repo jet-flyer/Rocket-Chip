@@ -18,6 +18,7 @@ endforeach()
 project(starcom VERSION ${_sc_maj}.${_sc_min}.${_sc_pat} LANGUAGES CXX)
 
 option(STARCOM_BUILD_TESTS "Build host unit tests and ctest" ON)
+option(STARCOM_SANITIZE "ASan+UBSan on core, adapters, and tests (not MSVC; needs libasan)" OFF)
 
 include(cmake/CompilerWarnings.cmake)
 include(cmake/starcom_version.cmake)
@@ -44,6 +45,7 @@ target_include_directories(starcom
 )
 
 starcom_set_core_flags(starcom)
+starcom_apply_sanitizer(starcom)
 
 add_subdirectory(adapters/host)
 

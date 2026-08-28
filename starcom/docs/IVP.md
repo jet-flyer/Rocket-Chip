@@ -51,7 +51,7 @@ Bottom-up, same cut as `STATUS.md`. MVP is **0+1 then 2**. USLP and COP-1 follow
 | **3** | USLP in the same PLTU | Version-4 in PLTU | T |
 | **4** | FOP-1 / FARM-1 | COP-1 procedures | T |
 | **5** | Host loopback, then generic radio port | (no new Blue Book claim) | T |
-| **6** | Sanitizers, fuzz smoke, `0.1.0` | Claims match tests | T, R (sketch) |
+| **6** | Sanitizer option, codec prefix smoke | Claims match tests | T |
 
 Repeater (early RC-facing, after 0+1 codecs exist): own sitting; grade bent vs buffered by RAM/CPU. Prox-1 §6 MAC/hailing: later. PIO/FPGA ports: increment 5 or a dedicated port sitting.
 
@@ -132,9 +132,11 @@ Host loopback (`HostLoopback` two `FrameSlot`s) then a generic `RadioPort` mailb
 
 **Gate:** COP-1 AD over loopback with `take_sdu`; radio port take_tx → offer_rx; D-5 on `slot_write`/`slot_read`.
 
-### Increment 6 (sketch)
+### Increment 6 — Hardening
 
-**6 — Hardening.** ASan/UBSan on host tests, short fuzz of the codecs, CONFORMANCE pointers. Product tuple is `STARCOM_VERSION` (`VERSIONING.md`); first annotated tag is `starcom-vMAJOR.MINOR.PATCH` with EXTRA empty — not a separate marketing `0.1.0`.
+Short codec prefix smoke (`test_fuzz.cpp`): lengths 0..PLTU min envelope (12), fills `00`/`FF`/`80`/`C0`/`FA`. ASan+UBSan via `-DSTARCOM_SANITIZE=ON` (needs libasan; this MinGW tree does not). CONFORMANCE rows that have tests now point at them. Product tuple ticks in `STARCOM_VERSION`. No annotated tag. Do not mint SC-NNN.
+
+**Gate:** `starcom.unit` includes the smoke; D-5 around it; sanitizer option exists.
 
 ## Closed
 

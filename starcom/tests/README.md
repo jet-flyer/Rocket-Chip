@@ -8,4 +8,4 @@ cmake --build starcom/build
 ctest --test-dir starcom/build
 ```
 
-`starcom.unit` is the host binary: codecs, COP-P, USLP, COP-1, host loopback (`test_loopback.cpp`), version header vs `STARCOM_VERSION` (`test_version.cpp`). UDP/SPI adapters are not this sitting.
+`starcom.unit` is the host binary: codecs, COP-P, USLP, COP-1, loopback, version, prefix smoke (`test_fuzz.cpp`). `-DSTARCOM_SANITIZE=ON` when libasan is present.

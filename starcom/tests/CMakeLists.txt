@@ -9,14 +9,16 @@ add_executable(starcom_tests
   unit/test_cop1.cpp
   unit/test_loopback.cpp
   unit/test_version.cpp
+  unit/test_fuzz.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)
 target_link_libraries(starcom_tests PRIVATE Starcom::starcom Starcom::adapters_host)
 target_compile_definitions(starcom_tests PRIVATE STARCOM_ROOT="${STARCOM_ROOT}")
 starcom_set_test_flags(starcom_tests)
+starcom_apply_sanitizer(starcom_tests)
 
-if(NOT MSVC)
+if(NOT MSVC AND NOT STARCOM_SANITIZE)
   target_compile_definitions(starcom_tests PRIVATE STARCOM_HEAP_WRAP)
   target_link_options(starcom_tests PRIVATE
     -Wl,--wrap=malloc
