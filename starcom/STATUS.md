@@ -6,7 +6,7 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 ## Next
 
-IVP increment 25 (first annotated tag). Sequence through 25 is in `docs/IVP.md`. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25. RC two-board soak / telemetry is consumer work on `main`, not a Starcom increment.
+IVP increment 25 (first annotated tag — owner pick). Sequence through 25 is in `docs/IVP.md`. Consumer how-to: `docs/USER_GUIDE.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. FPGA compliant PHY / decode held until board verification. RC two-board soak / telemetry is consumer work on `main`, not a Starcom increment.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- Increment 25 is an owner tag pick (`STARCOM_VERSION` EXTRA empty). Held outside 0–25: FPGA `PhyTier::compliant` / decode (WB), CFDP, house-bar remainder from 23, `payload_by_fsn` 256×64 BSS.
+- Increment 25 is an owner tag pick (`STARCOM_VERSION` EXTRA empty). Held: FPGA `PhyTier::compliant` / decode until board base-level verification. CFDP wanted, not 0–25. House-bar remainder (Error enumerators, function-pointer seams, dated audit) is not a numbered increment.
 
 ## Done this sitting
 
@@ -74,5 +74,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 23: **initial** pass only — public-verb camelBack + gated tidy subset (size/cognitive/unused-return/reserved-id) on `starcom/src/ccsds` + adapters. Not a full house-bar walk. `kCoppHold`/`kCop1Hold` stay host-loop caps (64). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
 - Increment 24: WSL ASan+UBSan `starcom.unit` PASS; fuzz to book-max PLTU envelope + golden mutate + COP receive; sizeof `CoppEndpoint=19544` / `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096. Detail: `docs/IVP.md`.
 - Increment 10 remainder: FOP-1 Resume/setup/LLIF + TT=1 suspend (232.1 Table 5-1 E18/E30–E46). Product tuple `0.24.0-dev`.
+- Sent copies off 256-FSN tables onto `FopP`/`Fop1` (`kFopPSentCap` 127 / `kFop1SentCap` 255). Host sizeof `CoppEndpoint=10136` (was 19544). `fop1Init` `Fop1{}` hit `-Wstack-usage=1024` — memset in place. Consumer guide: `docs/USER_GUIDE.md`.
 
 - Docs cut `db1465c`. Graph snapshot `952b913`.

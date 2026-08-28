@@ -370,7 +370,7 @@ Not a full JSF / P10 / JPL walk and not L2-P5. RC `standards/CODING_STANDARDS.md
 
 **Gate:** documented tidy run of the *gated subset* (function size, cognitive complexity, unused-return, reserved-id) plus public-verb camelBack; no Starcom accepted-deviation row; no codec behavior change mixed into the rename unless tests move with it. Does **not** close magic numbers, cyclomatic-vs-cognitive, member/`Error` enumerator naming, function-pointer seams, or a dated audit report.
 
-Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). `Error` enumerators stay the closed ICD set (`uslp_truncated`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS. Remainder of the house bar is later sittings. Next is increment 24.
+Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). `Error` enumerators stay the closed ICD set (`uslp_truncated`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Sent copies moved off a 256-FSN table onto `FopP`/`Fop1` (`kFopPSentCap` 127 / `kFop1SentCap` 255). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS. Remainder of the house bar (Error enumerators, function-pointer seams, dated audit) is later sittings. Next is increment 24.
 
 ### Increment 24 — Hardening close
 

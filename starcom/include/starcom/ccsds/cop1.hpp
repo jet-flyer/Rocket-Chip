@@ -81,7 +81,9 @@ struct Cop1Mib {
   Farm1Mib farm{};
 };
 
-inline constexpr std::size_t kFop1SentCap = 255;
+inline constexpr std::size_t kFop1SentCap = 255;  // 232.1 §5.1.12 K < 256
+inline constexpr std::size_t kCop1Hold = 64;      // host-loop cap, not MIB
+inline constexpr std::size_t kCop1SeqSlots = 4;   // host-loop cap, not MIB
 
 struct Fop1 {
   Fop1State state = Fop1State::s6_initial;
@@ -96,6 +98,8 @@ struct Fop1 {
   Cop1Mib mib{};
   std::array<std::uint8_t, kFop1SentCap> sent{};
   std::array<bool, kFop1SentCap> to_retransmit{};
+  std::array<std::array<std::byte, kCop1Hold>, kFop1SentCap> sent_payload{};
+  std::array<std::size_t, kFop1SentCap> sent_payload_len{};
   std::uint8_t sent_n = 0;
   Fop1Bc pending_bc = Fop1Bc::none;
   std::uint8_t set_vr_value = 0;
@@ -143,9 +147,6 @@ enum class Cop1Event : std::uint8_t {
   suspend,
 };
 
-inline constexpr std::size_t kCop1Hold = 64;      // host-loop cap, not MIB
-inline constexpr std::size_t kCop1SeqSlots = 4;  // host-loop cap, not MIB
-
 struct Cop1Endpoint {
   Farm1 farm{};
   Fop1 fop{};
@@ -160,10 +161,8 @@ struct Cop1Endpoint {
   std::array<std::byte, kCop1Hold> bd_q{};
   std::size_t bd_len = 0;
   bool bd_full = false;
-  // 256 N(S) × kCop1Hold ≈ 16 KiB. cop1Init memsets in place — do not
-  // `e = Cop1Endpoint{}` (stack temp exceeds Pico Core 0's 4 KiB).
-  std::array<std::array<std::byte, kCop1Hold>, 256> payload_by_ns{};
-  std::array<std::size_t, 256> payload_len_by_ns{};
+  // Sent copies on Fop1 still exceed a 4 KiB Pico stack. cop1Init memsets
+  // in place — do not `e = Cop1Endpoint{}`.
   std::array<std::array<std::byte, kCop1Hold>, kCop1SeqSlots> rx_q{};
   std::array<std::size_t, kCop1SeqSlots> rx_len{};
   std::uint8_t rx_n = 0;

@@ -60,7 +60,9 @@ enum class FopPSend : std::uint8_t {
   resend_seq,
 };
 
-inline constexpr std::size_t kFopPSentCap = 127;
+inline constexpr std::size_t kFopPSentCap = 127;  // 211.0 §7.2.3.3 window ≤127
+inline constexpr std::size_t kCoppHold = 64;      // host-loop cap, not MIB
+inline constexpr std::size_t kCoppSeqSlots = 4;   // host-loop cap, not MIB
 
 struct FopP {
   FopPState state = FopPState::s1_active;
@@ -79,6 +81,9 @@ struct FopP {
   Tick synch_deadline = 0;
   CoppMib mib{};
   std::array<std::uint8_t, kFopPSentCap> sent{};
+  std::array<std::array<std::byte, kCoppHold>, kFopPSentCap> sent_payload{};
+  std::array<std::size_t, kFopPSentCap> sent_payload_len{};
+  std::array<bool, kFopPSentCap> sent_payload_ud{};
   std::uint8_t sent_n = 0;
   std::uint8_t last_send_fsn = 0;  // FSN assigned by last Send EXP/SEQ/Resend
   bool synch_expired_latched = false;
@@ -96,10 +101,8 @@ enum class CoppEvent : std::uint8_t {
   farm_accepted,
 };
 
-// One COP-P endpoint (FOP-P + FARM-P). Queues are fixed for this sitting
-// (host loop / tests). Not a MIB number.
-inline constexpr std::size_t kCoppHold = 64;      // host-loop cap, not MIB
-inline constexpr std::size_t kCoppSeqSlots = 4;  // host-loop cap, not MIB
+// One COP-P endpoint (FOP-P + FARM-P). Wait/rx queues are host-loop caps,
+// not MIB. Sent copies live on FopP (kFopPSentCap), not a 256-FSN table.
 
 struct CoppEndpoint {
   FarmP farm{};
@@ -122,11 +125,8 @@ struct CoppEndpoint {
   std::size_t exp_len = 0;
   bool exp_full = false;
   bool exp_user_defined = false;
-  // 256 FSN × kCoppHold ≈ 16 KiB. Callers own this in BSS/static storage.
-  // coppInit memsets in place — do not `e = CoppEndpoint{}` (stack temp).
-  std::array<std::array<std::byte, kCoppHold>, 256> payload_by_fsn{};
-  std::array<std::size_t, 256> payload_len_by_fsn{};
-  std::array<bool, 256> payload_user_defined_by_fsn{};
+  // Wait + sent copies still exceed a 4 KiB Pico stack. coppInit memsets
+  // in place — do not `e = CoppEndpoint{}`.
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> rx_q{};
   std::array<std::size_t, kCoppSeqSlots> rx_len{};
   std::uint8_t rx_n = 0;

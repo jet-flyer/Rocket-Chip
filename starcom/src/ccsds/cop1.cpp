@@ -34,8 +34,11 @@ void sentPopFront(Fop1& f, std::uint8_t n) noexcept {
   }
   const std::uint8_t rest = static_cast<std::uint8_t>(f.sent_n - n);
   for (std::uint8_t i = 0; i < rest; ++i) {
-    f.sent[i] = f.sent[static_cast<std::uint8_t>(i + n)];
-    f.to_retransmit[i] = f.to_retransmit[static_cast<std::uint8_t>(i + n)];
+    const auto src = static_cast<std::uint8_t>(i + n);
+    f.sent[i] = f.sent[src];
+    f.to_retransmit[i] = f.to_retransmit[src];
+    f.sent_payload[i] = f.sent_payload[src];
+    f.sent_payload_len[i] = f.sent_payload_len[src];
   }
   f.sent_n = rest;
 }
@@ -207,7 +210,7 @@ Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
 }
 
 void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept {
-  f = Fop1{};
+  std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = mib;
   if (f.mib.k == 0u) {
     f.mib.k = 1;
@@ -217,6 +220,9 @@ void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept {
   }
   f.state = Fop1State::s6_initial;
   f.transmission_count = 1;
+  f.ad_out_ready = true;
+  f.bc_out_ready = true;
+  f.bd_out_ready = true;
 }
 
 bool fop1InitiateAd(Fop1& f) noexcept {
@@ -532,7 +538,7 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
 void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
                Vcid vcid, MapId map) noexcept {
   static_assert(std::is_trivially_copyable_v<Cop1Endpoint>);
-  // Same as coppInit: payload_by_ns is 256 × kCop1Hold. Do not
+  // Same as coppInit: Fop1 sent copies are kFop1SentCap × kCop1Hold. Do not
   // `e = Cop1Endpoint{}` on a 4 KiB MCU stack.
   std::memset(static_cast<void*>(&e), 0, sizeof(e));
   e.local_scid = local;
@@ -708,10 +714,13 @@ void cop1TakeAd(Cop1Endpoint& e, UslpFields& hdr,
                 std::span<const std::byte>& tfdz) noexcept {
   const auto ns = e.fop.last_send_ns;
   tfdz = std::span<const std::byte>(e.ad_q[0].data(), e.ad_len[0]);
-  std::copy(e.ad_q[0].begin(),
-            e.ad_q[0].begin() + static_cast<std::ptrdiff_t>(e.ad_len[0]),
-            e.payload_by_ns[ns].begin());
-  e.payload_len_by_ns[ns] = e.ad_len[0];
+  if (e.fop.sent_n > 0) {
+    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1u);
+    std::copy(e.ad_q[0].begin(),
+              e.ad_q[0].begin() + static_cast<std::ptrdiff_t>(e.ad_len[0]),
+              e.fop.sent_payload[slot].begin());
+    e.fop.sent_payload_len[slot] = e.ad_len[0];
+  }
   for (std::uint8_t i = 0; i + 1u < e.ad_n; ++i) {
     e.ad_q[i] = e.ad_q[i + 1u];
     e.ad_len[i] = e.ad_len[i + 1u];
@@ -754,8 +763,14 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
   }
   if (kind == Fop1Send::resend_ad) {
     const auto ns = e.fop.last_send_ns;
-    tfdz = std::span<const std::byte>(e.payload_by_ns[ns].data(),
-                                     e.payload_len_by_ns[ns]);
+    tfdz = {};
+    for (std::uint8_t i = 0; i < e.fop.sent_n; ++i) {
+      if (e.fop.sent[i] == ns) {
+        tfdz = std::span<const std::byte>(e.fop.sent_payload[i].data(),
+                                          e.fop.sent_payload_len[i]);
+        break;
+      }
+    }
     hdr.vcf_count = ns;
     return;
   }

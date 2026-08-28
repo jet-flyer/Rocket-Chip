@@ -53,7 +53,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 - **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
 - **Do** read in this order when onboarding:
-  1. this file
+  1. this file (agents); `USER_GUIDE.md` (consumers)
   2. `DESIGN.md` (locks)
   3. `SAD.md` (map + codec field maps), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
   4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass), `TESTING.md` (how we write and run host tests)
@@ -66,7 +66,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public verbs were brought to house camelBack in IVP 23 (initial pass, not a full naming/standards walk). Remaining house-bar items are later sittings, not an exemption.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
-- **Do** keep MCU automatic storage tiny. Pico Core 0 stack is 4 KiB. Do not value-init `CoppEndpoint` / `Cop1Endpoint` (`memset` in place). Do not put `kTransferFrameMax` (2048) arrays on the stack — caller span or file-scope scratch. GNU `-Wstack-usage=1024` is on the library (`cmake/CompilerWarnings.cmake`).
+- **Do** keep MCU automatic storage tiny. Pico Core 0 stack is 4 KiB. Do not value-init `CoppEndpoint` / `Cop1Endpoint` (`memset` in place). Sent copies are `kFopPSentCap` / `kFop1SentCap`, not a 256-FSN table. Do not put `kTransferFrameMax` (2048) arrays on the stack — caller span or file-scope scratch. GNU `-Wstack-usage=1024` is on the library (`cmake/CompilerWarnings.cmake`).
 
 ### Pedagogy (standing requirement per `design_record_claude.md` §0.6)
 

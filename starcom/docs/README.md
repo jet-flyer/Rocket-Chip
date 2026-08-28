@@ -2,7 +2,7 @@
 
 Library docs live here, not under repo-root `docs/research/`.
 
-**Living:** [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`TESTING.md`](TESTING.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
+**Living:** [`USER_GUIDE.md`](USER_GUIDE.md), [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`TESTING.md`](TESTING.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
 
 **Research freeze:** [`DESIGN.md`](DESIGN.md) is the condensed record. Historical research and `comparison.md` stay append-only.
 
@@ -10,12 +10,13 @@ Library docs live here, not under repo-root `docs/research/`.
 
 ## Reading order
 
-1. [`WORKING_HERE.md`](WORKING_HERE.md) — dos/don'ts and vocabulary
-2. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
-3. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
-4. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof through increment 25; [`TESTING.md`](TESTING.md) — how host tests are written and run
-5. [`integration/CONSUMERS.md`](integration/CONSUMERS.md) — what RC and other stacks can call now vs later
-6. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
+1. [`USER_GUIDE.md`](USER_GUIDE.md) — consumer how-to
+2. [`WORKING_HERE.md`](WORKING_HERE.md) — agents; dos/don'ts and vocabulary
+3. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
+4. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
+5. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof through increment 25; [`TESTING.md`](TESTING.md) — how host tests are written and run
+6. [`integration/CONSUMERS.md`](integration/CONSUMERS.md) — what RC and other stacks can call now vs later
+7. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)
 
 ## Tracking (`starcom/` root)
 

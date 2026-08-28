@@ -28,7 +28,11 @@ void sentPopFront(FopP& f, std::uint8_t n) noexcept {
   }
   const std::uint8_t rest = static_cast<std::uint8_t>(f.sent_n - n);
   for (std::uint8_t i = 0; i < rest; ++i) {
-    f.sent[i] = f.sent[static_cast<std::uint8_t>(i + n)];
+    const auto src = static_cast<std::uint8_t>(i + n);
+    f.sent[i] = f.sent[src];
+    f.sent_payload[i] = f.sent_payload[src];
+    f.sent_payload_len[i] = f.sent_payload_len[src];
+    f.sent_payload_ud[i] = f.sent_payload_ud[src];
   }
   f.sent_n = rest;
 }
@@ -111,7 +115,9 @@ Plcw16 farmPReport(FarmP const& f, Pcid pcid) noexcept {
 }
 
 void fopPInit(FopP& f, CoppMib const& mib) noexcept {
-  f.mib = mib;
+  CoppMib keep = mib;
+  std::memset(static_cast<void*>(&f), 0, sizeof(f));
+  f.mib = keep;
   if (f.mib.transmission_window > 127u) {
     f.mib.transmission_window = 127;
   }
@@ -119,14 +125,7 @@ void fopPInit(FopP& f, CoppMib const& mib) noexcept {
     f.mib.transmission_window = 1;
   }
   f.state = FopPState::s1_active;
-  f.v_s = f.ve_s = f.vv_s = f.nn_r = f.n_r = 0;
-  f.r_r = f.rr_r = f.resync = false;
   f.need_plcw = f.need_status_report = true;
-  f.plcw_heard = false;
-  f.sent_n = 0;
-  f.last_send_fsn = 0;
-  f.synch_expired_latched = false;
-  clearSynch(f);
 }
 
 void fopPReset(FopP& f) noexcept {
@@ -219,8 +218,8 @@ namespace {
 
 void coppClear(CoppEndpoint& e) noexcept {
   static_assert(std::is_trivially_copyable_v<CoppEndpoint>);
-  // In-place zero. `e = CoppEndpoint{}` materializes an ~18 KiB temporary
-  // (payload_by_fsn is 256 × kCoppHold). Pico Core 0 stack is 4 KiB.
+  // In-place zero. `e = CoppEndpoint{}` still exceeds Pico Core 0's 4 KiB
+  // (FopP sent copies are kFopPSentCap × kCoppHold).
   std::memset(static_cast<void*>(&e), 0, sizeof(e));
 }
 
@@ -474,17 +473,21 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
     return;
   }
   if (kind == FopPSend::new_seq && e.seq_n > 0) {
-    const auto fsn = e.fop.last_send_fsn;
     const std::size_t n = e.seq_len[0];
     user_defined = e.seq_user_defined[0];
+    if (e.fop.sent_n == 0) {
+      payload = {};
+      return;
+    }
+    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1u);
     if (n != 0) {
       std::copy(e.seq_q[0].begin(),
                 e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(n),
-                e.payload_by_fsn[fsn].begin());
+                e.fop.sent_payload[slot].begin());
     }
-    e.payload_len_by_fsn[fsn] = n;
-    e.payload_user_defined_by_fsn[fsn] = user_defined;
-    payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(), n);
+    e.fop.sent_payload_len[slot] = n;
+    e.fop.sent_payload_ud[slot] = user_defined;
+    payload = std::span<const std::byte>(e.fop.sent_payload[slot].data(), n);
     for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
       e.seq_q[i] = e.seq_q[i + 1u];
       e.seq_len[i] = e.seq_len[i + 1u];
@@ -494,9 +497,15 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
     return;
   }
   const auto fsn = e.fop.last_send_fsn;
-  payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(),
-                                       e.payload_len_by_fsn[fsn]);
-  user_defined = e.payload_user_defined_by_fsn[fsn];
+  for (std::uint8_t i = 0; i < e.fop.sent_n; ++i) {
+    if (e.fop.sent[i] == fsn) {
+      payload = std::span<const std::byte>(e.fop.sent_payload[i].data(),
+                                           e.fop.sent_payload_len[i]);
+      user_defined = e.fop.sent_payload_ud[i];
+      return;
+    }
+  }
+  payload = {};
 }
 
 }  // namespace
