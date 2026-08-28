@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-08-28-002 | Grok 4.6 (Build CLI) | bugfix
+
+**`copp_init` / `cop1_init` memset in place.** `e = CoppEndpoint{}` (and the COP-1 twin) compiled to an ~18 KiB stack temporary; Pico Core 0 stack is 4 KiB (`PICO_STACK_SIZE=0x1000`). First ON UF2 reset-looped at `AO_Telemetry_start`. `payload_by_fsn` / `payload_by_ns` stay in BSS. Product still `0.19.0-dev`. No tag. No SC-NNN.
+
+RC Pico+AO (21) and COP-P air path (22) are the consumer sitting — log them in the repo-root `CHANGELOG.md` `2026-08-28-002`, not here. Branch `grok/sc-dev` (`1090959`).
+
+Verified: `StarcomBytePump` + `CmdSdu` host tests PASS; vehicle ON after the fix `Air: starcom-prep`, `bench_sim` 2/2 PASS on COM5. Detail of the RC wiring is the root entry.
+
 ### 2026-08-28-001 | Grok Hamilton (Grok Bot) | feature
 
 **IVP 13–19 cut.** Product `0.19.0-dev`. Full 211.0 §6 MAC + SET V(R) (13). V-3 DFC 11 user-defined octets, not bitstream (14). Host file replay + UDP; sockets only on `Starcom::adapters_host` (15). Generic SPI/GPIO `BusOps`, host fake bus, no Pico/RFM in the core (16). PIO bit pipe, not 211.1 (17). PHY adapter tiers; uncoded host path; `PhyTier::compliant` not offered (18). Conv K=7 r=1/2 with G2 inversion + LDPC (2048,1024) encode, CSM `0347 76C7 2728 95B0`, codeword-only randomize; decode later GCS/Pi (19). Next is increment 20 (RC host `add_subdirectory`). FPGA/decode hold is on `AGENT_WHITEBOARD.md` (Forgix first, then Snickerdoodle). No merge to main. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`.

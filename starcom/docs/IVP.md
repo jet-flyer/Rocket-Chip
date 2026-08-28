@@ -360,6 +360,8 @@ AO_Telemetry ON: nav/cmd/ACK go through those verbs; `ccsds_encoder.encode_nav_w
 
 **Gate:** RC command path uses `copp_*`; old encoder is not on the ON flight path; host tests of the RC caller (`StarcomBytePump.CoppNavSduNotOldEncoder`, `CoppCommandSduRoundTrip`, `test_cmd_sdu`); Starcom core unchanged. Do not mint SC-NNN.
 
+Landed on `grok/sc-dev` (`f71db10`). Host tests PASS. Vehicle ON `Air: starcom-prep`, `bench_sim` 2/2. Two-board LoRa (station ON answering PLCWs) is not this gate. Next is increment 23.
+
 ### Increment 23 — Coding-standards audit
 
 RC `standards/CODING_STANDARDS.md` applies. clang-tidy / identifier-naming / JSF-adjacent on `starcom/src` + `include/starcom`. Remediate ICD snake_case vs house camelBack. Review host-loop caps (`kCoppHold`, `kCop1Hold`) — those are not MIB. `#pragma once` stays the accepted project deviation.

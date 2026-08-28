@@ -8,12 +8,6 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Sequence: [`docs/IVP.md`](docs
 
 ---
 
-## copp_init stack smash — log at wrap, not the fix commit (2026-08-28)
-
-`copp_init` / `copp_init_uslp` / `cop1_init` memset in place. `e = CoppEndpoint{}` was an ~18 KiB stack temp; Pico Core 0 is 4 KiB; first ON UF2 reset-looped. **Home at wrap:** [`CHANGELOG.md`](CHANGELOG.md) (Starcom library bugfix). Root `CHANGELOG.md` only if that wrap also covers the Pico ON sitting — confirm (checklist item 8). Do not mint a row on the copp-init commit.
-
----
-
 ## Host dissect demo — teaching tool (SIDETRACK) (2026-08-27)
 
 Break-time only. Not mainline IVP. Lives in `starcom/examples/` when scheduled — host CLI, not `starcom::ccsds`, not Rocket-Chip firmware (RC’s station dashboard / `telemetry_encoder` stay in RC until IVP 20–22).

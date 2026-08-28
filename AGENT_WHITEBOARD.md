@@ -36,7 +36,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 22 in progress** on `grok/sc-dev` (RC wiring, not a Starcom core sitting). 21 landed (Pico + `byte_pump`; `copp_init` stack-smash `1090959`). 20 was host `add_subdirectory`. Wrap log for the stack-smash still on `starcom/CHANGELOG.md`. Default OFF stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main for 20: `2026-08-28-001` (`82f24f0`).
+**IVP 20–22 landed** on `grok/sc-dev` (RC consumer wiring). Next Starcom increment is **23** (coding-standards audit). Default OFF stays STOP-GAP. Two-board LoRa soak is not 23. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22 + `copp_init` wrap logs: root `CHANGELOG.md` / `starcom/CHANGELOG.md` `2026-08-28-002`.
 
 ---
 

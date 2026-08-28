@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 21 Pico + AO byte pump in; increment 22 COP replace in progress on `grok/sc-dev`. Product `0.19.0-dev`. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** RC consumer IVP 20–22 in on `grok/sc-dev`. Product `0.19.0-dev`. Next is 23 (Starcom coding-standards audit). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 22 (COP-P replace of RC `telemetry_encoder` on the ON air path). Sequence through 25 is in `docs/IVP.md`. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
+IVP increment 23 (clang-tidy / camelBack vs ICD snake_case on `starcom/src` + `include/starcom`). Sequence through 25 is in `docs/IVP.md`. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
