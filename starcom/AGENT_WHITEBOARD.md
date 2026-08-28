@@ -32,3 +32,22 @@ Owner-wanted. **CCSDS 727.0** file delivery with a checksum over the blob — da
 When scheduled: own stack module above `starcom::ccsds`, not a codec sitting.
 
 ---
+
+## FPGA compliant PHY + decode port (HELD) (2026-08-27)
+
+Not 19. Not a license to start tonight. Nathan 2026-08-27: flesh this out next sitting so it is not a skip.
+
+**Already in (do not redo):** increment 18 uncoded `PhyTier` none / best_effort on the host path. Increment 19 is host encode (conv K=7 r=1/2 with G2 inversion, LDPC (2048,1024) + CSM + codeword randomize). Host goldens close 19. Buzz: Snickerdoodle / Pi stay off the bench while 19 is host encode.
+
+**Held — cut these as their own sittings, not as 19 leftovers:**
+
+1. **`PhyTier::compliant` / 211.1 waveform / FPGA bitstream** (the 18 claim we did not make). HDL sim before bitstream (Researcher). Same codec vectors as the host uncoded path. No Electra / UT product claim.
+
+2. **Decode port.** Researcher 2026-08-27: projection, not P&R. Encode is tiny. Viterbi K=7 decode is the wrong class for Forgix T8 (~7.4k LE), let alone LDPC (2048,1024) decode. Snickerdoodle 7020 (~53k LUT) is the first fabric even in the decode ballpark. 7010 / Pluto is not.
+   - Honest default for this stack: **Pi as GCS decode** (can hang on HW Nathan already has, after encode goldens exist).
+   - Hook the Snickerdoodle when we want a **real utilization number** for a decode port, not to close 19.
+
+
+Owner split: Researcher FPGA / Blue Book / sim-before-bitstream. Hamilton decode as a later software port (Pi first). Buzz bench bring-up when Nathan says.
+
+---

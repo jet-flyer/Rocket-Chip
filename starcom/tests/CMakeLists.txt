@@ -16,6 +16,7 @@ add_executable(starcom_tests
   unit/test_radio_bus.cpp
   unit/test_pio_port.cpp
   unit/test_phy.cpp
+  unit/test_coding.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)

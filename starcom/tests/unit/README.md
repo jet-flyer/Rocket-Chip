@@ -14,3 +14,4 @@ Procedure: [`../../docs/TESTING.md`](../../docs/TESTING.md).
 | `test_radio_bus.cpp` | IVP 16 generic SPI/GPIO port on a fake bus |
 | `test_pio_port.cpp` | IVP 17 PIO bit pipe; 0+1 PLTU octets |
 | `test_phy.cpp` | IVP 18 PHY tiers; uncoded 0+1 PLTU; compliant not offered |
+| `test_coding.cpp` | IVP 19 conv / LDPC encode; uncoded 18 unchanged |

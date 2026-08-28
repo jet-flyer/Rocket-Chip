@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 18 PHY adapter tiers in. Product `0.18.0-dev`. Next is 19 (conv / LDPC). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** increment 19 conv / LDPC encode in. Product `0.19.0-dev`. Next is 20 (RC host consumer link). ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 19 (Convolutional / LDPC). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
+IVP increment 20 (RC host `add_subdirectory(starcom)`). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- None for increment 18. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
+- None for increment 19. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
 
 ## Done this sitting
 
@@ -69,4 +69,5 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 16: generic SPI/GPIO `BusOps` + `radio_bus_shift_*` (`adapters/rp2350/`). Host fake bus. No Pico SDK, no RFM types, not 211.1.
 - Increment 17: PIO bit pipe (`pio_shift_out` / `pio_shift_in`). Host fake PIO, 0+1 PLTU octets. Not 211.1 PM.
 - Increment 18: `PhyDecl` tiers. Uncoded host path. `compliant` / FPGA HDL not offered this sitting.
+- Increment 19: conv encode (211.2 §3.4.3) + LDPC (2048,1024) encode + CSM + codeword randomize. Decode deferred. Uncoded 18 unchanged.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

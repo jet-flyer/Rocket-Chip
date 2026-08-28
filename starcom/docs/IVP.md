@@ -299,9 +299,21 @@ Result<PltuView> phy_uncoded_decode(PhyDecl, std::span<const std::byte>);
 
 ### Increment 19 — Convolutional / LDPC
 
-211.2 PICS: at least one of uncoded / conv / LDPC. MVP is uncoded (0+1). This increment adds conv and/or LDPC as 211.2 → 131.0 coding. Not a 131.0 long-haul TM C&S product.
+Landed (host). 211.2 PICS: uncoded (18) + conv encode + LDPC encode. 211.2 §3.4.3 / §3.4.4 / §3.4.5 and 131.0-B-5 §3.3 / §7.4. Encode only; Viterbi / LDPC decode deferred to GCS/Pi. Not a 131.0 long-haul TM C&S product. Uncoded PhyTier path from 18 is unchanged. G2 inversion is used (Prox-1 211.2 → 131.0). Annex F Odyssey Unreliable Bitstream is not this increment.
 
-**Gate:** coded PLTU round-trip against the cited 131.0 procedure; uncoded path unchanged; D-5 on the codec side.
+```cpp
+Result<std::size_t> conv_encode(std::span<std::byte> out, std::span<const std::byte> in);
+struct ConvEnc { std::uint8_t mem; };
+Result<std::size_t> conv_encode(std::span<std::byte> out, std::span<const std::byte> in, ConvEnc&);
+Result<std::size_t> conv_encode_step(std::span<std::byte> out, std::byte in, ConvEnc&);
+
+inline constexpr std::array<std::byte, 8> kLdpcCsm;  // 03 47 76 C7 27 28 95 B0
+Result<std::size_t> ldpc_randomize(std::span<std::byte> codeword);
+Result<std::size_t> ldpc_encode_block(std::span<std::byte> out, std::span<const std::byte> message);
+Result<std::size_t> ldpc_encode_stream(std::span<std::byte> out, std::span<const std::byte> bitstream);
+```
+
+**Gate:** conv zero-vector / independent encoder / state concat; LDPC (2048,1024) + CSM + 211.2 randomizer prefix; uncoded path unchanged; D-5. Tests: `tests/unit/test_coding.cpp`. Do not mint SC-NNN.
 
 ### Increment 20 — RC host consumer link
 

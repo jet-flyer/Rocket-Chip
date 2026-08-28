@@ -291,7 +291,32 @@ Result<std::size_t> phy_uncoded_encode(PhyDecl, std::span<std::byte>, std::span<
 Result<PltuView> phy_uncoded_decode(PhyDecl, std::span<const std::byte>);
 ```
 
-Uncoded host path for none / best_effort. `compliant` is not offered. FPGA HDL sim before bitstream. Convolutional / LDPC is increment 19. No virtual `IRadio` in the core (P10-9).
+Uncoded host path for none / best_effort. `compliant` is not offered. FPGA HDL sim before bitstream. No virtual `IRadio` in the core (P10-9).
+
+## Increment 19 — convolutional / LDPC encode
+
+Core path: `starcom::ccsds`, not adapters. Rate-1/2 K=7 conv (211.2 §3.4.3 → 131.0 §3.3): G1=171, G2=133, G2 inverted, C1 then C2, MSB-first, memory 0 at the one-shot API. LDPC (211.2 §3.4.4–3.4.5 → 131.0 §7.4) (2048,1024) systematic encode, CSM not randomized, 211.2 PN on the codeword only. Decode is not on this API.
+
+```cpp
+struct ConvEnc { std::uint8_t mem = 0; };
+Result<std::size_t> conv_encode(std::span<std::byte> out, std::span<const std::byte> in) noexcept;
+Result<std::size_t> conv_encode(std::span<std::byte> out, std::span<const std::byte> in,
+                                ConvEnc& enc) noexcept;
+Result<std::size_t> conv_encode_step(std::span<std::byte> out, std::byte in, ConvEnc& enc) noexcept;
+
+inline constexpr std::size_t kLdpcMessageOctets = 128;
+inline constexpr std::size_t kLdpcCodewordOctets = 256;
+inline constexpr std::size_t kLdpcCodedOctets = 8 + 256;
+inline constexpr std::array<std::byte, 8> kLdpcCsm;  // 03 47 76 C7 27 28 95 B0
+Result<std::size_t> ldpc_randomize(std::span<std::byte> codeword) noexcept;
+Result<std::size_t> ldpc_encode_block(std::span<std::byte> out,
+                                      std::span<const std::byte> message) noexcept;
+Result<std::size_t> ldpc_encode_stream(std::span<std::byte> out,
+                                       std::span<const std::byte> bitstream) noexcept;
+```
+
+`conv_encode` writes 2× input octets (`buffer_too_small` if `out` is short). `ldpc_encode_block` needs 128-octet messages (`truncated` otherwise). Stream length not a multiple of 128 is `truncated`; Idle/fill is the caller's job. Too-small `out` is `buffer_too_small`.
+
 
 ## CMake (with the first `.cpp`, not a solo sitting)
 
