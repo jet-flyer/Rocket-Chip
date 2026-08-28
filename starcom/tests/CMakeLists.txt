@@ -10,6 +10,7 @@ add_executable(starcom_tests
   unit/test_loopback.cpp
   unit/test_version.cpp
   unit/test_fuzz.cpp
+  unit/test_size.cpp
   unit/test_mac.cpp
   unit/test_user_defined.cpp
   unit/test_host_io.cpp

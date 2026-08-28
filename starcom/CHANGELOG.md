@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-08-28-003 | Grok 4.6 (Build CLI) | bugfix, tooling
+
+**IVP 24 hardening close.** ASan+UBSan `starcom.unit` PASS on WSL Ubuntu 13.3 (`-DSTARCOM_SANITIZE=ON`; this MinGW still has no libasan). Fuzz longer than increment-6 prefix: book-max PLTU envelope, golden v3-header-only mutate, `huntPltu`, COP receive. Size report (measured): `CoppEndpoint=19544` `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096 (`g_tfScratch` + `g_cop1TfScratch`). `-Wstack-usage=1024` already on the core (MCU stack fix). Product still `0.19.0-dev`. Next is increment 25 (owner tag). No SC-NNN.
+
+Verified: pure-software change, `starcom.unit` PASS (MinGW + WSL ASan/UBSan), no HW reseat required.
+
 ### 2026-08-28-002 | Grok 4.6 (Build CLI) | bugfix
 
 **`copp_init` / `cop1_init` memset in place.** `e = CoppEndpoint{}` (and the COP-1 twin) compiled to an ~18 KiB stack temporary; Pico Core 0 stack is 4 KiB (`PICO_STACK_SIZE=0x1000`). First ON UF2 reset-looped at `AO_Telemetry_start`. `payload_by_fsn` / `payload_by_ns` stay in BSS. Product still `0.19.0-dev`. No tag. No SC-NNN.

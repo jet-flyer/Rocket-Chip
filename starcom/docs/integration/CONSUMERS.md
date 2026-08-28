@@ -38,7 +38,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | 21 | Pico link + first AO byte pump | Landed (`grok/sc-dev`) |
 | 22 | Replace `telemetry_encoder` with COP | Landed (`grok/sc-dev`) |
 | 23 | Initial clang-tidy / camelBack pass (not exhaustive) | Landed (`688ff00`; no Starcom deviation row) |
-| 24 | ASan host, longer fuzz, size report | Starcom |
+| 24 | ASan host, longer fuzz, size report | Landed (WSL ASan; sizeof in IVP.md) |
 | 25 | First `starcom-v*` tag | Owner cut |
 
 ## How to call (shape)

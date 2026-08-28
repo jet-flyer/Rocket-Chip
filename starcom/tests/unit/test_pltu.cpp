@@ -456,6 +456,7 @@ int run_cop1_tests();
 int run_loopback_tests();
 int run_version_tests();
 int run_fuzz_tests();
+int run_size_tests();
 int run_mac_tests();
 int run_user_defined_tests();
 int run_host_io_tests();
@@ -496,6 +497,7 @@ int main() {
   g_fails += run_loopback_tests();
   g_fails += run_version_tests();
   g_fails += run_fuzz_tests();
+  g_fails += run_size_tests();
   g_fails += run_mac_tests();
   g_fails += run_user_defined_tests();
   g_fails += run_host_io_tests();

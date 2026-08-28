@@ -24,7 +24,7 @@ cmake --build starcom/build-san
 ctest --test-dir starcom/build-san --output-on-failure
 ```
 
-Turns off the D-5 `--wrap=malloc` trap (ASan owns the allocator). This tree's MinGW g++ 15.2 has the flags but not the libs.
+Turns off the D-5 `--wrap=malloc` trap (ASan owns the allocator). This tree's MinGW g++ 15.2 has the flags but not the libs. Increment 24 ran the sanitizer on WSL Ubuntu 13.3 (`libasan8` + `libubsan1`). On a Windows worktree, WSL `git` needs `GIT_DIR` pointed at `.git/worktrees/<name>` or version identity stays `unknown`.
 
 ## When a codec lands
 
@@ -40,7 +40,7 @@ The book wins if a test comment and Annex C / Fig 3-1 disagree. Fix the test (an
 
 ## What waits
 
-- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets. Increment 6 prefix smoke is `tests/unit/test_fuzz.cpp` (bounded lengths, TFVN/ASM fills), not a random dump.
+- **Shared on-disk golden files / generated corpora** — not yet. Named IVP vectors as `constexpr` octets. Increment 6 prefix smoke is `tests/unit/test_fuzz.cpp` (bounded lengths, TFVN/ASM fills). Increment 24 extends that file to the book-max PLTU envelope, golden mutate, `huntPltu`, and COP receive — still not a random dump.
 - Radio, Pico SDK, FPGA testbench — adapters / ports. Same golden vectors when those sittings run.
 
 ## Hooks (later, keep small)

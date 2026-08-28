@@ -376,6 +376,10 @@ ASan+UBSan on a host that has libasan/libubsan. Longer fuzz than prefix smoke. S
 
 **Gate:** sanitizer run PASS; fuzz longer than 0..12 prefix; size numbers in the increment record (not invented earlier).
 
+Landed. MinGW g++ 15.2 still has no libasan; the sanitizer *run* is WSL Ubuntu 13.3 (`libasan8` + `libubsan1`), `-DSTARCOM_SANITIZE=ON`, `starcom.unit` PASS (ASan/UBSan). Fuzz (`tests/unit/test_fuzz.cpp`) keeps increment-6 prefix 0..PLTU-min (12) and adds book-max envelope (`kPltuAsmSize + kTransferFrameMax + kPltuCrcSize`), golden v3-header-only mutate, `huntPltu`, and `coppReceiveBytes` / `cop1ReceiveBytes`. Not a random corpus.
+
+Host sizeof (printed by `tests/unit/test_size.cpp`, same on MinGW 15.2 and WSL 13.3): `CoppEndpoint=19544` `Cop1Endpoint=19664` `FopP=164` `FarmP=4` `kTransferFrameMax=2048` `kLdpcMessageOctets=128`. Both endpoints are larger than Pico Core 0's 4 KiB stack (`PICO_STACK_SIZE=0x1000`) — BSS/static only; value-init is the increment-21 USB loop. Pico `Starcom::starcom` (`arm-none-eabi-size` on `build_flight_starcom/starcom/libstarcom.a`, Debug ON): `.text` 22270; `.bss` 4096 (`g_tfScratch` + `g_cop1TfScratch`, 2048 each). `CoppEndpoint` storage is the RC consumer `g_pump`, not this archive. GNU `-Wstack-usage=1024` remains on the core. Next is increment 25 (tag). Do not mint SC-NNN.
+
 ### Increment 25 — First annotated tag
 
 Owner picks the cut. `STARCOM_VERSION` EXTRA empty. Tag `starcom-vMAJOR.MINOR.PATCH`. Not a marketing `0.1.0` that disagrees with MINOR (`VERSIONING.md`).

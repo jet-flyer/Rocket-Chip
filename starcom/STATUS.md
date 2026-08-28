@@ -2,11 +2,11 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** RC consumer IVP 20–22 in on `grok/sc-dev`. IVP 23 **initial** coding-standards pass in (public-verb camelBack + gated tidy subset; not exhaustive; no Starcom accepted-deviation row). Product `0.19.0-dev`. Next is 24 (ASan/fuzz/size on a host that has libasan). No tag. No SC-NNN.
+**Phase:** IVP 24 hardening close in (ASan+UBSan on WSL, longer fuzz, measured size report). IVP 23 remains an **initial** coding-standards pass, not a full house-bar walk. Product `0.19.0-dev`. Next is 25 (first annotated `starcom-v*` tag — owner pick). No tag. No SC-NNN.
 
 ## Next
 
-IVP increment 24 (ASan+UBSan + longer fuzz + size report). Sequence through 25 is in `docs/IVP.md`. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
+IVP increment 25 (first annotated tag). Sequence through 25 is in `docs/IVP.md`. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25. RC two-board soak / telemetry is consumer work on `main`, not a Starcom increment.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -41,7 +41,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- None for increment 19. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
+- None for increment 24. MinGW g++ 15.2 still has no libasan; the sanitizer *run* is WSL Ubuntu 13.3. Increment 25 is an owner tag pick.
 
 ## Done this sitting
 
@@ -72,5 +72,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 19: conv encode (211.2 §3.4.3) + LDPC (2048,1024) encode + CSM + codeword randomize. Decode deferred. Uncoded 18 unchanged.
 - Increment 20: RC host `addSubdirectory(starcom)` when `ROCKETCHIP_USE_STARCOM=ON`; `Starcom::starcom` linked from host PLTU round-trip / STOP-GAP reject-as-PLTU. Nested `STARCOM_BUILD_TESTS=OFF`. Pico link is 21. Product stays `0.19.0-dev`.
 - Increment 23: **initial** pass only — public-verb camelBack + gated tidy subset (size/cognitive/unused-return/reserved-id) on `starcom/src/ccsds` + adapters. Not a full house-bar walk. `kCoppHold`/`kCop1Hold` stay host-loop caps (64). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
+- Increment 24: WSL ASan+UBSan `starcom.unit` PASS; fuzz to book-max PLTU envelope + golden mutate + COP receive; sizeof `CoppEndpoint=19544` / `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096. Detail: `docs/IVP.md`.
 
 - Docs cut `db1465c`. Graph snapshot `952b913`.
