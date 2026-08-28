@@ -95,7 +95,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 - **Don't** make the protocol FSM **only** usable as a QP Active Object. AO wrapper = optional adapter.
 - **Don't** hard-code COP-1 managed parameters (T1, window sizes) — they must be configurable.
 - **Don't** claim 211.1-B-4 PHY compliance on SX1276/LoRa paths. Best-effort PHY must say so loudly.
-- **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Bent-pipe is IVP 7 (`repeat_pltu`). Buffered / dedup is IVP 12.
+- **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Bent-pipe is IVP 7 (`repeatPltu`). Buffered / dedup is IVP 12.
 - **Don't** describe a future repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). If we build one, it is range-extend of a PLTU, not a second link. Don't run COP on that path and don't decode the Space Packet just to forward.
 
 ### Documentation mistakes

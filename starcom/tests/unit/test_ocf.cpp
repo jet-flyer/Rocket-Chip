@@ -13,10 +13,10 @@
 #include <span>
 
 using starcom::ccsds::Clcw32;
-using starcom::ccsds::decode_clcw;
-using starcom::ccsds::decode_plcw;
-using starcom::ccsds::encode_clcw;
-using starcom::ccsds::encode_plcw;
+using starcom::ccsds::decodeClcw;
+using starcom::ccsds::decodePlcw;
+using starcom::ccsds::encodeClcw;
+using starcom::ccsds::encodePlcw;
 using starcom::ccsds::Error;
 using starcom::ccsds::kClcwSize;
 using starcom::ccsds::kPlcwSize;
@@ -39,13 +39,13 @@ void test_plcw_zero_report() {
   // IVP plcw-zero-report: Format ID 1, Type ID 0, spare 0
   Plcw16 z{};
   std::array<std::byte, 2> out{};
-  const auto n = encode_plcw(out, z);
+  const auto n = encodePlcw(out, z);
   CHECK(n.has_value());
   CHECK(*n == kPlcwSize);
   CHECK(out[0] == std::byte{0x80});
   CHECK(out[1] == std::byte{0x00});
 
-  const auto v = decode_plcw(out);
+  const auto v = decodePlcw(out);
   CHECK(v.has_value());
   CHECK(!v->retransmit);
   CHECK(v->pcid == Pcid{0});
@@ -60,9 +60,9 @@ void test_plcw_roundtrip() {
   w.expedited_counter = 5;
   w.report_value = 0xA5;
   std::array<std::byte, 2> out{};
-  const auto n = encode_plcw(out, w);
+  const auto n = encodePlcw(out, w);
   CHECK(n.has_value());
-  const auto v = decode_plcw(out);
+  const auto v = decodePlcw(out);
   CHECK(v.has_value());
   CHECK(v->retransmit);
   CHECK(v->pcid == Pcid{1});
@@ -75,7 +75,7 @@ void test_clcw_cop1() {
   Clcw32 z{};
   z.cop_in_effect = 0b01;
   std::array<std::byte, 4> out{};
-  const auto n = encode_clcw(out, z);
+  const auto n = encodeClcw(out, z);
   CHECK(n.has_value());
   CHECK(*n == kClcwSize);
   CHECK(out[0] == std::byte{0x01});
@@ -83,7 +83,7 @@ void test_clcw_cop1() {
   CHECK(out[2] == std::byte{0x00});
   CHECK(out[3] == std::byte{0x00});
 
-  const auto v = decode_clcw(out);
+  const auto v = decodeClcw(out);
   CHECK(v.has_value());
   CHECK(v->cop_in_effect == 0b01);
   CHECK(v->vcid == 0);
@@ -103,9 +103,9 @@ void test_clcw_roundtrip() {
   w.farm_b_counter = 3;
   w.report_value = 0x7E;
   std::array<std::byte, 4> out{};
-  const auto n = encode_clcw(out, w);
+  const auto n = encodeClcw(out, w);
   CHECK(n.has_value());
-  const auto v = decode_clcw(out);
+  const auto v = decodeClcw(out);
   CHECK(v.has_value());
   CHECK(v->status == 0b101);
   CHECK(v->cop_in_effect == 0b01);
@@ -120,28 +120,28 @@ void test_clcw_roundtrip() {
 }
 
 void test_truncated_and_small() {
-  const auto p = decode_plcw({});
+  const auto p = decodePlcw({});
   CHECK(!p.has_value());
   CHECK(p.error() == Error::truncated);
-  const auto c = decode_clcw(std::array<std::byte, 3>{});
+  const auto c = decodeClcw(std::array<std::byte, 3>{});
   CHECK(!c.has_value());
   CHECK(c.error() == Error::truncated);
 
   std::array<std::byte, 1> tiny{};
-  CHECK(encode_plcw(tiny, Plcw16{}).error() == Error::buffer_too_small);
-  CHECK(encode_clcw(tiny, Clcw32{}).error() == Error::buffer_too_small);
+  CHECK(encodePlcw(tiny, Plcw16{}).error() == Error::buffer_too_small);
+  CHECK(encodeClcw(tiny, Clcw32{}).error() == Error::buffer_too_small);
 }
 
 void test_heap() {
   std::array<std::byte, 4> out{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  (void)encode_plcw(out, Plcw16{});
-  (void)encode_clcw(out, Clcw32{});
-  (void)decode_plcw(out);
-  (void)decode_clcw(out);
-  starcom::test::heap_trap_disarm();
-  CHECK(starcom::test::heap_trap_count() == 0);
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  (void)encodePlcw(out, Plcw16{});
+  (void)encodeClcw(out, Clcw32{});
+  (void)decodePlcw(out);
+  (void)decodeClcw(out);
+  starcom::test::heapTrapDisarm();
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

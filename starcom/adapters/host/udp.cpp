@@ -23,7 +23,7 @@ namespace {
 #if defined(_WIN32)
 int g_wsa = 0;
 
-bool wsa_acquire() noexcept {
+bool wsaAcquire() noexcept {
   if (g_wsa == 0) {
     WSADATA data{};
     if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
@@ -34,7 +34,7 @@ bool wsa_acquire() noexcept {
   return true;
 }
 
-void wsa_release() noexcept {
+void wsaRelease() noexcept {
   if (g_wsa == 0) {
     return;
   }
@@ -51,15 +51,15 @@ using Native = int;
 constexpr Native kInvalid = -1;
 #endif
 
-Native as_native(std::uintptr_t n) noexcept {
+Native asNative(std::uintptr_t n) noexcept {
   return static_cast<Native>(n);
 }
 
-bool host_empty(char const* host) noexcept {
+bool hostEmpty(char const* host) noexcept {
   return host == nullptr || host[0] == '\0';
 }
 
-bool make_addr(char const* host, std::uint16_t port,
+bool makeAddr(char const* host, std::uint16_t port,
                sockaddr_in& addr) noexcept {
   std::memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
@@ -67,7 +67,7 @@ bool make_addr(char const* host, std::uint16_t port,
   return inet_pton(AF_INET, host, &addr.sin_addr) == 1;
 }
 
-bool set_nonblock(Native s) noexcept {
+bool setNonblock(Native s) noexcept {
 #if defined(_WIN32)
   u_long one = 1;
   return ioctlsocket(s, FIONBIO, &one) == 0;
@@ -80,7 +80,7 @@ bool set_nonblock(Native s) noexcept {
 #endif
 }
 
-void close_native(Native s) noexcept {
+void closeNative(Native s) noexcept {
 #if defined(_WIN32)
   closesocket(s);
 #else
@@ -90,45 +90,45 @@ void close_native(Native s) noexcept {
 
 }  // namespace
 
-ccsds::Result<std::uint16_t> udp_bind(UdpSocket& s, char const* host,
+ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
                                       std::uint16_t port) noexcept {
-  if (host_empty(host)) {
+  if (hostEmpty(host)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
   if (s.native != 0) {
-    udp_close(s);
+    udpClose(s);
   }
 #if defined(_WIN32)
-  if (!wsa_acquire()) {
+  if (!wsaAcquire()) {
     return tl::unexpected(ccsds::Error::truncated);
   }
 #endif
   Native sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (sock == kInvalid) {
 #if defined(_WIN32)
-    wsa_release();
+    wsaRelease();
 #endif
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (!set_nonblock(sock)) {
-    close_native(sock);
+  if (!setNonblock(sock)) {
+    closeNative(sock);
 #if defined(_WIN32)
-    wsa_release();
+    wsaRelease();
 #endif
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in addr{};
-  if (!make_addr(host, port, addr)) {
-    close_native(sock);
+  if (!makeAddr(host, port, addr)) {
+    closeNative(sock);
 #if defined(_WIN32)
-    wsa_release();
+    wsaRelease();
 #endif
     return tl::unexpected(ccsds::Error::truncated);
   }
   if (::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-    close_native(sock);
+    closeNative(sock);
 #if defined(_WIN32)
-    wsa_release();
+    wsaRelease();
 #endif
     return tl::unexpected(ccsds::Error::truncated);
   }
@@ -139,9 +139,9 @@ ccsds::Result<std::uint16_t> udp_bind(UdpSocket& s, char const* host,
   socklen_t alen = sizeof(bound);
 #endif
   if (::getsockname(sock, reinterpret_cast<sockaddr*>(&bound), &alen) != 0) {
-    close_native(sock);
+    closeNative(sock);
 #if defined(_WIN32)
-    wsa_release();
+    wsaRelease();
 #endif
     return tl::unexpected(ccsds::Error::truncated);
   }
@@ -149,31 +149,31 @@ ccsds::Result<std::uint16_t> udp_bind(UdpSocket& s, char const* host,
   return static_cast<std::uint16_t>(ntohs(bound.sin_port));
 }
 
-void udp_close(UdpSocket& s) noexcept {
+void udpClose(UdpSocket& s) noexcept {
   if (s.native == 0) {
     return;
   }
-  close_native(as_native(s.native));
+  closeNative(asNative(s.native));
   s.native = 0;
 #if defined(_WIN32)
-  wsa_release();
+  wsaRelease();
 #endif
 }
 
-ccsds::Result<std::size_t> udp_send_to(UdpSocket& s,
+ccsds::Result<std::size_t> udpSendTo(UdpSocket& s,
                                        std::span<const std::byte> octets,
                                        char const* host,
                                        std::uint16_t port) noexcept {
-  if (s.native == 0 || host_empty(host)) {
+  if (s.native == 0 || hostEmpty(host)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in addr{};
-  if (!make_addr(host, port, addr)) {
+  if (!makeAddr(host, port, addr)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
 #if defined(_WIN32)
   const int n =
-      ::sendto(as_native(s.native),
+      ::sendto(asNative(s.native),
                reinterpret_cast<const char*>(octets.data()),
                static_cast<int>(octets.size()), 0,
                reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
@@ -186,7 +186,7 @@ ccsds::Result<std::size_t> udp_send_to(UdpSocket& s,
   return static_cast<std::size_t>(n);
 #else
   const ssize_t n =
-      ::sendto(as_native(s.native), octets.data(), octets.size(), 0,
+      ::sendto(asNative(s.native), octets.data(), octets.size(), 0,
                reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
   if (n < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -198,7 +198,7 @@ ccsds::Result<std::size_t> udp_send_to(UdpSocket& s,
 #endif
 }
 
-ccsds::Result<std::size_t> udp_recv(UdpSocket& s,
+ccsds::Result<std::size_t> udpRecv(UdpSocket& s,
                                     std::span<std::byte> out) noexcept {
   if (s.native == 0) {
     return tl::unexpected(ccsds::Error::truncated);
@@ -207,7 +207,7 @@ ccsds::Result<std::size_t> udp_recv(UdpSocket& s,
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
 #if defined(_WIN32)
-  const int n = ::recvfrom(as_native(s.native),
+  const int n = ::recvfrom(asNative(s.native),
                            reinterpret_cast<char*>(out.data()),
                            static_cast<int>(out.size()), 0, nullptr, nullptr);
   if (n == SOCKET_ERROR) {
@@ -222,7 +222,7 @@ ccsds::Result<std::size_t> udp_recv(UdpSocket& s,
   }
   return static_cast<std::size_t>(n);
 #else
-  const ssize_t n = ::recvfrom(as_native(s.native), out.data(), out.size(), 0,
+  const ssize_t n = ::recvfrom(asNative(s.native), out.data(), out.size(), 0,
                                nullptr, nullptr);
   if (n < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {

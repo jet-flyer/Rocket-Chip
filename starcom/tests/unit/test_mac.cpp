@@ -9,27 +9,27 @@
 
 using starcom::ccsds::CoppEndpoint;
 using starcom::ccsds::CoppMib;
-using starcom::ccsds::copp_init;
-using starcom::ccsds::decode_set_vr;
-using starcom::ccsds::encode_set_vr;
-using starcom::ccsds::farm_p_report;
+using starcom::ccsds::coppInit;
+using starcom::ccsds::decodeSetVr;
+using starcom::ccsds::encodeSetVr;
+using starcom::ccsds::farmPReport;
 using starcom::ccsds::FopPState;
 using starcom::ccsds::kSetVrDirectiveType;
-using starcom::ccsds::mac_drive_set_vr;
-using starcom::ccsds::mac_fifo_source;
-using starcom::ccsds::mac_init;
-using starcom::ccsds::mac_on_fifo_empty;
-using starcom::ccsds::mac_on_hail_received;
-using starcom::ccsds::mac_on_plcw;
-using starcom::ccsds::mac_on_set_vr_directive;
-using starcom::ccsds::mac_on_valid_frame;
-using starcom::ccsds::mac_phy;
-using starcom::ccsds::mac_poll_notify;
-using starcom::ccsds::mac_set_carrier_acquired;
-using starcom::ccsds::mac_set_duplex;
-using starcom::ccsds::mac_set_initialize_mode;
-using starcom::ccsds::mac_set_mode;
-using starcom::ccsds::mac_tick;
+using starcom::ccsds::macDriveSetVr;
+using starcom::ccsds::macFifoSource;
+using starcom::ccsds::macInit;
+using starcom::ccsds::macOnFifoEmpty;
+using starcom::ccsds::macOnHailReceived;
+using starcom::ccsds::macOnPlcw;
+using starcom::ccsds::macOnSetVrDirective;
+using starcom::ccsds::macOnValidFrame;
+using starcom::ccsds::macPhy;
+using starcom::ccsds::macPollNotify;
+using starcom::ccsds::macSetCarrierAcquired;
+using starcom::ccsds::macSetDuplex;
+using starcom::ccsds::macSetInitializeMode;
+using starcom::ccsds::macSetMode;
+using starcom::ccsds::macTick;
 using starcom::ccsds::MacDuplex;
 using starcom::ccsds::MacFifoSource;
 using starcom::ccsds::MacMib;
@@ -75,31 +75,31 @@ MacMib test_mib() {
 
 void test_set_vr_codec() {
   std::array<std::byte, 2> buf{};
-  auto n = encode_set_vr(buf, 0x2A, Pcid{0});
+  auto n = encodeSetVr(buf, 0x2A, Pcid{0});
   CHECK(n.has_value());
   CHECK(*n == 2);
   CHECK(static_cast<unsigned>(buf[0]) == 0x2A);
   CHECK(static_cast<unsigned>(buf[1]) == kSetVrDirectiveType);
-  auto fsn = decode_set_vr(buf, nullptr);
+  auto fsn = decodeSetVr(buf, nullptr);
   CHECK(fsn.has_value());
   CHECK(*fsn == 0x2A);
   std::array<std::byte, 1> tiny{};
-  CHECK(!encode_set_vr(tiny, 0, Pcid{0}).has_value());
+  CHECK(!encodeSetVr(tiny, 0, Pcid{0}).has_value());
 }
 
 void test_s1_initialize() {
   MacSession s{};
   CoppEndpoint e{};
   CoppMib cm{};
-  copp_init(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
-  mac_init(s, test_mib(), MacDuplex::full, &e);
+  coppInit(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
+  macInit(s, test_mib(), MacDuplex::full, &e);
   CHECK(s.state == MacState::s1);
   CHECK(s.mode == MacMode::inactive);
-  CHECK(!mac_phy(s).receive);
-  CHECK(!mac_phy(s).transmit);
+  CHECK(!macPhy(s).receive);
+  CHECK(!macPhy(s).transmit);
   CHECK(s.ss == 0);
   CHECK(!s.persistence);
-  mac_set_initialize_mode(s, 10);
+  macSetInitializeMode(s, 10);
   CHECK(s.state == MacState::s1);
   CHECK(e.farm.v_r == 0);
   CHECK(e.fop.state == FopPState::s1_active);
@@ -107,94 +107,94 @@ void test_s1_initialize() {
 
 void test_full_hail_tables() {
   MacSession s{};
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_mode(s, MacMode::connecting_l, 0);
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
   CHECK(s.state == MacState::s2);
-  CHECK(mac_phy(s).receive);
-  CHECK(!mac_phy(s).transmit);
+  CHECK(macPhy(s).receive);
+  CHECK(!macPhy(s).transmit);
 
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_mode(s, MacMode::connecting_t, 0);
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
   CHECK(s.state == MacState::s31);
   CHECK(s.ss == 1);
   CHECK(s.persistence);
-  CHECK(mac_phy(s).transmit);
-  CHECK(!mac_phy(s).modulation);
-  CHECK(mac_fifo_source(s) == MacFifoSource::carrier_only);
+  CHECK(macPhy(s).transmit);
+  CHECK(!macPhy(s).modulation);
+  CHECK(macFifoSource(s) == MacFifoSource::carrier_only);
 
-  mac_tick(s, 2);
+  macTick(s, 2);
   CHECK(s.state == MacState::s32);
   CHECK(s.modulation);
-  mac_tick(s, 4);
+  macTick(s, 4);
   CHECK(s.state == MacState::s33);
   CHECK(s.ss == 3);
   CHECK(s.mac_frame_pending);
-  mac_on_fifo_empty(s, 4);
+  macOnFifoEmpty(s, 4);
   CHECK(s.state == MacState::s34);
-  mac_tick(s, 6);
+  macTick(s, 6);
   CHECK(s.state == MacState::s35);
   CHECK(!s.transmit_on);
-  mac_on_valid_frame(s, 6);
+  macOnValidFrame(s, 6);
   CHECK(s.state == MacState::s41);
   CHECK(!s.persistence);
-  CHECK(mac_poll_notify(s) == MacNotify::hail_ok);
-  mac_tick(s, 8);
+  CHECK(macPollNotify(s) == MacNotify::hail_ok);
+  macTick(s, 8);
   CHECK(s.state == MacState::s42);
-  mac_tick(s, 10);
+  macTick(s, 10);
   CHECK(s.state == MacState::s40);
   CHECK(s.ss == 0);
 }
 
 void test_full_responder_hail() {
   MacSession s{};
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_mode(s, MacMode::connecting_l, 0);
-  mac_on_hail_received(s, 1);
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
   CHECK(s.state == MacState::s41);
   CHECK(s.need_plcw);
 }
 
 void test_half_and_simplex() {
   MacSession s{};
-  mac_init(s, test_mib(), MacDuplex::half, nullptr);
-  mac_set_mode(s, MacMode::connecting_t, 0);
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
   CHECK(s.state == MacState::s11);
-  CHECK(!mac_phy(s).receive);
-  CHECK(mac_phy(s).transmit);
-  mac_tick(s, 2);
+  CHECK(!macPhy(s).receive);
+  CHECK(macPhy(s).transmit);
+  macTick(s, 2);
   CHECK(s.state == MacState::s12);
-  mac_tick(s, 4);
+  macTick(s, 4);
   CHECK(s.state == MacState::s13);
-  mac_on_fifo_empty(s, 4);
+  macOnFifoEmpty(s, 4);
   CHECK(s.state == MacState::s14);
-  mac_tick(s, 6);
+  macTick(s, 6);
   CHECK(s.state == MacState::s36);
-  mac_on_valid_frame(s, 6);
+  macOnValidFrame(s, 6);
   CHECK(s.state == MacState::s60);
-  CHECK(mac_phy(s).receive);
-  CHECK(!mac_phy(s).transmit);
+  CHECK(macPhy(s).receive);
+  CHECK(!macPhy(s).transmit);
 
-  mac_init(s, test_mib(), MacDuplex::simplex_transmit, nullptr);
-  mac_set_mode(s, MacMode::active, 0);
+  macInit(s, test_mib(), MacDuplex::simplex_transmit, nullptr);
+  macSetMode(s, MacMode::active, 0);
   CHECK(s.state == MacState::s71);
   CHECK(s.duplex == MacDuplex::simplex_transmit);
-  mac_set_mode(s, MacMode::inactive, 1);
+  macSetMode(s, MacMode::inactive, 1);
   CHECK(s.state == MacState::s1);
 
-  mac_init(s, test_mib(), MacDuplex::simplex_receive, nullptr);
-  mac_set_mode(s, MacMode::active, 0);
+  macInit(s, test_mib(), MacDuplex::simplex_receive, nullptr);
+  macSetMode(s, MacMode::active, 0);
   CHECK(s.state == MacState::s72);
-  CHECK(mac_phy(s).receive);
-  CHECK(!mac_phy(s).transmit);
+  CHECK(macPhy(s).receive);
+  CHECK(!macPhy(s).transmit);
 }
 
 void test_set_duplex_s1_only() {
   MacSession s{};
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_duplex(s, MacDuplex::half);
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetDuplex(s, MacDuplex::half);
   CHECK(s.duplex == MacDuplex::half);
-  mac_set_mode(s, MacMode::connecting_t, 0);
-  mac_set_duplex(s, MacDuplex::full);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macSetDuplex(s, MacDuplex::full);
   CHECK(s.duplex == MacDuplex::half);
 }
 
@@ -203,27 +203,27 @@ void test_set_vr_persistent() {
   CoppEndpoint e{};
   CoppMib cm{};
   cm.resync_local = true;
-  copp_init(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
-  mac_init(s, test_mib(), MacDuplex::full, &e);
+  coppInit(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
+  macInit(s, test_mib(), MacDuplex::full, &e);
   e.fop.nn_r = 7;
   e.fop.v_s = 7;  // note 5c: N(R) > V(S) is invalid
   e.fop.vv_s = 7;
   e.fop.resync = true;
   e.fop.state = FopPState::s2_resync;
-  mac_drive_set_vr(s, 0);
+  macDriveSetVr(s, 0);
   CHECK(s.persistence);
   CHECK(s.mac_frame_pending);
   CHECK(s.mac_queue_len == 2);
   CHECK(static_cast<unsigned>(s.mac_queue[0]) == 7);
   CHECK(static_cast<unsigned>(s.mac_queue[1]) == kSetVrDirectiveType);
 
-  Plcw16 w = farm_p_report(e.farm, Pcid{0});
+  Plcw16 w = farmPReport(e.farm, Pcid{0});
   w.report_value = 7;
   w.retransmit = false;
-  mac_on_plcw(s, w, true, 1);
+  macOnPlcw(s, w, true, 1);
   CHECK(!e.fop.resync);
   CHECK(e.fop.state == FopPState::s1_active);
-  CHECK(mac_poll_notify(s) == MacNotify::resync_ok);
+  CHECK(macPollNotify(s) == MacNotify::resync_ok);
   CHECK(!s.persistence);
 }
 
@@ -231,9 +231,9 @@ void test_inbound_set_vr() {
   MacSession s{};
   CoppEndpoint e{};
   CoppMib cm{};
-  copp_init(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
-  mac_init(s, test_mib(), MacDuplex::full, &e);
-  mac_on_set_vr_directive(s, 42);
+  coppInit(e, cm, Pcid{0}, Scid{1}, Scid{2}, PortId{0});
+  macInit(s, test_mib(), MacDuplex::full, &e);
+  macOnSetVrDirective(s, 42);
   CHECK(e.farm.v_r == 42);
   CHECK(!e.farm.r_s);
   CHECK(e.farm.need_plcw);
@@ -241,35 +241,35 @@ void test_inbound_set_vr() {
 
 void test_carrier_loss_caller() {
   MacSession s{};
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_mode(s, MacMode::connecting_t, 0);
-  mac_tick(s, 2);
-  mac_tick(s, 4);
-  mac_on_fifo_empty(s, 4);
-  mac_tick(s, 6);
-  mac_on_valid_frame(s, 6);
-  mac_tick(s, 8);
-  mac_tick(s, 10);
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  macTick(s, 8);
+  macTick(s, 10);
   CHECK(s.state == MacState::s40);
-  mac_set_carrier_acquired(s, true, 10);
-  mac_set_carrier_acquired(s, false, 11);
-  mac_tick(s, 15);
+  macSetCarrierAcquired(s, true, 10);
+  macSetCarrierAcquired(s, false, 11);
+  macTick(s, 15);
   CHECK(s.state == MacState::s80);
 }
 
 void test_heap() {
   MacSession s{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  mac_init(s, test_mib(), MacDuplex::full, nullptr);
-  mac_set_mode(s, MacMode::connecting_t, 0);
-  mac_tick(s, 2);
-  mac_tick(s, 4);
-  mac_on_fifo_empty(s, 4);
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
   std::array<std::byte, 2> buf{};
-  (void)encode_set_vr(buf, 1, Pcid{0});
-  starcom::test::heap_trap_disarm();
-  CHECK(starcom::test::heap_trap_count() == 0);
+  (void)encodeSetVr(buf, 1, Pcid{0});
+  starcom::test::heapTrapDisarm();
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

@@ -12,13 +12,13 @@ namespace starcom::adapters {
 // 211.1 Bi-Phase-L / residual-carrier PM is increment 18, not this port.
 struct PioOps {
   void* ctx = nullptr;
-  void (*put_bit)(void* ctx, bool bit) noexcept = nullptr;
-  bool (*get_bit)(void* ctx) noexcept = nullptr;
+  void (*putBit)(void* ctx, bool bit) noexcept = nullptr;
+  bool (*getBit)(void* ctx) noexcept = nullptr;
 };
 
-ccsds::Result<std::size_t> pio_shift_out(PioOps const& pio,
+ccsds::Result<std::size_t> pioShiftOut(PioOps const& pio,
                                          std::span<const std::byte> octets) noexcept;
-ccsds::Result<std::size_t> pio_shift_in(PioOps const& pio, std::span<std::byte> out,
+ccsds::Result<std::size_t> pioShiftIn(PioOps const& pio, std::span<std::byte> out,
                                         std::size_t n_octets) noexcept;
 
 }  // namespace starcom::adapters

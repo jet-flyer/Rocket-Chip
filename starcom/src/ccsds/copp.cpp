@@ -12,14 +12,14 @@
 namespace starcom::ccsds {
 namespace {
 
-void sent_push(FopP& f, std::uint8_t fsn) noexcept {
+void sentPush(FopP& f, std::uint8_t fsn) noexcept {
   if (f.sent_n < kFopPSentCap) {
     f.sent[f.sent_n] = fsn;
     ++f.sent_n;
   }
 }
 
-void sent_pop_front(FopP& f, std::uint8_t n) noexcept {
+void sentPopFront(FopP& f, std::uint8_t n) noexcept {
   if (n > f.sent_n) {
     n = f.sent_n;
   }
@@ -33,45 +33,45 @@ void sent_pop_front(FopP& f, std::uint8_t n) noexcept {
   f.sent_n = rest;
 }
 
-bool plcw_valid(FopP const& f, Plcw16 const& w) noexcept {
+bool plcwValid(FopP const& f, Plcw16 const& w) noexcept {
   const std::uint8_t nr = w.report_value;
-  if (seq_lt(nr, f.nn_r)) {
+  if (seqLt(nr, f.nn_r)) {
     return false;
   }
-  if (seq_lt(f.v_s, nr)) {
+  if (seqLt(f.v_s, nr)) {
     return false;
   }
-  if (w.retransmit && seq_eq(nr, f.v_s)) {
+  if (w.retransmit && seqEq(nr, f.v_s)) {
     return false;
   }
-  if (!w.retransmit && f.rr_r && seq_eq(nr, f.nn_r)) {
+  if (!w.retransmit && f.rr_r && seqEq(nr, f.nn_r)) {
     return false;
   }
   return true;
 }
 
-void start_synch(FopP& f) noexcept {
+void startSynch(FopP& f) noexcept {
   if (!f.synch_running) {
     f.synch_running = true;
     f.synch_deadline = 0;  // armed; deadline set on tick if timeout > 0
   }
 }
 
-void clear_synch(FopP& f) noexcept {
+void clearSynch(FopP& f) noexcept {
   f.synch_running = false;
   f.synch_deadline = 0;
 }
 
 }  // namespace
 
-void farm_p_init(FarmP& f) noexcept {
+void farmPInit(FarmP& f) noexcept {
   f.r_s = false;
   f.v_r = 0;
   f.expedited_frame_counter = 0;
   f.need_plcw = true;
 }
 
-FarmPDisposition farm_p_on_frame(FarmP& f, bool valid, bool expedited,
+FarmPDisposition farmPOnFrame(FarmP& f, bool valid, bool expedited,
                                  std::uint8_t n_s) noexcept {
   if (!valid) {
     return FarmPDisposition::discarded;  // RE1
@@ -81,13 +81,13 @@ FarmPDisposition farm_p_on_frame(FarmP& f, bool valid, bool expedited,
         static_cast<std::uint8_t>((f.expedited_frame_counter + 1u) & 0x07u);
     return FarmPDisposition::accepted;  // RE3
   }
-  if (seq_eq(n_s, f.v_r)) {
+  if (seqEq(n_s, f.v_r)) {
     f.r_s = false;
     f.v_r = static_cast<std::uint8_t>(f.v_r + 1u);
     f.need_plcw = true;
     return FarmPDisposition::accepted;  // RE4
   }
-  if (seq_lt(f.v_r, n_s)) {
+  if (seqLt(f.v_r, n_s)) {
     f.r_s = true;
     f.need_plcw = true;
     return FarmPDisposition::discarded;  // RE5 gap
@@ -95,13 +95,13 @@ FarmPDisposition farm_p_on_frame(FarmP& f, bool valid, bool expedited,
   return FarmPDisposition::discarded;  // RE6 already received
 }
 
-void farm_p_set_vr(FarmP& f, std::uint8_t seq_ctrl_fsn) noexcept {
+void farmPSetVr(FarmP& f, std::uint8_t seq_ctrl_fsn) noexcept {
   f.r_s = false;
   f.v_r = seq_ctrl_fsn;
   f.need_plcw = true;
 }
 
-Plcw16 farm_p_report(FarmP const& f, Pcid pcid) noexcept {
+Plcw16 farmPReport(FarmP const& f, Pcid pcid) noexcept {
   Plcw16 w{};
   w.retransmit = f.r_s;
   w.pcid = pcid;
@@ -110,7 +110,7 @@ Plcw16 farm_p_report(FarmP const& f, Pcid pcid) noexcept {
   return w;
 }
 
-void fop_p_init(FopP& f, CoppMib const& mib) noexcept {
+void fopPInit(FopP& f, CoppMib const& mib) noexcept {
   f.mib = mib;
   if (f.mib.transmission_window > 127u) {
     f.mib.transmission_window = 127;
@@ -125,15 +125,15 @@ void fop_p_init(FopP& f, CoppMib const& mib) noexcept {
   f.sent_n = 0;
   f.last_send_fsn = 0;
   f.synch_expired_latched = false;
-  clear_synch(f);
+  clearSynch(f);
 }
 
-void fop_p_reset(FopP& f) noexcept {
+void fopPReset(FopP& f) noexcept {
   const CoppMib mib = f.mib;
-  fop_p_init(f, mib);
+  fopPInit(f, mib);
 }
 
-FopPSend fop_p_need_frame(FopP& f, bool exp_available, bool seq_available) noexcept {
+FopPSend fopPNeedFrame(FopP& f, bool exp_available, bool seq_available) noexcept {
   if (f.state != FopPState::s1_active) {
     return FopPSend::none;  // SE1 N/A in S2
   }
@@ -142,21 +142,21 @@ FopPSend fop_p_need_frame(FopP& f, bool exp_available, bool seq_available) noexc
     f.ve_s = static_cast<std::uint8_t>(f.ve_s + 1u);
     return FopPSend::expedited;
   }
-  if (seq_lt(f.vv_s, f.v_s)) {
+  if (seqLt(f.vv_s, f.v_s)) {
     f.last_send_fsn = f.vv_s;
     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
     return FopPSend::resend_seq;
   }
-  const std::uint8_t unacked = seq_delta(f.v_s, f.nn_r);
+  const std::uint8_t unacked = seqDelta(f.v_s, f.nn_r);
   if (seq_available && unacked < f.mib.transmission_window &&
       f.sent_n < kFopPSentCap) {
     f.last_send_fsn = f.v_s;
-    sent_push(f, f.v_s);
+    sentPush(f, f.v_s);
     f.v_s = static_cast<std::uint8_t>(f.v_s + 1u);
     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
     return FopPSend::new_seq;
   }
-  if (seq_lt(f.nn_r, f.v_s)) {
+  if (seqLt(f.nn_r, f.v_s)) {
     f.vv_s = f.nn_r;
     f.last_send_fsn = f.vv_s;
     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
@@ -165,10 +165,10 @@ FopPSend fop_p_need_frame(FopP& f, bool exp_available, bool seq_available) noexc
   return FopPSend::none;
 }
 
-void fop_p_on_plcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept {
-  if (!format_ok || !plcw_valid(f, plcw)) {
+void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept {
+  if (!format_ok || !plcwValid(f, plcw)) {
     if (f.state == FopPState::s1_active) {
-      start_synch(f);
+      startSynch(f);
       f.vv_s = f.nn_r;
     }
     return;  // SE3 Ignore in S2
@@ -176,23 +176,23 @@ void fop_p_on_plcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept {
   f.n_r = plcw.report_value;
   f.r_r = plcw.retransmit;
   const std::uint8_t old_nn = f.nn_r;
-  if (seq_lt(f.nn_r, f.n_r)) {
-    sent_pop_front(f, seq_delta(f.n_r, f.nn_r));
+  if (seqLt(f.nn_r, f.n_r)) {
+    sentPopFront(f, seqDelta(f.n_r, f.nn_r));
   }
-  if (f.r_r || seq_lt(f.vv_s, f.n_r)) {
+  if (f.r_r || seqLt(f.vv_s, f.n_r)) {
     f.vv_s = f.n_r;
   }
   f.nn_r = f.n_r;
   f.rr_r = f.r_r;
-  clear_synch(f);
+  clearSynch(f);
   // Resync_Response: N(R)==NN(R) *before* Store (7.2.3.2.1 c)
-  if (f.state == FopPState::s2_resync && !f.r_r && seq_eq(f.n_r, old_nn)) {
+  if (f.state == FopPState::s2_resync && !f.r_r && seqEq(f.n_r, old_nn)) {
     f.resync = false;
     f.state = FopPState::s1_active;
   }
 }
 
-void fop_p_tick(FopP& f, Tick now) noexcept {
+void fopPTick(FopP& f, Tick now) noexcept {
   if (!f.synch_running || f.mib.synch_timeout == 0) {
     return;
   }
@@ -205,7 +205,7 @@ void fop_p_tick(FopP& f, Tick now) noexcept {
   }
   // SE4
   f.synch_expired_latched = true;
-  clear_synch(f);
+  clearSynch(f);
   if (f.state == FopPState::s1_active && f.mib.resync_local) {
     f.rr_r = false;
     f.resync = true;
@@ -215,7 +215,7 @@ void fop_p_tick(FopP& f, Tick now) noexcept {
 
 namespace {
 
-void copp_clear(CoppEndpoint& e) noexcept {
+void coppClear(CoppEndpoint& e) noexcept {
   static_assert(std::is_trivially_copyable_v<CoppEndpoint>);
   // In-place zero. `e = CoppEndpoint{}` materializes an ~18 KiB temporary
   // (payload_by_fsn is 256 × kCoppHold). Pico Core 0 stack is 4 KiB.
@@ -224,32 +224,32 @@ void copp_clear(CoppEndpoint& e) noexcept {
 
 }  // namespace
 
-void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
+void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
                Scid remote, PortId port) noexcept {
-  copp_clear(e);
+  coppClear(e);
   e.pcid = pcid;
   e.local_scid = local;
   e.remote_scid = remote;
   e.port_id = port;
-  farm_p_init(e.farm);
-  fop_p_init(e.fop, mib);
+  farmPInit(e.farm);
+  fopPInit(e.fop, mib);
 }
 
-void copp_init_uslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
+void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept {
-  copp_clear(e);
+  coppClear(e);
   e.uslp = true;
   e.uslp_local = local;
   e.uslp_remote = remote;
   e.vcid = vcid;
   e.map_id = map;
-  farm_p_init(e.farm);
-  fop_p_init(e.fop, mib);
+  farmPInit(e.farm);
+  fopPInit(e.fop, mib);
 }
 
-void copp_tick(CoppEndpoint& e, Tick now) noexcept { fop_p_tick(e.fop, now); }
+void coppTick(CoppEndpoint& e, Tick now) noexcept { fopPTick(e.fop, now); }
 
-CoppEvent copp_poll_event(CoppEndpoint& e) noexcept {
+CoppEvent coppPollEvent(CoppEndpoint& e) noexcept {
   if (e.fop.synch_expired_latched) {
     e.fop.synch_expired_latched = false;
     return CoppEvent::synch_timeout;
@@ -261,7 +261,7 @@ CoppEvent copp_poll_event(CoppEndpoint& e) noexcept {
   return CoppEvent::none;
 }
 
-Result<std::size_t> copp_take_sdu(CoppEndpoint& e,
+Result<std::size_t> coppTakeSdu(CoppEndpoint& e,
                                   std::span<std::byte> out) noexcept {
   if (e.rx_n == 0) {
     return std::size_t{0};
@@ -282,7 +282,7 @@ Result<std::size_t> copp_take_sdu(CoppEndpoint& e,
 
 namespace {
 
-Result<std::size_t> copp_hold_submit(CoppEndpoint& e,
+Result<std::size_t> coppHoldSubmit(CoppEndpoint& e,
                                     std::span<const std::byte> octets,
                                     bool expedited, bool user_defined) noexcept {
   if ((!user_defined && octets.empty()) || octets.size() > kCoppHold) {
@@ -314,88 +314,96 @@ Result<std::size_t> copp_hold_submit(CoppEndpoint& e,
 
 }  // namespace
 
-Result<std::size_t> copp_submit_sdu(CoppEndpoint& e,
+Result<std::size_t> coppSubmitSdu(CoppEndpoint& e,
                                     std::span<const std::byte> packet,
                                     bool expedited) noexcept {
-  return copp_hold_submit(e, packet, expedited, false);
+  return coppHoldSubmit(e, packet, expedited, false);
 }
 
-Result<std::size_t> copp_submit_user_defined(CoppEndpoint& e,
+Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
                                             std::span<const std::byte> octets,
                                             bool expedited) noexcept {
   if (octets.size() > kV3DataMax) {
     return tl::unexpected(Error::v3_length_oob);
   }
-  return copp_hold_submit(e, octets, expedited, true);
+  return coppHoldSubmit(e, octets, expedited, true);
 }
 
-void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept {
-  const auto pltu = decode_pltu(octets);
-  if (!pltu) {
-    (void)farm_p_on_frame(e.farm, false, false, 0);
-    return;
-  }
-  if (e.uslp) {
-    const auto u = decode_uslp(pltu->frame);
-    if (!u) {
-      (void)farm_p_on_frame(e.farm, false, false, 0);
-      return;
-    }
-    if (u->fields.protocol_control) {
-      const auto vr = decode_set_vr(u->tfdz, nullptr);
-      if (vr) {
-        farm_p_set_vr(e.farm, *vr);
-        return;
-      }
-      const auto plcw = decode_plcw(u->tfdz);
-      fop_p_on_plcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
-      return;
-    }
-    const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
-    const auto d =
-        farm_p_on_frame(e.farm, true, u->fields.expedited, fsn);
-    if (d != FarmPDisposition::accepted) {
-      return;
-    }
-    e.farm_accepted_latched = true;
-    if (e.rx_n >= kCoppSeqSlots || u->tfdz.size() > kCoppHold) {
-      return;
-    }
-    std::copy(u->tfdz.begin(), u->tfdz.end(), e.rx_q[e.rx_n].begin());
-    e.rx_len[e.rx_n] = u->tfdz.size();
-    ++e.rx_n;
-    return;
-  }
-  const auto v3 = decode_v3(pltu->frame);
-  if (!v3) {
-    (void)farm_p_on_frame(e.farm, false, false, 0);
-    return;
-  }
-  if (v3->fields.p_frame) {
-    const auto vr = decode_set_vr(v3->data, nullptr);
-    if (vr) {
-      farm_p_set_vr(e.farm, *vr);
-      return;
-    }
-    const auto plcw = decode_plcw(v3->data);
-    fop_p_on_plcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
-    return;
-  }
-  const auto d = farm_p_on_frame(e.farm, true, v3->fields.qos_expedited,
-                                 v3->fields.fsn);
-  if (d != FarmPDisposition::accepted) {
-    return;
-  }
+namespace {
+
+void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {
   e.farm_accepted_latched = true;
-  if (e.rx_n >= kCoppSeqSlots || v3->data.size() > kCoppHold) {
-    return;  // V(R) already advanced; caller must drain (host-loop cap)
+  if (e.rx_n >= kCoppSeqSlots || data.size() > kCoppHold) {
+    return;
   }
-  std::copy(v3->data.begin(), v3->data.end(), e.rx_q[e.rx_n].begin());
-  e.rx_len[e.rx_n] = v3->data.size();
+  std::copy(data.begin(), data.end(), e.rx_q[e.rx_n].begin());
+  e.rx_len[e.rx_n] = data.size();
   ++e.rx_n;
 }
 
-Result<std::size_t> copp_encode_uslp(CoppEndpoint& e, std::span<std::byte> out,
+void coppReceiveUslp(CoppEndpoint& e, PltuView const& pltu) noexcept {
+  const auto u = decodeUslp(pltu.frame);
+  if (!u) {
+    (void)farmPOnFrame(e.farm, false, false, 0);
+    return;
+  }
+  if (u->fields.protocol_control) {
+    const auto vr = decodeSetVr(u->tfdz, nullptr);
+    if (vr) {
+      farmPSetVr(e.farm, *vr);
+      return;
+    }
+    const auto plcw = decodePlcw(u->tfdz);
+    fopPOnPlcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
+    return;
+  }
+  const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+  if (farmPOnFrame(e.farm, true, u->fields.expedited, fsn) !=
+      FarmPDisposition::accepted) {
+    return;
+  }
+  coppPushRx(e, u->tfdz);
+}
+
+void coppReceiveV3(CoppEndpoint& e, PltuView const& pltu) noexcept {
+  const auto v3 = decodeV3(pltu.frame);
+  if (!v3) {
+    (void)farmPOnFrame(e.farm, false, false, 0);
+    return;
+  }
+  if (v3->fields.p_frame) {
+    const auto vr = decodeSetVr(v3->data, nullptr);
+    if (vr) {
+      farmPSetVr(e.farm, *vr);
+      return;
+    }
+    const auto plcw = decodePlcw(v3->data);
+    fopPOnPlcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
+    return;
+  }
+  if (farmPOnFrame(e.farm, true, v3->fields.qos_expedited, v3->fields.fsn) !=
+      FarmPDisposition::accepted) {
+    return;
+  }
+  coppPushRx(e, v3->data);
+}
+
+}  // namespace
+
+void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept {
+  const auto pltu = decodePltu(octets);
+  if (!pltu) {
+    (void)farmPOnFrame(e.farm, false, false, 0);
+    return;
+  }
+  if (e.uslp) {
+    coppReceiveUslp(e, *pltu);
+    return;
+  }
+  coppReceiveV3(e, *pltu);
+}
+
+Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
                                      bool p_frame, bool expedited, std::uint8_t fsn,
                                      std::span<const std::byte> payload) noexcept {
   UslpFields hdr{};
@@ -410,95 +418,108 @@ Result<std::size_t> copp_encode_uslp(CoppEndpoint& e, std::span<std::byte> out,
   hdr.tfdz_construction = kUslpConstructionNoSeg;
   hdr.upid = kUslpUpidSpacePacket;
   std::array<std::byte, kTransferFrameMax> tf{};
-  const auto vn = encode_uslp(tf, hdr, payload);
+  const auto vn = encodeUslp(tf, hdr, payload);
   if (!vn) {
     return vn;
   }
-  return encode_pltu(out, std::span<const std::byte>(tf.data(), *vn));
+  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
 }
 
-Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
-                                       std::span<std::byte> out) noexcept {
-  std::array<std::byte, kTransferFrameMax> tf{};
-  std::size_t tf_n = 0;
-  if (e.farm.need_plcw) {
-    std::array<std::byte, kPlcwSize> raw{};
-    const auto n = encode_plcw(raw, farm_p_report(e.farm, e.pcid));
-    if (!n) {
-      return n;
-    }
-    e.farm.need_plcw = false;
-    if (e.uslp) {
-      return copp_encode_uslp(e, out, true, true, 0,
-                              std::span<const std::byte>(raw.data(), *n));
-    }
-    V3Fields hdr{};
-    hdr.p_frame = true;
-    hdr.qos_expedited = true;
-    hdr.pcid = e.pcid;
-    hdr.scid = e.remote_scid;
-    hdr.destination = true;
-    hdr.port_id = PortId{0};
-    const auto vn = encode_v3(tf, hdr, raw);
-    if (!vn) {
-      return vn;
-    }
-    tf_n = *vn;
-  } else {
-    const FopPSend kind = fop_p_need_frame(e.fop, e.exp_full, e.seq_n != 0);
-    if (kind == FopPSend::none) {
-      return std::size_t{0};
-    }
-    V3Fields hdr{};
-    hdr.pcid = e.pcid;
-    hdr.scid = e.remote_scid;
-    hdr.destination = true;
-    hdr.port_id = e.port_id;
-    hdr.fsn = e.fop.last_send_fsn;
-    std::span<const std::byte> payload{};
-    bool user_defined = false;
-    if (kind == FopPSend::expedited) {
-      hdr.qos_expedited = true;
-      payload = std::span<const std::byte>(e.exp_q.data(), e.exp_len);
-      user_defined = e.exp_user_defined;
-      e.exp_full = false;
-      e.exp_len = 0;
-      e.exp_user_defined = false;
-    } else if (kind == FopPSend::new_seq && e.seq_n > 0) {
-      const auto fsn = e.fop.last_send_fsn;
-      const std::size_t n = e.seq_len[0];
-      user_defined = e.seq_user_defined[0];
-      if (n != 0) {
-        std::copy(e.seq_q[0].begin(),
-                  e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(n),
-                  e.payload_by_fsn[fsn].begin());
-      }
-      e.payload_len_by_fsn[fsn] = n;
-      e.payload_user_defined_by_fsn[fsn] = user_defined;
-      payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(), n);
-      for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
-        e.seq_q[i] = e.seq_q[i + 1u];
-        e.seq_len[i] = e.seq_len[i + 1u];
-        e.seq_user_defined[i] = e.seq_user_defined[i + 1u];
-      }
-      --e.seq_n;
-    } else {
-      const auto fsn = e.fop.last_send_fsn;
-      payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(),
-                                           e.payload_len_by_fsn[fsn]);
-      user_defined = e.payload_user_defined_by_fsn[fsn];
-    }
-    if (e.uslp) {
-      return copp_encode_uslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
-    }
-    const auto vn = user_defined ? encode_v3_user_defined(tf, hdr, payload)
-                                 : encode_v3(tf, hdr, payload);
-    if (!vn) {
-      return vn;
-    }
-    tf_n = *vn;
+namespace {
+
+Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noexcept {
+  std::array<std::byte, kPlcwSize> raw{};
+  const auto n = encodePlcw(raw, farmPReport(e.farm, e.pcid));
+  if (!n) {
+    return n;
   }
-  return encode_pltu(out, std::span<const std::byte>(tf.data(), tf_n));
+  e.farm.need_plcw = false;
+  if (e.uslp) {
+    return coppEncodeUslp(e, out, true, true, 0,
+                            std::span<const std::byte>(raw.data(), *n));
+  }
+  std::array<std::byte, kTransferFrameMax> tf{};
+  V3Fields hdr{};
+  hdr.p_frame = true;
+  hdr.qos_expedited = true;
+  hdr.pcid = e.pcid;
+  hdr.scid = e.remote_scid;
+  hdr.destination = true;
+  hdr.port_id = PortId{0};
+  const auto vn = encodeV3(tf, hdr, raw);
+  if (!vn) {
+    return vn;
+  }
+  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
+}
+
+void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
+                       std::span<const std::byte>& payload, bool& user_defined) noexcept {
+  hdr.pcid = e.pcid;
+  hdr.scid = e.remote_scid;
+  hdr.destination = true;
+  hdr.port_id = e.port_id;
+  hdr.fsn = e.fop.last_send_fsn;
+  if (kind == FopPSend::expedited) {
+    hdr.qos_expedited = true;
+    payload = std::span<const std::byte>(e.exp_q.data(), e.exp_len);
+    user_defined = e.exp_user_defined;
+    e.exp_full = false;
+    e.exp_len = 0;
+    e.exp_user_defined = false;
+    return;
+  }
+  if (kind == FopPSend::new_seq && e.seq_n > 0) {
+    const auto fsn = e.fop.last_send_fsn;
+    const std::size_t n = e.seq_len[0];
+    user_defined = e.seq_user_defined[0];
+    if (n != 0) {
+      std::copy(e.seq_q[0].begin(),
+                e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(n),
+                e.payload_by_fsn[fsn].begin());
+    }
+    e.payload_len_by_fsn[fsn] = n;
+    e.payload_user_defined_by_fsn[fsn] = user_defined;
+    payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(), n);
+    for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
+      e.seq_q[i] = e.seq_q[i + 1u];
+      e.seq_len[i] = e.seq_len[i + 1u];
+      e.seq_user_defined[i] = e.seq_user_defined[i + 1u];
+    }
+    --e.seq_n;
+    return;
+  }
+  const auto fsn = e.fop.last_send_fsn;
+  payload = std::span<const std::byte>(e.payload_by_fsn[fsn].data(),
+                                       e.payload_len_by_fsn[fsn]);
+  user_defined = e.payload_user_defined_by_fsn[fsn];
+}
+
+}  // namespace
+
+Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
+                                       std::span<std::byte> out) noexcept {
+  if (e.farm.need_plcw) {
+    return coppSendPlcw(e, out);
+  }
+  const FopPSend kind = fopPNeedFrame(e.fop, e.exp_full, e.seq_n != 0);
+  if (kind == FopPSend::none) {
+    return std::size_t{0};
+  }
+  V3Fields hdr{};
+  std::span<const std::byte> payload{};
+  bool user_defined = false;
+  coppTakePayload(e, kind, hdr, payload, user_defined);
+  if (e.uslp) {
+    return coppEncodeUslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
+  }
+  std::array<std::byte, kTransferFrameMax> tf{};
+  const auto vn = user_defined ? encodeV3UserDefined(tf, hdr, payload)
+                               : encodeV3(tf, hdr, payload);
+  if (!vn) {
+    return vn;
+  }
+  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
 }
 
 }  // namespace starcom::ccsds

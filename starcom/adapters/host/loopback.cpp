@@ -4,7 +4,7 @@
 
 namespace starcom::adapters {
 
-ccsds::Result<std::size_t> slot_write(FrameSlot& slot,
+ccsds::Result<std::size_t> slotWrite(FrameSlot& slot,
                                       std::span<const std::byte> octets) noexcept {
   if (octets.empty() || octets.size() > kAdapterFrameMax) {
     return tl::unexpected(ccsds::Error::truncated);
@@ -17,7 +17,7 @@ ccsds::Result<std::size_t> slot_write(FrameSlot& slot,
   return slot.n;
 }
 
-ccsds::Result<std::size_t> slot_read(FrameSlot& slot,
+ccsds::Result<std::size_t> slotRead(FrameSlot& slot,
                                      std::span<std::byte> out) noexcept {
   if (slot.n == 0) {
     return std::size_t{0};

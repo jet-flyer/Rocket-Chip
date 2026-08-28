@@ -23,19 +23,19 @@ struct PltuView {
 
 // Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4:
 // V-3 11-bit Frame Length, or non-truncated USLP 16-bit Frame Length.
-// Truncated USLP (flag = 1) is uslp_truncated (MIB length, IVP 9).
+// Truncated USLP (flag = 1) is Error::uslp_truncated (MIB length, IVP 9).
 // uslp_truncated_len: 732.1 D1.3.2 Truncated Transfer Frame Length (MIB).
-// 0 = not supplied; truncated USLP then returns uslp_truncated.
-Result<PltuView> decode_pltu(std::span<const std::byte> octets,
+// 0 = not supplied; truncated USLP then returns Error::uslp_truncated.
+Result<PltuView> decodePltu(std::span<const std::byte> octets,
                              std::size_t uslp_truncated_len = 0) noexcept;
 
 // Writes ASM + frame + CRC-32. Envelope cap is kTransferFrameMin/Max.
-Result<std::size_t> encode_pltu(std::span<std::byte> out,
+Result<std::size_t> encodePltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept;
 
-// Regenerative: decode_pltu must pass; copy ASM+frame+CRC bit-exact. No V-3
+// Regenerative: decodePltu must pass; copy ASM+frame+CRC bit-exact. No V-3
 // or Space Packet decode. No COP. Trailing octets after a complete PLTU ignored.
-Result<std::size_t> repeat_pltu(std::span<std::byte> out,
+Result<std::size_t> repeatPltu(std::span<std::byte> out,
                                 std::span<const std::byte> octets) noexcept;
 
 // 211.2 §3.6: search span for exact ASM. One PLTU per call. leftover is the
@@ -45,7 +45,7 @@ struct PltuHunt {
   Result<PltuView> pltu;
 };
 
-PltuHunt hunt_pltu(std::span<const std::byte> octets,
+PltuHunt huntPltu(std::span<const std::byte> octets,
                    std::size_t uslp_truncated_len = 0) noexcept;
 
 // IVP 12: caller-owned store-and-forward. slots.size() is the depth — not a
@@ -62,8 +62,8 @@ struct PltuRepeatQ {
   std::size_t count = 0;
 };
 
-Result<std::size_t> enqueue_pltu(PltuRepeatQ& q, std::span<const std::byte> octets,
+Result<std::size_t> enqueuePltu(PltuRepeatQ& q, std::span<const std::byte> octets,
                                  bool dedup) noexcept;
-Result<std::size_t> dequeue_pltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept;
+Result<std::size_t> dequeuePltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept;
 
 }  // namespace starcom::ccsds

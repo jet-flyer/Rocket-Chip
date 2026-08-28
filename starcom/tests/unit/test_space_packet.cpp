@@ -15,12 +15,12 @@
 #include <span>
 
 using starcom::ccsds::Apid;
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::decode_space_packet;
-using starcom::ccsds::decode_v3;
-using starcom::ccsds::encode_pltu;
-using starcom::ccsds::encode_space_packet;
-using starcom::ccsds::encode_v3;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::decodeSpacePacket;
+using starcom::ccsds::decodeV3;
+using starcom::ccsds::encodePltu;
+using starcom::ccsds::encodeSpacePacket;
+using starcom::ccsds::encodeV3;
 using starcom::ccsds::Error;
 using starcom::ccsds::kIdleApid;
 using starcom::ccsds::kSpacePacketHeaderSize;
@@ -40,7 +40,7 @@ int g_fails = 0;
     }                                                                          \
   } while (0)
 
-std::span<const std::byte> as_span(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a) {
   return std::span<const std::byte>(a.data(), a.size());
 }
 
@@ -51,7 +51,7 @@ void test_sp_idle() {
   f.seq_flags = 0b11;
   const std::array<std::byte, 1> data{std::byte{0x00}};
   std::array<std::byte, 16> out{};
-  const auto n = encode_space_packet(out, f, as_span(data));
+  const auto n = encodeSpacePacket(out, f, asSpan(data));
   CHECK(n.has_value());
   CHECK(*n == kSpacePacketMinSize);
   CHECK(out[0] == std::byte{0x07});
@@ -62,7 +62,7 @@ void test_sp_idle() {
   CHECK(out[5] == std::byte{0x00});
   CHECK(out[6] == std::byte{0x00});
 
-  const auto v = decode_space_packet(std::span<const std::byte>(out.data(), *n));
+  const auto v = decodeSpacePacket(std::span<const std::byte>(out.data(), *n));
   CHECK(v.has_value());
   CHECK(!v->fields.telecommand);
   CHECK(!v->fields.secondary_header);
@@ -81,10 +81,10 @@ void test_roundtrip() {
   const std::array<std::byte, 3> data{std::byte{0xAA}, std::byte{0xBB},
                                       std::byte{0xCC}};
   std::array<std::byte, 32> out{};
-  const auto n = encode_space_packet(out, f, as_span(data));
+  const auto n = encodeSpacePacket(out, f, asSpan(data));
   CHECK(n.has_value());
   CHECK(*n == 9u);
-  const auto v = decode_space_packet(std::span<const std::byte>(out.data(), *n));
+  const auto v = decodeSpacePacket(std::span<const std::byte>(out.data(), *n));
   CHECK(v.has_value());
   CHECK(v->fields.telecommand);
   CHECK(v->fields.secondary_header);
@@ -97,12 +97,12 @@ void test_roundtrip() {
 
 void test_reject_sp_too_short() {
   // IVP sp-too-short
-  const auto empty = decode_space_packet({});
+  const auto empty = decodeSpacePacket({});
   CHECK(!empty.has_value());
   CHECK(empty.error() == Error::sp_too_short);
 
   std::array<std::byte, 6> hdr_only{};
-  const auto six = decode_space_packet(as_span(hdr_only));
+  const auto six = decodeSpacePacket(asSpan(hdr_only));
   CHECK(!six.has_value());
   CHECK(six.error() == Error::sp_too_short);
 
@@ -110,13 +110,13 @@ void test_reject_sp_too_short() {
   std::array<std::byte, 7> claims_two{
       std::byte{0x00}, std::byte{0x00}, std::byte{0xC0}, std::byte{0x00},
       std::byte{0x00}, std::byte{0x01}, std::byte{0x00}};
-  const auto cut = decode_space_packet(as_span(claims_two));
+  const auto cut = decodeSpacePacket(asSpan(claims_two));
   CHECK(!cut.has_value());
   CHECK(cut.error() == Error::sp_too_short);
 
   SpacePacketFields f{};
   std::array<std::byte, 16> out{};
-  const auto enc = encode_space_packet(out, f, {});
+  const auto enc = encodeSpacePacket(out, f, {});
   CHECK(!enc.has_value());
   CHECK(enc.error() == Error::sp_too_short);
 }
@@ -126,7 +126,7 @@ void test_reject_sp_pvn() {
   std::array<std::byte, 7> pkt{
       std::byte{0x20}, std::byte{0x00}, std::byte{0xC0}, std::byte{0x00},
       std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};  // PVN 001
-  const auto r = decode_space_packet(as_span(pkt));
+  const auto r = decodeSpacePacket(asSpan(pkt));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::sp_pvn);
 }
@@ -135,7 +135,7 @@ void test_encode_buffer_too_small() {
   SpacePacketFields f{};
   const std::array<std::byte, 1> data{std::byte{0x00}};
   std::array<std::byte, 6> too_small{};
-  const auto r = encode_space_packet(too_small, f, as_span(data));
+  const auto r = encodeSpacePacket(too_small, f, asSpan(data));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::buffer_too_small);
 }
@@ -148,7 +148,7 @@ void test_v3_one_sp_n() {
   const std::array<std::byte, n_user> user{std::byte{1}, std::byte{2},
                                            std::byte{3}, std::byte{4}};
   std::array<std::byte, 32> packet{};
-  const auto pn = encode_space_packet(packet, sp, as_span(user));
+  const auto pn = encodeSpacePacket(packet, sp, asSpan(user));
   CHECK(pn.has_value());
   CHECK(*pn == kSpacePacketHeaderSize + n_user);
 
@@ -156,21 +156,21 @@ void test_v3_one_sp_n() {
   v3.dfc_id = 0;  // integer packets
   std::array<std::byte, 64> frame{};
   const auto fn =
-      encode_v3(frame, v3, std::span<const std::byte>(packet.data(), *pn));
+      encodeV3(frame, v3, std::span<const std::byte>(packet.data(), *pn));
   CHECK(fn.has_value());
   CHECK(*fn == 5 + *pn);
 
   std::array<std::byte, 80> pltu{};
   const auto plen =
-      encode_pltu(pltu, std::span<const std::byte>(frame.data(), *fn));
+      encodePltu(pltu, std::span<const std::byte>(frame.data(), *fn));
   CHECK(plen.has_value());
   CHECK(*plen == 18 + n_user);
 
-  const auto env = decode_pltu(std::span<const std::byte>(pltu.data(), *plen));
+  const auto env = decodePltu(std::span<const std::byte>(pltu.data(), *plen));
   CHECK(env.has_value());
-  const auto vf = decode_v3(env->frame);
+  const auto vf = decodeV3(env->frame);
   CHECK(vf.has_value());
-  const auto spv = decode_space_packet(vf->data);
+  const auto spv = decodeSpacePacket(vf->data);
   CHECK(spv.has_value());
   CHECK(spv->fields.apid == Apid{0x042});
   CHECK(spv->data.size() == n_user);
@@ -180,15 +180,15 @@ void test_heap() {
   SpacePacketFields f{};
   const std::array<std::byte, 1> data{std::byte{0x00}};
   std::array<std::byte, 16> out{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  const auto n = encode_space_packet(out, f, as_span(data));
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  const auto n = encodeSpacePacket(out, f, asSpan(data));
   if (n.has_value()) {
-    (void)decode_space_packet(std::span<const std::byte>(out.data(), *n));
+    (void)decodeSpacePacket(std::span<const std::byte>(out.data(), *n));
   }
-  starcom::test::heap_trap_disarm();
+  starcom::test::heapTrapDisarm();
   CHECK(n.has_value());
-  CHECK(starcom::test::heap_trap_count() == 0);
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

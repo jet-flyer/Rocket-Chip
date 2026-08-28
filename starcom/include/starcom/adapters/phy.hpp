@@ -20,14 +20,14 @@ struct PhyDecl {
   PhyTier tier = PhyTier::none;
 };
 
-inline constexpr bool phy_uncoded_ok(PhyDecl d) noexcept {
+inline constexpr bool phyUncodedOk(PhyDecl d) noexcept {
   return d.tier == PhyTier::none || d.tier == PhyTier::best_effort;
 }
 
 // Uncoded PLTU path. Same 0+1 octets. `compliant` is not offered here.
-ccsds::Result<std::size_t> phy_uncoded_encode(PhyDecl decl, std::span<std::byte> out,
+ccsds::Result<std::size_t> phyUncodedEncode(PhyDecl decl, std::span<std::byte> out,
                                               std::span<const std::byte> frame) noexcept;
-ccsds::Result<ccsds::PltuView> phy_uncoded_decode(
+ccsds::Result<ccsds::PltuView> phyUncodedDecode(
     PhyDecl decl, std::span<const std::byte> octets) noexcept;
 
 }  // namespace starcom::adapters

@@ -23,16 +23,16 @@ inline constexpr std::array<std::byte, kLdpcCsmOctets> kLdpcCsm{
     std::byte{0x27}, std::byte{0x28}, std::byte{0x95}, std::byte{0xB0}};
 
 // XOR the 256-octet codeword with the 211.2 §3.4.5 PN (not the CSM).
-Result<std::size_t> ldpc_randomize(std::span<std::byte> codeword) noexcept;
+Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept;
 
 // Systematic randomized codeword (256 octets). No CSM.
-Result<std::size_t> ldpc_encode_block(std::span<std::byte> out,
+Result<std::size_t> ldpcEncodeBlock(std::span<std::byte> out,
                                       std::span<const std::byte> message) noexcept;
 
 // Partition bitstream into 128-octet messages. Each block emits CSM + codeword
 // with no fill between them. Length not a multiple of 128 → truncated
 // (Idle/fill is the caller's job).
-Result<std::size_t> ldpc_encode_stream(std::span<std::byte> out,
+Result<std::size_t> ldpcEncodeStream(std::span<std::byte> out,
                                        std::span<const std::byte> bitstream) noexcept;
 
 }  // namespace starcom::ccsds

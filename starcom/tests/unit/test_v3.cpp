@@ -14,10 +14,10 @@
 #include <span>
 #include <vector>
 
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::decode_v3;
-using starcom::ccsds::encode_pltu;
-using starcom::ccsds::encode_v3;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::decodeV3;
+using starcom::ccsds::encodePltu;
+using starcom::ccsds::encodeV3;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
@@ -43,13 +43,13 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
     std::byte{0x00}};
 
-std::span<const std::byte> as_span(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a) {
   return std::span<const std::byte>(a.data(), a.size());
 }
 
 void test_decode_header_only() {
   // IVP v3-header-only
-  const auto v = decode_v3(as_span(kV3HeaderOnly));
+  const auto v = decodeV3(asSpan(kV3HeaderOnly));
   CHECK(v.has_value());
   CHECK(!v->fields.qos_expedited);
   CHECK(!v->fields.p_frame);
@@ -74,10 +74,10 @@ void test_roundtrip_populated() {
   f.fsn = 0x5A;
   const std::array<std::byte, 2> data{std::byte{0x11}, std::byte{0x22}};
   std::array<std::byte, 16> out{};
-  const auto n = encode_v3(out, f, as_span(data));
+  const auto n = encodeV3(out, f, asSpan(data));
   CHECK(n.has_value());
   CHECK(*n == 7u);
-  const auto v = decode_v3(std::span<const std::byte>(out.data(), *n));
+  const auto v = decodeV3(std::span<const std::byte>(out.data(), *n));
   CHECK(v.has_value());
   CHECK(v->fields.qos_expedited);
   CHECK(!v->fields.p_frame);
@@ -95,7 +95,7 @@ void test_roundtrip_populated() {
 void test_encode_matches_golden() {
   V3Fields f{};
   std::array<std::byte, 5> out{};
-  const auto n = encode_v3(out, f, {});
+  const auto n = encodeV3(out, f, {});
   CHECK(n.has_value());
   CHECK(*n == 5u);
   CHECK(std::equal(out.begin(), out.end(), kV3HeaderOnly.begin()));
@@ -103,13 +103,13 @@ void test_encode_matches_golden() {
 
 void test_reject_truncated() {
   // IVP truncated
-  const auto empty = decode_v3({});
+  const auto empty = decodeV3({});
   CHECK(!empty.has_value());
   CHECK(empty.error() == Error::truncated);
 
   const std::array<std::byte, 4> four{std::byte{0x80}, std::byte{0x00},
                                       std::byte{0x00}, std::byte{0x04}};
-  const auto short_hdr = decode_v3(as_span(four));
+  const auto short_hdr = decodeV3(asSpan(four));
   CHECK(!short_hdr.has_value());
   CHECK(short_hdr.error() == Error::truncated);
 
@@ -117,7 +117,7 @@ void test_reject_truncated() {
   const std::array<std::byte, 5> claims_six{
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x05},
       std::byte{0x00}};
-  const auto cut = decode_v3(as_span(claims_six));
+  const auto cut = decodeV3(asSpan(claims_six));
   CHECK(!cut.has_value());
   CHECK(cut.error() == Error::truncated);
 }
@@ -126,7 +126,7 @@ void test_reject_tfvn_unknown() {
   // IVP tfvn-unknown
   auto frame = kV3HeaderOnly;
   frame[0] = std::byte{0x00};
-  const auto r = decode_v3(as_span(frame));
+  const auto r = decodeV3(asSpan(frame));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::tfvn_unknown);
 }
@@ -136,7 +136,7 @@ void test_reject_v3_length_oob() {
   std::array<std::byte, 5> too_small{
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x03},
       std::byte{0x00}};
-  const auto r = decode_v3(as_span(too_small));
+  const auto r = decodeV3(asSpan(too_small));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::v3_length_oob);
 }
@@ -144,7 +144,7 @@ void test_reject_v3_length_oob() {
 void test_encode_buffer_too_small() {
   V3Fields f{};
   std::array<std::byte, 4> too_small{};
-  const auto r = encode_v3(too_small, f, {});
+  const auto r = encodeV3(too_small, f, {});
   CHECK(!r.has_value());
   CHECK(r.error() == Error::buffer_too_small);
 }
@@ -152,15 +152,15 @@ void test_encode_buffer_too_small() {
 void test_pltu_composition() {
   V3Fields f{};
   std::array<std::byte, 5> frame{};
-  const auto n = encode_v3(frame, f, {});
+  const auto n = encodeV3(frame, f, {});
   CHECK(n.has_value());
   std::array<std::byte, 16> pltu{};
-  const auto p = encode_pltu(pltu, std::span<const std::byte>(frame.data(), *n));
+  const auto p = encodePltu(pltu, std::span<const std::byte>(frame.data(), *n));
   CHECK(p.has_value());
   CHECK(*p == kPltuAsmSize + kV3HeaderSize + kPltuCrcSize);
-  const auto env = decode_pltu(std::span<const std::byte>(pltu.data(), *p));
+  const auto env = decodePltu(std::span<const std::byte>(pltu.data(), *p));
   CHECK(env.has_value());
-  const auto v = decode_v3(env->frame);
+  const auto v = decodeV3(env->frame);
   CHECK(v.has_value());
   CHECK(v->data.empty());
 }
@@ -168,12 +168,12 @@ void test_pltu_composition() {
 void test_heap() {
   V3Fields f{};
   std::array<std::byte, 8> out{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  (void)encode_v3(out, f, {});
-  (void)decode_v3(as_span(kV3HeaderOnly));
-  starcom::test::heap_trap_disarm();
-  CHECK(starcom::test::heap_trap_count() == 0);
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  (void)encodeV3(out, f, {});
+  (void)decodeV3(asSpan(kV3HeaderOnly));
+  starcom::test::heapTrapDisarm();
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

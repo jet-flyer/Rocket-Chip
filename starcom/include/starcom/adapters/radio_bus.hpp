@@ -14,21 +14,21 @@ struct BusOps {
   void* ctx = nullptr;
   ccsds::Result<std::size_t> (*spi)(void* ctx, std::span<const std::byte> tx,
                                     std::span<std::byte> rx) noexcept = nullptr;
-  void (*gpio_write)(void* ctx, int line, bool level) noexcept = nullptr;
-  bool (*gpio_read)(void* ctx, int line) noexcept = nullptr;
+  void (*gpioWrite)(void* ctx, int line, bool level) noexcept = nullptr;
+  bool (*gpioRead)(void* ctx, int line) noexcept = nullptr;
 };
 
-ccsds::Result<std::size_t> bus_spi(BusOps const& bus, std::span<const std::byte> tx,
+ccsds::Result<std::size_t> busSpi(BusOps const& bus, std::span<const std::byte> tx,
                                    std::span<std::byte> rx) noexcept;
-ccsds::Result<std::size_t> bus_gpio_write(BusOps const& bus, int line,
+ccsds::Result<std::size_t> busGpioWrite(BusOps const& bus, int line,
                                           bool level) noexcept;
-ccsds::Result<bool> bus_gpio_read(BusOps const& bus, int line) noexcept;
+ccsds::Result<bool> busGpioRead(BusOps const& bus, int line) noexcept;
 
 // Byte pump: RadioPort TX slot onto SPI, SPI into RadioPort RX.
 // scratch is caller-owned. shift_rx `n` is the caller-owned read length.
-ccsds::Result<std::size_t> radio_bus_shift_tx(RadioPort& port, BusOps const& bus,
+ccsds::Result<std::size_t> radioBusShiftTx(RadioPort& port, BusOps const& bus,
                                               std::span<std::byte> scratch) noexcept;
-ccsds::Result<std::size_t> radio_bus_shift_rx(RadioPort& port, BusOps const& bus,
+ccsds::Result<std::size_t> radioBusShiftRx(RadioPort& port, BusOps const& bus,
                                               std::span<std::byte> scratch,
                                               std::size_t n) noexcept;
 

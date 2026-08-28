@@ -13,11 +13,11 @@
 namespace starcom::ccsds {
 
 // 232.1 §5.2.1 / §6.2 note: 8-bit FSN, same modulo-256 compare as 211.0 §7.1.
-inline constexpr std::uint8_t cop1_seq_delta(std::uint8_t a, std::uint8_t b) noexcept {
+inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexcept {
   return static_cast<std::uint8_t>(a - b);
 }
-inline constexpr bool cop1_seq_lt(std::uint8_t b, std::uint8_t a) noexcept {
-  const std::uint8_t d = cop1_seq_delta(a, b);
+inline constexpr bool cop1SeqLt(std::uint8_t b, std::uint8_t a) noexcept {
+  const std::uint8_t d = cop1SeqDelta(a, b);
   return d >= 1u && d <= 127u;
 }
 
@@ -43,14 +43,14 @@ struct Farm1 {
   Farm1Mib mib{};
 };
 
-void farm_1_init(Farm1& f, Farm1Mib const& mib) noexcept;
-Farm1Disposition farm_1_on_ad(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept;
-Farm1Disposition farm_1_on_bd(Farm1& f) noexcept;           // E6
-void farm_1_on_unlock(Farm1& f) noexcept;                   // E7
-void farm_1_on_set_vr(Farm1& f, std::uint8_t v_star) noexcept;  // E8
-void farm_1_on_invalid(Farm1& f) noexcept;                  // E9
-void farm_1_buffer_release(Farm1& f) noexcept;              // E10
-Clcw32 farm_1_report(Farm1 const& f, std::uint8_t vcid) noexcept;  // E11
+void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept;
+Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept;
+Farm1Disposition farm1OnBd(Farm1& f) noexcept;           // E6
+void farm1OnUnlock(Farm1& f) noexcept;                   // E7
+void farm1OnSetVr(Farm1& f, std::uint8_t v_star) noexcept;  // E8
+void farm1OnInvalid(Farm1& f) noexcept;                  // E9
+void farm1BufferRelease(Farm1& f) noexcept;              // E10
+Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept;  // E11
 
 enum class Fop1State : std::uint8_t {
   s1_active = 0,
@@ -102,15 +102,15 @@ struct Fop1 {
   bool bc_to_send = false;
 };
 
-void fop_1_init(Fop1& f, Cop1Mib const& mib) noexcept;
-bool fop_1_initiate_ad(Fop1& f) noexcept;               // E23 without CLCW check
-bool fop_1_initiate_ad_with_clcw_check(Fop1& f) noexcept;  // E24 → S4
-bool fop_1_initiate_ad_unlock(Fop1& f) noexcept;           // E25 → S5
-bool fop_1_initiate_ad_set_vr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 → S5
-void fop_1_terminate_ad(Fop1& f) noexcept;                 // E29
-Fop1Send fop_1_need_frame(Fop1& f, bool bd_available, bool ad_available) noexcept;
-void fop_1_on_clcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept;
-void fop_1_tick(Fop1& f, Tick now) noexcept;
+void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept;
+bool fop1InitiateAd(Fop1& f) noexcept;               // E23 without CLCW check
+bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept;  // E24 → S4
+bool fop1InitiateAdUnlock(Fop1& f) noexcept;           // E25 → S5
+bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 → S5
+void fop1TerminateAd(Fop1& f) noexcept;                 // E29
+Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept;
+void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept;
+void fop1Tick(Fop1& f, Tick now) noexcept;
 
 // 232.0 §4.1.3.3
 inline constexpr std::byte kCop1Unlock{0x00};
@@ -137,7 +137,7 @@ struct Cop1Endpoint {
   std::array<std::byte, kCop1Hold> bd_q{};
   std::size_t bd_len = 0;
   bool bd_full = false;
-  // 256 N(S) × kCop1Hold ≈ 16 KiB. cop1_init memsets in place — do not
+  // 256 N(S) × kCop1Hold ≈ 16 KiB. cop1Init memsets in place — do not
   // `e = Cop1Endpoint{}` (stack temp exceeds Pico Core 0's 4 KiB).
   std::array<std::array<std::byte, kCop1Hold>, 256> payload_by_ns{};
   std::array<std::size_t, 256> payload_len_by_ns{};
@@ -146,19 +146,19 @@ struct Cop1Endpoint {
   std::uint8_t rx_n = 0;
 };
 
-void cop1_init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
+void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
                Vcid vcid, MapId map) noexcept;
-bool cop1_initiate_ad(Cop1Endpoint& e) noexcept;
-bool cop1_initiate_ad_with_clcw_check(Cop1Endpoint& e) noexcept;
-bool cop1_initiate_ad_unlock(Cop1Endpoint& e) noexcept;
-bool cop1_initiate_ad_set_vr(Cop1Endpoint& e, std::uint8_t v_star) noexcept;
-void cop1_terminate_ad(Cop1Endpoint& e) noexcept;
-void cop1_tick(Cop1Endpoint& e, Tick now) noexcept;
-void cop1_receive_bytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept;
-Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
-Result<std::size_t> cop1_submit_sdu(Cop1Endpoint& e, std::span<const std::byte> packet,
+bool cop1InitiateAd(Cop1Endpoint& e) noexcept;
+bool cop1InitiateAdWithClcwCheck(Cop1Endpoint& e) noexcept;
+bool cop1InitiateAdUnlock(Cop1Endpoint& e) noexcept;
+bool cop1InitiateAdSetVr(Cop1Endpoint& e, std::uint8_t v_star) noexcept;
+void cop1TerminateAd(Cop1Endpoint& e) noexcept;
+void cop1Tick(Cop1Endpoint& e, Tick now) noexcept;
+void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept;
+Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
+Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
-Result<std::size_t> cop1_take_sdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
-Cop1Event cop1_poll_event(Cop1Endpoint& e) noexcept;
+Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
+Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept;
 
 }  // namespace starcom::ccsds

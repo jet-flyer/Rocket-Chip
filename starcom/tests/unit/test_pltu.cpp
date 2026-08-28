@@ -18,14 +18,14 @@
 #include <vector>
 
 using starcom::ccsds::crc32;
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::dequeue_pltu;
-using starcom::ccsds::encode_pltu;
-using starcom::ccsds::enqueue_pltu;
-using starcom::ccsds::hunt_pltu;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::dequeuePltu;
+using starcom::ccsds::encodePltu;
+using starcom::ccsds::enqueuePltu;
+using starcom::ccsds::huntPltu;
 using starcom::ccsds::PltuRepeatQ;
 using starcom::ccsds::PltuRepeatSlot;
-using starcom::ccsds::repeat_pltu;
+using starcom::ccsds::repeatPltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsm;
 using starcom::ccsds::kPltuAsmSize;
@@ -54,19 +54,19 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
 // Annex C remainder of kV3HeaderOnly. Independent Python bit-division matched.
 constexpr std::uint32_t kV3HeaderOnlyCrc = 0xBCC004E7u;
 
-std::span<const std::byte> as_span(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a) {
   return std::span<const std::byte>(a.data(), a.size());
 }
 
 void test_crc_empty_and_zeros() {
   CHECK(crc32({}) == 0u);
   const std::array<std::byte, 5> zeros{};
-  CHECK(crc32(as_span(zeros)) == 0u);
+  CHECK(crc32(asSpan(zeros)) == 0u);
 }
 
 void test_crc_v3_header_only() {
   // IVP v3-header-only
-  CHECK(crc32(as_span(kV3HeaderOnly)) == kV3HeaderOnlyCrc);
+  CHECK(crc32(asSpan(kV3HeaderOnly)) == kV3HeaderOnlyCrc);
 }
 
 void test_asm_in_crc() {
@@ -75,12 +75,12 @@ void test_asm_in_crc() {
   std::copy(kPltuAsm.begin(), kPltuAsm.end(), covered.begin());
   std::copy(kV3HeaderOnly.begin(), kV3HeaderOnly.end(),
             covered.begin() + kPltuAsmSize);
-  CHECK(crc32(as_span(covered)) != kV3HeaderOnlyCrc);
+  CHECK(crc32(asSpan(covered)) != kV3HeaderOnlyCrc);
 }
 
 void test_encode_decode_roundtrip() {
   ByteBuf out{};
-  const auto n = encode_pltu(out, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   CHECK(*n == kPltuAsmSize + kV3HeaderOnly.size() + kPltuCrcSize);
 
@@ -97,7 +97,7 @@ void test_encode_decode_roundtrip() {
   CHECK(out[10] == std::byte{0x04});
   CHECK(out[11] == std::byte{0xE7});
 
-  const auto view = decode_pltu(std::span<const std::byte>(out.data(), *n));
+  const auto view = decodePltu(std::span<const std::byte>(out.data(), *n));
   CHECK(view.has_value());
   CHECK(view->frame.size() == kV3HeaderOnly.size());
   CHECK(std::equal(view->frame.begin(), view->frame.end(),
@@ -106,12 +106,12 @@ void test_encode_decode_roundtrip() {
 
 void test_repeat_bit_exact_and_rejects() {
   ByteBuf src{};
-  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   src[*n] = std::byte{0xFF};  // trailing must not be copied
   ByteBuf dst{};
   const auto r =
-      repeat_pltu(dst, std::span<const std::byte>(src.data(), *n + 1));
+      repeatPltu(dst, std::span<const std::byte>(src.data(), *n + 1));
   CHECK(r.has_value());
   CHECK(*r == *n);
   CHECK(std::equal(src.begin(), src.begin() + static_cast<std::ptrdiff_t>(*n),
@@ -119,13 +119,13 @@ void test_repeat_bit_exact_and_rejects() {
   CHECK(dst[*n] == std::byte{0});
 
   ByteBuf bad{};
-  const auto n2 = encode_pltu(bad, as_span(kV3HeaderOnly));
+  const auto n2 = encodePltu(bad, asSpan(kV3HeaderOnly));
   CHECK(n2.has_value());
   bad[*n2 - 1] ^= std::byte{0x01};
-  CHECK(repeat_pltu(dst, std::span<const std::byte>(bad.data(), *n2)).error() ==
+  CHECK(repeatPltu(dst, std::span<const std::byte>(bad.data(), *n2)).error() ==
         Error::bad_crc);
 
-  CHECK(repeat_pltu(std::span<std::byte>(dst.data(), 1),
+  CHECK(repeatPltu(std::span<std::byte>(dst.data(), 1),
                     std::span<const std::byte>(src.data(), *n))
             .error() == Error::buffer_too_small);
 }
@@ -133,8 +133,8 @@ void test_repeat_bit_exact_and_rejects() {
 void test_hunt_leading_junk_and_back_to_back() {
   ByteBuf a{};
   ByteBuf b{};
-  const auto na = encode_pltu(a, as_span(kV3HeaderOnly));
-  const auto nb = encode_pltu(b, as_span(kV3HeaderOnly));
+  const auto na = encodePltu(a, asSpan(kV3HeaderOnly));
+  const auto nb = encodePltu(b, asSpan(kV3HeaderOnly));
   CHECK(na.has_value());
   CHECK(nb.has_value());
 
@@ -148,12 +148,12 @@ void test_hunt_leading_junk_and_back_to_back() {
   const std::size_t total = 2u + *na + *nb;
 
   const auto first =
-      hunt_pltu(std::span<const std::byte>(stream.data(), total));
+      huntPltu(std::span<const std::byte>(stream.data(), total));
   CHECK(first.pltu.has_value());
   CHECK(first.consumed == 2u + *na);
   CHECK(first.pltu->frame.size() == kV3HeaderOnly.size());
 
-  const auto second = hunt_pltu(std::span<const std::byte>(
+  const auto second = huntPltu(std::span<const std::byte>(
       stream.data() + first.consumed, total - first.consumed));
   CHECK(second.pltu.has_value());
   CHECK(second.consumed == *nb);
@@ -161,7 +161,7 @@ void test_hunt_leading_junk_and_back_to_back() {
 
 void test_hunt_split_across_calls() {
   ByteBuf src{};
-  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   std::array<std::byte, 20> chunk1{};
   chunk1[0] = std::byte{0xAA};
@@ -170,7 +170,7 @@ void test_hunt_split_across_calls() {
             chunk1.begin() + 1);
 
   const auto h1 =
-      hunt_pltu(std::span<const std::byte>(chunk1.data(), 1 + first_n));
+      huntPltu(std::span<const std::byte>(chunk1.data(), 1 + first_n));
   CHECK(!h1.pltu.has_value());
   CHECK(h1.pltu.error() == Error::truncated);
   CHECK(h1.consumed == 1u);
@@ -183,7 +183,7 @@ void test_hunt_split_across_calls() {
   std::copy(src.begin() + static_cast<std::ptrdiff_t>(first_n),
             src.begin() + static_cast<std::ptrdiff_t>(*n),
             chunk2.begin() + static_cast<std::ptrdiff_t>(kept));
-  const auto h2 = hunt_pltu(
+  const auto h2 = huntPltu(
       std::span<const std::byte>(chunk2.data(), kept + (*n - first_n)));
   CHECK(h2.pltu.has_value());
   CHECK(h2.consumed == *n);
@@ -192,14 +192,14 @@ void test_hunt_split_across_calls() {
 void test_hunt_idle_then_pltu() {
   // 211.2 §3.3.2.2 idle PN. Receive discards it until the next ASM.
   ByteBuf src{};
-  const auto n = encode_pltu(src, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   std::array<std::byte, 32> stream{
       std::byte{0x35}, std::byte{0x2E}, std::byte{0xF8}, std::byte{0x53}};
   std::copy(src.begin(), src.begin() + static_cast<std::ptrdiff_t>(*n),
             stream.begin() + 4);
   const auto h =
-      hunt_pltu(std::span<const std::byte>(stream.data(), 4 + *n));
+      huntPltu(std::span<const std::byte>(stream.data(), 4 + *n));
   CHECK(h.pltu.has_value());
   CHECK(h.consumed == 4u + *n);
 }
@@ -207,7 +207,7 @@ void test_hunt_idle_then_pltu() {
 void test_hunt_partial_asm_kept() {
   const std::array<std::byte, 3> tail{std::byte{0x00}, std::byte{0xFA},
                                       std::byte{0xF3}};
-  const auto h = hunt_pltu(as_span(tail));
+  const auto h = huntPltu(asSpan(tail));
   CHECK(!h.pltu.has_value());
   CHECK(h.pltu.error() == Error::truncated);
   CHECK(h.consumed == 1u);
@@ -216,8 +216,8 @@ void test_hunt_partial_asm_kept() {
 void test_hunt_bad_crc_consumes_unit() {
   ByteBuf bad{};
   ByteBuf good{};
-  const auto n1 = encode_pltu(bad, as_span(kV3HeaderOnly));
-  const auto n2 = encode_pltu(good, as_span(kV3HeaderOnly));
+  const auto n1 = encodePltu(bad, asSpan(kV3HeaderOnly));
+  const auto n2 = encodePltu(good, asSpan(kV3HeaderOnly));
   CHECK(n1.has_value());
   CHECK(n2.has_value());
   bad[*n1 - 1] ^= std::byte{0x01};
@@ -228,12 +228,12 @@ void test_hunt_bad_crc_consumes_unit() {
             stream.begin() + static_cast<std::ptrdiff_t>(*n1));
 
   const auto h1 =
-      hunt_pltu(std::span<const std::byte>(stream.data(), *n1 + *n2));
+      huntPltu(std::span<const std::byte>(stream.data(), *n1 + *n2));
   CHECK(!h1.pltu.has_value());
   CHECK(h1.pltu.error() == Error::bad_crc);
   CHECK(h1.consumed == *n1);
 
-  const auto h2 = hunt_pltu(std::span<const std::byte>(
+  const auto h2 = huntPltu(std::span<const std::byte>(
       stream.data() + h1.consumed, *n2));
   CHECK(h2.pltu.has_value());
   CHECK(h2.consumed == *n2);
@@ -241,7 +241,7 @@ void test_hunt_bad_crc_consumes_unit() {
 
 void test_buffered_repeat_fifo_dedup_full() {
   ByteBuf a{};
-  const auto na = encode_pltu(a, as_span(kV3HeaderOnly));
+  const auto na = encodePltu(a, asSpan(kV3HeaderOnly));
   CHECK(na.has_value());
   std::array<std::byte, 32> s0{};
   std::array<std::byte, 32> s1{};
@@ -250,39 +250,39 @@ void test_buffered_repeat_fifo_dedup_full() {
       PltuRepeatSlot{std::span<std::byte>(s1)}};
   PltuRepeatQ q{std::span<PltuRepeatSlot>(slots)};
 
-  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+  CHECK(enqueuePltu(q, std::span<const std::byte>(a.data(), *na), false)
             .value() == *na);
-  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), true)
+  CHECK(enqueuePltu(q, std::span<const std::byte>(a.data(), *na), true)
             .value() == 0u);  // same FSN
-  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+  CHECK(enqueuePltu(q, std::span<const std::byte>(a.data(), *na), false)
             .value() == *na);
-  CHECK(enqueue_pltu(q, std::span<const std::byte>(a.data(), *na), false)
+  CHECK(enqueuePltu(q, std::span<const std::byte>(a.data(), *na), false)
             .error() == Error::buffer_too_small);
 
   ByteBuf out{};
-  const auto d0 = dequeue_pltu(q, out);
+  const auto d0 = dequeuePltu(q, out);
   CHECK(d0.value() == *na);
   CHECK(std::equal(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(*na),
                    out.begin()));
-  const auto d1 = dequeue_pltu(q, out);
+  const auto d1 = dequeuePltu(q, out);
   CHECK(d1.value() == *na);
-  CHECK(dequeue_pltu(q, out).value() == 0u);
+  CHECK(dequeuePltu(q, out).value() == 0u);
 
   ByteBuf bad{};
-  const auto nb = encode_pltu(bad, as_span(kV3HeaderOnly));
+  const auto nb = encodePltu(bad, asSpan(kV3HeaderOnly));
   CHECK(nb.has_value());
   bad[*nb - 1] ^= std::byte{0x01};
-  CHECK(enqueue_pltu(q, std::span<const std::byte>(bad.data(), *nb), false)
+  CHECK(enqueuePltu(q, std::span<const std::byte>(bad.data(), *nb), false)
             .error() == Error::bad_crc);
 }
 
 void test_decode_ignores_trailing() {
   ByteBuf out{};
-  const auto n = encode_pltu(out, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   out[*n] = std::byte{0xFF};
   const auto view =
-      decode_pltu(std::span<const std::byte>(out.data(), *n + 1));
+      decodePltu(std::span<const std::byte>(out.data(), *n + 1));
   CHECK(view.has_value());
   CHECK(view->frame.size() == kV3HeaderOnly.size());
 }
@@ -290,33 +290,33 @@ void test_decode_ignores_trailing() {
 void test_reject_bad_asm() {
   // IVP bad-asm
   ByteBuf buf{};
-  const auto n = encode_pltu(buf, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(buf, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   buf[0] = std::byte{0x00};
-  const auto r = decode_pltu(std::span<const std::byte>(buf.data(), *n));
+  const auto r = decodePltu(std::span<const std::byte>(buf.data(), *n));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::bad_asm);
 }
 
 void test_reject_truncated() {
   // IVP truncated
-  const auto empty = decode_pltu({});
+  const auto empty = decodePltu({});
   CHECK(!empty.has_value());
   CHECK(empty.error() == Error::truncated);
 
   const std::array<std::byte, 2> two{std::byte{0xFA}, std::byte{0xF3}};
-  const auto short_asm = decode_pltu(as_span(two));
+  const auto short_asm = decodePltu(asSpan(two));
   CHECK(!short_asm.has_value());
   CHECK(short_asm.error() == Error::truncated);
 
-  const auto asm_only = decode_pltu(as_span(kPltuAsm));
+  const auto asm_only = decodePltu(asSpan(kPltuAsm));
   CHECK(!asm_only.has_value());
   CHECK(asm_only.error() == Error::truncated);
 
   ByteBuf buf{};
-  const auto n = encode_pltu(buf, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(buf, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
-  const auto cut = decode_pltu(std::span<const std::byte>(buf.data(), *n - 1));
+  const auto cut = decodePltu(std::span<const std::byte>(buf.data(), *n - 1));
   CHECK(!cut.has_value());
   CHECK(cut.error() == Error::truncated);
 }
@@ -324,10 +324,10 @@ void test_reject_truncated() {
 void test_reject_bad_crc() {
   // IVP bad-crc
   ByteBuf buf{};
-  const auto n = encode_pltu(buf, as_span(kV3HeaderOnly));
+  const auto n = encodePltu(buf, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
   buf[*n - 1] ^= std::byte{0x01};
-  const auto r = decode_pltu(std::span<const std::byte>(buf.data(), *n));
+  const auto r = decodePltu(std::span<const std::byte>(buf.data(), *n));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::bad_crc);
 }
@@ -337,16 +337,16 @@ void test_reject_tfvn_unknown() {
   ByteBuf buf{};
   auto frame = kV3HeaderOnly;
   frame[0] = std::byte{0x00};  // TFVN bits 00
-  const auto n = encode_pltu(buf, as_span(frame));
+  const auto n = encodePltu(buf, asSpan(frame));
   CHECK(n.has_value());
-  const auto r = decode_pltu(std::span<const std::byte>(buf.data(), *n));
+  const auto r = decodePltu(std::span<const std::byte>(buf.data(), *n));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::tfvn_unknown);
 
   frame[0] = std::byte{0xD0};  // 1101 — not V-3, not USLP 1100
-  const auto n2 = encode_pltu(buf, as_span(frame));
+  const auto n2 = encodePltu(buf, asSpan(frame));
   CHECK(n2.has_value());
-  const auto r2 = decode_pltu(std::span<const std::byte>(buf.data(), *n2));
+  const auto r2 = decodePltu(std::span<const std::byte>(buf.data(), *n2));
   CHECK(!r2.has_value());
   CHECK(r2.error() == Error::tfvn_unknown);
 }
@@ -357,27 +357,27 @@ void test_reject_v3_length_oob() {
   std::array<std::byte, 7> too_small{
       std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20},
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x03}};
-  const auto r = decode_pltu(as_span(too_small));
+  const auto r = decodePltu(asSpan(too_small));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::v3_length_oob);
 
   ByteBuf tiny{};
   const std::array<std::byte, 4> short_frame{};
-  const auto enc = encode_pltu(tiny, as_span(short_frame));
+  const auto enc = encodePltu(tiny, asSpan(short_frame));
   CHECK(!enc.has_value());
   CHECK(enc.error() == Error::v3_length_oob);
 
   std::array<std::byte, 16> small_out{};
   std::vector<std::byte> huge(kTransferFrameMax + 1);
   huge[0] = std::byte{0x80};
-  const auto enc_big = encode_pltu(small_out, huge);
+  const auto enc_big = encodePltu(small_out, huge);
   CHECK(!enc_big.has_value());
   CHECK(enc_big.error() == Error::v3_length_oob);
 }
 
 void test_encode_buffer_too_small() {
   std::array<std::byte, 11> too_small{};  // need 12 for header-only PLTU
-  const auto r = encode_pltu(too_small, as_span(kV3HeaderOnly));
+  const auto r = encodePltu(too_small, asSpan(kV3HeaderOnly));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::buffer_too_small);
 }
@@ -389,10 +389,10 @@ void test_encode_max_frame() {
   frame[2] = std::byte{0x07};
   frame[3] = std::byte{0xFF};
   std::vector<std::byte> out(kPltuAsmSize + kTransferFrameMax + kPltuCrcSize);
-  const auto n = encode_pltu(out, frame);
+  const auto n = encodePltu(out, frame);
   CHECK(n.has_value());
   CHECK(*n == out.size());
-  const auto view = decode_pltu(out);
+  const auto view = decodePltu(out);
   CHECK(view.has_value());
   CHECK(view->frame.size() == kTransferFrameMax);
 }
@@ -402,22 +402,22 @@ void test_one_data_octet() {
   const std::array<std::byte, 6> frame{
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x05},
       std::byte{0x00}, std::byte{0xAA}};
-  CHECK(crc32(as_span(frame)) == 0x85C4556Eu);
+  CHECK(crc32(asSpan(frame)) == 0x85C4556Eu);
   ByteBuf out{};
-  const auto n = encode_pltu(out, as_span(frame));
+  const auto n = encodePltu(out, asSpan(frame));
   CHECK(n.has_value());
   CHECK(*n == 13u);
-  const auto view = decode_pltu(std::span<const std::byte>(out.data(), *n));
+  const auto view = decodePltu(std::span<const std::byte>(out.data(), *n));
   CHECK(view.has_value());
   CHECK(view->frame.size() == 6u);
 }
 
 void test_heap_trap_positive_control() {
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
   auto* p = new int{42};
-  starcom::test::heap_trap_disarm();
-  CHECK(starcom::test::heap_trap_count() > 0);
+  starcom::test::heapTrapDisarm();
+  CHECK(starcom::test::heapTrapCount() > 0);
   CHECK(p != nullptr);
   CHECK(*p == 42);
   delete p;
@@ -425,24 +425,24 @@ void test_heap_trap_positive_control() {
 
 void test_codecs_allocate_nothing() {
   ByteBuf out{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  (void)crc32(as_span(kV3HeaderOnly));
-  const auto n = encode_pltu(out, as_span(kV3HeaderOnly));
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  (void)crc32(asSpan(kV3HeaderOnly));
+  const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
   if (n.has_value()) {
-    (void)decode_pltu(std::span<const std::byte>(out.data(), *n));
+    (void)decodePltu(std::span<const std::byte>(out.data(), *n));
     ByteBuf rpt{};
-    (void)repeat_pltu(rpt, std::span<const std::byte>(out.data(), *n));
-    (void)hunt_pltu(std::span<const std::byte>(out.data(), *n));
+    (void)repeatPltu(rpt, std::span<const std::byte>(out.data(), *n));
+    (void)huntPltu(std::span<const std::byte>(out.data(), *n));
     ByteBuf slotbuf{};
     PltuRepeatSlot slot{std::span<std::byte>(slotbuf)};
     PltuRepeatQ q{std::span<PltuRepeatSlot>(&slot, 1)};
-    (void)enqueue_pltu(q, std::span<const std::byte>(out.data(), *n), false);
-    (void)dequeue_pltu(q, rpt);
+    (void)enqueuePltu(q, std::span<const std::byte>(out.data(), *n), false);
+    (void)dequeuePltu(q, rpt);
   }
-  starcom::test::heap_trap_disarm();
+  starcom::test::heapTrapDisarm();
   CHECK(n.has_value());
-  CHECK(starcom::test::heap_trap_count() == 0);
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

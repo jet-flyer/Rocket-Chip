@@ -150,43 +150,43 @@ struct MacSession {
   CoppEndpoint* copp = nullptr;  // caller-owned; null = no COP this sitting
 };
 
-void mac_init(MacSession& m, MacMib const& mib, MacDuplex duplex,
+void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
               CoppEndpoint* copp = nullptr) noexcept;
 
 // 6.3.3.1.2 — SET MODE inactive + COP-P SE0/RE0
-void mac_set_initialize_mode(MacSession& m, Tick now) noexcept;
+void macSetInitializeMode(MacSession& m, Tick now) noexcept;
 
 // 6.3.3.1.1
-void mac_set_mode(MacSession& m, MacMode mode, Tick now) noexcept;
+void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept;
 
 // 6.3.3.1.6 — local; S1 only (session changes use SET CONTROL PARAMETERS)
-void mac_set_duplex(MacSession& m, MacDuplex duplex) noexcept;
+void macSetDuplex(MacSession& m, MacDuplex duplex) noexcept;
 
-void mac_set_carrier_acquired(MacSession& m, bool acquired, Tick now) noexcept;
-void mac_set_symbol_inlock(MacSession& m, bool inlock, Tick now) noexcept;
-void mac_local_no_more_data(MacSession& m, Tick now) noexcept;
-void mac_local_comm_change(MacSession& m, Tick now) noexcept;
-void mac_on_hail_received(MacSession& m, Tick now) noexcept;
-void mac_on_valid_frame(MacSession& m, Tick now) noexcept;
-void mac_on_remote_comm_change(MacSession& m, Tick now) noexcept;
-void mac_on_rnmd(MacSession& m, Tick now) noexcept;
-void mac_on_token(MacSession& m, Tick now) noexcept;
-void mac_on_fifo_empty(MacSession& m, Tick now) noexcept;
-void mac_on_no_frames_pending(MacSession& m, Tick now) noexcept;
-void mac_set_sdu_pending(MacSession& m, bool pending) noexcept;
+void macSetCarrierAcquired(MacSession& m, bool acquired, Tick now) noexcept;
+void macSetSymbolInlock(MacSession& m, bool inlock, Tick now) noexcept;
+void macLocalNoMoreData(MacSession& m, Tick now) noexcept;
+void macLocalCommChange(MacSession& m, Tick now) noexcept;
+void macOnHailReceived(MacSession& m, Tick now) noexcept;
+void macOnValidFrame(MacSession& m, Tick now) noexcept;
+void macOnRemoteCommChange(MacSession& m, Tick now) noexcept;
+void macOnRnmd(MacSession& m, Tick now) noexcept;
+void macOnToken(MacSession& m, Tick now) noexcept;
+void macOnFifoEmpty(MacSession& m, Tick now) noexcept;
+void macOnNoFramesPending(MacSession& m, Tick now) noexcept;
+void macSetSduPending(MacSession& m, bool pending) noexcept;
 
-void mac_tick(MacSession& m, Tick now) noexcept;
-MacNotify mac_poll_notify(MacSession& m) noexcept;
-MacPhy mac_phy(MacSession const& m) noexcept;
-MacFifoSource mac_fifo_source(MacSession const& m) noexcept;  // table 6-14
+void macTick(MacSession& m, Tick now) noexcept;
+MacNotify macPollNotify(MacSession& m) noexcept;
+MacPhy macPhy(MacSession const& m) noexcept;
+MacFifoSource macFifoSource(MacSession const& m) noexcept;  // table 6-14
 
 // Annex B1.5 SET V(R): type 011, spare 0, SEQ_CTRL_FSN.
 inline constexpr std::uint8_t kSetVrDirectiveType = 0x03;
-Result<std::size_t> encode_set_vr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
+Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid pcid) noexcept;
-Result<std::uint8_t> decode_set_vr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;
-void mac_on_set_vr_directive(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept;
-void mac_drive_set_vr(MacSession& m, Tick now) noexcept;  // 7.2.3.2
-void mac_on_plcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept;
+Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;
+void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept;
+void macDriveSetVr(MacSession& m, Tick now) noexcept;  // 7.2.3.2
+void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept;
 
 }  // namespace starcom::ccsds

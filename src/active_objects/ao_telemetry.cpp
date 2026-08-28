@@ -613,7 +613,7 @@ static void dispatch_nav_output(TelemAo* me,
 
 #ifdef ROCKETCHIP_USE_STARCOM
 static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
-    const auto pkt = starcom::ccsds::decode_space_packet(sdu);
+    const auto pkt = starcom::ccsds::decodeSpacePacket(sdu);
     if (!pkt) {
         return false;
     }

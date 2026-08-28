@@ -22,7 +22,7 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
   starcom::ccsds::CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 0;
-  starcom::ccsds::copp_init(p.copp, mib, kSoakPcid, local, remote, kSoakPort);
+  starcom::ccsds::coppInit(p.copp, mib, kSoakPcid, local, remote, kSoakPort);
 }
 
 void pump_init_for_this_job(BytePump& p) noexcept {
@@ -35,12 +35,12 @@ void pump_init_for_this_job(BytePump& p) noexcept {
 
 starcom::ccsds::Result<std::size_t> pump_encode_pltu(
     std::span<std::byte> out, std::span<const std::byte> frame) noexcept {
-  return starcom::ccsds::encode_pltu(out, frame);
+  return starcom::ccsds::encodePltu(out, frame);
 }
 
 starcom::ccsds::Result<std::size_t> pump_repeat_pltu(
     std::span<std::byte> out, std::span<const std::byte> octets) noexcept {
-  return starcom::ccsds::repeat_pltu(out, octets);
+  return starcom::ccsds::repeatPltu(out, octets);
 }
 
 namespace {
@@ -48,7 +48,7 @@ namespace {
 starcom::ccsds::Result<std::size_t> pack_user_packet(
     std::span<std::byte> out, starcom::ccsds::SpacePacketFields const& sp,
     std::span<const std::byte> user) noexcept {
-  return starcom::ccsds::encode_space_packet(out, sp, user);
+  return starcom::ccsds::encodeSpacePacket(out, sp, user);
 }
 
 void copy_user(std::span<std::byte> dst, const uint8_t* src, std::size_t n) noexcept {
@@ -116,36 +116,36 @@ starcom::ccsds::Result<std::size_t> pump_encode_nav(
   starcom::ccsds::V3Fields v3{};
   v3.scid = p.local_scid;
   std::array<std::byte, 5u + 6u + kNavSduUserBytes> frame{};
-  const auto fn = starcom::ccsds::encode_v3(
+  const auto fn = starcom::ccsds::encodeV3(
       frame, v3, std::span<const std::byte>(packet.data(), *pn));
   if (!fn) {
     return fn;
   }
-  return starcom::ccsds::encode_pltu(
+  return starcom::ccsds::encodePltu(
       out, std::span<const std::byte>(frame.data(), *fn));
 }
 
 starcom::ccsds::Result<std::size_t> pump_submit_sdu(
     BytePump& p, std::span<const std::byte> packet, bool expedited) noexcept {
-  return starcom::ccsds::copp_submit_sdu(p.copp, packet, expedited);
+  return starcom::ccsds::coppSubmitSdu(p.copp, packet, expedited);
 }
 
 starcom::ccsds::Result<std::size_t> pump_bytes_to_send(
     BytePump& p, std::span<std::byte> out) noexcept {
-  return starcom::ccsds::copp_bytes_to_send(p.copp, out);
+  return starcom::ccsds::coppBytesToSend(p.copp, out);
 }
 
 void pump_receive_bytes(BytePump& p, std::span<const std::byte> octets) noexcept {
-  starcom::ccsds::copp_receive_bytes(p.copp, octets);
+  starcom::ccsds::coppReceiveBytes(p.copp, octets);
 }
 
 starcom::ccsds::Result<std::size_t> pump_take_sdu(
     BytePump& p, std::span<std::byte> out) noexcept {
-  return starcom::ccsds::copp_take_sdu(p.copp, out);
+  return starcom::ccsds::coppTakeSdu(p.copp, out);
 }
 
 void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept {
-  starcom::ccsds::copp_tick(p.copp, now);
+  starcom::ccsds::coppTick(p.copp, now);
 }
 
 }  // namespace rc::starcom_adapt

@@ -2,7 +2,7 @@
 
 namespace starcom::adapters {
 
-ccsds::Result<std::size_t> bus_spi(BusOps const& bus, std::span<const std::byte> tx,
+ccsds::Result<std::size_t> busSpi(BusOps const& bus, std::span<const std::byte> tx,
                                    std::span<std::byte> rx) noexcept {
   if (bus.spi == nullptr) {
     return tl::unexpected(ccsds::Error::truncated);
@@ -13,28 +13,28 @@ ccsds::Result<std::size_t> bus_spi(BusOps const& bus, std::span<const std::byte>
   return bus.spi(bus.ctx, tx, rx);
 }
 
-ccsds::Result<std::size_t> bus_gpio_write(BusOps const& bus, int line,
+ccsds::Result<std::size_t> busGpioWrite(BusOps const& bus, int line,
                                           bool level) noexcept {
-  if (bus.gpio_write == nullptr) {
+  if (bus.gpioWrite == nullptr) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  bus.gpio_write(bus.ctx, line, level);
+  bus.gpioWrite(bus.ctx, line, level);
   return std::size_t{1};
 }
 
-ccsds::Result<bool> bus_gpio_read(BusOps const& bus, int line) noexcept {
-  if (bus.gpio_read == nullptr) {
+ccsds::Result<bool> busGpioRead(BusOps const& bus, int line) noexcept {
+  if (bus.gpioRead == nullptr) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  return bus.gpio_read(bus.ctx, line);
+  return bus.gpioRead(bus.ctx, line);
 }
 
-ccsds::Result<std::size_t> radio_bus_shift_tx(RadioPort& port, BusOps const& bus,
+ccsds::Result<std::size_t> radioBusShiftTx(RadioPort& port, BusOps const& bus,
                                               std::span<std::byte> scratch) noexcept {
   if (scratch.size() < kAdapterFrameMax) {
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
-  const auto n = slot_read(port.tx, scratch);
+  const auto n = slotRead(port.tx, scratch);
   if (!n) {
     return n;
   }
@@ -42,14 +42,14 @@ ccsds::Result<std::size_t> radio_bus_shift_tx(RadioPort& port, BusOps const& bus
     return std::size_t{0};
   }
   std::span<std::byte> none{};
-  const auto x = bus_spi(bus, std::span<const std::byte>(scratch.data(), *n), none);
+  const auto x = busSpi(bus, std::span<const std::byte>(scratch.data(), *n), none);
   if (!x) {
     return x;
   }
   return *n;
 }
 
-ccsds::Result<std::size_t> radio_bus_shift_rx(RadioPort& port, BusOps const& bus,
+ccsds::Result<std::size_t> radioBusShiftRx(RadioPort& port, BusOps const& bus,
                                               std::span<std::byte> scratch,
                                               std::size_t n) noexcept {
   if (n == 0) {
@@ -59,7 +59,7 @@ ccsds::Result<std::size_t> radio_bus_shift_rx(RadioPort& port, BusOps const& bus
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
   std::span<const std::byte> none{};
-  const auto x = bus_spi(bus, none, scratch.subspan(0, n));
+  const auto x = busSpi(bus, none, scratch.subspan(0, n));
   if (!x) {
     return x;
   }
@@ -70,7 +70,7 @@ ccsds::Result<std::size_t> radio_bus_shift_rx(RadioPort& port, BusOps const& bus
   if (got > n) {
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
-  return slot_write(port.rx, std::span<const std::byte>(scratch.data(), got));
+  return slotWrite(port.rx, std::span<const std::byte>(scratch.data(), got));
 }
 
 }  // namespace starcom::adapters

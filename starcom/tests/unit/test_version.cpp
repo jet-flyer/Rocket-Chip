@@ -25,7 +25,7 @@ int g_fails = 0;
     }                                                                          \
   } while (0)
 
-std::map<std::string, std::string> parse_version_file() {
+std::map<std::string, std::string> parseVersionFile() {
   const std::string path = std::string(STARCOM_ROOT) + "/STARCOM_VERSION";
   std::ifstream in(path);
   CHECK(in.good());
@@ -61,7 +61,7 @@ std::map<std::string, std::string> parse_version_file() {
 }
 
 void test_header_matches_file_and_git() {
-  const auto kv = parse_version_file();
+  const auto kv = parseVersionFile();
   CHECK(kv.find("VERSION_MAJOR") != kv.end());
   CHECK(kv.find("VERSION_MINOR") != kv.end());
   CHECK(kv.find("PATCHLEVEL") != kv.end());

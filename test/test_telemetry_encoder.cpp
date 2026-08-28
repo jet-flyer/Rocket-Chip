@@ -86,7 +86,7 @@ TEST_F(CcsdsEncoderTest, PacketSize) {
 
 TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
     // STOP-GAP 54 B nav is not a PLTU (ASM is FAF320). Do not invent a
-    // second ARQ; Starcom decode_pltu rejects this as bad_asm when linked.
+    // second ARQ; Starcom decodePltu rejects this as bad_asm when linked.
     enc.encode_nav(telem, 12345, result);
     ASSERT_TRUE(result.ok);
     EXPECT_EQ(result.buf[0] & 0xE0, 0x00);
@@ -94,10 +94,10 @@ TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
 #ifdef ROCKETCHIP_USE_STARCOM
     const auto octets = std::span<const std::byte>(
         reinterpret_cast<const std::byte*>(result.buf), result.len);
-    const auto view = starcom::ccsds::decode_pltu(octets);
+    const auto view = starcom::ccsds::decodePltu(octets);
     ASSERT_FALSE(view.has_value());
     EXPECT_EQ(view.error(), starcom::ccsds::Error::bad_asm);
-    const auto hunt = starcom::ccsds::hunt_pltu(octets);
+    const auto hunt = starcom::ccsds::huntPltu(octets);
     EXPECT_FALSE(hunt.pltu.has_value());
 #endif
 }
@@ -812,7 +812,7 @@ TEST(StarcomHostLink, PltuV3HeaderOnlyRoundTrip) {
         std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
         std::byte{0x00}};
     std::array<std::byte, 16> out{};
-    const auto n = starcom::ccsds::encode_pltu(out, kV3HeaderOnly);
+    const auto n = starcom::ccsds::encodePltu(out, kV3HeaderOnly);
     ASSERT_TRUE(n.has_value());
     ASSERT_EQ(*n, 12u);
     EXPECT_EQ(out[0], std::byte{0xFA});
@@ -823,7 +823,7 @@ TEST(StarcomHostLink, PltuV3HeaderOnlyRoundTrip) {
     EXPECT_EQ(out[10], std::byte{0x04});
     EXPECT_EQ(out[11], std::byte{0xE7});
 
-    const auto view = starcom::ccsds::decode_pltu(
+    const auto view = starcom::ccsds::decodePltu(
         std::span<const std::byte>(out.data(), *n));
     ASSERT_TRUE(view.has_value());
     ASSERT_EQ(view->frame.size(), kV3HeaderOnly.size());
@@ -845,28 +845,28 @@ TEST(StarcomHostLink, NavSduPltuEighteenPlusN) {
     starcom::ccsds::SpacePacketFields sp{};
     sp.apid = starcom::ccsds::Apid{0x001};
     std::array<std::byte, 64> packet{};
-    const auto pn = starcom::ccsds::encode_space_packet(packet, sp, user_b);
+    const auto pn = starcom::ccsds::encodeSpacePacket(packet, sp, user_b);
     ASSERT_TRUE(pn.has_value());
     ASSERT_EQ(*pn, 6u + rc::kNavSduUserBytes);
 
     starcom::ccsds::V3Fields v3{};
     std::array<std::byte, 80> frame{};
-    const auto fn = starcom::ccsds::encode_v3(
+    const auto fn = starcom::ccsds::encodeV3(
         frame, v3, std::span<const std::byte>(packet.data(), *pn));
     ASSERT_TRUE(fn.has_value());
 
     std::array<std::byte, 96> pltu{};
-    const auto plen = starcom::ccsds::encode_pltu(
+    const auto plen = starcom::ccsds::encodePltu(
         pltu, std::span<const std::byte>(frame.data(), *fn));
     ASSERT_TRUE(plen.has_value());
     EXPECT_EQ(*plen, 18u + rc::kNavSduUserBytes);
 
-    const auto env = starcom::ccsds::decode_pltu(
+    const auto env = starcom::ccsds::decodePltu(
         std::span<const std::byte>(pltu.data(), *plen));
     ASSERT_TRUE(env.has_value());
-    const auto vf = starcom::ccsds::decode_v3(env->frame);
+    const auto vf = starcom::ccsds::decodeV3(env->frame);
     ASSERT_TRUE(vf.has_value());
-    const auto spv = starcom::ccsds::decode_space_packet(vf->data);
+    const auto spv = starcom::ccsds::decodeSpacePacket(vf->data);
     ASSERT_TRUE(spv.has_value());
     ASSERT_EQ(spv->data.size(), rc::kNavSduUserBytes);
 

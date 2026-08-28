@@ -16,15 +16,15 @@ namespace starcom::ccsds {
 using Tick = std::uint32_t;
 
 // 211.0 §7.1 modulo-256 compare: B < A iff (A-B) is 1..127.
-inline constexpr std::uint8_t seq_delta(std::uint8_t a, std::uint8_t b) noexcept {
+inline constexpr std::uint8_t seqDelta(std::uint8_t a, std::uint8_t b) noexcept {
   return static_cast<std::uint8_t>(a - b);
 }
-inline constexpr bool seq_lt(std::uint8_t b, std::uint8_t a) noexcept {
-  const std::uint8_t d = seq_delta(a, b);
+inline constexpr bool seqLt(std::uint8_t b, std::uint8_t a) noexcept {
+  const std::uint8_t d = seqDelta(a, b);
   return d >= 1u && d <= 127u;
 }
-inline constexpr bool seq_eq(std::uint8_t b, std::uint8_t a) noexcept {
-  return seq_delta(a, b) == 0u;
+inline constexpr bool seqEq(std::uint8_t b, std::uint8_t a) noexcept {
+  return seqDelta(a, b) == 0u;
 }
 
 struct CoppMib {
@@ -45,11 +45,11 @@ struct FarmP {
   bool need_plcw = true;
 };
 
-void farm_p_init(FarmP& f) noexcept;
-FarmPDisposition farm_p_on_frame(FarmP& f, bool valid, bool expedited,
+void farmPInit(FarmP& f) noexcept;
+FarmPDisposition farmPOnFrame(FarmP& f, bool valid, bool expedited,
                                  std::uint8_t n_s) noexcept;
-void farm_p_set_vr(FarmP& f, std::uint8_t seq_ctrl_fsn) noexcept;  // RE2
-Plcw16 farm_p_report(FarmP const& f, Pcid pcid) noexcept;          // RE7
+void farmPSetVr(FarmP& f, std::uint8_t seq_ctrl_fsn) noexcept;  // RE2
+Plcw16 farmPReport(FarmP const& f, Pcid pcid) noexcept;          // RE7
 
 enum class FopPState : std::uint8_t { s1_active = 0, s2_resync };
 
@@ -83,11 +83,11 @@ struct FopP {
   bool synch_expired_latched = false;
 };
 
-void fop_p_init(FopP& f, CoppMib const& mib) noexcept;
-FopPSend fop_p_need_frame(FopP& f, bool exp_available, bool seq_available) noexcept;
-void fop_p_on_plcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept;
-void fop_p_tick(FopP& f, Tick now) noexcept;
-void fop_p_reset(FopP& f) noexcept;  // SE7
+void fopPInit(FopP& f, CoppMib const& mib) noexcept;
+FopPSend fopPNeedFrame(FopP& f, bool exp_available, bool seq_available) noexcept;
+void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept;
+void fopPTick(FopP& f, Tick now) noexcept;
+void fopPReset(FopP& f) noexcept;  // SE7
 
 enum class CoppEvent : std::uint8_t {
   none = 0,
@@ -97,8 +97,8 @@ enum class CoppEvent : std::uint8_t {
 
 // One COP-P endpoint (FOP-P + FARM-P). Queues are fixed for this sitting
 // (host loop / tests). Not a MIB number.
-inline constexpr std::size_t kCoppHold = 64;
-inline constexpr std::size_t kCoppSeqSlots = 4;
+inline constexpr std::size_t kCoppHold = 64;      // host-loop cap, not MIB
+inline constexpr std::size_t kCoppSeqSlots = 4;  // host-loop cap, not MIB
 
 struct CoppEndpoint {
   FarmP farm{};
@@ -122,7 +122,7 @@ struct CoppEndpoint {
   bool exp_full = false;
   bool exp_user_defined = false;
   // 256 FSN × kCoppHold ≈ 16 KiB. Callers own this in BSS/static storage.
-  // copp_init memsets in place — do not `e = CoppEndpoint{}` (stack temp).
+  // coppInit memsets in place — do not `e = CoppEndpoint{}` (stack temp).
   std::array<std::array<std::byte, kCoppHold>, 256> payload_by_fsn{};
   std::array<std::size_t, 256> payload_len_by_fsn{};
   std::array<bool, 256> payload_user_defined_by_fsn{};
@@ -131,22 +131,22 @@ struct CoppEndpoint {
   std::uint8_t rx_n = 0;
 };
 
-void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
+void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
                Scid remote, PortId port) noexcept;
-void copp_init_uslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
+void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept;
-void copp_tick(CoppEndpoint& e, Tick now) noexcept;
-void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept;
-Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e, std::span<std::byte> out) noexcept;
-Result<std::size_t> copp_submit_sdu(CoppEndpoint& e, std::span<const std::byte> packet,
+void coppTick(CoppEndpoint& e, Tick now) noexcept;
+void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept;
+Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) noexcept;
+Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
 // User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3
-// U-frames. Same hold/slots as copp_submit_sdu. Empty data field is valid.
+// U-frames. Same hold/slots as coppSubmitSdu. Empty data field is valid.
 // Caller chops at kV3DataMax; library does not reassemble.
-Result<std::size_t> copp_submit_user_defined(CoppEndpoint& e,
+Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
                                             std::span<const std::byte> octets,
                                             bool expedited) noexcept;
-Result<std::size_t> copp_take_sdu(CoppEndpoint& e, std::span<std::byte> out) noexcept;
-CoppEvent copp_poll_event(CoppEndpoint& e) noexcept;
+Result<std::size_t> coppTakeSdu(CoppEndpoint& e, std::span<std::byte> out) noexcept;
+CoppEvent coppPollEvent(CoppEndpoint& e) noexcept;
 
 }  // namespace starcom::ccsds

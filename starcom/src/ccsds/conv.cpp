@@ -10,7 +10,7 @@ namespace {
 constexpr unsigned kG1 = 0b1111001u;
 constexpr unsigned kG2 = 0b1011011u;
 
-void encode_bit(ConvEnc& enc, unsigned in_bit, unsigned& c1, unsigned& c2) noexcept {
+void encodeBit(ConvEnc& enc, unsigned in_bit, unsigned& c1, unsigned& c2) noexcept {
   // 7-bit register: bit6 = input, bits5..0 = delay line (newest..oldest).
   const unsigned v = ((in_bit & 1u) << 6) | (enc.mem & 0x3Fu);
   c1 = std::popcount(v & kG1) & 1u;
@@ -20,7 +20,7 @@ void encode_bit(ConvEnc& enc, unsigned in_bit, unsigned& c1, unsigned& c2) noexc
 
 }  // namespace
 
-Result<std::size_t> conv_encode(std::span<std::byte> out,
+Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in,
                                 ConvEnc& enc) noexcept {
   const std::size_t need = in.size() * 2u;
@@ -35,7 +35,7 @@ Result<std::size_t> conv_encode(std::span<std::byte> out,
     for (int i = 7; i >= 0; --i) {
       unsigned c1 = 0;
       unsigned c2 = 0;
-      encode_bit(enc, (value >> i) & 1u, c1, c2);
+      encodeBit(enc, (value >> i) & 1u, c1, c2);
       acc = (acc << 2) | (c1 << 1) | c2;
       nbits += 2;
       if (nbits == 8) {
@@ -48,16 +48,16 @@ Result<std::size_t> conv_encode(std::span<std::byte> out,
   return need;
 }
 
-Result<std::size_t> conv_encode(std::span<std::byte> out,
+Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in) noexcept {
   ConvEnc enc{};
-  return conv_encode(out, in, enc);
+  return convEncode(out, in, enc);
 }
 
-Result<std::size_t> conv_encode_step(std::span<std::byte> out, std::byte in,
+Result<std::size_t> convEncodeStep(std::span<std::byte> out, std::byte in,
                                      ConvEnc& enc) noexcept {
   std::array<std::byte, 1> one{in};
-  return conv_encode(out, one, enc);
+  return convEncode(out, one, enc);
 }
 
 }  // namespace starcom::ccsds

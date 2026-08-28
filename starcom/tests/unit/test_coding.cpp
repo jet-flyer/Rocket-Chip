@@ -16,13 +16,13 @@
 #include <span>
 #include <vector>
 
-using starcom::adapters::phy_uncoded_encode;
+using starcom::adapters::phyUncodedEncode;
 using starcom::adapters::PhyDecl;
 using starcom::adapters::PhyTier;
-using starcom::ccsds::conv_encode;
-using starcom::ccsds::conv_encode_step;
+using starcom::ccsds::convEncode;
+using starcom::ccsds::convEncodeStep;
 using starcom::ccsds::ConvEnc;
-using starcom::ccsds::encode_pltu;
+using starcom::ccsds::encodePltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kLdpcCodedOctets;
 using starcom::ccsds::kLdpcCodewordOctets;
@@ -31,9 +31,9 @@ using starcom::ccsds::kLdpcCsmOctets;
 using starcom::ccsds::kLdpcMessageOctets;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
-using starcom::ccsds::ldpc_encode_block;
-using starcom::ccsds::ldpc_encode_stream;
-using starcom::ccsds::ldpc_randomize;
+using starcom::ccsds::ldpcEncodeBlock;
+using starcom::ccsds::ldpcEncodeStream;
+using starcom::ccsds::ldpcRandomize;
 
 namespace {
 
@@ -52,7 +52,7 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x00}};
 
 // Independent rate-1/2 K=7 encoder. G1=171, G2=133, G2 inverted, C1 then C2.
-void indep_encode(std::span<std::byte> out, std::span<const std::byte> in,
+void indepEncode(std::span<std::byte> out, std::span<const std::byte> in,
                   bool d[6]) {
   std::size_t o = 0;
   unsigned acc = 0;
@@ -87,7 +87,7 @@ void indep_encode(std::span<std::byte> out, std::span<const std::byte> in,
   }
 }
 
-void pn_fill(std::span<std::byte> octets) {
+void pnFill(std::span<std::byte> octets) {
   std::uint8_t r = 0xFF;
   for (std::byte& o : octets) {
     unsigned acc = 0;
@@ -105,7 +105,7 @@ void pn_fill(std::span<std::byte> octets) {
 void test_conv_zero() {
   const std::array<std::byte, 4> in{};
   std::array<std::byte, 8> out{};
-  const auto n = conv_encode(out, in);
+  const auto n = convEncode(out, in);
   CHECK(n.has_value());
   CHECK(*n == 8u);
   for (std::byte b : out) {
@@ -117,7 +117,7 @@ void test_conv_single_one() {
   // First input bit = 1. Hand bits: C1=1, C2=0.
   const std::array<std::byte, 1> in{std::byte{0x80}};
   std::array<std::byte, 2> out{};
-  const auto n = conv_encode(out, in);
+  const auto n = convEncode(out, in);
   CHECK(n.has_value());
   CHECK(*n == 2u);
   CHECK((std::to_integer<unsigned>(out[0]) & 0xC0u) == 0x80u);
@@ -131,11 +131,11 @@ void test_conv_independent() {
     }
     std::vector<std::byte> a(len * 2);
     std::vector<std::byte> b(len * 2);
-    const auto n = conv_encode(a, in);
+    const auto n = convEncode(a, in);
     CHECK(n.has_value());
     CHECK(*n == len * 2);
     bool d[6]{};
-    indep_encode(b, in, d);
+    indepEncode(b, in, d);
     CHECK(std::equal(a.begin(), a.end(), b.begin()));
   }
 }
@@ -151,42 +151,42 @@ void test_conv_state_concat() {
   std::copy(b.begin(), b.end(), cat.begin() + 3);
 
   std::array<std::byte, 16> one_shot{};
-  CHECK(conv_encode(one_shot, cat).value() == 16u);
+  CHECK(convEncode(one_shot, cat).value() == 16u);
 
   ConvEnc enc{};
   std::array<std::byte, 16> stepped{};
-  CHECK(conv_encode(std::span<std::byte>(stepped.data(), 6), a, enc).value() ==
+  CHECK(convEncode(std::span<std::byte>(stepped.data(), 6), a, enc).value() ==
         6u);
-  CHECK(conv_encode(std::span<std::byte>(stepped.data() + 6, 10), b, enc)
+  CHECK(convEncode(std::span<std::byte>(stepped.data() + 6, 10), b, enc)
             .value() == 10u);
   CHECK(std::equal(one_shot.begin(), one_shot.end(), stepped.begin()));
 
   ConvEnc enc2{};
   std::array<std::byte, 2> step_out{};
-  CHECK(conv_encode_step(step_out, a[0], enc2).value() == 2u);
+  CHECK(convEncodeStep(step_out, a[0], enc2).value() == 2u);
 }
 
 void test_conv_pltu_and_uncoded_phy() {
   std::array<std::byte, 32> pltu{};
-  const auto n = encode_pltu(pltu, kV3HeaderOnly);
+  const auto n = encodePltu(pltu, kV3HeaderOnly);
   CHECK(n.has_value());
   CHECK(*n == kPltuAsmSize + kV3HeaderOnly.size() + kPltuCrcSize);
 
   std::array<std::byte, 64> coded{};
-  const auto c = conv_encode(coded, std::span<const std::byte>(pltu.data(), *n));
+  const auto c = convEncode(coded, std::span<const std::byte>(pltu.data(), *n));
   CHECK(c.has_value());
   CHECK(*c == *n * 2);
   CHECK(!std::equal(pltu.begin(), pltu.begin() + static_cast<std::ptrdiff_t>(*n),
                     coded.begin()));
 
   std::array<std::byte, 32> uncoded{};
-  const auto u = phy_uncoded_encode(PhyDecl{PhyTier::none}, uncoded, kV3HeaderOnly);
+  const auto u = phyUncodedEncode(PhyDecl{PhyTier::none}, uncoded, kV3HeaderOnly);
   CHECK(u.has_value());
   CHECK(*u == *n);
   CHECK(std::equal(pltu.begin(), pltu.begin() + static_cast<std::ptrdiff_t>(*n),
                    uncoded.begin()));
   const auto u2 =
-      phy_uncoded_encode(PhyDecl{PhyTier::best_effort}, uncoded, kV3HeaderOnly);
+      phyUncodedEncode(PhyDecl{PhyTier::best_effort}, uncoded, kV3HeaderOnly);
   CHECK(u2.has_value());
   CHECK(*u2 == *n);
 }
@@ -194,28 +194,28 @@ void test_conv_pltu_and_uncoded_phy() {
 void test_ldpc_errors() {
   std::array<std::byte, kLdpcCodewordOctets> out{};
   std::array<std::byte, 64> short_msg{};
-  CHECK(ldpc_encode_block(out, short_msg).error() == Error::truncated);
+  CHECK(ldpcEncodeBlock(out, short_msg).error() == Error::truncated);
   std::array<std::byte, kLdpcMessageOctets> msg{};
   std::array<std::byte, 16> tiny{};
-  CHECK(ldpc_encode_block(tiny, msg).error() == Error::buffer_too_small);
+  CHECK(ldpcEncodeBlock(tiny, msg).error() == Error::buffer_too_small);
 
   std::array<std::byte, 200> stream_in{};
   std::array<std::byte, 1024> stream_out{};
-  CHECK(ldpc_encode_stream(stream_out, stream_in).error() == Error::truncated);
+  CHECK(ldpcEncodeStream(stream_out, stream_in).error() == Error::truncated);
 
   std::array<std::byte, kLdpcMessageOctets> one_block{};
   std::array<std::byte, 16> tiny_stream{};
-  CHECK(ldpc_encode_stream(tiny_stream, one_block).error() ==
+  CHECK(ldpcEncodeStream(tiny_stream, one_block).error() ==
         Error::buffer_too_small);
 }
 
 void test_ldpc_zero_is_pn() {
   std::array<std::byte, kLdpcMessageOctets> msg{};
   std::array<std::byte, kLdpcCodewordOctets> cw{};
-  CHECK(ldpc_encode_block(cw, msg).value() == kLdpcCodewordOctets);
+  CHECK(ldpcEncodeBlock(cw, msg).value() == kLdpcCodewordOctets);
 
   std::array<std::byte, kLdpcCodewordOctets> pn{};
-  pn_fill(pn);
+  pnFill(pn);
   CHECK(std::equal(cw.begin(), cw.end(), pn.begin()));
 
   // 211.2 note: first 40 bits of the PN.
@@ -230,7 +230,7 @@ void test_ldpc_zero_is_pn() {
   CHECK(fourth == 0x5Au);
   CHECK(fifth == 0x68u);
 
-  CHECK(ldpc_randomize(cw).value() == kLdpcCodewordOctets);
+  CHECK(ldpcRandomize(cw).value() == kLdpcCodewordOctets);
   for (std::byte b : cw) {
     CHECK(b == std::byte{0});
   }
@@ -240,7 +240,7 @@ void test_ldpc_csm_and_stream() {
   std::array<std::byte, kLdpcMessageOctets> msg{};
   msg[0] = std::byte{0xA5};
   std::array<std::byte, kLdpcCodewordOctets> block{};
-  CHECK(ldpc_encode_block(block, msg).value() == kLdpcCodewordOctets);
+  CHECK(ldpcEncodeBlock(block, msg).value() == kLdpcCodewordOctets);
   CHECK(!std::equal(block.begin(), block.begin() + static_cast<std::ptrdiff_t>(kLdpcCsmOctets),
                     kLdpcCsm.begin()));
 
@@ -248,7 +248,7 @@ void test_ldpc_csm_and_stream() {
   std::copy(msg.begin(), msg.end(), two.begin());
   std::copy(msg.begin(), msg.end(), two.begin() + kLdpcMessageOctets);
   std::array<std::byte, kLdpcCodedOctets * 2> stream{};
-  const auto n = ldpc_encode_stream(stream, two);
+  const auto n = ldpcEncodeStream(stream, two);
   CHECK(n.has_value());
   CHECK(*n == kLdpcCodedOctets * 2);
 
@@ -269,8 +269,8 @@ void test_ldpc_systematic_noiseless() {
     msg[i] = std::byte{static_cast<std::uint8_t>(i * 3u + 1u)};
   }
   std::array<std::byte, kLdpcCodewordOctets> cw{};
-  CHECK(ldpc_encode_block(cw, msg).value() == kLdpcCodewordOctets);
-  CHECK(ldpc_randomize(cw).value() == kLdpcCodewordOctets);
+  CHECK(ldpcEncodeBlock(cw, msg).value() == kLdpcCodewordOctets);
+  CHECK(ldpcRandomize(cw).value() == kLdpcCodewordOctets);
   CHECK(std::equal(msg.begin(), msg.end(), cw.begin()));
 }
 
@@ -288,10 +288,10 @@ void test_ldpc_linearity() {
   std::array<std::byte, kLdpcCodewordOctets> euv{};
   std::array<std::byte, kLdpcCodewordOctets> e0{};
   std::array<std::byte, kLdpcMessageOctets> z{};
-  CHECK(ldpc_encode_block(eu, u).has_value());
-  CHECK(ldpc_encode_block(ev, v).has_value());
-  CHECK(ldpc_encode_block(euv, uv).has_value());
-  CHECK(ldpc_encode_block(e0, z).has_value());
+  CHECK(ldpcEncodeBlock(eu, u).has_value());
+  CHECK(ldpcEncodeBlock(ev, v).has_value());
+  CHECK(ldpcEncodeBlock(euv, uv).has_value());
+  CHECK(ldpcEncodeBlock(e0, z).has_value());
   for (std::size_t i = 0; i < eu.size(); ++i) {
     CHECK((eu[i] ^ ev[i] ^ e0[i]) == euv[i]);
   }
@@ -302,14 +302,14 @@ void test_codecs_allocate_nothing() {
   std::array<std::byte, 64> cout{};
   std::array<std::byte, kLdpcMessageOctets> msg{};
   std::array<std::byte, kLdpcCodewordOctets> cw{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
-  const auto n1 = conv_encode(cout, std::span<const std::byte>(cin.data(), 3));
-  const auto n2 = ldpc_encode_block(cw, msg);
-  starcom::test::heap_trap_disarm();
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
+  const auto n1 = convEncode(cout, std::span<const std::byte>(cin.data(), 3));
+  const auto n2 = ldpcEncodeBlock(cw, msg);
+  starcom::test::heapTrapDisarm();
   CHECK(n1.has_value());
   CHECK(n2.has_value());
-  CHECK(starcom::test::heap_trap_count() == 0);
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

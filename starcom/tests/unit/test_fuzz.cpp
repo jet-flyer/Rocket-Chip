@@ -16,12 +16,12 @@
 #include <cstdio>
 #include <span>
 
-using starcom::ccsds::decode_clcw;
-using starcom::ccsds::decode_plcw;
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::decode_space_packet;
-using starcom::ccsds::decode_uslp;
-using starcom::ccsds::decode_v3;
+using starcom::ccsds::decodeClcw;
+using starcom::ccsds::decodePlcw;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::decodeSpacePacket;
+using starcom::ccsds::decodeUslp;
+using starcom::ccsds::decodeV3;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
 using starcom::ccsds::kV3HeaderSize;
@@ -46,26 +46,26 @@ constexpr std::array<std::byte, 5> kFills{
     std::byte{0xFA}};
 
 void feed(std::span<const std::byte> s) {
-  (void)decode_pltu(s);
-  (void)decode_v3(s);
-  (void)decode_uslp(s);
-  (void)decode_space_packet(s);
-  (void)decode_plcw(s);
-  (void)decode_clcw(s);
+  (void)decodePltu(s);
+  (void)decodeV3(s);
+  (void)decodeUslp(s);
+  (void)decodeSpacePacket(s);
+  (void)decodePlcw(s);
+  (void)decodeClcw(s);
 }
 
 void test_prefix_smoke() {
   std::array<std::byte, kPltuMinEnvelope + 1> buf{};
-  starcom::test::heap_trap_reset();
-  starcom::test::heap_trap_arm();
+  starcom::test::heapTrapReset();
+  starcom::test::heapTrapArm();
   for (auto fill : kFills) {
     for (std::size_t n = 0; n <= buf.size(); ++n) {
       buf.fill(fill);
       feed(std::span<const std::byte>(buf.data(), n));
     }
   }
-  starcom::test::heap_trap_disarm();
-  CHECK(starcom::test::heap_trap_count() == 0);
+  starcom::test::heapTrapDisarm();
+  CHECK(starcom::test::heapTrapCount() == 0);
 }
 
 }  // namespace

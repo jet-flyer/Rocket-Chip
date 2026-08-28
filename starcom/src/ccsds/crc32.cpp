@@ -26,7 +26,7 @@ std::uint32_t crc32(std::span<const std::byte> frame) noexcept {
   return crc;
 }
 
-std::uint16_t crc16_fecf(std::span<const std::byte> covered) noexcept {
+std::uint16_t crc16Fecf(std::span<const std::byte> covered) noexcept {
   // 732.1 Annex B: G(X) = X^16 + X^12 + X^5 + 1; L(X) presets all-ones.
   constexpr std::uint16_t kPoly16 = 0x1021u;
   std::uint16_t crc = 0xFFFFu;

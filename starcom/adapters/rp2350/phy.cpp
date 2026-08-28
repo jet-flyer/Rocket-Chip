@@ -2,20 +2,20 @@
 
 namespace starcom::adapters {
 
-ccsds::Result<std::size_t> phy_uncoded_encode(PhyDecl decl, std::span<std::byte> out,
+ccsds::Result<std::size_t> phyUncodedEncode(PhyDecl decl, std::span<std::byte> out,
                                               std::span<const std::byte> frame) noexcept {
-  if (!phy_uncoded_ok(decl)) {
+  if (!phyUncodedOk(decl)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  return ccsds::encode_pltu(out, frame);
+  return ccsds::encodePltu(out, frame);
 }
 
-ccsds::Result<ccsds::PltuView> phy_uncoded_decode(
+ccsds::Result<ccsds::PltuView> phyUncodedDecode(
     PhyDecl decl, std::span<const std::byte> octets) noexcept {
-  if (!phy_uncoded_ok(decl)) {
+  if (!phyUncodedOk(decl)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  return ccsds::decode_pltu(octets);
+  return ccsds::decodePltu(octets);
 }
 
 }  // namespace starcom::adapters

@@ -24,8 +24,8 @@ struct Clcw32 {
   std::uint8_t report_value = 0;    // N(R)
 };
 
-Result<Clcw32> decode_clcw(std::span<const std::byte> octets) noexcept;
-Result<std::size_t> encode_clcw(std::span<std::byte> out,
+Result<Clcw32> decodeClcw(std::span<const std::byte> octets) noexcept;
+Result<std::size_t> encodeClcw(std::span<std::byte> out,
                                 Clcw32 const& fields) noexcept;
 
 }  // namespace starcom::ccsds

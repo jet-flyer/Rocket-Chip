@@ -17,10 +17,10 @@ void bump() noexcept {
 
 namespace starcom::test {
 
-void heap_trap_arm() noexcept { g_armed.store(true, std::memory_order_relaxed); }
-void heap_trap_disarm() noexcept { g_armed.store(false, std::memory_order_relaxed); }
-void heap_trap_reset() noexcept { g_count.store(0, std::memory_order_relaxed); }
-int heap_trap_count() noexcept { return g_count.load(std::memory_order_relaxed); }
+void heapTrapArm() noexcept { g_armed.store(true, std::memory_order_relaxed); }
+void heapTrapDisarm() noexcept { g_armed.store(false, std::memory_order_relaxed); }
+void heapTrapReset() noexcept { g_count.store(0, std::memory_order_relaxed); }
+int heapTrapCount() noexcept { return g_count.load(std::memory_order_relaxed); }
 
 }  // namespace starcom::test
 

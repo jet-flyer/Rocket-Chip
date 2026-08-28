@@ -8,6 +8,8 @@ add_library(Starcom::adapters_host ALIAS starcom_adapters_host)
 target_link_libraries(starcom_adapters_host PUBLIC Starcom::starcom)
 if(WIN32)
   target_link_libraries(starcom_adapters_host PRIVATE ws2_32)
+  # Clang/GNU-cmd uses the MSVC CRT; fopen is marked deprecated there.
+  target_compile_definitions(starcom_adapters_host PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 starcom_set_core_flags(starcom_adapters_host)
 starcom_apply_sanitizer(starcom_adapters_host)

@@ -2,9 +2,9 @@
 
 namespace starcom::test {
 
-void heap_trap_arm() noexcept;
-void heap_trap_disarm() noexcept;
-void heap_trap_reset() noexcept;
-int heap_trap_count() noexcept;
+void heapTrapArm() noexcept;
+void heapTrapDisarm() noexcept;
+void heapTrapReset() noexcept;
+int heapTrapCount() noexcept;
 
 }  // namespace starcom::test

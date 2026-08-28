@@ -11,12 +11,12 @@
 #include <cstdio>
 #include <span>
 
-using starcom::adapters::phy_uncoded_decode;
-using starcom::adapters::phy_uncoded_encode;
-using starcom::adapters::phy_uncoded_ok;
+using starcom::adapters::phyUncodedDecode;
+using starcom::adapters::phyUncodedEncode;
+using starcom::adapters::phyUncodedOk;
 using starcom::adapters::PhyDecl;
 using starcom::adapters::PhyTier;
-using starcom::ccsds::decode_pltu;
+using starcom::ccsds::decodePltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
@@ -38,22 +38,22 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x00}};
 
 void test_tiers() {
-  CHECK(phy_uncoded_ok(PhyDecl{PhyTier::none}));
-  CHECK(phy_uncoded_ok(PhyDecl{PhyTier::best_effort}));
-  CHECK(!phy_uncoded_ok(PhyDecl{PhyTier::compliant}));
+  CHECK(phyUncodedOk(PhyDecl{PhyTier::none}));
+  CHECK(phyUncodedOk(PhyDecl{PhyTier::best_effort}));
+  CHECK(!phyUncodedOk(PhyDecl{PhyTier::compliant}));
 }
 
 void roundtrip(PhyTier tier) {
   std::array<std::byte, 32> out{};
-  const auto n = phy_uncoded_encode(PhyDecl{tier}, out, kV3HeaderOnly);
+  const auto n = phyUncodedEncode(PhyDecl{tier}, out, kV3HeaderOnly);
   CHECK(n.has_value());
   CHECK(*n == kPltuAsmSize + kV3HeaderOnly.size() + kPltuCrcSize);
-  const auto v = phy_uncoded_decode(PhyDecl{tier},
+  const auto v = phyUncodedDecode(PhyDecl{tier},
                                    std::span<const std::byte>(out.data(), *n));
   CHECK(v.has_value());
   CHECK(v->frame.size() == kV3HeaderOnly.size());
   CHECK(std::equal(kV3HeaderOnly.begin(), kV3HeaderOnly.end(), v->frame.begin()));
-  CHECK(decode_pltu(std::span<const std::byte>(out.data(), *n)).has_value());
+  CHECK(decodePltu(std::span<const std::byte>(out.data(), *n)).has_value());
 }
 
 void test_uncoded_none_and_best_effort() {
@@ -63,9 +63,9 @@ void test_uncoded_none_and_best_effort() {
 
 void test_compliant_not_offered() {
   std::array<std::byte, 32> out{};
-  CHECK(phy_uncoded_encode(PhyDecl{PhyTier::compliant}, out, kV3HeaderOnly)
+  CHECK(phyUncodedEncode(PhyDecl{PhyTier::compliant}, out, kV3HeaderOnly)
             .error() == Error::truncated);
-  CHECK(phy_uncoded_decode(PhyDecl{PhyTier::compliant}, out).error() ==
+  CHECK(phyUncodedDecode(PhyDecl{PhyTier::compliant}, out).error() ==
         Error::truncated);
 }
 

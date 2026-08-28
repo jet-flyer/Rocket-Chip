@@ -3,19 +3,19 @@
 namespace starcom::ccsds {
 namespace {
 
-void load_wait(MacSession& m, Tick dur) noexcept {
+void loadWait(MacSession& m, Tick dur) noexcept {
   m.wait_left = dur;
   m.wait_armed = dur != 0;
 }
 
-void clear_wait(MacSession& m) noexcept {
+void clearWait(MacSession& m) noexcept {
   m.wait_left = 0;
   m.wait_armed = false;
 }
 
 void notify(MacSession& m, MacNotify n) noexcept { m.notify = n; }
 
-void table_6_6(MacSession& m) noexcept {
+void applyTable66(MacSession& m) noexcept {
   m.transmit_on = false;
   m.modulation = false;
   m.persistence = false;
@@ -23,7 +23,7 @@ void table_6_6(MacSession& m) noexcept {
   m.x = 0;
   m.y = 0;
   m.z = 0;
-  clear_wait(m);
+  clearWait(m);
   m.carrier_loss_left = 0;
   m.plcw_left = 0;
   m.hail_life_left = 0;
@@ -37,173 +37,79 @@ void table_6_6(MacSession& m) noexcept {
   m.need_status_report = true;
 }
 
-void apply_state(MacSession& m, MacState s) noexcept {
+struct StateFx {
+  MacState state;
+  MacMode mode;
+  bool tx;
+  std::uint8_t ss;
+};
+
+constexpr StateFx kStateFx[] = {
+    {MacState::s1, MacMode::inactive, false, 0},
+    {MacState::s2, MacMode::connecting_l, false, 0},
+    {MacState::s80, MacMode::active, false, 0},
+    {MacState::s31, MacMode::connecting_t, true, 1},
+    {MacState::s11, MacMode::connecting_t, true, 1},
+    {MacState::s32, MacMode::connecting_t, true, 2},
+    {MacState::s12, MacMode::connecting_t, true, 2},
+    {MacState::s33, MacMode::connecting_t, true, 3},
+    {MacState::s13, MacMode::connecting_t, true, 3},
+    {MacState::s34, MacMode::connecting_t, true, 4},
+    {MacState::s14, MacMode::connecting_t, true, 4},
+    {MacState::s35, MacMode::connecting_t, false, 5},
+    {MacState::s36, MacMode::connecting_t, false, 5},
+    {MacState::s41, MacMode::active, true, 1},
+    {MacState::s51, MacMode::active, true, 1},
+    {MacState::s42, MacMode::active, true, 2},
+    {MacState::s52, MacMode::active, true, 2},
+    {MacState::s40, MacMode::active, true, 0},
+    {MacState::s50, MacMode::active, true, 0},
+    {MacState::s48, MacMode::active, true, 6},
+    {MacState::s56, MacMode::active, true, 6},
+    {MacState::s45, MacMode::active, true, 4},
+    {MacState::s58, MacMode::active, true, 4},
+    {MacState::s54, MacMode::active, true, 3},
+    {MacState::s55, MacMode::active, true, 7},
+    {MacState::s60, MacMode::active, false, 0},
+    {MacState::s61, MacMode::active, false, 1},
+    {MacState::s62, MacMode::active, false, 2},
+};
+
+void applyState(MacSession& m, MacState s) noexcept {
   m.state = s;
-  switch (s) {
-    case MacState::s1:
-      m.mode = MacMode::inactive;
-      m.transmit_on = false;
-      m.ss = 0;
-      break;
-    case MacState::s2:
-      m.mode = MacMode::connecting_l;
-      m.transmit_on = false;
-      m.ss = 0;
-      break;
-    case MacState::s80:
-      m.mode = MacMode::active;
-      m.transmit_on = false;
-      m.ss = 0;
-      break;
-    case MacState::s31:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 1;
-      break;
-    case MacState::s32:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 2;
-      break;
-    case MacState::s33:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 3;
-      break;
-    case MacState::s34:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 4;
-      break;
-    case MacState::s35:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = false;
-      m.ss = 5;
-      break;
-    case MacState::s41:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 1;
-      break;
-    case MacState::s42:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 2;
-      break;
-    case MacState::s40:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 0;
-      break;
-    case MacState::s48:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 6;
-      break;
-    case MacState::s45:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 4;
-      break;
-    case MacState::s11:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 1;
-      break;
-    case MacState::s12:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 2;
-      break;
-    case MacState::s13:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 3;
-      break;
-    case MacState::s14:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = true;
-      m.ss = 4;
-      break;
-    case MacState::s36:
-      m.mode = MacMode::connecting_t;
-      m.transmit_on = false;
-      m.ss = 5;
-      break;
-    case MacState::s51:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 1;
-      break;
-    case MacState::s52:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 2;
-      break;
-    case MacState::s50:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 0;
-      break;
-    case MacState::s54:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 3;
-      break;
-    case MacState::s55:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 7;
-      break;
-    case MacState::s56:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 6;
-      break;
-    case MacState::s58:
-      m.mode = MacMode::active;
-      m.transmit_on = true;
-      m.ss = 4;
-      break;
-    case MacState::s60:
-      m.mode = MacMode::active;
-      m.transmit_on = false;
-      m.ss = 0;
-      break;
-    case MacState::s61:
-      m.mode = MacMode::active;
-      m.transmit_on = false;
-      m.ss = 1;
-      break;
-    case MacState::s62:
-      m.mode = MacMode::active;
-      m.transmit_on = false;
-      m.ss = 2;
-      break;
-    case MacState::s71:
-      m.mode = MacMode::active;
-      m.duplex = MacDuplex::simplex_transmit;
-      m.transmit_on = true;
-      m.ss = 0;
-      break;
-    case MacState::s72:
-      m.mode = MacMode::active;
-      m.duplex = MacDuplex::simplex_receive;
-      m.transmit_on = false;
-      m.ss = 0;
-      break;
+  if (s == MacState::s71) {
+    m.duplex = MacDuplex::simplex_transmit;
+    m.mode = MacMode::active;
+    m.transmit_on = true;
+    m.ss = 0;
+    return;
+  }
+  if (s == MacState::s72) {
+    m.duplex = MacDuplex::simplex_receive;
+    m.mode = MacMode::active;
+    m.transmit_on = false;
+    m.ss = 0;
+    return;
+  }
+  for (StateFx const& row : kStateFx) {
+    if (row.state == s) {
+      m.mode = row.mode;
+      m.transmit_on = row.tx;
+      m.ss = row.ss;
+      return;
+    }
   }
 }
 
-void start_hail_life(MacSession& m) noexcept {
+void startHailLife(MacSession& m) noexcept {
   m.hail_life_left = m.mib.hail_lifetime;
 }
 
-void queue_set_vr(MacSession& m) noexcept {
+void queueSetVr(MacSession& m) noexcept {
   if (m.copp == nullptr) {
     return;
   }
-  const auto n = encode_set_vr(m.mac_queue, m.copp->fop.nn_r, m.copp->pcid);
+  const auto n = encodeSetVr(m.mac_queue, m.copp->fop.nn_r, m.copp->pcid);
   if (!n) {
     return;
   }
@@ -212,55 +118,301 @@ void queue_set_vr(MacSession& m) noexcept {
   m.persistence = true;
 }
 
-void enter_s1(MacSession& m, Tick /*now*/, bool end) noexcept {
-  table_6_6(m);
-  apply_state(m, MacState::s1);
+void enterS1(MacSession& m, Tick /*now*/, bool end) noexcept {
+  applyTable66(m);
+  applyState(m, MacState::s1);
   if (m.copp != nullptr) {
-    farm_p_init(m.copp->farm);
-    fop_p_init(m.copp->fop, m.copp->fop.mib);
+    farmPInit(m.copp->farm);
+    fopPInit(m.copp->fop, m.copp->fop.mib);
   }
   if (end) {
     notify(m, MacNotify::end_session);
   }
 }
 
+bool tickDec(Tick& t, Tick dt) noexcept {
+  if (t == 0 || dt == 0) {
+    return false;
+  }
+  if (dt >= t) {
+    t = 0;
+    return true;
+  }
+  t = static_cast<Tick>(t - dt);
+  return t == 0;
+}
+
+void macTickPlcw(MacSession& m, Tick dt) noexcept {
+  if (m.plcw_left != 0 && tickDec(m.plcw_left, dt)) {
+    m.need_plcw = true;
+    m.plcw_left = m.mib.plcw_repeat_interval;
+  }
+}
+
+bool macTickHail(MacSession& m, Tick now, Tick dt) noexcept {
+  if (m.hail_life_left != 0 && tickDec(m.hail_life_left, dt)) {
+    notify(m, MacNotify::hail_fail);
+    enterS1(m, now, true);
+    return true;
+  }
+  return false;
+}
+
+void macTickResync(MacSession& m, Tick dt) noexcept {
+  if (m.resync_life_left != 0 && tickDec(m.resync_life_left, dt)) {
+    notify(m, MacNotify::resync_fail);
+    m.persistence = false;
+    m.mac_frame_pending = false;
+    if (m.copp != nullptr) {
+      m.copp->fop.resync = false;
+      m.copp->fop.state = FopPState::s1_active;
+    }
+  }
+  if (m.resync_wait_left != 0 && tickDec(m.resync_wait_left, dt) &&
+      m.copp != nullptr && m.copp->fop.resync) {
+    queueSetVr(m);
+    m.resync_wait_left = m.mib.resync_waiting_period;
+  }
+}
+
+bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept {
+  if (m.carrier_loss_left == 0 || !tickDec(m.carrier_loss_left, dt)) {
+    return false;
+  }
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
+    if (m.role == MacRole::caller) {  // E80
+      applyState(m, MacState::s80);
+      loadWait(m, m.mib.drop_carrier_duration);
+    } else {  // E82
+      applyState(m, MacState::s2);
+    }
+    m.transmit_on = false;
+    return true;
+  }
+  if (m.duplex == MacDuplex::half && m.state == MacState::s60) {  // E85
+    applyState(m, MacState::s2);
+    m.transmit_on = false;
+    return true;
+  }
+  return false;
+}
+
+void macWaitExpiredConnect(MacSession& m) noexcept {
+  switch (m.state) {
+    case MacState::s31:  // E4
+      applyState(m, MacState::s32);
+      m.modulation = true;
+      loadWait(m, m.mib.acquisition_idle_duration);
+      break;
+    case MacState::s32:  // E5
+      applyState(m, MacState::s33);
+      m.mac_frame_pending = true;
+      m.fifo_empty = false;
+      break;
+    case MacState::s34:  // E7
+      applyState(m, MacState::s35);
+      m.transmit_on = false;
+      loadWait(m, m.mib.hail_wait_duration);
+      break;
+    case MacState::s35:  // E8
+      applyState(m, MacState::s31);
+      m.modulation = false;
+      m.transmit_on = true;
+      loadWait(m, m.mib.carrier_only_duration);
+      notify(m, MacNotify::hail_repeat);
+      break;
+    case MacState::s11:  // E32
+      applyState(m, MacState::s12);
+      m.modulation = true;
+      loadWait(m, m.mib.acquisition_idle_duration);
+      break;
+    case MacState::s12:  // E33
+      applyState(m, MacState::s13);
+      m.mac_frame_pending = true;
+      m.fifo_empty = false;
+      break;
+    case MacState::s14:  // E35
+      applyState(m, MacState::s36);
+      m.modulation = false;
+      m.transmit_on = false;
+      loadWait(m, m.mib.hail_wait_duration);
+      break;
+    case MacState::s36:  // E36
+      applyState(m, MacState::s11);
+      m.transmit_on = true;
+      loadWait(m, m.mib.carrier_only_duration);
+      notify(m, MacNotify::hail_repeat);
+      break;
+    default:
+      break;
+  }
+}
+
+void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
+  switch (m.state) {
+    case MacState::s41:  // E10
+      applyState(m, MacState::s42);
+      m.modulation = true;
+      loadWait(m, m.mib.acquisition_idle_duration);
+      break;
+    case MacState::s42:  // E11
+      applyState(m, MacState::s40);
+      break;
+    case MacState::s80:
+      if (m.duplex == MacDuplex::full) {  // E81
+        applyState(m, MacState::s31);
+      } else {  // E84
+        applyState(m, MacState::s11);
+      }
+      m.persistence = true;
+      m.transmit_on = true;
+      loadWait(m, m.mib.carrier_only_duration);
+      startHailLife(m);
+      break;
+    case MacState::s45:  // E26
+      enterS1(m, now, true);
+      break;
+    case MacState::s48:
+      if (m.y == 3) {  // E18
+        m.y = 1;
+      } else if (m.y == 5) {  // E20
+        m.y = 0;
+        m.persistence = false;
+        m.need_plcw = true;
+        m.modulation = false;
+        applyState(m, MacState::s41);
+        loadWait(m, m.mib.carrier_only_duration);
+        notify(m, MacNotify::comm_change_ok);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
+  switch (m.state) {
+    case MacState::s50:  // E38
+      m.persistence = true;
+      m.y = 0;
+      break;
+    case MacState::s51:  // E40
+      applyState(m, MacState::s52);
+      m.modulation = true;
+      loadWait(m, m.mib.acquisition_idle_duration);
+      break;
+    case MacState::s52:  // E41
+      applyState(m, MacState::s50);
+      loadWait(m, m.mib.send_duration);
+      break;
+    case MacState::s58:
+      if (m.y == 2) {  // E67
+        m.y = 3;
+        applyState(m, MacState::s62);
+        loadWait(m, m.mib.receive_duration);
+      } else {  // E43
+        applyState(m, MacState::s62);
+        m.persistence = false;
+        m.modulation = false;
+        loadWait(m, m.mib.receive_duration);
+      }
+      break;
+    case MacState::s55:  // E57
+      enterS1(m, now, true);
+      break;
+    case MacState::s60:
+      if (m.carrier_acquired) {  // E44
+        loadWait(m, m.mib.receive_duration);
+        notify(m, MacNotify::sender_overran);
+      } else {  // E48
+        applyState(m, MacState::s51);
+        loadWait(m, m.mib.carrier_only_duration);
+      }
+      break;
+    case MacState::s61:
+      if (m.carrier_acquired) {  // E45
+        loadWait(m, m.mib.receive_duration);
+        notify(m, MacNotify::no_data_this_contact);
+      } else {  // E50
+        applyState(m, MacState::s51);
+        loadWait(m, m.mib.carrier_only_duration);
+        notify(m, MacNotify::no_data_this_contact);
+      }
+      break;
+    case MacState::s62:
+      if (!m.carrier_acquired) {  // E50
+        applyState(m, MacState::s51);
+        loadWait(m, m.mib.carrier_only_duration);
+        notify(m, MacNotify::no_carrier_this_contact);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+void macOnWaitExpired(MacSession& m, Tick now) noexcept {
+  switch (m.state) {
+    case MacState::s31:
+    case MacState::s32:
+    case MacState::s34:
+    case MacState::s35:
+    case MacState::s11:
+    case MacState::s12:
+    case MacState::s14:
+    case MacState::s36:
+      macWaitExpiredConnect(m);
+      break;
+    case MacState::s41:
+    case MacState::s42:
+    case MacState::s80:
+    case MacState::s45:
+    case MacState::s48:
+      macWaitExpiredFull(m, now);
+      break;
+    default:
+      macWaitExpiredHalf(m, now);
+      break;
+  }
+}
+
 }  // namespace
 
-void mac_init(MacSession& m, MacMib const& mib, MacDuplex duplex,
+void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
               CoppEndpoint* copp) noexcept {
   m = MacSession{};
   m.mib = mib;
   m.duplex = duplex;
   m.copp = copp;
-  table_6_6(m);
-  apply_state(m, MacState::s1);
+  applyTable66(m);
+  applyState(m, MacState::s1);
 }
 
-void mac_set_initialize_mode(MacSession& m, Tick now) noexcept {
-  enter_s1(m, now, true);
+void macSetInitializeMode(MacSession& m, Tick now) noexcept {
+  enterS1(m, now, true);
 }
 
-void mac_set_duplex(MacSession& m, MacDuplex duplex) noexcept {
+void macSetDuplex(MacSession& m, MacDuplex duplex) noexcept {
   if (m.state != MacState::s1) {
     return;  // session duplex change is SET CONTROL PARAMETERS
   }
   m.duplex = duplex;
 }
 
-void mac_set_sdu_pending(MacSession& m, bool pending) noexcept {
+void macSetSduPending(MacSession& m, bool pending) noexcept {
   m.sdu_pending = pending;
 }
 
-void mac_set_mode(MacSession& m, MacMode mode, Tick now) noexcept {
+void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept {
   if (mode == MacMode::inactive) {
-    enter_s1(m, now, true);  // E28 / E61 / E73
+    enterS1(m, now, true);  // E28 / E61 / E73
     return;
   }
   if (m.state != MacState::s1) {
     return;
   }
   if (mode == MacMode::connecting_l) {
-    apply_state(m, MacState::s2);  // E1 / E29
+    applyState(m, MacState::s2);  // E1 / E29
     if (m.duplex == MacDuplex::half) {
       m.need_plcw = true;
     }
@@ -270,59 +422,59 @@ void mac_set_mode(MacSession& m, MacMode mode, Tick now) noexcept {
   if (mode == MacMode::connecting_t) {
     m.role = MacRole::caller;
     m.persistence = true;
-    start_hail_life(m);
+    startHailLife(m);
     if (m.duplex == MacDuplex::full) {
-      apply_state(m, MacState::s31);  // E2
+      applyState(m, MacState::s31);  // E2
     } else if (m.duplex == MacDuplex::half) {
-      apply_state(m, MacState::s11);  // E31
+      applyState(m, MacState::s11);  // E31
     } else {
       return;
     }
-    load_wait(m, m.mib.carrier_only_duration);
+    loadWait(m, m.mib.carrier_only_duration);
     return;
   }
   if (mode == MacMode::active) {
     if (m.duplex == MacDuplex::simplex_transmit) {
-      apply_state(m, MacState::s71);  // E71
+      applyState(m, MacState::s71);  // E71
       m.modulation = true;
     } else if (m.duplex == MacDuplex::simplex_receive) {
-      apply_state(m, MacState::s72);  // E72
+      applyState(m, MacState::s72);  // E72
     }
   }
 }
 
-void mac_on_hail_received(MacSession& m, Tick now) noexcept {
+void macOnHailReceived(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.state == MacState::s2 && m.duplex == MacDuplex::full) {
-    apply_state(m, MacState::s41);  // E3
+    applyState(m, MacState::s41);  // E3
     m.need_plcw = true;
     m.transmit_on = true;
-    load_wait(m, m.mib.carrier_only_duration);
+    loadWait(m, m.mib.carrier_only_duration);
     notify(m, MacNotify::hail_ok);
     return;
   }
   if (m.state == MacState::s2 && m.duplex == MacDuplex::half) {
-    apply_state(m, MacState::s51);  // E30
+    applyState(m, MacState::s51);  // E30
     m.transmit_on = true;
-    load_wait(m, m.mib.carrier_only_duration);
+    loadWait(m, m.mib.carrier_only_duration);
     notify(m, MacNotify::hail_ok);
   }
 }
 
-void mac_on_valid_frame(MacSession& m, Tick now) noexcept {
+void macOnValidFrame(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.state == MacState::s35) {  // E9
-    apply_state(m, MacState::s41);
+    applyState(m, MacState::s41);
     m.modulation = false;
     m.persistence = false;
-    load_wait(m, m.mib.carrier_only_duration);
+    loadWait(m, m.mib.carrier_only_duration);
     notify(m, MacNotify::hail_ok);
     return;
   }
   if (m.state == MacState::s36) {  // E37
-    apply_state(m, MacState::s60);
+    applyState(m, MacState::s60);
     m.persistence = false;
-    load_wait(m, m.mib.receive_duration);
+    loadWait(m, m.mib.receive_duration);
     notify(m, MacNotify::hail_ok);
     return;
   }
@@ -331,53 +483,53 @@ void mac_on_valid_frame(MacSession& m, Tick now) noexcept {
     m.z = 0;
     m.persistence = false;
     m.modulation = false;
-    apply_state(m, MacState::s41);
-    load_wait(m, m.mib.carrier_only_duration);
+    applyState(m, MacState::s41);
+    loadWait(m, m.mib.carrier_only_duration);
     notify(m, MacNotify::comm_change_ok);
     return;
   }
   if (m.state == MacState::s61 && m.y != 3) {  // E46
-    apply_state(m, MacState::s60);
+    applyState(m, MacState::s60);
     return;
   }
   if (m.state == MacState::s61 && m.y == 3) {  // E68
     m.y = 0;
     m.persistence = false;
-    apply_state(m, MacState::s60);
+    applyState(m, MacState::s60);
     notify(m, MacNotify::comm_change_ok);
   }
 }
 
-void mac_on_fifo_empty(MacSession& m, Tick now) noexcept {
+void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
   (void)now;
   m.fifo_empty = true;
   if (m.state == MacState::s33) {  // E6
-    apply_state(m, MacState::s34);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s34);
+    loadWait(m, m.mib.tail_idle_duration);
     return;
   }
   if (m.state == MacState::s13) {  // E34
-    apply_state(m, MacState::s14);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s14);
+    loadWait(m, m.mib.tail_idle_duration);
     return;
   }
   if (m.state == MacState::s48 && m.y == 2) {  // E15
     m.y = 3;
-    load_wait(m, m.mib.persistence_wait_time);
+    loadWait(m, m.mib.persistence_wait_time);
     return;
   }
   if (m.state == MacState::s48 && m.y == 4) {  // E19
     m.y = 5;
-    load_wait(m, m.mib.tail_idle_duration);
+    loadWait(m, m.mib.tail_idle_duration);
   }
 }
 
-void mac_on_no_frames_pending(MacSession& m, Tick now) noexcept {
+void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   (void)now;
   m.no_frames_pending = true;
   if (m.state == MacState::s40 && m.x == 5) {  // E25
-    apply_state(m, MacState::s45);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s45);
+    loadWait(m, m.mib.tail_idle_duration);
     return;
   }
   if (m.state == MacState::s48 && m.y == 1) {  // E14
@@ -386,24 +538,24 @@ void mac_on_no_frames_pending(MacSession& m, Tick now) noexcept {
     return;
   }
   if (m.state == MacState::s50 && m.y == 0 && !m.need_plcw) {  // E39
-    apply_state(m, MacState::s56);
+    applyState(m, MacState::s56);
     m.mac_frame_pending = true;
     return;
   }
   if (m.state == MacState::s56 && m.y == 0) {  // E42
-    apply_state(m, MacState::s58);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s58);
+    loadWait(m, m.mib.tail_idle_duration);
     ++m.token_fail_n;
     return;
   }
   if (m.state == MacState::s50 && m.y == 2) {  // E65
-    apply_state(m, MacState::s56);
+    applyState(m, MacState::s56);
     m.mac_frame_pending = true;
     return;
   }
   if (m.state == MacState::s56 && m.y == 2) {  // E66
-    apply_state(m, MacState::s58);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s58);
+    loadWait(m, m.mib.tail_idle_duration);
     return;
   }
   if (m.state == MacState::s50 && m.x == 1) {  // E53
@@ -413,18 +565,18 @@ void mac_on_no_frames_pending(MacSession& m, Tick now) noexcept {
   }
   if (m.state == MacState::s50 && m.x == 4) {  // E55
     m.x = 5;
-    apply_state(m, MacState::s54);
+    applyState(m, MacState::s54);
     m.mac_frame_pending = true;
     return;
   }
   if (m.state == MacState::s54 && m.x == 5) {  // E56
     m.x = 0;
-    apply_state(m, MacState::s55);
-    load_wait(m, m.mib.tail_idle_duration);
+    applyState(m, MacState::s55);
+    loadWait(m, m.mib.tail_idle_duration);
   }
 }
 
-void mac_local_no_more_data(MacSession& m, Tick now) noexcept {
+void macLocalNoMoreData(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
     if (m.x == 0) {  // E21
@@ -445,7 +597,7 @@ void mac_local_no_more_data(MacSession& m, Tick now) noexcept {
   }
 }
 
-void mac_on_rnmd(MacSession& m, Tick now) noexcept {
+void macOnRnmd(MacSession& m, Tick now) noexcept {
   if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
     if (m.x == 0) {  // E22
       m.x = 4;
@@ -456,27 +608,27 @@ void mac_on_rnmd(MacSession& m, Tick now) noexcept {
   }
   if (m.duplex == MacDuplex::half) {
     if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 2) {
-      enter_s1(m, now, true);  // E58
+      enterS1(m, now, true);  // E58
       return;
     }
     if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 0) {
       m.x = 3;
-      apply_state(m, MacState::s51);
-      load_wait(m, m.mib.carrier_only_duration);
+      applyState(m, MacState::s51);
+      loadWait(m, m.mib.carrier_only_duration);
       return;
     }
     if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 1) {
       m.x = 4;
-      apply_state(m, MacState::s51);
-      load_wait(m, m.mib.carrier_only_duration);
+      applyState(m, MacState::s51);
+      loadWait(m, m.mib.carrier_only_duration);
     }
   }
 }
 
-void mac_local_comm_change(MacSession& m, Tick now) noexcept {
+void macLocalCommChange(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0) {
-    apply_state(m, MacState::s48);  // E12
+    applyState(m, MacState::s48);  // E12
     m.y = 1;
     m.persistence = true;
     return;
@@ -491,37 +643,37 @@ void mac_local_comm_change(MacSession& m, Tick now) noexcept {
   }
 }
 
-void mac_on_remote_comm_change(MacSession& m, Tick now) noexcept {
+void macOnRemoteCommChange(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0) {
-    apply_state(m, MacState::s48);  // E13
+    applyState(m, MacState::s48);  // E13
     m.y = 4;
     m.persistence = true;
     return;
   }
   if (m.duplex == MacDuplex::half &&
       (m.state == MacState::s60 || m.state == MacState::s61)) {  // E69
-    apply_state(m, MacState::s51);
+    applyState(m, MacState::s51);
     m.need_plcw = true;
-    load_wait(m, m.mib.carrier_only_duration);
+    loadWait(m, m.mib.carrier_only_duration);
   }
 }
 
-void mac_on_token(MacSession& m, Tick now) noexcept {
+void macOnToken(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.state == MacState::s60 || m.state == MacState::s61) {  // E49
-    apply_state(m, MacState::s51);
-    load_wait(m, m.mib.carrier_only_duration);
+    applyState(m, MacState::s51);
+    loadWait(m, m.mib.carrier_only_duration);
   }
 }
 
-void mac_set_carrier_acquired(MacSession& m, bool acquired, Tick now) noexcept {
+void macSetCarrierAcquired(MacSession& m, bool acquired, Tick now) noexcept {
   const bool was = m.carrier_acquired;
   m.carrier_acquired = acquired;
   if (acquired) {
     m.carrier_loss_left = 0;
     if (m.state == MacState::s62) {  // E47
-      apply_state(m, MacState::s61);
+      applyState(m, MacState::s61);
     }
     return;
   }
@@ -533,246 +685,59 @@ void mac_set_carrier_acquired(MacSession& m, bool acquired, Tick now) noexcept {
   }
 }
 
-void mac_set_symbol_inlock(MacSession& m, bool inlock, Tick now) noexcept {
+void macSetSymbolInlock(MacSession& m, bool inlock, Tick now) noexcept {
   m.symbol_inlock = inlock;
   if (!inlock && m.state == MacState::s48 &&
       (m.y == 1 || m.y == 2 || m.y == 3)) {  // E16
     m.z = 1;
   }
   if (inlock && m.state == MacState::s35) {
-    mac_on_valid_frame(m, now);  // Hail_Response option
+    macOnValidFrame(m, now);  // Hail_Response option
   }
 }
 
-void mac_tick(MacSession& m, Tick now) noexcept {
+void macTick(MacSession& m, Tick now) noexcept {
   Tick dt = 0;
   if (now > m.last_now) {
     dt = now - m.last_now;
   }
   m.last_now = now;
   if (m.copp != nullptr) {
-    copp_tick(*m.copp, now);
-    mac_drive_set_vr(m, now);
+    coppTick(*m.copp, now);
+    macDriveSetVr(m, now);
   }
-
-  auto dec = [dt](Tick& t) -> bool {
-    if (t == 0 || dt == 0) {
-      return false;
-    }
-    if (dt >= t) {
-      t = 0;
-      return true;
-    }
-    t = static_cast<Tick>(t - dt);
-    return t == 0;
-  };
-
-  if (m.plcw_left != 0 && dec(m.plcw_left)) {
-    m.need_plcw = true;
-    m.plcw_left = m.mib.plcw_repeat_interval;
-  }
-
-  if (m.hail_life_left != 0 && dec(m.hail_life_left)) {
-    notify(m, MacNotify::hail_fail);
-    enter_s1(m, now, true);
+  macTickPlcw(m, dt);
+  if (macTickHail(m, now, dt)) {
     return;
   }
-
-  if (m.resync_life_left != 0 && dec(m.resync_life_left)) {
-    notify(m, MacNotify::resync_fail);
-    m.persistence = false;
-    m.mac_frame_pending = false;
-    if (m.copp != nullptr) {
-      m.copp->fop.resync = false;
-      m.copp->fop.state = FopPState::s1_active;
-    }
+  macTickResync(m, dt);
+  if (macTickCarrierLoss(m, dt)) {
+    return;  // one event; do not also expire Drop_Carrier_Duration this tick
   }
-
-  if (m.resync_wait_left != 0 && dec(m.resync_wait_left) && m.copp != nullptr &&
-      m.copp->fop.resync) {
-    queue_set_vr(m);
-    m.resync_wait_left = m.mib.resync_waiting_period;
-  }
-
-  if (m.carrier_loss_left != 0 && dec(m.carrier_loss_left)) {
-    if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
-      if (m.role == MacRole::caller) {  // E80
-        apply_state(m, MacState::s80);
-        load_wait(m, m.mib.drop_carrier_duration);
-        m.transmit_on = false;
-      } else {  // E82
-        apply_state(m, MacState::s2);
-        m.transmit_on = false;
-      }
-      return;  // one event; do not also expire Drop_Carrier_Duration this tick
-    } else if (m.duplex == MacDuplex::half && m.state == MacState::s60) {  // E85
-      apply_state(m, MacState::s2);
-      m.transmit_on = false;
-      return;
-    }
-  }
-
   if (!m.wait_armed || m.wait_left == 0) {
     if (m.mib.maximum_failed_token_passes != 0 &&
         m.token_fail_n >= m.mib.maximum_failed_token_passes &&
         m.state == MacState::s50) {  // E83
-      apply_state(m, MacState::s80);
-      load_wait(m, m.mib.drop_carrier_duration);
+      applyState(m, MacState::s80);
+      loadWait(m, m.mib.drop_carrier_duration);
       m.transmit_on = false;
     }
     return;
   }
-  if (!dec(m.wait_left)) {
+  if (!tickDec(m.wait_left, dt)) {
     return;
   }
   m.wait_armed = false;
-
-  switch (m.state) {
-    case MacState::s31:  // E4
-      apply_state(m, MacState::s32);
-      m.modulation = true;
-      load_wait(m, m.mib.acquisition_idle_duration);
-      break;
-    case MacState::s32:  // E5
-      apply_state(m, MacState::s33);
-      m.mac_frame_pending = true;
-      m.fifo_empty = false;
-      break;
-    case MacState::s34:  // E7
-      apply_state(m, MacState::s35);
-      m.transmit_on = false;
-      load_wait(m, m.mib.hail_wait_duration);
-      break;
-    case MacState::s35:  // E8
-      apply_state(m, MacState::s31);
-      m.modulation = false;
-      m.transmit_on = true;
-      load_wait(m, m.mib.carrier_only_duration);
-      notify(m, MacNotify::hail_repeat);
-      break;
-    case MacState::s41:  // E10
-      apply_state(m, MacState::s42);
-      m.modulation = true;
-      load_wait(m, m.mib.acquisition_idle_duration);
-      break;
-    case MacState::s42:  // E11
-      apply_state(m, MacState::s40);
-      break;
-    case MacState::s80:
-      if (m.duplex == MacDuplex::full) {  // E81
-        apply_state(m, MacState::s31);
-      } else {  // E84
-        apply_state(m, MacState::s11);
-      }
-      m.persistence = true;
-      m.transmit_on = true;
-      load_wait(m, m.mib.carrier_only_duration);
-      start_hail_life(m);
-      break;
-    case MacState::s45:  // E26
-      enter_s1(m, now, true);
-      break;
-    case MacState::s48:
-      if (m.y == 3) {  // E18
-        m.y = 1;
-      } else if (m.y == 5) {  // E20
-        m.y = 0;
-        m.persistence = false;
-        m.need_plcw = true;
-        m.modulation = false;
-        apply_state(m, MacState::s41);
-        load_wait(m, m.mib.carrier_only_duration);
-        notify(m, MacNotify::comm_change_ok);
-      }
-      break;
-    case MacState::s11:  // E32
-      apply_state(m, MacState::s12);
-      m.modulation = true;
-      load_wait(m, m.mib.acquisition_idle_duration);
-      break;
-    case MacState::s12:  // E33
-      apply_state(m, MacState::s13);
-      m.mac_frame_pending = true;
-      m.fifo_empty = false;
-      break;
-    case MacState::s14:  // E35
-      apply_state(m, MacState::s36);
-      m.modulation = false;
-      m.transmit_on = false;
-      load_wait(m, m.mib.hail_wait_duration);
-      break;
-    case MacState::s36:  // E36
-      apply_state(m, MacState::s11);
-      m.transmit_on = true;
-      load_wait(m, m.mib.carrier_only_duration);
-      notify(m, MacNotify::hail_repeat);
-      break;
-    case MacState::s50:  // E38
-      m.persistence = true;
-      m.y = 0;
-      break;
-    case MacState::s51:  // E40
-      apply_state(m, MacState::s52);
-      m.modulation = true;
-      load_wait(m, m.mib.acquisition_idle_duration);
-      break;
-    case MacState::s52:  // E41
-      apply_state(m, MacState::s50);
-      load_wait(m, m.mib.send_duration);
-      break;
-    case MacState::s58:
-      if (m.y == 2) {  // E67
-        m.y = 3;
-        apply_state(m, MacState::s62);
-        load_wait(m, m.mib.receive_duration);
-      } else {  // E43
-        apply_state(m, MacState::s62);
-        m.persistence = false;
-        m.modulation = false;
-        load_wait(m, m.mib.receive_duration);
-      }
-      break;
-    case MacState::s55:  // E57
-      enter_s1(m, now, true);
-      break;
-    case MacState::s60:
-      if (m.carrier_acquired) {  // E44
-        load_wait(m, m.mib.receive_duration);
-        notify(m, MacNotify::sender_overran);
-      } else {  // E48
-        apply_state(m, MacState::s51);
-        load_wait(m, m.mib.carrier_only_duration);
-      }
-      break;
-    case MacState::s61:
-      if (m.carrier_acquired) {  // E45
-        load_wait(m, m.mib.receive_duration);
-        notify(m, MacNotify::no_data_this_contact);
-      } else {  // E50
-        apply_state(m, MacState::s51);
-        load_wait(m, m.mib.carrier_only_duration);
-        notify(m, MacNotify::no_data_this_contact);
-      }
-      break;
-    case MacState::s62:
-      if (!m.carrier_acquired) {  // E50
-        apply_state(m, MacState::s51);
-        load_wait(m, m.mib.carrier_only_duration);
-        notify(m, MacNotify::no_carrier_this_contact);
-      }
-      break;
-    default:
-      break;
-  }
+  macOnWaitExpired(m, now);
 }
 
-MacNotify mac_poll_notify(MacSession& m) noexcept {
+MacNotify macPollNotify(MacSession& m) noexcept {
   const MacNotify n = m.notify;
   m.notify = MacNotify::none;
   return n;
 }
 
-MacPhy mac_phy(MacSession const& m) noexcept {
+MacPhy macPhy(MacSession const& m) noexcept {
   MacPhy p{};
   p.transmit = m.transmit_on;
   p.modulation = m.modulation && m.transmit_on;
@@ -801,7 +766,7 @@ MacPhy mac_phy(MacSession const& m) noexcept {
   return p;
 }
 
-MacFifoSource mac_fifo_source(MacSession const& m) noexcept {
+MacFifoSource macFifoSource(MacSession const& m) noexcept {
   if (!m.transmit_on || !m.modulation) {
     if (m.ss == 1 && m.transmit_on) {
       return MacFifoSource::carrier_only;
@@ -832,7 +797,7 @@ MacFifoSource mac_fifo_source(MacSession const& m) noexcept {
   return MacFifoSource::none;
 }
 
-Result<std::size_t> encode_set_vr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
+Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid /*pcid*/) noexcept {
   // B1.5: 16 bits. Bit 0–7 SEQ_CTRL_FSN, 8–12 spare 0, 13–15 type 011.
   // PCID is associated with the FOP-P on the MAC that queues this (7.2.3.2.2 b).
@@ -844,7 +809,7 @@ Result<std::size_t> encode_set_vr(std::span<std::byte> out, std::uint8_t seq_ctr
   return std::size_t{2};
 }
 
-Result<std::uint8_t> decode_set_vr(std::span<const std::byte> octets,
+Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets,
                                    Pcid* /*pcid_out*/) noexcept {
   if (octets.size() < 2) {
     return tl::unexpected(Error::truncated);
@@ -856,19 +821,19 @@ Result<std::uint8_t> decode_set_vr(std::span<const std::byte> octets,
   return static_cast<std::uint8_t>(octets[0]);
 }
 
-void mac_on_set_vr_directive(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept {
+void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept {
   if (m.copp != nullptr) {
-    farm_p_set_vr(m.copp->farm, seq_ctrl_fsn);  // RE2
+    farmPSetVr(m.copp->farm, seq_ctrl_fsn);  // RE2
   }
 }
 
-void mac_drive_set_vr(MacSession& m, Tick now) noexcept {
+void macDriveSetVr(MacSession& m, Tick now) noexcept {
   (void)now;
   if (m.copp == nullptr || !m.copp->fop.resync) {
     return;
   }
   if (!m.mac_frame_pending) {
-    queue_set_vr(m);
+    queueSetVr(m);
     m.resync_wait_left = m.mib.resync_waiting_period;
     if (m.resync_life_left == 0) {
       m.resync_life_left = m.mib.resync_lifetime;
@@ -876,13 +841,13 @@ void mac_drive_set_vr(MacSession& m, Tick now) noexcept {
   }
 }
 
-void mac_on_plcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept {
+void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept {
   (void)now;
   if (m.copp == nullptr) {
     return;
   }
   const bool resyncing = m.copp->fop.resync;
-  fop_p_on_plcw(m.copp->fop, w, format_ok);
+  fopPOnPlcw(m.copp->fop, w, format_ok);
   // 7.2.3.2.1 c / FOP-P SE2 S2: only a *valid* PLCW is Resync_Response.
   if (resyncing && !m.copp->fop.resync) {
     m.persistence = false;

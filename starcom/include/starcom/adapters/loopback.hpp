@@ -20,9 +20,9 @@ struct FrameSlot {
   std::size_t n = 0;
 };
 
-ccsds::Result<std::size_t> slot_write(FrameSlot& slot,
+ccsds::Result<std::size_t> slotWrite(FrameSlot& slot,
                                       std::span<const std::byte> octets) noexcept;
-ccsds::Result<std::size_t> slot_read(FrameSlot& slot, std::span<std::byte> out) noexcept;
+ccsds::Result<std::size_t> slotRead(FrameSlot& slot, std::span<std::byte> out) noexcept;
 
 // Two simplex lanes. No sockets. Core still never sees this type.
 struct HostLoopback {

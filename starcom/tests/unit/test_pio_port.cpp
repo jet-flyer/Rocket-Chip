@@ -12,11 +12,11 @@
 #include <span>
 #include <vector>
 
-using starcom::adapters::pio_shift_in;
-using starcom::adapters::pio_shift_out;
+using starcom::adapters::pioShiftIn;
+using starcom::adapters::pioShiftOut;
 using starcom::adapters::PioOps;
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::encode_pltu;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::encodePltu;
 using starcom::ccsds::Error;
 using starcom::ccsds::kPltuAsm;
 using starcom::ccsds::kPltuAsmSize;
@@ -43,11 +43,11 @@ struct FakePio {
   std::size_t rd = 0;
 };
 
-void fake_put(void* ctx, bool bit) noexcept {
+void fakePut(void* ctx, bool bit) noexcept {
   static_cast<FakePio*>(ctx)->bits.push_back(bit);
 }
 
-bool fake_get(void* ctx) noexcept {
+bool fakeGet(void* ctx) noexcept {
   auto* f = static_cast<FakePio*>(ctx);
   if (f->rd >= f->bits.size()) {
     return false;
@@ -59,13 +59,13 @@ void test_null_ops() {
   PioOps empty{};
   const std::array<std::byte, 1> one{std::byte{1}};
   std::array<std::byte, 1> out{};
-  CHECK(pio_shift_out(empty, one).error() == Error::truncated);
-  CHECK(pio_shift_in(empty, out, 1).error() == Error::truncated);
+  CHECK(pioShiftOut(empty, one).error() == Error::truncated);
+  CHECK(pioShiftIn(empty, out, 1).error() == Error::truncated);
 }
 
 void test_v3_header_only_roundtrip() {
   std::array<std::byte, 32> pltu{};
-  const auto n = encode_pltu(pltu, kV3HeaderOnly);
+  const auto n = encodePltu(pltu, kV3HeaderOnly);
   CHECK(n.has_value());
   CHECK(*n == kPltuAsmSize + kV3HeaderOnly.size() + kPltuCrcSize);
   CHECK(pltu[0] == kPltuAsm[0]);
@@ -73,16 +73,16 @@ void test_v3_header_only_roundtrip() {
   FakePio fake{};
   PioOps ops{};
   ops.ctx = &fake;
-  ops.put_bit = fake_put;
-  ops.get_bit = fake_get;
+  ops.putBit = fakePut;
+  ops.getBit = fakeGet;
 
-  CHECK(pio_shift_out(ops, std::span<const std::byte>(pltu.data(), *n)).value() ==
+  CHECK(pioShiftOut(ops, std::span<const std::byte>(pltu.data(), *n)).value() ==
         *n);
   CHECK(fake.bits.size() == *n * 8u);
 
   std::array<std::byte, 32> got{};
-  CHECK(pio_shift_in(ops, got, *n).value() == *n);
-  CHECK(decode_pltu(std::span<const std::byte>(got.data(), *n)).has_value());
+  CHECK(pioShiftIn(ops, got, *n).value() == *n);
+  CHECK(decodePltu(std::span<const std::byte>(got.data(), *n)).has_value());
   CHECK(std::equal(pltu.begin(), pltu.begin() + static_cast<std::ptrdiff_t>(*n),
                    got.begin()));
 }
@@ -91,9 +91,9 @@ void test_shift_in_too_small() {
   FakePio fake{};
   PioOps ops{};
   ops.ctx = &fake;
-  ops.get_bit = fake_get;
+  ops.getBit = fakeGet;
   std::array<std::byte, 2> tiny{};
-  CHECK(pio_shift_in(ops, tiny, 4).error() == Error::buffer_too_small);
+  CHECK(pioShiftIn(ops, tiny, 4).error() == Error::buffer_too_small);
 }
 
 }  // namespace

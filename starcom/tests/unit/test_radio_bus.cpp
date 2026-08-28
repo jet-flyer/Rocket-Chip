@@ -12,19 +12,19 @@
 #include <cstdio>
 #include <span>
 
-using starcom::adapters::bus_gpio_read;
-using starcom::adapters::bus_gpio_write;
-using starcom::adapters::bus_spi;
+using starcom::adapters::busGpioRead;
+using starcom::adapters::busGpioWrite;
+using starcom::adapters::busSpi;
 using starcom::adapters::BusOps;
 using starcom::adapters::kAdapterFrameMax;
-using starcom::adapters::radio_begin_tx;
-using starcom::adapters::radio_bus_shift_rx;
-using starcom::adapters::radio_bus_shift_tx;
-using starcom::adapters::radio_poll_rx;
+using starcom::adapters::radioBeginTx;
+using starcom::adapters::radioBusShiftRx;
+using starcom::adapters::radioBusShiftTx;
+using starcom::adapters::radioPollRx;
 using starcom::adapters::RadioPort;
-using starcom::ccsds::decode_pltu;
-using starcom::ccsds::encode_pltu;
-using starcom::ccsds::encode_v3_user_defined;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::encodePltu;
+using starcom::ccsds::encodeV3UserDefined;
 using starcom::ccsds::Error;
 using starcom::ccsds::PortId;
 using starcom::ccsds::Scid;
@@ -48,7 +48,7 @@ struct FakeBus {
   std::array<bool, 4> gpio{};
 };
 
-starcom::ccsds::Result<std::size_t> fake_spi(void* ctx,
+starcom::ccsds::Result<std::size_t> fakeSpi(void* ctx,
                                              std::span<const std::byte> tx,
                                              std::span<std::byte> rx) noexcept {
   auto* f = static_cast<FakeBus*>(ctx);
@@ -68,14 +68,14 @@ starcom::ccsds::Result<std::size_t> fake_spi(void* ctx,
   return tx.size();
 }
 
-void fake_gpio_write(void* ctx, int line, bool level) noexcept {
+void fakeGpioWrite(void* ctx, int line, bool level) noexcept {
   auto* f = static_cast<FakeBus*>(ctx);
   if (line >= 0 && line < static_cast<int>(f->gpio.size())) {
     f->gpio[static_cast<std::size_t>(line)] = level;
   }
 }
 
-bool fake_gpio_read(void* ctx, int line) noexcept {
+bool fakeGpioRead(void* ctx, int line) noexcept {
   auto* f = static_cast<FakeBus*>(ctx);
   if (line >= 0 && line < static_cast<int>(f->gpio.size())) {
     return f->gpio[static_cast<std::size_t>(line)];
@@ -83,84 +83,84 @@ bool fake_gpio_read(void* ctx, int line) noexcept {
   return false;
 }
 
-BusOps make_ops(FakeBus& f) {
+BusOps makeOps(FakeBus& f) {
   BusOps b{};
   b.ctx = &f;
-  b.spi = fake_spi;
-  b.gpio_write = fake_gpio_write;
-  b.gpio_read = fake_gpio_read;
+  b.spi = fakeSpi;
+  b.gpioWrite = fakeGpioWrite;
+  b.gpioRead = fakeGpioRead;
   return b;
 }
 
-starcom::ccsds::Result<std::size_t> make_pltu(std::span<std::byte> out) {
+starcom::ccsds::Result<std::size_t> makePltu(std::span<std::byte> out) {
   V3Fields f{};
   f.scid = Scid{0x15};
   f.port_id = PortId{1};
   const std::array<std::byte, 1> data{std::byte{0xA5}};
   std::array<std::byte, 16> frame{};
-  const auto fn = encode_v3_user_defined(frame, f, data);
+  const auto fn = encodeV3UserDefined(frame, f, data);
   if (!fn) {
     return fn;
   }
-  return encode_pltu(out, std::span<const std::byte>(frame.data(), *fn));
+  return encodePltu(out, std::span<const std::byte>(frame.data(), *fn));
 }
 
 void test_null_ops() {
   BusOps empty{};
   const std::array<std::byte, 1> one{std::byte{1}};
   std::array<std::byte, 1> rx{};
-  CHECK(bus_spi(empty, one, {}).error() == Error::truncated);
-  CHECK(bus_gpio_write(empty, 0, false).error() == Error::truncated);
-  CHECK(bus_gpio_read(empty, 0).error() == Error::truncated);
+  CHECK(busSpi(empty, one, {}).error() == Error::truncated);
+  CHECK(busGpioWrite(empty, 0, false).error() == Error::truncated);
+  CHECK(busGpioRead(empty, 0).error() == Error::truncated);
   (void)rx;
 }
 
 void test_gpio_and_pump() {
   FakeBus fake{};
-  const auto bus = make_ops(fake);
+  const auto bus = makeOps(fake);
   constexpr int kCs = 0;  // caller-owned line id, not a Starcom pin
 
-  CHECK(bus_gpio_write(bus, kCs, true).has_value());
-  CHECK(bus_gpio_read(bus, kCs).value() == true);
-  CHECK(bus_gpio_write(bus, kCs, false).has_value());
-  CHECK(bus_gpio_read(bus, kCs).value() == false);
+  CHECK(busGpioWrite(bus, kCs, true).has_value());
+  CHECK(busGpioRead(bus, kCs).value() == true);
+  CHECK(busGpioWrite(bus, kCs, false).has_value());
+  CHECK(busGpioRead(bus, kCs).value() == false);
 
   std::array<std::byte, 64> pltu{};
-  const auto n = make_pltu(pltu);
+  const auto n = makePltu(pltu);
   CHECK(n.has_value());
 
   RadioPort port{};
-  CHECK(radio_begin_tx(port, std::span<const std::byte>(pltu.data(), *n))
+  CHECK(radioBeginTx(port, std::span<const std::byte>(pltu.data(), *n))
             .has_value());
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
-  CHECK(bus_gpio_write(bus, kCs, false).has_value());
-  const auto sent = radio_bus_shift_tx(port, bus, scratch);
+  CHECK(busGpioWrite(bus, kCs, false).has_value());
+  const auto sent = radioBusShiftTx(port, bus, scratch);
   CHECK(sent.has_value());
   CHECK(*sent == *n);
-  CHECK(bus_gpio_write(bus, kCs, true).has_value());
+  CHECK(busGpioWrite(bus, kCs, true).has_value());
 
-  const auto rec = radio_bus_shift_rx(port, bus, scratch, *n);
+  const auto rec = radioBusShiftRx(port, bus, scratch, *n);
   CHECK(rec.has_value());
   CHECK(*rec == *n);
 
   std::array<std::byte, kAdapterFrameMax> got{};
-  const auto p = radio_poll_rx(port, got);
+  const auto p = radioPollRx(port, got);
   CHECK(p.has_value());
   CHECK(*p == *n);
-  CHECK(decode_pltu(std::span<const std::byte>(got.data(), *p)).has_value());
+  CHECK(decodePltu(std::span<const std::byte>(got.data(), *p)).has_value());
 }
 
 void test_shift_rejects() {
   FakeBus fake{};
-  const auto bus = make_ops(fake);
+  const auto bus = makeOps(fake);
   RadioPort port{};
   std::array<std::byte, 8> tiny{};
-  CHECK(radio_bus_shift_tx(port, bus, tiny).error() == Error::buffer_too_small);
-  CHECK(radio_bus_shift_rx(port, bus, tiny, 16).error() ==
+  CHECK(radioBusShiftTx(port, bus, tiny).error() == Error::buffer_too_small);
+  CHECK(radioBusShiftRx(port, bus, tiny, 16).error() ==
         Error::buffer_too_small);
   std::array<std::byte, kAdapterFrameMax> scratch{};
-  CHECK(radio_bus_shift_tx(port, bus, scratch).value() == 0u);
+  CHECK(radioBusShiftTx(port, bus, scratch).value() == 0u);
 }
 
 }  // namespace

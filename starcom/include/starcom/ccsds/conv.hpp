@@ -18,16 +18,16 @@ struct ConvEnc {
 };
 
 // One-shot. Encoder memory starts at 0. out size = 2 * in size.
-Result<std::size_t> conv_encode(std::span<std::byte> out,
+Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in) noexcept;
 
 // Continues memory across calls (ASM+PLTU+Idle as one stream).
-Result<std::size_t> conv_encode(std::span<std::byte> out,
+Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in,
                                 ConvEnc& enc) noexcept;
 
 // One input octet → two output octets; updates enc.
-Result<std::size_t> conv_encode_step(std::span<std::byte> out, std::byte in,
+Result<std::size_t> convEncodeStep(std::span<std::byte> out, std::byte in,
                                      ConvEnc& enc) noexcept;
 
 }  // namespace starcom::ccsds

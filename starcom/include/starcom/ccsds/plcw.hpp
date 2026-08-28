@@ -18,8 +18,8 @@ struct Plcw16 {
   std::uint8_t report_value = 0;       // V(R)
 };
 
-Result<Plcw16> decode_plcw(std::span<const std::byte> octets) noexcept;
-Result<std::size_t> encode_plcw(std::span<std::byte> out,
+Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept;
+Result<std::size_t> encodePlcw(std::span<std::byte> out,
                                 Plcw16 const& fields) noexcept;
 
 }  // namespace starcom::ccsds

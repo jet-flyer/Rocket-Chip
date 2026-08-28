@@ -29,8 +29,8 @@ Consumer (RC, ground station, host test)
         | bytes in, tick(now)
         v
 Starcom library  (starcom::ccsds, no I/O object)
-  receive_bytes · bytes_to_send · poll_event
-  handle_timeout(now) · submit_sdu
+  receiveBytes · bytesToSend · pollEvent
+  handleTimeout(now) · submitSdu
         ^
 Ports (adapters/) depend on the core; the core never depends on ports.
 HW-specific drivers live here only.

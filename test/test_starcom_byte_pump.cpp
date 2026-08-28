@@ -90,7 +90,7 @@ TEST(StarcomBytePump, CoppHostLoopNoRadio) {
     starcom::ccsds::SpacePacketFields sp{};
     const std::array<std::byte, 1> user{std::byte{0xAA}};
     std::array<std::byte, 16> pkt{};
-    const auto pn = starcom::ccsds::encode_space_packet(pkt, sp, user);
+    const auto pn = starcom::ccsds::encodeSpacePacket(pkt, sp, user);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(tx, std::span<const std::byte>(pkt.data(), *pn), false)
                     .has_value());

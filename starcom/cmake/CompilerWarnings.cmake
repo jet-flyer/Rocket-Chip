@@ -20,6 +20,9 @@ function(starcom_set_test_flags tgt)
   else()
     target_compile_options(${tgt} PRIVATE -Wall -Wextra -Wpedantic -Werror)
   endif()
+  if(WIN32)
+    target_compile_definitions(${tgt} PRIVATE _CRT_SECURE_NO_WARNINGS)
+  endif()
 endfunction()
 
 # ASan + UBSan. Off by default: this tree's MinGW g++ 15.2 has the flags

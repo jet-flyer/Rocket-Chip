@@ -1,0 +1,8 @@
+---
+# Starcom: house FunctionCase is camelBack (CODING_STANDARDS supersedes JSF 45/51/52).
+# Repo-root .clang-tidy still has FunctionCase lower_case for RC C drivers.
+InheritParentConfig: true
+HeaderFilterRegex: 'starcom[/\\](include|src)[/\\]'
+CheckOptions:
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
