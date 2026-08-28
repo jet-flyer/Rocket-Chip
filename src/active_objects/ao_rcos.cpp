@@ -197,6 +197,16 @@ static void enter_cli_menu() {
     rc::rc_log("  RocketChip %s %s-%s — Station RX\n",
            kVersionString, kBuildConfig, kGitHash);
     rc::rc_log("  Air: %s\n", rc::kAirDialect);
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        if (sc.on) {
+            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u%s\n",
+                       sc.peer_plcw ? "lock" : "waiting peer PLCW",
+                       static_cast<unsigned>(sc.nn_r),
+                       static_cast<unsigned>(sc.v_s),
+                       sc.nav_sdu ? "  nav" : "");
+        }
+    }
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("========================================\n\n");
     rc::rc_log("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");

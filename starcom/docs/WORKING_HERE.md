@@ -66,6 +66,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public verbs were brought to house camelBack in IVP 23 (initial pass, not a full naming/standards walk). Remaining house-bar items are later sittings, not an exemption.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
+- **Do** keep MCU automatic storage tiny. Pico Core 0 stack is 4 KiB. Do not value-init `CoppEndpoint` / `Cop1Endpoint` (`memset` in place). Do not put `kTransferFrameMax` (2048) arrays on the stack — caller span or file-scope scratch. GNU `-Wstack-usage=1024` is on the library (`cmake/CompilerWarnings.cmake`).
 
 ### Pedagogy (standing requirement per `design_record_claude.md` §0.6)
 

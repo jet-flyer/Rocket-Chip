@@ -9,6 +9,8 @@
 namespace starcom::ccsds {
 namespace {
 
+std::array<std::byte, kTransferFrameMax> g_cop1TfScratch{};
+
 std::uint8_t farmPw(Farm1 const& f) noexcept {
   return static_cast<std::uint8_t>(f.mib.w / 2u);
 }
@@ -664,12 +666,11 @@ Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e,
     return on;
   }
   e.farm.need_clcw = false;
-  std::array<std::byte, kTransferFrameMax> tf{};
-  const auto vn = encodeUslp(tf, hdr, tfdz, ocf);
+  const auto vn = encodeUslp(g_cop1TfScratch, hdr, tfdz, ocf);
   if (!vn) {
     return vn;
   }
-  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
+  return encodePltu(out, std::span<const std::byte>(g_cop1TfScratch.data(), *vn));
 }
 
 }  // namespace starcom::ccsds

@@ -122,6 +122,7 @@ void fopPInit(FopP& f, CoppMib const& mib) noexcept {
   f.v_s = f.ve_s = f.vv_s = f.nn_r = f.n_r = 0;
   f.r_r = f.rr_r = f.resync = false;
   f.need_plcw = f.need_status_report = true;
+  f.plcw_heard = false;
   f.sent_n = 0;
   f.last_send_fsn = 0;
   f.synch_expired_latched = false;
@@ -173,6 +174,7 @@ void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept {
     }
     return;  // SE3 Ignore in S2
   }
+  f.plcw_heard = true;
   f.n_r = plcw.report_value;
   f.r_r = plcw.retransmit;
   const std::uint8_t old_nn = f.nn_r;
@@ -331,6 +333,10 @@ Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
 
 namespace {
 
+// Pico Core 0 stack is 4 KiB. Do not put kTransferFrameMax (2048) on the
+// stack in coppBytesToSend / coppSendPlcw (AO tick).
+std::array<std::byte, kTransferFrameMax> g_tfScratch{};
+
 void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {
   e.farm_accepted_latched = true;
   if (e.rx_n >= kCoppSeqSlots || data.size() > kCoppHold) {
@@ -417,12 +423,11 @@ Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
   hdr.vcf_count = fsn;
   hdr.tfdz_construction = kUslpConstructionNoSeg;
   hdr.upid = kUslpUpidSpacePacket;
-  std::array<std::byte, kTransferFrameMax> tf{};
-  const auto vn = encodeUslp(tf, hdr, payload);
+  const auto vn = encodeUslp(g_tfScratch, hdr, payload);
   if (!vn) {
     return vn;
   }
-  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
+  return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
 }
 
 namespace {
@@ -438,7 +443,6 @@ Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noex
     return coppEncodeUslp(e, out, true, true, 0,
                             std::span<const std::byte>(raw.data(), *n));
   }
-  std::array<std::byte, kTransferFrameMax> tf{};
   V3Fields hdr{};
   hdr.p_frame = true;
   hdr.qos_expedited = true;
@@ -446,11 +450,11 @@ Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noex
   hdr.scid = e.remote_scid;
   hdr.destination = true;
   hdr.port_id = PortId{0};
-  const auto vn = encodeV3(tf, hdr, raw);
+  const auto vn = encodeV3(g_tfScratch, hdr, raw);
   if (!vn) {
     return vn;
   }
-  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
+  return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
 }
 
 void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
@@ -513,13 +517,12 @@ Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
   if (e.uslp) {
     return coppEncodeUslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
   }
-  std::array<std::byte, kTransferFrameMax> tf{};
-  const auto vn = user_defined ? encodeV3UserDefined(tf, hdr, payload)
-                               : encodeV3(tf, hdr, payload);
+  const auto vn = user_defined ? encodeV3UserDefined(g_tfScratch, hdr, payload)
+                               : encodeV3(g_tfScratch, hdr, payload);
   if (!vn) {
     return vn;
   }
-  return encodePltu(out, std::span<const std::byte>(tf.data(), *vn));
+  return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
 }
 
 }  // namespace starcom::ccsds

@@ -9,6 +9,12 @@ function(starcom_set_core_flags tgt)
     target_compile_options(${tgt} PRIVATE
       -Wall -Wextra -Wpedantic -Werror
       -fno-exceptions -fno-rtti)
+    # Pico Core 0 stack is 4 KiB (RC PICO_STACK_SIZE=0x1000). A 2048-byte
+    # automatic kTransferFrameMax in coppBytesToSend USB-reset-looped the
+    # ON image. GCC -Wstack-usage catches the next one at compile.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${tgt} PRIVATE -Wstack-usage=1024)
+    endif()
   endif()
 endfunction()
 

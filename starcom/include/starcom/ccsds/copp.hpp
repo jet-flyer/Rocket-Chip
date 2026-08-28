@@ -75,6 +75,7 @@ struct FopP {
   bool need_plcw = true;
   bool need_status_report = true;
   bool synch_running = false;
+  bool plcw_heard = false;  // at least one format-ok in-range PLCW (peer lock)
   Tick synch_deadline = 0;
   CoppMib mib{};
   std::array<std::uint8_t, kFopPSentCap> sent{};

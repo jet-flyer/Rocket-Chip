@@ -14,6 +14,7 @@
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
+#include "starcom_adapt/sc_air.h"
 #include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
 #include "flight_director/flight_state.h"
 #include <string.h>
@@ -325,6 +326,26 @@ static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
 }
 
 // Build ANSI frame string into s_frame, return length
+static void format_starcom_row(char* out, int n, const char*& colour) {
+    const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+    if (!sc.on) {
+        colour = kReset;
+        rc::rc_snprintf(out, n, "Air: %s", rc::kAirDialect);
+        return;
+    }
+    if (sc.peer_plcw) {
+        colour = kGreen;
+        rc::rc_snprintf(out, n, "Air: %s  COP-P lock  N(R)=%u V(S)=%u%s",
+                        rc::kAirDialect,
+                        static_cast<unsigned>(sc.nn_r),
+                        static_cast<unsigned>(sc.v_s),
+                        sc.nav_sdu ? "  nav" : "");
+        return;
+    }
+    colour = kYellow;
+    rc::rc_snprintf(out, n, "Air: %s  COP-P waiting peer PLCW", rc::kAirDialect);
+}
+
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
     // Sub 2f — build radio row with colour bracket if mismatched or just-changed.
@@ -387,6 +408,11 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         rflink_clr, rflink_row, kReset, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         cmd_clr, cmd_row, kReset, kClrEol);
+
+    char sc_row[80];
+    const char* sc_clr = kReset;
+    format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
+    rc::strbuf_printf(&sb, "%s%s%s%s\n", sc_clr, sc_row, kReset, kClrEol);
 
     rc::strbuf_printf(&sb,
         "-------------------------------------------%s\n"
@@ -457,10 +483,14 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
 
     rc::strbuf sb;
     rc::strbuf_init(&sb, g_frame, sizeof(g_frame));
+    char sc_row[80];
+    const char* sc_clr = kReset;
+    format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
         "%s%s\n"
+        "%s%s%s%s\n"
         "-------------------------------------------%s\n"
         "RX: %lu pkts  CRC err: %lu%s\n"
         "Uptime: %lus%s\n"
@@ -469,6 +499,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         kHome,
         kClrEol,
         sig_msg, kClrEol,
+        sc_clr, sc_row, kReset, kClrEol,
         kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors, kClrEol,
         (unsigned long)uptime_s, kClrEol,

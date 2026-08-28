@@ -100,6 +100,7 @@ struct TelemAo {
 
     // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
+    bool                starcom_nav_sdu;
 };
 
 static TelemAo g_telemAo;
@@ -631,6 +632,7 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
         }
         me->rx_snapshot.telem = telem;
         me->rx_snapshot.valid = true;
+        me->starcom_nav_sdu = true;
         return true;
     }
     if (pkt->fields.apid != rc::starcom_adapt::kCmdApid) {
@@ -943,6 +945,18 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &g_telemAo.rx_snapshot;
 }
 
+StarcomLinkStatus AO_Telemetry_get_starcom_link() {
+    StarcomLinkStatus s{};
+#ifdef ROCKETCHIP_USE_STARCOM
+    s.on = true;
+    s.peer_plcw = g_pump.copp.fop.plcw_heard;
+    s.nav_sdu = g_telemAo.starcom_nav_sdu;
+    s.v_s = g_pump.copp.fop.v_s;
+    s.nn_r = g_pump.copp.fop.nn_r;
+#endif
+    return s;
+}
+
 // Encode + send MAVLink COMMAND_LONG over LoRa
 void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 #ifndef ROCKETCHIP_HOST_TEST
@@ -1251,6 +1265,7 @@ void AO_Telemetry_start(uint8_t prio) {
     memset(&g_telemAo.latest_telem, 0, sizeof(g_telemAo.latest_telem));
     g_telemAo.telem_valid = false;
     memset(&g_telemAo.rx_snapshot, 0, sizeof(g_telemAo.rx_snapshot));
+    g_telemAo.starcom_nav_sdu = false;
 #ifdef ROCKETCHIP_USE_STARCOM
     rc::starcom_adapt::pump_init_for_this_job(g_pump);
 #endif

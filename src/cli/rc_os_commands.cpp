@@ -854,6 +854,16 @@ void cli_print_boot_summary() {
     rc::rc_log("  RocketChip %s %s-%s\n",
            kVersionString, kBuildConfig, kGitHash);
     rc::rc_log("  Air: %s\n", rc::kAirDialect);
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        if (sc.on) {
+            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u%s\n",
+                       sc.peer_plcw ? "lock" : "waiting peer PLCW",
+                       static_cast<unsigned>(sc.nn_r),
+                       static_cast<unsigned>(sc.v_s),
+                       sc.nav_sdu ? "  nav" : "");
+        }
+    }
     rc::rc_log("  Board: %s\n", board::kBoardName);
     rc::rc_log("  Profile: %s  Uptime: %lus\n",
            rc::kDefaultRocketProfile.name,
@@ -995,6 +1005,16 @@ void cli_print_station_status() {
     if (!rs->initialized) {
         rc::rc_log("Radio: not initialized\n");
         return;
+    }
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        if (sc.on) {
+            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u%s\n",
+                       sc.peer_plcw ? "lock" : "waiting peer PLCW",
+                       static_cast<unsigned>(sc.nn_r),
+                       static_cast<unsigned>(sc.v_s),
+                       sc.nav_sdu ? "  nav" : "");
+        }
     }
     if (!rx->valid) {
         rc::rc_log("Waiting for vehicle packets...\n");

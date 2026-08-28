@@ -100,6 +100,7 @@ TEST(StarcomBytePump, CoppHostLoopNoRadio) {
     ASSERT_TRUE(p0.has_value());
     ASSERT_GT(*p0, 0u);
     pump_receive_bytes(tx, std::span<const std::byte>(wire.data(), *p0));
+    EXPECT_TRUE(tx.copp.fop.plcw_heard);
     const auto t0 = pump_bytes_to_send(tx, wire);
     ASSERT_TRUE(t0.has_value());
     ASSERT_GT(*t0, 0u);

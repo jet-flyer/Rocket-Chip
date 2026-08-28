@@ -2,6 +2,8 @@
 
 Sans-I/O protocol core. No Pico SDK, sockets, SPI, GPIO, or Rocket-Chip includes.
 
+MCU stack: Pico Core 0 is 4 KiB. COP-P encode uses file-scope `g_tfScratch` (`kTransferFrameMax`), not an automatic array. `coppInit` memsets in place. GNU `-Wstack-usage=1024` on the library.
+
 | File | Job |
 |------|-----|
 | `crc32.cpp` | 211.2 Annex C CRC-32 |

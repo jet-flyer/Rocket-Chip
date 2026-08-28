@@ -72,6 +72,17 @@ struct RxTelemSnapshot {
 };
 const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 
+// COP-P peer lock (valid PLCW heard) and nav SDU accept. All-false when
+// ROCKETCHIP_USE_STARCOM is off.
+struct StarcomLinkStatus {
+    bool on = false;
+    bool peer_plcw = false;
+    bool nav_sdu = false;
+    uint8_t v_s = 0;
+    uint8_t nn_r = 0;
+};
+StarcomLinkStatus AO_Telemetry_get_starcom_link();
+
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
 void AO_Telemetry_notify_gcs_heartbeat();
 
