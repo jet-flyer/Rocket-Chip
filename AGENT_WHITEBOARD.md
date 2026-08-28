@@ -36,7 +36,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 20 (this sitting, `grok/sc-dev`):** host `add_subdirectory(starcom)` + link `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON`. Default OFF stays STOP-GAP air. Next is **21** (Pico+AO — Buzz). Not 22 (COP replace). Not air-path STOP-GAP strip. `docs/SCAFFOLDING.md` still omits `src/starcom_adapt/` (hard-protected, not named). Stage 17 motor stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`.
+**IVP 20 landed** on `grok/sc-dev` (`f90ed02`). Host `add_subdirectory(starcom)` + link `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON`. Default OFF stays STOP-GAP air. Next is **21** (Pico+AO — Buzz). Not 22 (COP replace). Not air-path STOP-GAP strip. `docs/SCAFFOLDING.md` still omits `src/starcom_adapt/` (hard-protected, not named). Stage 17 motor stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main: `2026-08-28-001` (`82f24f0`).
 
 ---
 
