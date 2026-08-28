@@ -321,11 +321,24 @@ Landed on `grok/sc-dev`. RC `add_subdirectory(starcom)` when `ROCKETCHIP_USE_STA
 
 **Gate:** host ctest consumer case; Starcom still builds and tests independently; inspection: Starcom does not include RC headers. Tests: `test/test_telemetry_encoder.cpp` (`StarcomHostLink.*`, `CcsdsEncoderTest.StopGapFrameIsNotPltuAsm`). Do not mint SC-NNN.
 
-### Increment 21 — Pico link + first AO byte pump
+### Increment 21 ? Pico link + first AO byte pump
 
-`target_link_libraries(rocketchip Starcom::starcom)` (or the RC alias). One AO feeds bytes / `now` and takes bytes out. RadioScheduler / SX1276 stay in RC. Flash size is measured, not invented.
+RC `src/starcom_adapt/byte_pump.*`. `target_link_libraries(rocketchip Starcom::starcom)` when `ROCKETCHIP_USE_STARCOM=ON`. `AO_Telemetry` owns one `BytePump`: `tick(now)`, nav SDU to PLTU on TX, COP-P verbs on the same object. RadioScheduler / SX1276 stay in RC. Soak SCIDs are RC IDs (vehicle 1 / station 2), not a Starcom MIB default. No pin map. Flash size (Debug, this sitting): vehicle ON text 264020 / bss 324484 (`g_pump` 18476 B); vehicle OFF same tree text 231584 / bss 324752; text delta +32436. Station ON text 251844 / bss 115668. Default OFF stays STOP-GAP. Product stays `0.19.0-dev`. COP replace is increment 22.
 
-**Gate:** Pico image links; a host or bench test that an AO can `encode_pltu` / `repeat_pltu` / `copp_*` without calling the radio from the core; no Starcom default pin map.
+```cpp
+struct BytePump { CoppEndpoint copp; Scid local_scid; Scid remote_scid; };
+void pump_init(BytePump&, Scid local, Scid remote) noexcept;
+Result<size_t> pump_encode_pltu(span<byte> out, span<const byte> frame) noexcept;
+Result<size_t> pump_repeat_pltu(span<byte> out, span<const byte> octets) noexcept;
+Result<size_t> pump_encode_nav(BytePump&, span<byte> out, TelemetryState const&) noexcept;
+Result<size_t> pump_submit_sdu(BytePump&, span<const byte>, bool expedited) noexcept;
+Result<size_t> pump_bytes_to_send(BytePump&, span<byte> out) noexcept;
+void pump_receive_bytes(BytePump&, span<const byte>) noexcept;
+Result<size_t> pump_take_sdu(BytePump&, span<byte> out) noexcept;
+void pump_tick(BytePump&, Tick now) noexcept;
+```
+
+**Gate:** Pico image links; host test that the pump can `encode_pltu` / `repeat_pltu` / `copp_*` with no radio; no Starcom default pin map. Tests: `test/test_starcom_byte_pump.cpp`. Do not mint SC-NNN.
 
 ### Increment 22 — Replace RC `telemetry_encoder` with COP
 

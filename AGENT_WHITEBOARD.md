@@ -36,7 +36,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 20 landed** on `grok/sc-dev` (`f90ed02`). Host `add_subdirectory(starcom)` + link `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON`. Default OFF stays STOP-GAP air. Next is **21** (Pico+AO — Buzz). Not 22 (COP replace). Not air-path STOP-GAP strip. `docs/SCAFFOLDING.md` still omits `src/starcom_adapt/` (hard-protected, not named). Stage 17 motor stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main: `2026-08-28-001` (`82f24f0`).
+**IVP 21 landed** on `grok/sc-dev` (Pico link + `byte_pump`). Host `StarcomBytePump` 5/5. Vehicle ON ELF `build_flight_starcom/rocketchip.elf` (Debug text 264020). Station ON `build_station_flight_starcom/rocketchip.elf`. Default OFF stays STOP-GAP. **Buzz flashes** the ON image. Next is **22** (COP replace) or an RF sitting for nav strip. `docs/SCAFFOLDING.md` still omits `src/starcom_adapt/` (hard-protected, not named). Stage 17 motor stays STOP-GAP. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Changelog on main for 20: `2026-08-28-001` (`82f24f0`).
 
 ---
 

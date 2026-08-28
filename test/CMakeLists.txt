@@ -130,6 +130,20 @@ target_include_directories(test_nav_sdu PRIVATE
 )
 gtest_discover_tests(test_nav_sdu)
 
+if(ROCKETCHIP_USE_STARCOM)
+    add_executable(test_starcom_byte_pump
+        test_starcom_byte_pump.cpp
+        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+    )
+    target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
+    target_include_directories(test_starcom_byte_pump PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    gtest_discover_tests(test_starcom_byte_pump)
+endif()
+
 # IVP-62b: MAVLink RX parser
 add_executable(test_mavlink_rx test_mavlink_rx.cpp)
 target_link_libraries(test_mavlink_rx PRIVATE rc_telemetry GTest::gtest_main)

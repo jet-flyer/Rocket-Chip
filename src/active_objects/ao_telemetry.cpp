@@ -27,6 +27,9 @@
 #include "rocketchip/radio_config_table.h"          // SET_RADIO_CONFIG whitelist
 #include "rocketchip/job.h"
 #include "starcom_adapt/sc_air.h"
+#ifdef ROCKETCHIP_USE_STARCOM
+#include "starcom_adapt/byte_pump.h"
+#endif
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
 #ifdef ROCKETCHIP_JOB_STATION
@@ -97,6 +100,9 @@ struct TelemAo {
 };
 
 static TelemAo g_telemAo;
+#ifdef ROCKETCHIP_USE_STARCOM
+static rc::starcom_adapt::BytePump g_pump;
+#endif
 
 // Queue depth 8: non-blocking handlers (SIG_RADIO_TX posts, SIG_RADIO_RX decodes)
 static QEvtPtr g_telemAoQueue[8];
@@ -168,6 +174,23 @@ static void encode_and_send(TelemAo* me) {
     uint32_t t = now_ms();
     if (t - me->last_tx_ms < me->interval_ms) { return; }
     me->last_tx_ms = t;
+
+#ifdef ROCKETCHIP_USE_STARCOM
+    if (rc::kDefaultRocketRadioConfig.protocol != rc::EncoderType::kMavlink) {
+        std::byte pltu[rc::starcom_adapt::kAirMtu];
+        const auto n = rc::starcom_adapt::pump_encode_nav(
+            g_pump, std::span<std::byte>(pltu, sizeof(pltu)), me->latest_telem);
+        if (!n.has_value() || *n == 0) { return; }
+        static rc::RadioTxEvt g_txEvtSc;
+        g_txEvtSc.super.sig = rc::SIG_RADIO_TX;
+        g_txEvtSc.super.refCtr_ = 0;
+        if (*n > sizeof(g_txEvtSc.buf)) { return; }
+        memcpy(g_txEvtSc.buf, pltu, *n);
+        g_txEvtSc.len = static_cast<uint8_t>(*n);
+        QACTIVE_POST(AO_Radio, &g_txEvtSc.super, me);
+        return;
+    }
+#endif
 
     rc::EncodeResult result = {};
     if (rc::kDefaultRocketRadioConfig.protocol == rc::EncoderType::kMavlink) {
@@ -690,6 +713,9 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
 static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
+#ifdef ROCKETCHIP_USE_STARCOM
+        rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
+#endif
         // Vehicle TX: encode and post to AO_Radio
         if constexpr (!job::kRadioModeRx) {
             encode_and_send(me);
@@ -1051,6 +1077,9 @@ void AO_Telemetry_start(uint8_t prio) {
     memset(&g_telemAo.latest_telem, 0, sizeof(g_telemAo.latest_telem));
     g_telemAo.telem_valid = false;
     memset(&g_telemAo.rx_snapshot, 0, sizeof(g_telemAo.rx_snapshot));
+#ifdef ROCKETCHIP_USE_STARCOM
+    rc::starcom_adapt::pump_init_for_this_job(g_pump);
+#endif
 
     QActive_start(&g_telemAo.super,
                   Q_PRIO(prio, 0U),

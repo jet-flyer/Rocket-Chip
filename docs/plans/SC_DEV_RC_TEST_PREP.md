@@ -170,10 +170,10 @@ as a Starcom SDU. Not open: replacing Stage 17's motor image in this tree.
 
 ## 10. Next sitting (when scheduled)
 
-IVP 20 host link is in tree (`add_subdirectory(starcom)` when
-`ROCKETCHIP_USE_STARCOM=ON`, host PLTU round-trip, STOP-GAP reject as
-PLTU). Default OFF stays STOP-GAP air. Next:
+IVP 21 Pico link + first AO byte pump is in tree (`Starcom::starcom` on
+the Pico ELF when `ROCKETCHIP_USE_STARCOM=ON`, `byte_pump` from
+`AO_Telemetry`). Default OFF stays STOP-GAP air. Next:
 
-1. IVP 21: Pico link + first AO byte pump (Buzz).
+1. Buzz flashes the ON ELF when the image links (this increment's board gate).
 2. Air-path strip of STOP-GAP **nav** only when an RF sitting is opened
    by name and Starcom can fill the hole. Not 22 unless scheduled.

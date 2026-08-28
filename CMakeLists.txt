@@ -12,10 +12,10 @@ cmake_minimum_required(VERSION 3.25)
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 
 # Dual-build soak for the Starcom consumer. Default OFF = today's STOP-GAP
-# air path. ON: host BUILD_TESTS add_subdirectory(starcom) and link
-# Starcom::starcom. Pico link is IVP 21. Dies at ops cutover.
+# air path. ON: add_subdirectory(starcom) and link Starcom::starcom on host
+# tests and the Pico image (IVP 21). Dies at ops cutover.
 # See docs/plans/SC_DEV_RC_TEST_PREP.md.
-option(ROCKETCHIP_USE_STARCOM "Link Starcom on host tests; Pico link is IVP 21" OFF)
+option(ROCKETCHIP_USE_STARCOM "Link Starcom on host and Pico; default OFF is STOP-GAP air" OFF)
 
 if(BUILD_TESTS)
     # ========================================================================
@@ -128,6 +128,7 @@ if(BUILD_TESTS)
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/byte_pump.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -135,6 +136,9 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink
     )
+    if(ROCKETCHIP_USE_STARCOM)
+        target_link_libraries(rc_telemetry PUBLIC Starcom::starcom)
+    endif()
 
     # ------------------------------------------------------------------
     # QEP library (IVP-67, vendored QP/C 8.1.3 HSM dispatch engine)
@@ -246,6 +250,13 @@ else()
 
     # Initialize the SDK
     pico_sdk_init()
+
+    if(ROCKETCHIP_USE_STARCOM)
+        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
+        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 21 Pico: no UDP/file" FORCE)
+        add_subdirectory(starcom)
+        message(STATUS "Starcom nested for Pico (Starcom::starcom)")
+    endif()
 
     # ============================================================================
     # Build Configuration
@@ -453,6 +464,7 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/byte_pump.cpp
 
         # -------------------------------------------------------------------------
         # Stage 8: Flight Director (IVP-66+)
@@ -596,6 +608,7 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/starcom_adapt/nav_sdu.cpp
+        src/starcom_adapt/byte_pump.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp
         src/flight_director/command_handler.cpp
@@ -849,7 +862,8 @@ else()
 
     if(ROCKETCHIP_USE_STARCOM)
         target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_USE_STARCOM=1)
-        message(STATUS "Starcom consumer: ON (Pico link is IVP 21; host tests link Starcom::starcom)")
+        target_link_libraries(rocketchip Starcom::starcom)
+        message(STATUS "Starcom consumer: ON (Pico linking Starcom::starcom)")
     endif()
 
     # USB configuration
