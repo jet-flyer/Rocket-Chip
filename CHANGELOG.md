@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-28-002 | Grok 4.6 (Build CLI) | feature, bugfix
+
+**RC Starcom consumer IVP 21–22 on `grok/sc-dev` (`225b648`).** Pico links `Starcom::starcom` (`byte_pump`). ON air path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`); nav/cmd/ACK Space Packets in `starcom_adapt`. STOP-GAP encoder and LoRa MAVLink COMMAND_LONG off that image. Default OFF stays STOP-GAP. First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack — library fix is `starcom/CHANGELOG.md` `2026-08-28-002` (`1090959`). Drain one PLTU per send so COP-P resend does not flood half-duplex LoRa. Not merged. Next Starcom increment is 23. Verified: host `StarcomHostLink` / `StarcomBytePump` / `CmdSdu` PASS; vehicle ON COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS, sensors healthy — GO.
+
 ### 2026-08-28-001 | Grok Hamilton (Grok Bot) | architecture, tooling
 
 **RC host consumer of Starcom 0.19.0-dev on `grok/sc-dev` (`f90ed02`).** Host tests with `ROCKETCHIP_USE_STARCOM=ON` add_subdirectory(starcom) and link `Starcom::starcom`; default OFF stays STOP-GAP. Pico/AO is increment 21. Rebaselined `banked_turn_10s` replay golden (IVP-42c). Classifier recognizes live `h` leftover after banner drain. `bench_sim` resets FD to IDLE then sends `v` until DEV_MODE on. Not merged to `main`. Starcom wrap 13?19 stays on `docs/starcom-sad-draft` (`c2aaacc`). Verified: Trajectories 5/5; `test__rc_test_common` ALL CHECKS PASS; host ctest 865/865; vehicle `bench_sim` 2/2 PASS COM5 already-flashed image, no HW reseat required.
