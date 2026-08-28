@@ -244,7 +244,25 @@ Result<std::size_t> udp_recv(UdpSocket&, std::span<std::byte> out) noexcept;
 
 WORKING_HERE `adapters/rp2350/`. Byte pump against a generic bus. Board pins, SX1276 types, and AO stay in the consumer (RC or other). No PHY claim.
 
-**Gate:** host test of the port with a fake bus; inspection: no Pico SDK in `include/starcom`.
+Landed. `BusOps` is caller-owned SPI + GPIO function pointers. Line IDs are the caller's, not a Starcom pin map. `radio_bus_shift_tx` / `radio_bus_shift_rx` move a `RadioPort` slot across that bus. Host tests use a fake bus. No Pico SDK, no SX1276 / RFM types, not 211.1. An ISM LoRa adapter is a later `adapters/` module, not this increment.
+
+```cpp
+struct BusOps {
+  void* ctx;
+  Result<std::size_t> (*spi)(void* ctx, std::span<const std::byte> tx,
+                             std::span<std::byte> rx) noexcept;
+  void (*gpio_write)(void* ctx, int line, bool level) noexcept;
+  bool (*gpio_read)(void* ctx, int line) noexcept;
+};
+Result<std::size_t> bus_spi(BusOps const&, std::span<const std::byte>, std::span<std::byte>);
+Result<std::size_t> bus_gpio_write(BusOps const&, int line, bool level);
+Result<bool> bus_gpio_read(BusOps const&, int line);
+Result<std::size_t> radio_bus_shift_tx(RadioPort&, BusOps const&, std::span<std::byte> scratch);
+Result<std::size_t> radio_bus_shift_rx(RadioPort&, BusOps const&, std::span<std::byte> scratch,
+                                       std::size_t n);
+```
+
+**Gate:** host test of the port with a fake bus; inspection: no Pico SDK in `include/starcom`. Tests: `tests/unit/test_radio_bus.cpp`. Do not mint SC-NNN.
 
 ### Increment 17 — PIO port
 

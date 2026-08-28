@@ -11,3 +11,4 @@ Procedure: [`../../docs/TESTING.md`](../../docs/TESTING.md).
 | `heap_trap.cpp` | D-5 malloc/`operator new` trap (positive control + codecs allocate nothing) |
 | `test_user_defined.cpp` | IVP 14 DFC `11` user-defined + simplex without hailing |
 | `test_host_io.cpp` | IVP 15 host file replay + UDP |
+| `test_radio_bus.cpp` | IVP 16 generic SPI/GPIO port on a fake bus |

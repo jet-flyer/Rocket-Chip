@@ -13,10 +13,11 @@ add_executable(starcom_tests
   unit/test_mac.cpp
   unit/test_user_defined.cpp
   unit/test_host_io.cpp
+  unit/test_radio_bus.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)
-target_link_libraries(starcom_tests PRIVATE Starcom::starcom Starcom::adapters_host)
+target_link_libraries(starcom_tests PRIVATE Starcom::starcom Starcom::adapters_host Starcom::adapters_rp2350)
 target_compile_definitions(starcom_tests PRIVATE STARCOM_ROOT="${STARCOM_ROOT}")
 starcom_set_test_flags(starcom_tests)
 starcom_apply_sanitizer(starcom_tests)

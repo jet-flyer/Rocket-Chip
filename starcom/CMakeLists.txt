@@ -49,6 +49,7 @@ starcom_set_core_flags(starcom)
 starcom_apply_sanitizer(starcom)
 
 add_subdirectory(adapters/host)
+add_subdirectory(adapters/rp2350)
 
 if(STARCOM_BUILD_TESTS)
   enable_testing()
