@@ -36,7 +36,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 20–23 landed** on `grok/sc-dev`. Next Starcom increment is **24** (ASan/fuzz/size; blocked here — no libasan). Default OFF stays STOP-GAP. Two-board LoRa soak is not 24. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22 + `copp_init` wrap logs: root `CHANGELOG.md` / `starcom/CHANGELOG.md` `2026-08-28-002`.
+**IVP 20–23 landed** on `grok/sc-dev`. 23 is an **initial** standards pass (public camelBack + gated tidy subset), not exhaustive. Next Starcom increment is **24** (ASan/fuzz/size; blocked here — no libasan). Default OFF stays STOP-GAP. Two-board LoRa soak is not 24. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22 + `copp_init` wrap logs: root `CHANGELOG.md` / `starcom/CHANGELOG.md` `2026-08-28-002`.
 
 ---
 

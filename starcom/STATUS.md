@@ -2,7 +2,7 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** RC consumer IVP 20–22 in on `grok/sc-dev`. IVP 23 coding-standards audit in (camelBack public API, gated tidy clean, 0 Starcom accepted-deviation rows). Product `0.19.0-dev`. Next is 24 (ASan/fuzz/size on a host that has libasan). No tag. No SC-NNN.
+**Phase:** RC consumer IVP 20–22 in on `grok/sc-dev`. IVP 23 **initial** coding-standards pass in (public-verb camelBack + gated tidy subset; not exhaustive; no Starcom accepted-deviation row). Product `0.19.0-dev`. Next is 24 (ASan/fuzz/size on a host that has libasan). No tag. No SC-NNN.
 
 ## Next
 
@@ -35,7 +35,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 | 15–18 | Ports | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers. |
 | 19 | Conv / LDPC | 211.2 PICS. |
 | 20–22 | RC consumer | Host link, Pico+AO, replace `telemetry_encoder` with COP. |
-| 23–25 | Audit, hardening close, tag | Standards; ASan/fuzz/size; `starcom-v*`. |
+| 23–25 | Initial standards pass, hardening close, tag | 23 is not a full audit; ASan/fuzz/size; `starcom-v*`. |
 
 **MVP cut (2026-08-25, historical):** Phases 0–2 were the first code cut. USLP and COP-1 followed in order. Superseded by the IVP 0–25 table: repeater is 7/12 (not “not decided”); §6 is 13 (still a decision, not a stub). 131.0 long-haul TM C&S is not a Starcom increment. PHY / 211.1 is increment 18 as adapter tiers, not a blanket claim. No stub.
 
@@ -71,6 +71,6 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 18: `PhyDecl` tiers. Uncoded host path. `compliant` / FPGA HDL not offered this sitting.
 - Increment 19: conv encode (211.2 §3.4.3) + LDPC (2048,1024) encode + CSM + codeword randomize. Decode deferred. Uncoded 18 unchanged.
 - Increment 20: RC host `addSubdirectory(starcom)` when `ROCKETCHIP_USE_STARCOM=ON`; `Starcom::starcom` linked from host PLTU round-trip / STOP-GAP reject-as-PLTU. Nested `STARCOM_BUILD_TESTS=OFF`. Pico link is 21. Product stays `0.19.0-dev`.
-- Increment 23: house camelBack on `starcom/src` + `include/starcom`; gated clang-tidy clean; `kCoppHold`/`kCop1Hold` stay host-loop caps (64). Zero Starcom rows in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
+- Increment 23: **initial** pass only — public-verb camelBack + gated tidy subset (size/cognitive/unused-return/reserved-id) on `starcom/src/ccsds` + adapters. Not a full house-bar walk. `kCoppHold`/`kCop1Hold` stay host-loop caps (64). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
 
 - Docs cut `db1465c`. Graph snapshot `952b913`.

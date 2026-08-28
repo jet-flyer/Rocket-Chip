@@ -70,7 +70,7 @@ Bottom-up. 0–7 are in the tree (no SC-NNN yet). 8–25 is the rest of the Star
 | **20** | RC host `addSubdirectory(starcom)` | Consumer link (host) | T, I |
 | **21** | Pico link + first AO byte pump | Consumer link (target) | T, I |
 | **22** | Replace RC `telemetry_encoder` with COP | Consumer COP path | T |
-| **23** | clang-tidy / identifier-naming audit | House standards on this tree | R, I |
+| **23** | Initial clang-tidy / camelBack pass | Not exhaustive; not a full house-bar walk | R, I |
 | **24** | ASan host, longer fuzz, size report | Hardening close | T, A |
 | **25** | First annotated `starcom-v*` tag | Product cut | R |
 
@@ -362,13 +362,13 @@ AO_Telemetry ON: nav/cmd/ACK go through those verbs; `ccsds_encoder.encodeNavWit
 
 Landed on `grok/sc-dev` (`f71db10`). Host tests PASS. Vehicle ON `Air: starcom-prep`, `bench_sim` 2/2. Two-board LoRa (station ON answering PLCWs) is not this gate. Next is increment 23.
 
-### Increment 23 — Coding-standards audit
+### Increment 23 — Initial coding-standards pass
 
-RC `standards/CODING_STANDARDS.md` applies. clang-tidy / identifier-naming / JSF-adjacent on `starcom/src` + `include/starcom`. Remediate ICD snake_case vs house camelBack. Review host-loop caps (`kCoppHold`, `kCop1Hold`) — those are not MIB. Starcom is first-party: **zero accepted-deviation rows** for this library. `#pragma once` is the existing project-wide exception (`standards/CODING_STANDARDS.md`), not a new Starcom row.
+Not a full JSF / P10 / JPL walk and not L2-P5. RC `standards/CODING_STANDARDS.md` applies; this increment is a first mechanical pass on `starcom/src` + `include/starcom`, not a claim that the library is standards-complete. Remediate public ICD snake_case vs house camelBack. Review host-loop caps (`kCoppHold`, `kCop1Hold`) — those are not MIB. Starcom is first-party: do **not** add a Starcom row to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project-wide exception, not a new Starcom row.
 
-**Gate:** documented tidy run; public names match the house rule; no Starcom row in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`; no codec behavior change mixed into the rename unless tests move with it.
+**Gate:** documented tidy run of the *gated subset* (function size, cognitive complexity, unused-return, reserved-id) plus public-verb camelBack; no Starcom accepted-deviation row; no codec behavior change mixed into the rename unless tests move with it. Does **not** close magic numbers, cyclomatic-vs-cognitive, member/`Error` enumerator naming, function-pointer seams, or a dated audit report.
 
-Landed on `grok/sc-dev`. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). `Error` enumerators stay the closed ICD set (`uslp_truncated`, …). Gated clang-tidy (function size ≤60, cognitive ≤25) is clean on `starcom/src/ccsds` + adapters. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). `#pragma once` is the project-wide exception, not a Starcom row. Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS. Next is increment 24.
+Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). `Error` enumerators stay the closed ICD set (`uslp_truncated`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS. Remainder of the house bar is later sittings. Next is increment 24.
 
 ### Increment 24 — Hardening close
 

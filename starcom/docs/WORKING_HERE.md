@@ -63,7 +63,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 ### Code quality (core targets strictest plausible adopter)
 
-In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public-header naming vs house camelBack is IVP increment 23, not an exemption.
+In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public verbs were brought to house camelBack in IVP 23 (initial pass, not a full naming/standards walk). Remaining house-bar items are later sittings, not an exemption.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 

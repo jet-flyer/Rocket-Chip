@@ -37,7 +37,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | 20 | Host `addSubdirectory(starcom)` | Landed (RC host) |
 | 21 | Pico link + first AO byte pump | Landed (`grok/sc-dev`) |
 | 22 | Replace `telemetry_encoder` with COP | Landed (`grok/sc-dev`) |
-| 23 | clang-tidy / camelBack vs ICD snake_case | Landed (`grok/sc-dev`; 0 Starcom deviation rows) |
+| 23 | Initial clang-tidy / camelBack pass (not exhaustive) | Landed (`688ff00`; no Starcom deviation row) |
 | 24 | ASan host, longer fuzz, size report | Starcom |
 | 25 | First `starcom-v*` tag | Owner cut |
 
