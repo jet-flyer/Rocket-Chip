@@ -1,6 +1,7 @@
 add_library(starcom_adapters_rp2350 STATIC
   radio_bus.cpp
   pio_port.cpp
+  phy.cpp
 )
 add_library(Starcom::adapters_rp2350 ALIAS starcom_adapters_rp2350)
 

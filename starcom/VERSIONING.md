@@ -16,7 +16,7 @@ Same shape as the 2026-08-26 Rocket-Chip close (Zephyr `VERSION` + generated hea
 | **Build identity** | `git describe --abbrev=12 --always --dirty` plus short hash | Nobody. CMake captures it | Every configure whose git HEAD or index moved |
 
 - `MAJOR` stays 0 until a first tagged operational/extract cut (`1.0.0`).
-- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 17 (PIO symbol pipe): **`0.17.0-dev`**.
+- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 18 (PHY adapter tiers): **`0.18.0-dev`**.
 - `PATCH` = remediates inside that increment (usually 0).
 - `EXTRAVERSION = dev` until an annotated tag with empty EXTRA.
 

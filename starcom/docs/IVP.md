@@ -286,7 +286,16 @@ Result<std::size_t> pio_shift_in(PioOps const&, std::span<std::byte> out, std::s
 
 D-1: no blanket 211.1-B-4 claim. Adapters declare **none / best-effort / compliant**. FPGA: conv encode, PLTU on the wire, later LDPC/Viterbi as fabric allows. HDL sim before bitstream. Same codec vectors.
 
-**Gate:** a declared-tier adapter builds; CONFORMANCE PHY row stays honest (no Electra/UT product claim); HDL or host sim matches increment 0+1 vectors for the uncoded path.
+Landed (host). `PhyDecl` / `PhyTier` {none, best_effort, compliant}. Uncoded path `phy_uncoded_encode` / `phy_uncoded_decode` matches increment 0+1 PLTU octets for none and best_effort. `compliant` is not offered (FPGA / 211.1 waveform). HDL sim before bitstream waits on Researcher. No Electra/UT product claim.
+
+```cpp
+enum class PhyTier : std::uint8_t { none, best_effort, compliant };
+struct PhyDecl { PhyTier tier; };
+Result<std::size_t> phy_uncoded_encode(PhyDecl, std::span<std::byte>, std::span<const std::byte> frame);
+Result<PltuView> phy_uncoded_decode(PhyDecl, std::span<const std::byte>);
+```
+
+**Gate:** a declared-tier adapter builds; CONFORMANCE PHY row stays honest (no Electra/UT product claim); HDL or host sim matches increment 0+1 vectors for the uncoded path. Tests: `tests/unit/test_phy.cpp`. Do not mint SC-NNN.
 
 ### Increment 19 — Convolutional / LDPC
 

@@ -280,7 +280,18 @@ Result<std::size_t> pio_shift_out(PioOps const&, std::span<const std::byte>);
 Result<std::size_t> pio_shift_in(PioOps const&, std::span<std::byte>, std::size_t n_octets);
 ```
 
-MSB first. Caller owns the clock. Not 211.1 residual-carrier PM. PHY tiers are increment 18. No virtual `IRadio` in the core (P10-9).
+MSB first. Caller owns the clock. Not 211.1 residual-carrier PM.
+
+PHY tiers (IVP 18 / D-1):
+
+```cpp
+enum class PhyTier : std::uint8_t { none, best_effort, compliant };
+struct PhyDecl { PhyTier tier; };
+Result<std::size_t> phy_uncoded_encode(PhyDecl, std::span<std::byte>, std::span<const std::byte>);
+Result<PltuView> phy_uncoded_decode(PhyDecl, std::span<const std::byte>);
+```
+
+Uncoded host path for none / best_effort. `compliant` is not offered. FPGA HDL sim before bitstream. Convolutional / LDPC is increment 19. No virtual `IRadio` in the core (P10-9).
 
 ## CMake (with the first `.cpp`, not a solo sitting)
 

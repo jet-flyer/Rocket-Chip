@@ -13,3 +13,4 @@ Procedure: [`../../docs/TESTING.md`](../../docs/TESTING.md).
 | `test_host_io.cpp` | IVP 15 host file replay + UDP |
 | `test_radio_bus.cpp` | IVP 16 generic SPI/GPIO port on a fake bus |
 | `test_pio_port.cpp` | IVP 17 PIO bit pipe; 0+1 PLTU octets |
+| `test_phy.cpp` | IVP 18 PHY tiers; uncoded 0+1 PLTU; compliant not offered |
