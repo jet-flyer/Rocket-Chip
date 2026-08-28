@@ -41,7 +41,7 @@ First TUs: CRC-32 (Annex C) then PLTU. Then V-3, Space Packet, `Plcw16`, `Clcw32
 | `sp_too_short` | Space Packet &lt; 7 octets, or Data Length implies that. |
 | `sp_pvn` | Packet Version Number not `000`. |
 | `buffer_too_small` | Output span cannot hold the encoded unit. |
-| `uslp_truncated` | USLP End of Frame Primary Header Flag = 1. C&S needs Truncated Transfer Frame Length (MIB); not this sitting. |
+| `uslp_truncated` | USLP End of Frame Primary Header Flag = 1. C&S needs Truncated Transfer Frame Length (MIB); IVP increment 9. |
 | `uslp_length_oob` | USLP C implies frame &lt; 8 or &gt; 65536 octets. |
 
 `asm_in_crc` is a **test** (IVP), not an `Error` the decoder returns — the decoder never feeds ASM to CRC-32.
@@ -64,11 +64,15 @@ struct PltuView {
 Result<PltuView> decode_pltu(std::span<const std::byte> octets) noexcept;
 Result<std::size_t> encode_pltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept;
+Result<std::size_t> repeat_pltu(std::span<std::byte> out,
+                                std::span<const std::byte> octets) noexcept;
 ```
 
-`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It does not search a sliding window. Stream search is a later pump. It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) returns `uslp_truncated` — the length is a MIB parameter, not in the frame. Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that).
+`decode_pltu` expects a **complete** candidate starting at ASM (host tests pass a whole PLTU). It does not search a sliding window. Stream search is IVP increment 8. It locates CRC-32 with 211.2 §3.6.4: V-3 TFVN `10` uses the 11-bit Frame Length; USLP TFVN `1100` with End of Header Flag `0` uses the 16-bit Frame Length. Flag `1` (truncated USLP) returns `uslp_truncated` — the length is a MIB parameter, not in the frame (increment 9). Envelope cap remains 5–2048 (`v3_length_oob` if C implies outside that).
 
 `encode_pltu` writes `FAF320` + `frame` + CRC-32 into `out`. Envelope cap is 5–2048 octets. V-3 field checks beyond that length are `decode_v3` / `encode_v3`.
+
+`repeat_pltu` (IVP 7) is regenerative: `decode_pltu` must pass; copy ASM+frame+CRC bit-exact.
 
 ### Version-3
 
@@ -136,11 +140,11 @@ Result<std::size_t> encode_uslp(std::span<std::byte> out, UslpFields const&,
                                 std::span<const std::byte> ocf = {}) noexcept;
 ```
 
-Transfer Frame only (no ASM / PLTU CRC-32). Non-truncated primary header (7–14 octets). TFVN `1100`. Frame Length C = total frame octets − 1 (max 65536). TFDF header 1 octet, or 3 when construction rule is `000`/`001`/`010`. Optional OCF is 4 octets when the OCF Flag is set (may hold a `Clcw32`). Insert Zone, FECF CRC-16, and truncated headers are not this sitting. On Prox-1 the link CRC stays PLTU CRC-32. Field map: SAD (working copy of 732.1 Fig 4-2 / 4-4). UPID `0` = Space Packets (SANA `uslp_protocol_id`).
+Transfer Frame only (no ASM / PLTU CRC-32). Non-truncated primary header (7–14 octets). TFVN `1100`. Frame Length C = total frame octets − 1 (max 65536). TFDF header 1 octet, or 3 when construction rule is `000`/`001`/`010`. Optional OCF is 4 octets when the OCF Flag is set (may hold a `Clcw32`). Insert Zone, FECF CRC-16, and truncated headers are IVP increment 9. On Prox-1 the link CRC stays PLTU CRC-32. Field map: SAD (working copy of 732.1 Fig 4-2 / 4-4). UPID `0` = Space Packets (SANA `uslp_protocol_id`).
 
 ## Engine (COP-P)
 
-FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loop. SET V(R) persistent activity (7.2.3.2) uses the MAC sublayer — not this sitting; S2 is entered on SYNCH_TIMER expiry when `Resync_Local` is true. Other P-frame SPDUs (SET V(R), status reports) are not parsed; inbound P-frames are treated as PLCWs.
+FOP-P / FARM-P from 211.0-B-6 §7. Caller owns `now`, buffers, and the event loop. SET V(R) persistent activity (7.2.3.2) uses the MAC sublayer — IVP increment 13. S2 is entered on SYNCH_TIMER expiry when `Resync_Local` is true. Other P-frame SPDUs (SET V(R), status reports) are not parsed until increment 13; inbound P-frames are treated as PLCWs.
 
 ```cpp
 using Tick = std::uint32_t;
@@ -157,7 +161,7 @@ CoppEvent copp_poll_event(CoppEndpoint&);
 
 ## Engine (COP-1)
 
-FARM-1 Table 6-1 and a FOP-1 subset from 232.1-B-2 Table 5-1. Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 (Initiate AD with CLCW check / Unlock / Set V(R) BC) and the rest of the 46 FOP-1 events are not this sitting.
+FARM-1 Table 6-1 and a FOP-1 subset from 232.1-B-2 Table 5-1. Still sans-I/O: caller owns `now`, buffers, and the loop. Wire is USLP in a PLTU with CLCW in the OCF (732.1 Table 4-1 flag mapping). Not TC 232.0 frames. S4/S5 (Initiate AD with CLCW check / Unlock / Set V(R) BC) and the rest of the FOP-1 events are IVP increment 10.
 
 ```cpp
 void cop1_init(Cop1Endpoint&, Cop1Mib const&, UslpScid local, UslpScid remote, Vcid, MapId);
@@ -174,11 +178,11 @@ Cop1Event cop1_poll_event(Cop1Endpoint&);
 
 ## Half-duplex
 
-Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. Who owns turnaround (RC scheduler vs a later Starcom MAC slice vs full §6) is **not decided** — whiteboard. Do not stub §6.
+Sans-I/O already: the core never keys a radio and never reads CARRIER_ACQUIRED. Who owns turnaround (RC scheduler vs a later Starcom MAC slice vs full §6) is **not decided** — IVP increment 13 (decision gate first). Do not stub §6.
 
 ## Repeater
 
-Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies ASM+frame+CRC bit-exact. No V-3/Space Packet decode, no COP. Buffered queue and dedup are not this sitting — whiteboard.
+Bent-pipe regenerative: `repeat_pltu(out, octets)` runs `decode_pltu` and copies ASM+frame+CRC bit-exact. No V-3/Space Packet decode, no COP. Buffered queue and dedup are IVP increment 12.
 
 ## Adapters (host loopback / radio port)
 

@@ -19,10 +19,10 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 | Term | Means |
 |------|--------|
 | **PLTU** | Proximity Link Transmission Unit (211.2). The coding-and-sync wrapper: ASM + one transfer frame + CRC-32. |
-| **Repeater** | Same-link regenerative forward of a **PLTU** (check envelope, same octets out, no payload decode). Wanted early on RC (RP2350 + LoRa). Not a Prox-1 session and not a second long-haul link. Bent-pipe vs buffered (133.0 §2.4 store-and-forward) is a size/CPU pick at implementation — see whiteboard. |
+| **Repeater** | Same-link regenerative forward of a **PLTU** (check envelope, same octets out, no payload decode). Wanted early on RC (RP2350 + LoRa). Not a Prox-1 session and not a second long-haul link. Bent-pipe is IVP 7; buffered (133.0 §2.4 store-and-forward, caller-owned queue) is IVP 12. |
 | **USLP** | Unified Space Data Link Protocol (732.1). Its on-the-wire frame is Version-4. On Prox-1 it sits *in* a PLTU, in lieu of Version-3, never inside the V-3 data field. |
 | **Space Packet** | CCSDS 133.0-B-2. The usual SDU inside a transfer frame: 6-octet header + user data. Not a Starcom product name. Starcom codecs the header; the user field is the app. |
-| **PUS** | ECSS-E-ST-70-41C Packet Utilization Standard (**ESA**, not a CCSDS Blue Book). Service type/subtype **inside** Space Packet user data (e.g. ST[20] get/set onboard parameters). Optional later stack module; not Phase 0. |
+| **PUS** | ECSS-E-ST-70-41C Packet Utilization Standard (**ESA**, not a CCSDS Blue Book). Service type/subtype **inside** Space Packet user data (e.g. ST[20] get/set onboard parameters). Optional later stack module; not in IVP 0–25. |
 | **cFS / F´** | NASA-world **frameworks**, not CCSDS books. They also ride Space Packets: cFS (GSFC) puts cFE command codes in the user field; F´ (JPL) uses typed PRM_SET/SAVE. US missions often leave packet *contents* to the FSW; ESA standardized those contents as PUS. Neither belongs in `starcom::ccsds` as RC settings. |
 
 
@@ -62,7 +62,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 ### Code quality (core targets strictest plausible adopter)
 
-In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public-header naming vs house camelBack is a later audit sitting (whiteboard), not an exemption.
+In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public-header naming vs house camelBack is IVP increment 23, not an exemption.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 
@@ -84,7 +84,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 ### Boundary violations (most common failure mode)
 
 - **Don't** add Rocket-Chip concepts to the core: `rocketchip::`, `AO_*`, `RadioScheduler`, `Mission Profile`, `QF_*`, board headers, GPIO pin constants.
-- **Don't** move or refactor RC's STOP-GAP `telemetry_encoder` into the core as-is — research explicitly says it is **not** the design base. Replace it later via adapter + new core APIs.
+- **Don't** move or refactor RC's pre-Starcom `telemetry_encoder` into the core as-is — research explicitly says it is **not** the design base. Replace it at IVP increment 22 via adapter + COP. Do not mint a Starcom stop-gap or temporary retry layer.
 - **Don't** let Rocket-Chip's root `CMakeLists.txt` become the only way to build or test Starcom.
 - **Don't** create reverse dependencies (Starcom linking against firmware targets).
 
@@ -94,7 +94,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 - **Don't** make the protocol FSM **only** usable as a QP Active Object. AO wrapper = optional adapter.
 - **Don't** hard-code COP-1 managed parameters (T1, window sizes) — they must be configurable.
 - **Don't** claim 211.1-B-4 PHY compliance on SX1276/LoRa paths. Best-effort PHY must say so loudly.
-- **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Repeater is an early RC-facing capability after codecs; grade is a later sitting.
+- **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Bent-pipe is IVP 7 (`repeat_pltu`). Buffered / dedup is IVP 12.
 - **Don't** describe a future repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). If we build one, it is range-extend of a PLTU, not a second link. Don't run COP on that path and don't decode the Space Packet just to forward.
 
 ### Documentation mistakes
@@ -165,9 +165,9 @@ The old “no `starcom/AGENT_WHITEBOARD.md`” rule buried Starcom flags on the 
 | `starcom/tests/` | Host-side unit, property, fuzz tests |
 | `starcom/docs/` | Library design, research, comparison |
 | `starcom/docs/integration/` | What RC and other consumers can call today vs later |
-| Rocket-Chip `src/telemetry/telemetry_encoder.*` | STOP-GAP — stays until replaced by Starcom + RC adapter |
+| Rocket-Chip `src/telemetry/telemetry_encoder.*` | Pre-Starcom RC firmware — stays until IVP 22 replaces it with COP |
 | Rocket-Chip `src/active_objects/ao_telemetry.*` | RC integration — not Starcom core |
-| Rocket-Chip `docs/decisions/CURRENT_COMMAND_RETRY_ACK_*` | RC STOP-GAP baseline — input to future TC-layer work, not library docs |
+| Rocket-Chip `docs/decisions/CURRENT_COMMAND_RETRY_ACK_*` | RC pre-Starcom retry map — input to IVP 22, not library docs |
 
 ---
 

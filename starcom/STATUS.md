@@ -2,35 +2,46 @@
 
 Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATUS.md`.
 
-**Phase:** increment 6 hardening in (prefix smoke + `STARCOM_SANITIZE`). Product `0.6.0-dev`. Core still sans-I/O. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
+**Phase:** increment 7 bent-pipe repeater in. Product `0.7.0-dev`. Core still sans-I/O. ASan not run on this MinGW (no libasan). No tag. No SC-NNN.
 
 ## Next
 
-Whiteboard: duplex/§6; PLTU repeater grade; coding-standards clang-tidy/naming audit. RC integration when scheduled. FPGA/PIO later.
+IVP increment 8 (PLTU stream ASM hunt). Sequence through 25 is in `docs/IVP.md`. Open decision: increment 13 §6 cut. RC integration is 20–22 when scheduled.
 
-1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`.
+1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
 Gates: `docs/IVP.md`.
 
 ## Phase sketch
 
-Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting's MVP cut. Grok's library-craft doc has no numbered 0–6 list; cite it for host-first testing, size reporting, and "F' is an integration target" (Grok §8, §10). Do not treat Claude's module filenames as the only cut.
+Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as this tree’s IVP. Grok's library-craft doc has no numbered 0–6 list; cite it for host-first testing, size reporting, and "F' is an integration target" (Grok §8, §10). Do not treat Claude's module filenames as the only cut.
 
 | Phase | Job | Notes |
 |-------|-----|--------|
-| 0 | Skeleton | CMake static + export, `version` / `result` / span seams, empty host test. Lands with the first codec, not alone. |
-| 1 | Codecs | Pure functions. PLTU (ASM+CRC-32), Version-3 frame, Space Packet SDU, PLCW and CLCW field pack/unpack. Golden vectors. |
-| 2 | COP-P | FOP-P / FARM-P. This is implementing Prox reliability, not extra. Engine verbs become real here. |
-| 3 | USLP | Version-4 frame + VC/MAP in the same PLTU. Can host COP-P. |
-| 4 | COP-1 | FOP-1 / FARM-1. The other ARQ, not a substitute for COP-P. |
-| 5 | Adapters | Host loopback first. Generic radio port in `starcom/adapters/`. RC pins/AO stay in RC. |
-| 6 | Hardening | Sanitizers, longer fuzz, docs, first `0.1.0`. |
+| 0+1 | Skeleton + codecs | CMake with first codec. PLTU, V-3, Space Packet, PLCW, CLCW. |
+| 2 | COP-P | FOP-P / FARM-P. SET V(R) persistent waits for 13. |
+| 3 | USLP | Non-truncated V-4 in the same PLTU. Remainder is 9. |
+| 4 | COP-1 | FARM-1 + FOP-1 subset. Remainder is 10. |
+| 5 | Adapters | Host loopback + `RadioPort` mailbox. |
+| 6 | Hardening (option) | Prefix smoke + `STARCOM_SANITIZE`. Close is 24. |
+| 7 | Bent-pipe repeater | `repeat_pltu`. Buffered is 12. |
+| 8 | ASM hunt | 211.2 C&S stream search. |
+| 9 | USLP remainder | Truncated, Insert Zone, FECF (MIB). |
+| 10 | COP-1 remainder | S4/S5 + remaining Table 5-1. |
+| 11 | COP-P on USLP VC | Same procedures, V-4. |
+| 12 | Buffered repeater | Caller-owned queue; no invented depth. |
+| 13 | §6 MAC / DUPLEX | Decision first; SET V(R) persistent. |
+| 14 | Simplex / bitstream | V-3 DFC `11`. |
+| 15–18 | Ports | UDP/file, SPI/GPIO, PIO, PHY/FPGA tiers. |
+| 19 | Conv / LDPC | 211.2 PICS. |
+| 20–22 | RC consumer | Host link, Pico+AO, replace `telemetry_encoder` with COP. |
+| 23–25 | Audit, hardening close, tag | Standards; ASan/fuzz/size; `starcom-v*`. |
 
-**MVP cut (2026-08-25):** Phases 0–2: CMake-with-first-codec, codecs, COP-P (endpoints only). USLP and COP-1 are in, sequenced next. Order of implementation, not a maybe. 131.0 long-haul coding is not this MVP. PHY / 211.1 is a later port. Prox-1 §6 hailing/MAC is not decided. **PLTU repeater is not decided** — awareness on `AGENT_WHITEBOARD.md` (last night’s MVP lock walked back). No stub.
+**MVP cut (2026-08-25, historical):** Phases 0–2 were the first code cut. USLP and COP-1 followed in order. Superseded by the IVP 0–25 table: repeater is 7/12 (not “not decided”); §6 is 13 (still a decision, not a stub). 131.0 long-haul TM C&S is not a Starcom increment. PHY / 211.1 is increment 18 as adapter tiers, not a blanket claim. No stub.
 
 ## Blockers
 
-- None for whiteboard/RC-integration start. This MinGW g++ has no libasan/libubsan; sanitizer option waits for Clang/Linux.
+- None for increment 8. This MinGW g++ has no libasan/libubsan; sanitizer *run* waits for increment 24 on Clang/Linux.
 
 ## Done this sitting
 
@@ -39,11 +50,12 @@ Transcribed from `docs/research/library_craft_claude.md` §7, with this sitting'
 - Version-3 `decode_v3` / `encode_v3`.
 - Space Packet `decode_space_packet` / `encode_space_packet`; IVP `v3-one-sp-n` is 18+N.
 - `Plcw16` / `Clcw32` pack/unpack.
-- FOP-P / FARM-P (`copp.hpp` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `copp_take_sdu` (7.3.3). SET V(R) persistent/MAC omitted.
-- USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF omitted.
-- COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 omitted.
-- Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI.
-- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.6.0-dev` after increment 6. No tag this sitting.
-- Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan).
-- Consumer map: `docs/integration/CONSUMERS.md`. Bent-pipe `repeat_pltu`. Buffered repeater still whiteboard.
+- FOP-P / FARM-P (`copp.hpp` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `copp_take_sdu` (7.3.3). SET V(R) persistent/MAC is increment 13.
+- USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; `decode_pltu` locates CRC-32 via 16-bit Frame Length. Truncated / Insert / FECF is increment 9.
+- COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + AD ack + E8 retransmit; USLP+OCF host loop. S4/S5 is increment 10.
+- Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). No UDP/SPI (15–16).
+- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (RC 2026-08-26 scheme). Product `0.7.0-dev` after increment 7. No tag this sitting.
+- Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan). Close is 24.
+- Consumer map: `docs/integration/CONSUMERS.md`. Bent-pipe `repeat_pltu` (increment 7).
+- IVP sequence through increment 25 (rest of the stack). No Starcom stop-gap.
 - Docs cut `db1465c`. Graph snapshot `952b913`.

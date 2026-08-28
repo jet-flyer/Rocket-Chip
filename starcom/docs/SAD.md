@@ -78,7 +78,7 @@ Same PLTU, truncated USLP instead of V-3 (also 18+N):
 
 USLP swap: replace the 5-octet V-3 header with a 4-to-14 octet USLP primary header plus a 1-to-3 octet TFDF header. Optional OCF (4) and FECF CRC-16 (2) would sit before the PLTU CRC-32. On Prox-1 COP-P, keep the PLTU CRC-32; do not use FECF as the link CRC.
 
-This cut: PLTU envelope, Version-3 and Version-4 as the two legal insides of a PLTU, Space Packet as the SDU, repeater as an early RC-facing sitting after codecs.
+This cut: PLTU envelope, Version-3 and Version-4 as the two legal insides of a PLTU, Space Packet as the SDU, repeater as IVP 7 (bent-pipe) then 12 (buffered). Rest of the stack: `IVP.md`.
 
 Implement bottom-up: PLTU, then Version-3, then USLP in lieu of V-3 in the same PLTU.
 
@@ -99,7 +99,7 @@ Bit 0 = first transmitted bit = MSB of the first octet (each book’s Fig 1-1). 
 How C&S finds the CRC (211.2 §3.6.4): look at the first bits of the Transfer Frame.
 
 - First two bits `10` → Version-3. Use the 11-bit Frame Length (header bits 21–31) to locate CRC-32.
-- First two bits `11` and TFVN `1100` → Version-4. If End of Frame Primary Header Flag is `0`, use the 16-bit Frame Length (header bits 32–47). If the flag is `1` (truncated), C&S uses Truncated Transfer Frame Length (MIB) — Starcom returns `uslp_truncated` this sitting.
+- First two bits `11` and TFVN `1100` → Version-4. If End of Frame Primary Header Flag is `0`, use the 16-bit Frame Length (header bits 32–47). If the flag is `1` (truncated), C&S uses Truncated Transfer Frame Length (MIB) — Starcom returns `uslp_truncated` until increment 9.
 - Anything else → keep searching for the next ASM.
 
 **CRC-32 (211.2 Annex C — normative, part of the Blue Book).** A language `crc32()` helper is often ISO-HDLC/Ethernet; same width, different polynomial and init. Be aware of that when picking a helper; implement from Annex C.
@@ -156,7 +156,7 @@ Encode/decode of a single canned frame in a host test can pass IDs and lengths *
 
 **Increment 2 (COP-P) `CoppMib` this sitting:** `transmission_window` (≤127), `synch_timeout` (0 = SYNCH_TIMER never expires), `resync_local`. Definitions: 211.0 Annex C and §7. Caller passes `now`; these are intervals, not a core clock. Not this sitting: `PLCW_Repeat_Interval`, `Carrier_Loss_Timer_Duration` (Annex C / §6).
 
-**Not this cut (§6 MAC / PHY / hailing — not decided):** `Hail_*`, `Comm_Change_*`, `Acquisition_Idle_Duration`, `Tail_Idle_Duration`, `Carrier_Only_Duration`, `Hailing_Channel`, `Hailing_Data_Rate`, `Send_Duration`, `Receive_Duration`, `Drop_Carrier_Duration`, `Persistence_Wait_Time`, `Interval_Clock`. They stay in Annex C. Do not stub them.
+**IVP 13 (§6 MAC / PHY / hailing — not decided until that increment):** `Hail_*`, `Comm_Change_*`, `Acquisition_Idle_Duration`, `Tail_Idle_Duration`, `Carrier_Only_Duration`, `Hailing_Channel`, `Hailing_Data_Rate`, `Send_Duration`, `Receive_Duration`, `Drop_Carrier_Duration`, `Persistence_Wait_Time`, `Interval_Clock`. They stay in Annex C. Do not stub them. Caller supplies intervals in `Tick`; no library default milliseconds.
 
 **Space Packet (133.0 Table 5-1):** Maximum Packet Length; per-APID service type (Packet vs Octet String); secondary-header contents (mission-specific / SANA). Sequence flags `11` if Octet String.
 
@@ -219,7 +219,7 @@ Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book o
 
 ### USLP primary header (non-truncated) — 732.1-B-3 §4.1.2, Fig 4-2
 
-Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields only (4 octets) and is not encoded this sitting.
+Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields only (4 octets) and is IVP increment 9.
 
 | Bits | Width | Field | Value / meaning |
 |------|-------|-------|-----------------|
@@ -237,7 +237,7 @@ Working copy. Bit 0 = MSB. Truncated header (flag = 1) is the first six fields o
 | 53–55 | 3 | VCF Count Length | 0–7 octets of VC Frame Count follow. |
 | 56+ | 0–56 | VC Frame Count | Absent when length is `000`. |
 
-TFDF header (732.1 Fig 4-4): TFDZ Construction Rules (3) + UPID (5); 16-bit pointer only for rules `000`/`001`/`010`. Rule `111` = no segmentation. UPID `00000` = Space Packets (SANA). Insert Zone and FECF are MIB; absent this sitting.
+TFDF header (732.1 Fig 4-4): TFDZ Construction Rules (3) + UPID (5); 16-bit pointer only for rules `000`/`001`/`010`. Rule `111` = no segmentation. UPID `00000` = Space Packets (SANA). Insert Zone and FECF are MIB; absent until IVP increment 9.
 
 NASA `CFS_IO_LIB` `cop1.c` (FARM-1 + CLCW on **TC** frames) is prior art for this 32-bit layout, not for Prox-1 PLTU/PLCW. Yamcs COP-1 / CLCW path is the GCS-side counterpart. Neither is a Prox-1 stack.
 
@@ -281,13 +281,13 @@ Public headers (`include/starcom`) are `starcom::ccsds` and portable C++ only. H
 
 A generic radio port lives in `starcom/adapters/`. Rocket-Chip pins and AO stay in Rocket-Chip.
 
-**Later port seams (keep in mind — core stays byte-level):**
+**Later port seams (IVP 15–18 — core stays byte-level):**
 
 | Seam | Where it attaches | Why |
 |------|-------------------|-----|
-| PIO | Radio / bitstream adapter | ASM hunt, symbol timing, Manchester or FSK-continuous clocks (RP2350). |
-| FPGA | C&S / 211.1 PHY adapter | Conv encode, PLTU on the wire, later LDPC/Viterbi; same codec vectors in HDL sim (IVP increment 5). |
-| Dual-radio / duplex | Adapter + MAC when §6 exists | Full / half / simplex are 211.0 §6. Two transceivers can TX on one and RX on the other. |
+| PIO | Radio / bitstream adapter (IVP 17) | ASM hunt, symbol timing, Manchester or FSK-continuous clocks (RP2350). |
+| FPGA | C&S / 211.1 PHY adapter (IVP 18) | Conv encode, PLTU on the wire, later LDPC/Viterbi; same codec vectors in HDL sim. |
+| Dual-radio / duplex | Adapter + MAC when §6 exists (IVP 13) | Full / half / simplex are 211.0 §6. Two transceivers can TX on one and RX on the other. |
 
 ## View 3 — Decisions
 
@@ -301,11 +301,11 @@ Settled this sitting (do not reopen):
 - F' is an integration target, not a Starcom dependency.
 - Framing: PLTU wraps Version-3 XOR Version-4 (USLP), never mixed on one stream, never USLP nested in the V-3 data field. MVP includes both frame types. Implementation order: PLTU, then V-3, then USLP.
 - CRC-32 is 211.2 Annex C (G(X) = X³²+X²³+X²¹+X¹¹+X²+1, init all-zero, ASM not covered) — **verify in Annex C**, do not trust this sentence alone. Not Ethernet/ISO-HDLC CRC-32. Not TM/USLP FECF CRC-16.
-- PLTU repeater is an early RC-facing capability (RP2350 + LoRa, after codecs). Grade bent vs buffered by RAM/CPU. Not a second-link gateway. Whiteboard for the sitting, not a codec fork.
-- Duplex (full / half / simplex) is 211.0 §6, not the PLTU codec. Do not couple the core to one radio. Ports/adapters declare hardware. RC integration may lead if it does not foreclose other radios.
+- PLTU repeater is an early RC-facing capability (RP2350 + LoRa, after codecs). Bent-pipe is IVP 7; buffered is IVP 12 (caller-owned queue, no invented depth). Not a second-link gateway. Not a codec fork.
+- Duplex (full / half / simplex) is 211.0 §6, not the PLTU codec. Do not couple the core to one radio. Ports/adapters declare hardware. RC integration may lead if it does not foreclose other radios. IVP 13 is the decision + implementation.
 - Time: caller passes `now`; `starcom::ccsds::Tick` is `std::uint32_t`. MIB intervals use the same unit. No library default milliseconds.
 - Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
-- Prox-1 §6 session/MAC is not decided. Full module vs out waits until we implement it. No stub now.
+- Prox-1 §6 session/MAC is not decided until IVP 13. Full module vs turnaround helper vs consumer-only: pick one, no stub of the others.
 - Blue Book pins are the issues in the figure caption above. No second pin list.
 
 ICD handshake: `ICD.md`. Claims: `CONFORMANCE.md`. Terms: `GLOSSARY.md`.

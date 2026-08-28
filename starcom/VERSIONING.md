@@ -16,11 +16,11 @@ Same shape as the 2026-08-26 Rocket-Chip close (Zephyr `VERSION` + generated hea
 | **Build identity** | `git describe --abbrev=12 --always --dirty` plus short hash | Nobody. CMake captures it | Every configure whose git HEAD or index moved |
 
 - `MAJOR` stays 0 until a first tagged operational/extract cut (`1.0.0`).
-- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 6 (hardening): **`0.6.0-dev`**.
+- `MINOR` = last **completed** Starcom IVP increment (`docs/IVP.md`). Increment 0+1 counts as 1. After increment 7 (bent-pipe repeater): **`0.7.0-dev`**.
 - `PATCH` = remediates inside that increment (usually 0).
 - `EXTRAVERSION = dev` until an annotated tag with empty EXTRA.
 
-The old IVP phrase “first `0.1.0`” is **not** a second product line. The first tag is `starcom-vMAJOR.MINOR.PATCH` matching this file with EXTRA empty (likely `starcom-v0.6.0` when increment 6 closes, or wait for `1.0.0`). Do not invent a marketing `0.1.0` that disagrees with MINOR.
+The old IVP phrase “first `0.1.0`” is **not** a second product line. The first tag is `starcom-vMAJOR.MINOR.PATCH` matching this file with EXTRA empty (increment 25; not a marketing `0.1.0` that disagrees with MINOR).
 
 Filename is `STARCOM_VERSION`, never `VERSION`: on Windows a repo-root `VERSION` file is the C++20 header `<version>` (same reason Rocket-Chip uses `RC_VERSION`).
 
@@ -42,7 +42,7 @@ Adapters (`starcom::adapters`) are first-party ports, still under SemVer for thi
 
 ```
 VERSION_MAJOR = 0
-VERSION_MINOR = 6
+VERSION_MINOR = 7
 PATCHLEVEL = 0
 VERSION_TWEAK = 0
 EXTRAVERSION = dev
@@ -67,7 +67,7 @@ Do **not** bump product numbers on ordinary codec commits. Git identity already 
 |--------|--------|
 | `starcom::kVersionMajor` / `Minor` / `Patch` | From `STARCOM_VERSION` |
 | `starcom::kLibraryVersion` | `"MAJOR.MINOR.PATCH"` |
-| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.6.0-dev`) |
+| `starcom::kVersionString` | `"MAJOR.MINOR.PATCH[-EXTRA]"` (e.g. `0.7.0-dev`) |
 | `starcom::kGitHash` | `git rev-parse --short HEAD` |
 | `starcom::kBuildIdentity` | `git describe --abbrev=12 --always --dirty` |
 | `starcom::kBuildNumber` | Generated count; do not hand-edit |
