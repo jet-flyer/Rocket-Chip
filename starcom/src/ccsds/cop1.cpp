@@ -3,6 +3,8 @@
 #include "starcom/ccsds/pltu.hpp"
 
 #include <algorithm>
+#include <cstring>
+#include <type_traits>
 
 namespace starcom::ccsds {
 namespace {
@@ -425,7 +427,10 @@ void fop_1_tick(Fop1& f, Tick now) noexcept {
 
 void cop1_init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
                Vcid vcid, MapId map) noexcept {
-  e = Cop1Endpoint{};
+  static_assert(std::is_trivially_copyable_v<Cop1Endpoint>);
+  // Same as copp_init: payload_by_ns is 256 × kCop1Hold. Do not
+  // `e = Cop1Endpoint{}` on a 4 KiB MCU stack.
+  std::memset(static_cast<void*>(&e), 0, sizeof(e));
   e.local_scid = local;
   e.remote_scid = remote;
   e.vcid = vcid;

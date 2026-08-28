@@ -6,6 +6,8 @@
 #include "starcom/ccsds/mac.hpp"
 
 #include <algorithm>
+#include <cstring>
+#include <type_traits>
 
 namespace starcom::ccsds {
 namespace {
@@ -211,9 +213,20 @@ void fop_p_tick(FopP& f, Tick now) noexcept {
   }
 }
 
+namespace {
+
+void copp_clear(CoppEndpoint& e) noexcept {
+  static_assert(std::is_trivially_copyable_v<CoppEndpoint>);
+  // In-place zero. `e = CoppEndpoint{}` materializes an ~18 KiB temporary
+  // (payload_by_fsn is 256 × kCoppHold). Pico Core 0 stack is 4 KiB.
+  std::memset(static_cast<void*>(&e), 0, sizeof(e));
+}
+
+}  // namespace
+
 void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
                Scid remote, PortId port) noexcept {
-  e = CoppEndpoint{};
+  copp_clear(e);
   e.pcid = pcid;
   e.local_scid = local;
   e.remote_scid = remote;
@@ -224,7 +237,7 @@ void copp_init(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
 
 void copp_init_uslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept {
-  e = CoppEndpoint{};
+  copp_clear(e);
   e.uslp = true;
   e.uslp_local = local;
   e.uslp_remote = remote;

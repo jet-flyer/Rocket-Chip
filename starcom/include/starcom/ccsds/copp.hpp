@@ -121,6 +121,8 @@ struct CoppEndpoint {
   std::size_t exp_len = 0;
   bool exp_full = false;
   bool exp_user_defined = false;
+  // 256 FSN × kCoppHold ≈ 16 KiB. Callers own this in BSS/static storage.
+  // copp_init memsets in place — do not `e = CoppEndpoint{}` (stack temp).
   std::array<std::array<std::byte, kCoppHold>, 256> payload_by_fsn{};
   std::array<std::size_t, 256> payload_len_by_fsn{};
   std::array<bool, 256> payload_user_defined_by_fsn{};

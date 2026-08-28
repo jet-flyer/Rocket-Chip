@@ -137,6 +137,8 @@ struct Cop1Endpoint {
   std::array<std::byte, kCop1Hold> bd_q{};
   std::size_t bd_len = 0;
   bool bd_full = false;
+  // 256 N(S) × kCop1Hold ≈ 16 KiB. cop1_init memsets in place — do not
+  // `e = Cop1Endpoint{}` (stack temp exceeds Pico Core 0's 4 KiB).
   std::array<std::array<std::byte, kCop1Hold>, 256> payload_by_ns{};
   std::array<std::size_t, 256> payload_len_by_ns{};
   std::array<std::array<std::byte, kCop1Hold>, kCop1SeqSlots> rx_q{};
