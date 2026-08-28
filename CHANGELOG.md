@@ -46,6 +46,32 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-28-002 | Grok 4.6 (Build CLI) | feature, bugfix
+
+**RC Starcom consumer IVP 21–22 on `grok/sc-dev` (`225b648`).** Pico links `Starcom::starcom` (`byte_pump`). ON air path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`); nav/cmd/ACK Space Packets in `starcom_adapt`. STOP-GAP encoder and LoRa MAVLink COMMAND_LONG off that image. Default OFF stays STOP-GAP. First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack — library fix is `starcom/CHANGELOG.md` `2026-08-28-002` (`1090959`). Drain one PLTU per send so COP-P resend does not flood half-duplex LoRa. Not merged. Next Starcom increment is 23. Verified: host `StarcomHostLink` / `StarcomBytePump` / `CmdSdu` PASS; vehicle ON COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS, sensors healthy — GO.
+
+### 2026-08-28-001 | Grok Hamilton (Grok Bot) | architecture, tooling
+
+**RC host consumer of Starcom 0.19.0-dev on `grok/sc-dev` (`f90ed02`).** Host tests with `ROCKETCHIP_USE_STARCOM=ON` add_subdirectory(starcom) and link `Starcom::starcom`; default OFF stays STOP-GAP. Pico/AO is increment 21. Rebaselined `banked_turn_10s` replay golden (IVP-42c). Classifier recognizes live `h` leftover after banner drain. `bench_sim` resets FD to IDLE then sends `v` until DEV_MODE on. Not merged to `main`. Starcom wrap 13?19 stays on `docs/starcom-sad-draft` (`c2aaacc`). Verified: Trajectories 5/5; `test__rc_test_common` ALL CHECKS PASS; host ctest 865/865; vehicle `bench_sim` 2/2 PASS COM5 already-flashed image, no HW reseat required.
+
+
+### 2026-08-27-003 | Grok 4.6 (Build CLI) | documentation, architecture
+
+**Starcom PLTU repeater locked on `docs/starcom-sad-draft`.** Bent-pipe range-extend is MVP (ASM + CRC-32, bit-exact, V-3 FSN dedup; no COP-P). Buffered grade (caller-owned queue; RC relay profile may use PSRAM instead of IMU) is deferred. Not a Prox-1/long-haul gateway. Detail: `starcom/CHANGELOG.md` `2026-08-27-001`. Not merged. Verified: docs only, host ctest 860/860 on the feature commit, no HW reseat required.
+
+### 2026-08-27-002 | Grok Buzz (Grok Bot) | bugfix, hardware
+
+**Fruit Jam station PA1010D I2C GPS.** I2C PMTK314 is RMC+GGA only (GSA=0) so a dual-GNSS epoch fits the 255-byte MT3333 TX buffer; 50 ms I2C read timeout (10 ms was ~90% errors and wedged the module); `init_gps()` no longer probe-gates or 255-byte-drains before blind PMTK; wake-read before PMTK. Station `g` prints PMTK + seqlock G/E/RMC/GGA even without a latched 3D fix. USB 3V3 cut (not picotool reboot) recovered a wedged PA1010D. Station-to-vehicle distance can use that local fix once the telem stream is the reliable path. UART vehicle PMTK314 unchanged. Pre-commit still runs vehicle `bench_sim` on any firmware path (COM5 HEALTH-spam reclassify); owner one-time `--no-verify` for this station-GPS commit. Follow-up: I?C bus as a whole (early-impl table) using 50 ms stretch / no probe-gate / POR vs MCU reset; WB 2026-08-27. Verified: COM7 Hardware 11/11, `[PASS] GPS init`, PMTK `[51,18,51]`, `gps reads=1681 errs=0`, `g` 3D / 6 sats 30.17257, -97.86009.
+
+
+### 2026-08-27-001 | Grok 4.6 (Build CLI) | architecture, refactor
+
+**RC_OS console rewrite on `grok/rcos-rework` (worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos`).** Table-driven engine + job-distinct vehicle/station menus. Plan: `docs/plans/RCOS_REWORK.md`. Compile-time `ROCKETCHIP_DEV_MODE` (Debug default ON) plus runtime `v` toggle (USB + idle to enable; USB unplug clears). Inject/cal-reset behind both gates; probe `test_mode_active()` unchanged. Not merged to `main` yet. Verified: host `test_cli_engine` 5/5 and `test_cli_engine_field` 5/5; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.3-dev (kmenu)`, sensors healthy — GO, `[FD] PYRO FIRED DROGUE+MAIN` (post-`picotool load` reboot; extra restart + 3-boot still open — OpenOCD is Fruit Jam). Station HW skipped this sitting.
+
+### 2026-08-26-002 | Grok Hamilton (Grok Bot) | tooling, documentation
+
+**Firmware identity from RC_VERSION + git (`docs/versioning`, `3eadb82`).** Closes walk leftover R-9 / WN-010 / WN-067. Product tuple is `0.16.3-dev` in repo-root `RC_VERSION`; CMake generates `rocketchip/version.h`. Procedure SSOT: `standards/VERSIONING.md`. Not merged to `main` yet. Verified: vehicle `bench_sim` 2/2 PASS COM5; station `station_bench_sim` 3/3 PASS COM7; both boards `RocketChip 0.16.3-dev flight-3eadb82`. Host `test_version` PASS.
+
 ### 2026-08-26-001 | Grok 4.6 (Build CLI) | architecture, documentation
 
 **Starcom consumer prep ready on `grok/sc-dev` (`b72c699`).** Rocket-Chip can dual-build (`ROCKETCHIP_USE_STARCOM`) with a nav SDU packer and fail-closed LoRa commands; default image stays STOP-GAP. When `Starcom::starcom` exists, that branch is the wiring site (`docs/plans/SC_DEV_RC_TEST_PREP.md`). Not merged to `main` yet. Verified: vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, `Air: stop-gap`, `VERDICT: GO`, Radio RFM95W PASS `TX CCSDS 54B`.

@@ -131,11 +131,12 @@ _DASHBOARD_TOKENS = (
 )
 
 # Build tag suffix on the boot banner:
-#   "RocketChip vX.Y.Z RCOS vA.B.C flight-<sha>"
+#   "RocketChip <version-string> flight-<sha>"  (standards/VERSIONING.md)
+#   Also accepts the pre-2026-08-26 form with a v prefix and RCOS field.
 # Post-R-26 (2026-05-15) `kBuildConfig` is hardcoded "flight" — the historical
 # dev-/bench- suffixes can no longer be emitted by any firmware build.
 _RE_BUILD_TAG = re.compile(r'\bflight-([0-9a-f]{6,12})\b')
-_RE_VERSION = re.compile(r'rocketchip\s+v(\d+\.\d+\.\d+)')
+_RE_VERSION = re.compile(r'rocketchip\s+v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)')
 _RE_BOARD = re.compile(r'board:\s*([^\n\r]+)')
 
 
@@ -312,7 +313,7 @@ class Banner:
     """
     role: Role
     build: Build
-    version: Optional[str]    # e.g. "0.16.0"
+    version: Optional[str]    # e.g. "0.16.3-dev"
     board: Optional[str]      # e.g. "Adafruit Feather RP2350 HSTX"
     mode: Mode = Mode.UNKNOWN
     raw: str = ''

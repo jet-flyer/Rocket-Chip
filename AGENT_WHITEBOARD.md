@@ -17,6 +17,18 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Pre-commit vehicle bench_sim on station-only firmware (OPEN) (2026-08-27)
+
+Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station PA1010D GPS sitting (live COM7 11/11 PASS) still demanded COM5. Classifier then lost the Feather banner to Core1 HEALTH FAULT/RECOVERED on CDC reopen (`unknown firmware`). Owner 2026-08-27: **one-time `--no-verify`** for that GPS commit. Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs) and/or ignore HEALTH lines on re-classify. Related: *bench_sim hook vs canary* row.
+
+---
+
+## I?C implementation pickup (OPEN) (2026-08-27)
+
+**Tomorrow:** look at I?C as a whole, not another GPS-only tweak. Station sitting: 10 ms timeout on 255-byte clock-stretch (~90% errors) wedged the PA1010D until USB 3V3 POR; picotool reboot was not enough; GSA-on PMTK barely fit the 255-byte TX buffer; probe-gate hid blind PMTK. Vehicle IMU/baro share `i2c_bus_*` (default timeout still 10 ms). This is the **I?C bus backend** early-impl row (PIO vs DW_apb; Fruit Jam GPS was already the trigger). Do not start that eval in the GPS commit.
+
+---
+
 ## GPS bus-and-transport rule (OPEN) (2026-08-24)
 
 Encode as a standing rule (not only `init_gps()` comments): shared-bus physics first (no I2C GPS on the IMU/baro bus until ICM bypass is up — LL 20), then pack transport capability (UART if the pack exposes it — LL 24; else I2C probe). Closest homes: `docs/SENSOR_ARCHITECTURE.md` (unprotected) or a named edit of `standards/CODING_STANDARDS.md` / `docs/SAD.md`. Not a license to write those files until scheduled.
@@ -36,7 +48,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Plan through increment 25: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev` (IVP 0–19 in). This row is the RC-side pointer, not a second copy.
 
-**IVP 20–23 landed** on `grok/sc-dev`. 23 is an **initial** standards pass (public camelBack + gated tidy subset), not exhaustive. Next Starcom increment is **24** (ASan/fuzz/size; blocked here — no libasan). Default OFF stays STOP-GAP. Two-board LoRa soak is not 24. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22 + `copp_init` wrap logs: root `CHANGELOG.md` / `starcom/CHANGELOG.md` `2026-08-28-002`.
+**IVP 20–23 landed** on `grok/sc-dev`. 23 is an **initial** standards pass (public camelBack + gated tidy subset), not exhaustive. Next library increment is **24** (ASan/fuzz/size; blocked here — no libasan). Default OFF stays STOP-GAP. Barebones vehicle+station ON soak is the RC consumer gate before more data. Plan: `docs/plans/SC_DEV_RC_TEST_PREP.md`. Root log for 20: `2026-08-28-001`. 21–22: `2026-08-28-002`.
 
 ---
 
@@ -83,19 +95,7 @@ Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted.
 
 **Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Early-impl table.
 
-**DEFER (not a stop):** WN-100 / Starcom / early-impl rewrites. RC_OS is the current sitting (order row). Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
-
----
-
-## Remaining pile order (PROPOSED 2026-08-26)
-
-Owner order after versioning close on `main` (`2026-08-26-002`). Starcom stays its own track (`docs/starcom-sad-draft`, `grok/sc-dev`).
-
-1. **RC_OS rework — now.** Plan + council before live-menu structure change. Worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos` (`grok/rcos-rework`). Plan: `docs/plans/RCOS_REWORK.md`.
-2. **QP/C vs QP/C++ after RC_OS.** WN-052 + FD / `action_executor` callbacks. Do not open from this sitting.
-3. **Early-impl eval later.** Balloon risk (PIO budget, I²C, beacon, seqlock, PCM, quat). Do not open that table from RC_OS.
-
-HW-agnostic domain rule already landed sitting 4 (`CODING_STANDARDS.md` + remediates A–D). Leftovers in that bucket are not a fifth pile: WN-023 / WN-028 / WN-109 wait Tiny / filename sittings; WN-320 / WN-325 ride RC_OS.
+**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 
@@ -174,7 +174,7 @@ together, not in isolation.
 |-----------|---------------|-------------|
 | **I²C bus backend** | **Prefer PIO master** if advantages hold and **PIO budget** allows; keep thin `i2c_bus_*` façade either way. Flipper `i2c_master_pio` = working RP2350 prior art (license check before import). Driver residual / Fruit Jam GPS cold-boot is a trigger, not a mandate to switch tomorrow. | Research row *I²C bus backend rework-eval* below; `src/drivers/i2c_bus.*`; LL-28/41 |
 | **Fault beacon (last-gasp)** | PIO beacon is the architecturally preferred path; eval with SPI last-gasp stop-gap in one session | Research row *PIO beacon + SPI last-gasp* below |
-| **RC_OS / CLI “pseudo-OS”** | **Now** (pulled forward 2026-08-26). Table-driven dispatch + ownership. Not the later early-impl eval. | **§ RC_OS Rework** below |
+| **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
 | **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
 | **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
 | **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? `frame_count` is uint32; after wrap `stored_count` looks empty (~2.7 y at 50 Hz). Saturating counter if this ring survives. | L2-P5 **WN-059** (`pcm_frame` + log path) |
@@ -215,13 +215,13 @@ compliance claims. No mid-walk mass comment campaign.
 
 ## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
 
-**Group:** Early-impl / rework-eval candidates (see index above). **Pulled forward 2026-08-26** — this sitting; not part of the later early-impl eval.
+**Group:** Early-impl / rework-eval candidates (see index above).
 
 **Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
 
-**Intent:** Structure RC_OS as a UX/OS layer rather than accretion of single-key handlers: table-driven key→handler maps, clear UX vs domain ownership (AO_RCOS vs cal_manager vs FD), station/vehicle gating without copy-paste, host-testable dispatch. Entry docs: `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING §2. Plan: `docs/plans/RCOS_REWORK.md`.
+**Intent:** Future workstream — structure RC_OS more like a proper UX/OS layer than accretion of single-key handlers: table-driven key→handler maps, clear UX vs domain ownership (AO_RCOS vs cal_manager vs FD), station/vehicle gating without copy-paste, host-testable dispatch. Entry docs: `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING §2.
 
-**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before live-menu structure change.
+**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before code.
 
 ---
 

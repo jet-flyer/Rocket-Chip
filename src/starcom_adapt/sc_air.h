@@ -13,9 +13,11 @@ namespace rc {
 #ifdef ROCKETCHIP_USE_STARCOM
 inline constexpr bool kStarcomPrepBuild = true;
 inline constexpr bool kAirLoraCommandsEnabled = false;
+inline constexpr char const* kAirDialect = "starcom-prep";
 #else
 inline constexpr bool kStarcomPrepBuild = false;
 inline constexpr bool kAirLoraCommandsEnabled = true;
+inline constexpr char const* kAirDialect = "stop-gap";
 #endif
 
 }  // namespace rc

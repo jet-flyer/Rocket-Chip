@@ -270,6 +270,16 @@ target_include_directories(test_notify PRIVATE
 target_compile_definitions(test_notify PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_notify)
 
+# Firmware identity: generated rocketchip/version.h vs repo-root VERSION
+add_executable(test_version test_version.cpp)
+target_link_libraries(test_version PRIVATE GTest::gtest_main)
+target_include_directories(test_version PRIVATE
+    ${CMAKE_BINARY_DIR}/generated)
+file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}" _rc_repo_root)
+target_compile_definitions(test_version PRIVATE
+    RC_REPO_ROOT="${_rc_repo_root}")
+gtest_discover_tests(test_version)
+
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
 add_executable(test_prearm_fail_ticks test_prearm_fail_ticks.cpp)
 target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)

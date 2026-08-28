@@ -23,11 +23,11 @@ void diag_stats_t0_preconditions() {
 
     // Build / role / board identity (catches Frankenstein builds)
     rc::rc_log("[Identity]\n");
-    rc::rc_log("  fw_version=%s\n", kFirmwareVersion);
+    rc::rc_log("  fw_version=%s\n", kVersionString);
     rc::rc_log("  build_config=%s\n", kBuildConfig);
     rc::rc_log("  job_role=%s\n", job::kJobRoleName);
     rc::rc_log("  board=%s\n", board::kBoardName);
-    rc::rc_log("  git=%s build_tag=%s\n", kGitHash, kBuildIterationTag);
+    rc::rc_log("  git=%s identity=%s\n", kGitHash, kBuildIdentity);
 
     // Radio direct readback — catches original Frankenstein bug directly.
     uint8_t radio_version = rfm95w_read_version(
