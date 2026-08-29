@@ -156,7 +156,7 @@ Encode/decode of a single canned frame in a host test can pass IDs and lengths *
 
 **Increment 2 (COP-P) `CoppMib` this sitting:** `transmission_window` (≤127), `synch_timeout` (0 = SYNCH_TIMER never expires), `resync_local`. Definitions: 211.0 Annex C and §7. Caller passes `now`; these are intervals, not a core clock. Not this sitting: `PLCW_Repeat_Interval`, `Carrier_Loss_Timer_Duration` (Annex C / §6).
 
-**IVP 13 (§6 MAC / PHY / hailing — not decided until that increment):** `Hail_*`, `Comm_Change_*`, `Acquisition_Idle_Duration`, `Tail_Idle_Duration`, `Carrier_Only_Duration`, `Hailing_Channel`, `Hailing_Data_Rate`, `Send_Duration`, `Receive_Duration`, `Drop_Carrier_Duration`, `Persistence_Wait_Time`, `Interval_Clock`. They stay in Annex C. Do not stub them. Caller supplies intervals in `Tick`; no library default milliseconds.
+**IVP 13 (§6 MAC / hailing — landed, full module):** `Hail_*`, `Comm_Change_*`, `Acquisition_Idle_Duration`, `Tail_Idle_Duration`, `Carrier_Only_Duration`, `Hailing_Channel`, `Hailing_Data_Rate`, `Send_Duration`, `Receive_Duration`, `Drop_Carrier_Duration`, `Persistence_Wait_Time`, `Interval_Clock`. They stay in Annex C. Do not stub them. Caller supplies intervals in `Tick`; no library default milliseconds.
 
 **Space Packet (133.0 Table 5-1):** Maximum Packet Length; per-APID service type (Packet vs Octet String); secondary-header contents (mission-specific / SANA). Sequence flags `11` if Octet String.
 
@@ -302,10 +302,10 @@ Settled this sitting (do not reopen):
 - Framing: PLTU wraps Version-3 XOR Version-4 (USLP), never mixed on one stream, never USLP nested in the V-3 data field. MVP includes both frame types. Implementation order: PLTU, then V-3, then USLP.
 - CRC-32 is 211.2 Annex C (G(X) = X³²+X²³+X²¹+X¹¹+X²+1, init all-zero, ASM not covered) — **verify in Annex C**, do not trust this sentence alone. Not Ethernet/ISO-HDLC CRC-32. Not TM/USLP FECF CRC-16.
 - PLTU repeater is an early RC-facing capability (RP2350 + LoRa, after codecs). Bent-pipe is IVP 7; buffered is IVP 12 (caller-owned queue, no invented depth). Not a second-link gateway. Not a codec fork.
-- Duplex (full / half / simplex) is 211.0 §6, not the PLTU codec. Do not couple the core to one radio. Ports/adapters declare hardware. RC integration may lead if it does not foreclose other radios. IVP 13 is the decision + implementation.
+- Duplex (full / half / simplex) is 211.0 §6, not the PLTU codec. Do not couple the core to one radio. Ports/adapters declare hardware. RC integration may lead if it does not foreclose other radios. IVP 13 landed the full module.
 - Time: caller passes `now`; `starcom::ccsds::Tick` is `std::uint32_t`. MIB intervals use the same unit. No library default milliseconds.
 - Static `Starcom::starcom` is the product. Header-only is a later size spike, not a Phase 0 fork.
-- Prox-1 §6 session/MAC is not decided until IVP 13. Full module vs turnaround helper vs consumer-only: pick one, no stub of the others.
+- Prox-1 §6 session/MAC is IVP 13, full module (owner 2026-08-27). Landed. Not a turnaround helper and not consumer-only.
 - Blue Book pins are the issues in the figure caption above. No second pin list.
 
 ICD handshake: `ICD.md`. Claims: `CONFORMANCE.md`. Terms: `GLOSSARY.md`.

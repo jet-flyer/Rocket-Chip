@@ -6,7 +6,7 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 ## Next
 
-IVP increment 20 (RC host `add_subdirectory(starcom)`). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25.
+IVP increment 20 (RC host `add_subdirectory(starcom)`). Sequence through 25 is in `docs/IVP.md`. RC integration (IVP 20–22) when scheduled. Host dissect demo is a Starcom WB sidetrack. CFDP (727.0) is wanted post-mission offload, not 0–25. Future (not 20–25, no new number until scheduled): FSK/bitstream bearer on current RC hardware — RFM95 FSK continuous, T8 may clock bits, 211.2 encode on RP/T8, decode on Pi. Not 211.1 Full. Do not put T8 on the base RC board for comms.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
 
@@ -37,7 +37,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 | 20–22 | RC consumer | Host link, Pico+AO, replace `telemetry_encoder` with COP. |
 | 23–25 | Audit, hardening close, tag | Standards; ASan/fuzz/size; `starcom-v*`. |
 
-**MVP cut (2026-08-25, historical):** Phases 0–2 were the first code cut. USLP and COP-1 followed in order. Superseded by the IVP 0–25 table: repeater is 7/12 (not “not decided”); §6 is 13 (still a decision, not a stub). 131.0 long-haul TM C&S is not a Starcom increment. PHY / 211.1 is increment 18 as adapter tiers, not a blanket claim. No stub.
+**MVP cut (2026-08-25, historical):** Phases 0–2 were the first code cut. USLP and COP-1 followed in order. Superseded by the IVP 0–25 table: repeater is 7/12 (not “not decided”); §6 is 13 (full module, landed). 131.0 long-haul TM C&S is not a Starcom increment. PHY / 211.1 is increment 18 as adapter tiers (0 / Best effort / Full; Full not offered), not a blanket claim. No stub.
 
 ## Blockers
 

@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-08-29-001 | Grok Researcher (Grok Bot) | documentation
+
+**PICS levels + FSK bitstream path.** Three claim levels: 0 (not implemented / out of scope), Best effort (non-conformant approximation, not a PICS tick), Full (PICS-claimable for that book/option). `PhyTier::compliant` / 211.1 Full still not offered. Best-effort rule of thumb: only when it advances performance or product features, especially if work later transfers to Full; do not add it just to have it. Radio Best-effort on Rocket-Chip often stays RC-specific (pins, AO); keep those out of `starcom::ccsds`. Future path with current RC hardware: RFM95 FSK continuous bitstream (T8 may clock bits; 211.2 encode on RP/T8; decode on Pi) — transferable toward Pluto Full later; wrapping 211.2 inside LoRa does not buy dB. T8 not on the base RC board for comms. §6 MAC was already IVP 13 Full; stale “not decided” rows in SAD / STATUS / DESIGN living-map are catch-up, not a new pick. No version bump. No merge to main. No tag.
+
+Verified: documentation only, no firmware path, no HW reseat required.
+
 ### 2026-08-28-001 | Grok Hamilton (Grok Bot) | feature
 
 **IVP 13–19 cut.** Product `0.19.0-dev`. Full 211.0 §6 MAC + SET V(R) (13). V-3 DFC 11 user-defined octets, not bitstream (14). Host file replay + UDP; sockets only on `Starcom::adapters_host` (15). Generic SPI/GPIO `BusOps`, host fake bus, no Pico/RFM in the core (16). PIO bit pipe, not 211.1 (17). PHY adapter tiers; uncoded host path; `PhyTier::compliant` not offered (18). Conv K=7 r=1/2 with G2 inversion + LDPC (2048,1024) encode, CSM `0347 76C7 2728 95B0`, codeword-only randomize; decode later GCS/Pi (19). Next is increment 20 (RC host `add_subdirectory`). FPGA/decode hold is on `AGENT_WHITEBOARD.md` (Forgix first, then Snickerdoodle). No merge to main. No tag. No SC-NNN. Detail: `STATUS.md`, `docs/IVP.md`.

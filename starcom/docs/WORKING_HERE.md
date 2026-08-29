@@ -9,7 +9,7 @@
 
 `starcom/` is a **self-contained comms stack** incubating inside the Rocket-Chip monorepo. It will eventually become its own repository. The **core** is a portable library (`starcom::ccsds`). First-party **ports** (host bearers, reference radio adapters against generic I/O) live here too. Rocket-Chip is the **first consumer and integration driver** — not the owner, not the design boundary.
 
-Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground stations, HABs, and RC alike. See `DESIGN.md` note 2026-08-21 for the stack-vs-library vocabulary.
+Identity: a CCSDS data-link *stack* whose “universal” means **matching PICS**, not every radio. Usable by cubesats, ground stations, HABs, and RC alike when the peer ticks the same book/option. See `DESIGN.md` notes 2026-08-21 and 2026-08-29.
 
 
 ## Vocabulary
@@ -45,7 +45,9 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 - **Do** adopt **sans-I/O** for the core: bytes and timeouts in, events and bytes out. No sockets, no SPI, no GPIO in `src/ccsds/`.
 - **Do** implement protocol state machines as **plain portable C++** (table-testable, no framework dependency). An optional AO adapter may wrap them; the core must work without it.
 - **Do** declare conformance **per component**, honestly — never claim more CCSDS compliance than the code delivers.
-- **Do** treat PHY as **optional adapters** outside the core (none / best-effort / full-compliant tiers).
+- **Do** use three claim levels: **0** (not implemented / out of scope), **Best effort** (non-conformant approximation — still not a PICS tick), **Full** (PICS-claimable for that book/option). Code `PhyTier` maps `none` / `best_effort` / `compliant` onto those. Full 211.1 (`PhyTier::compliant`) is not offered.
+- **Do** treat PHY as **optional adapters** outside the core (0 / Best effort / Full). Best effort is still non-compliant.
+- **Do** pursue Best effort only when it advances product performance or features, especially if the work later transfers to Full. Do not add it just to have it. Radio Best-effort on Rocket-Chip often stays RC-specific (pins, AO); keep those out of `starcom::ccsds`.
 
 ### Documentation
 
@@ -95,6 +97,8 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 - **Don't** make the protocol FSM **only** usable as a QP Active Object. AO wrapper = optional adapter.
 - **Don't** hard-code COP-1 managed parameters (T1, window sizes) — they must be configurable.
 - **Don't** claim 211.1-B-4 PHY compliance on SX1276/LoRa paths. Best-effort PHY must say so loudly.
+- **Don't** treat bit-bang, PIO, RFM95 LoRa, FSK, or wrapping 211.2 octets inside LoRa packets as 211.1 PHY. Residual-carrier Bi-Phase-L PM is the book. Wrapping 211.2 in LoRa does not buy dB (packet erasures, not a coding gain on the LoRa waveform).
+- **Don't** put Forgix T8 on the base Rocket-Chip board for comms.
 - **Don't** treat last night’s “repeater is increment 0+1 codec lock” as current. Bent-pipe is IVP 7 (`repeat_pltu`). Buffered / dedup is IVP 12.
 - **Don't** describe a future repeater as an orbiter/gateway (Prox-1 hop + a different Earth link). If we build one, it is range-extend of a PLTU, not a second link. Don't run COP on that path and don't decode the Space Packet just to forward.
 

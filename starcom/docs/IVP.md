@@ -268,7 +268,7 @@ Result<std::size_t> radio_bus_shift_rx(RadioPort&, BusOps const&, std::span<std:
 
 SAD later seam. ASM hunt, symbol timing, Manchester / FSK-continuous clocks on RP2350. Same codec vectors as the host tests. Do not bake PIO types into `include/starcom`.
 
-Landed. `PioOps` is a caller-owned bit pipe (MSB first, same order as 211.2 Annex C). Host fake PIO round-trips increment 0+1 `v3-header-only` PLTU octets. Not 211.1 residual-carrier PM (Researcher 2026-08-27). Manchester / FSK-continuous waveform claims wait on increment 18.
+Landed. `PioOps` is a caller-owned bit pipe (MSB first, same order as 211.2 Annex C). Host fake PIO round-trips increment 0+1 `v3-header-only` PLTU octets. Not 211.1 residual-carrier PM (Researcher 2026-08-27). FSK-continuous is a future Best-effort bearer (current RC HW), not increment 18 Full.
 
 ```cpp
 struct PioOps {
@@ -284,9 +284,9 @@ Result<std::size_t> pio_shift_in(PioOps const&, std::span<std::byte> out, std::s
 
 ### Increment 18 — PHY adapter tiers + FPGA C&S
 
-D-1: no blanket 211.1-B-4 claim. Adapters declare **none / best-effort / compliant**. FPGA: conv encode, PLTU on the wire, later LDPC/Viterbi as fabric allows. HDL sim before bitstream. Same codec vectors.
+D-1: no blanket 211.1-B-4 claim. Claim levels are **0 / Best effort / Full** (PICS). Code still uses `PhyTier` {none, best_effort, compliant} mapped onto those. Best effort is **not** a PICS tick. FPGA: conv encode, PLTU on the wire, later LDPC/Viterbi as fabric allows. HDL sim before bitstream. Same codec vectors. Full 211.1 is not offered.
 
-Landed (host). `PhyDecl` / `PhyTier` {none, best_effort, compliant}. Uncoded path `phy_uncoded_encode` / `phy_uncoded_decode` matches increment 0+1 PLTU octets for none and best_effort. `compliant` is not offered (FPGA / 211.1 waveform). HDL sim before bitstream waits on Researcher. No Electra/UT product claim.
+Landed (host). `PhyDecl` / `PhyTier` {none, best_effort, compliant}. Uncoded path `phy_uncoded_encode` / `phy_uncoded_decode` matches increment 0+1 PLTU octets for none and best_effort. `compliant` (Full) is not offered (FPGA / 211.1 waveform). HDL sim before bitstream waits on Researcher. No Electra/UT product claim.
 
 ```cpp
 enum class PhyTier : std::uint8_t { none, best_effort, compliant };
@@ -350,6 +350,10 @@ ASan+UBSan on a host that has libasan/libubsan. Longer fuzz than prefix smoke. S
 Owner picks the cut. `STARCOM_VERSION` EXTRA empty. Tag `starcom-vMAJOR.MINOR.PATCH`. Not a marketing `0.1.0` that disagrees with MINOR (`VERSIONING.md`).
 
 **Gate:** tag matches `STARCOM_VERSION`; `kBuildIdentity` is that tag; no `-dev`.
+
+## Future path (not an increment number)
+
+**FSK / bitstream on current Rocket-Chip hardware.** Best path with the radios already on the bench: RFM95 FSK continuous (DIO1 DCLK / DIO2 DATA), T8 may clock bits, 211.2 encode on RP/T8, decode on Pi. Transfers toward Pluto Full later. Not 211.1. Not a new IVP number until scheduled. Wrapping 211.2 inside LoRa packets is not this path. Do not put T8 on the base RC board for comms.
 
 ## Closed
 
