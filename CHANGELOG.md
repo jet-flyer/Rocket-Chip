@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-30-001 | Grok Researcher (Grok Bot) | documentation, hardware
+
+**FPGA hub + board pinout landscape.** `docs/hardware/FPGA/` (stub at `FPGA.md`; mission-style rename TBD). Master table splits mechanical form from electrical pin functions. Forgix is Teensy 4.0 0.600" 2x14 holes, not Teensy SPI0/I2C0 (header 11/12/13 and 18/19 are T8-only; RP-T8 is 3-wire config SPI, no MISO). pico2-ice is Pico-width Digilent PMODs, not a Pico pinout. UPduino v3.1 is a DIP stick, not a 2x6 PMOD. Pmod note + NASA/ESA handbook index (pointers; PDFs stay in `standards/starcom/fpga/`). T8 not on the base RC board for comms. On `docs/starcom-sad-draft` (not merged). Verified: docs-only, host ctest via pre-commit, no HW reseat required.
+
 ### 2026-08-28-003 | Grok 4.6 (Build CLI) | architecture, feature
 
 **Starcom RC consumer landed on `main` (`3181e65`).** Dual-build `ROCKETCHIP_USE_STARCOM` (default OFF = STOP-GAP). ON air is COP-P + nav/cmd/ACK SDUs. IVP 23 is an initial tidy/camelBack pass, not a full standards audit. Prep worktree `Rocket-Chip-sc-dev` closed; further RC work is on `main`. Two-board ON soak is still open (Fruit Jam not on USB this sitting). Starcom library IVP 24 (ASan) is not this land. Verified: FF merge of `grok/sc-dev`; host ctest 865/865 and vehicle `bench_sim` 2/2 PASS on the merge commit; default OFF.
