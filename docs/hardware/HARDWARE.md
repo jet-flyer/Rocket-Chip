@@ -614,3 +614,11 @@ Each Core module has independent power regulation:
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector pinout
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Inter-MCU protocol
 - `standards/protocols/SPACEWIRE_LITE.md` - Communication protocol
+
+---
+
+## FPGA and PIO
+
+RP2350 PIO is the first stop for pin-timed work. A small FPGA is optional fabric for parallel MACs and a dissimilar monitor - not a fusion brain, and not on the base RC board for comms.
+
+See `docs/hardware/FPGA/` (hub). `docs/hardware/FPGA.md` is a stub for old links.
