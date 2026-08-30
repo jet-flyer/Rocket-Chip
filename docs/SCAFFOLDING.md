@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-08-24
+**Updated:** 2026-08-30
 
 **Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -80,7 +80,13 @@ rocketchip/
 │   │   ├── STATUS_INDICATORS.md   # LED patterns and status feedback
 │   │   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
 │   │   ├── TELSTAR_BOOSTER_PACK.md    # ELRS RC link + FPV video Booster Pack
-│   │   └── ESP32_S3_PIVOT_ANALYSIS.md
+│   │   ├── ESP32_S3_PIVOT_ANALYSIS.md
+│   │   ├── FPGA.md                    # Stub; canonical hub is FPGA/
+│   │   └── FPGA/
+│   │       ├── README.md              # FPGA/PIO hub (form vs pin functions)
+│   │       └── standards/
+│   │           ├── README.md          # NASA/ESA index; PDFs stay in standards/starcom/fpga/
+│   │           └── PMOD.md            # Digilent Pmod connector note
 │   ├── icd/
 │   │   ├── EXPANSION_CONNECTOR_ICD.md
 │   │   └── GEMINI_PROTOCOL_ICD.md
