@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-31-001 | Grok 4.6 (Build CLI) | bugfix, hardware
+
+**I2C bus transfer/timeout/recover on `main` (`f17ae3d`).** Wall-clock SDK abort no longer treats slave SCL stretch as a timeout. Recover (UM10204 9-clock + STOP) runs only if a line is stuck — MCU reset leaves STEMMA 3V3 up, so init must not 9-clock a live PA1010D. GPS keep the 2026-08-27 bring-up (GSA=0 PMTK314, 50 ms reads, blind PMTK, wake-read). FLASHING.md: no operator BOOTSEL; extra boots are probe reset, not `picotool reboot -f`. Verified: Fruit Jam PMTK `[51,18,51]` after USB POR and two picotool reboots, DAC `0x18` on scan; vehicle IMU/baro errors I=0 B=0, `bench_sim` 2/2 PASS COM5.
+
 ### 2026-08-30-001 | Grok Researcher (Grok Bot) | documentation, hardware
 
 **FPGA hub + board pinout landscape.** `docs/hardware/FPGA/` (stub at `FPGA.md`; mission-style rename TBD). Master table splits mechanical form from electrical pin functions. Forgix is Teensy 4.0 0.600" 2x14 holes, not Teensy SPI0/I2C0 (header 11/12/13 and 18/19 are T8-only; RP-T8 is 3-wire config SPI, no MISO). pico2-ice is Pico-width Digilent PMODs, not a Pico pinout. UPduino v3.1 is a DIP stick, not a 2x6 PMOD. Pmod note + NASA/ESA handbook index (pointers; PDFs stay in `standards/starcom/fpga/`). T8 not on the base RC board for comms. On `docs/starcom-sad-draft` (not merged). Verified: docs-only, host ctest via pre-commit, no HW reseat required.
