@@ -177,10 +177,9 @@ together, not in isolation.
 | **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
 | **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
 | **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
-| **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? `frame_count` is uint32; after wrap `stored_count` looks empty (~2.7 y at 50 Hz). Saturating counter if this ring survives. | L2-P5 **WN-059** (`pcm_frame` + log path) |
 | **Flash layout map** | Early feature; re-eval after multi-board / storage evolution (low priority) | L2-P5 **WN-062** (`flash_layout.h`) |
 | **PIO backup pyro timers** | Flesh-out to a proper system (not “why does this exist” — recent deliberate IVP-130). Quality / lifecycle / LL-42 residuals wait on that sitting. Shared **PIO budget**. `pyro_edge_logger` is WIP — not in `init_pio_safety()` until pyro HW is on those pins **and** a PCM/flight-log consumer exists. | L2-P5 **WN-267** / **WN-274**; `src/safety/pio_backup_timer.*` |
-| **Radio / telem surfaces** | Many are **Starcom-gated** supersession candidates (not pure “early code smell”) | **WN-041**, **WN-046**, **WN-097** (RFM95W defer), Starcom / CCSDS rework rows |
+| **Radio / telem surfaces** | RFM95W **KEEP** after live STOP-GAP pass (2026-08-31). RadioScheduler not rewritten (Starcom COP-P is ON air). Remaining is Starcom ON soak / WN-100, not a driver slate. | **WN-041**, **WN-046**, **WN-097**; `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md` |
 | **CCSDS TC + COP-1** | Command reliability layer rework — deferred post–Stage-17 (council) | Project status line; high-priority deferred radio items |
 
 **Not in this group:** pure process/tooling OPEN items (graphify re-pass, commit hygiene,
