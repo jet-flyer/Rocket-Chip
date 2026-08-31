@@ -10,7 +10,7 @@ This is an aviation-style checklist, not one isolated “module.” If you step 
 
 If the user **starts a scope**, the writes that belong to that scope are allowed, with the bars in items 7–8 and Session End: commit / push / wrap (“wrap this session up,” “session end,” “I think we’re done here,” and similar) / milestone. Hard-Protected files still need the file named. Whiteboard **adds** are ok without a prompt. `PROJECT_STATUS.md` only on milestone item 13. See `PROTECTED_FILES.md` Checklist-cadence.
 
-Initiation is by intent, not one magic phrase. Naming a protected file counts for that file. Wrap / end-session language counts for Session End (including its changelog bar). “Session handoff” / “continue tomorrow” is Handoff (item 11), not Wrap. “Continue,” “that sub-task is done,” “clear up,” or “get back to other work” is not a wrap and does **not** mint a CHANGELOG entry.
+Initiation is by intent, not one magic phrase. Naming a protected file counts for that file. Wrap / end-session language counts for Session End **procedure** (items 9–12). It does **not** by itself mint a CHANGELOG entry — that is item 8 (opt-in, or the user named the **full wrap-up checklist**). “Session handoff” / “continue tomorrow” is Handoff (item 11), not Wrap. “Continue,” “that sub-task is done,” “clear up,” or “get back to other work” is not a wrap and does **not** mint a CHANGELOG entry.
 
 **Detecting strong stopping points / session conclusion:** When the user indicates a strong stopping point or conclusion for the current session (examples: language like "let's wrap this session up", "wrap things up", "wrap up the session", "anything else this session?", "I think we're done here", "session end", or other clear signals that active work is wrapping up), treat this as activation of the Session End scope.
 
@@ -93,9 +93,9 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
     **If this sitting is not on `main`:** `CHANGELOG.md` and `docs/agents/LESSONS_LEARNED.md` are committed on `main` in the primary tree, not in the same commit as the feature. "With the work" does not mean those two paths share the feature SHA. Detail: `docs/agents/WORKTREE.md`. Other cadence/protected edits still ride with the feature commit.
 
-8. **CHANGELOG — no silent skip.** **When:** confirm with the user first (`CHANGELOG.md` header). Do **not** write an entry because you committed, because you chose to push, or because a sub-task finished. **Wrap / end session:** write an entry unless the user says skip. **Push** of a significant unit: should usually have an entry *after that confirm*; skip is allowed if you **say so**. **Handoff** is not a wrap — no entry unless the user asks.
+8. **CHANGELOG — opt-in.** Do **not** write an entry because you committed, pushed, merged, finished a sub-task, or judged the work significant. Write one **only** if (a) the user **asked for a CHANGELOG entry** (named `CHANGELOG.md` or said to write one), or (b) the user **explicitly asked to run the full wrap-up / Session End checklist**. Casual wrap / “merge to main” / “I think we’re done” is **not** (b). **Handoff** is not a wrap — no entry unless the user asks.
 
-    **Where (sitting not on `main`):** write that entry on `main` in the primary tree, never on the worktree/feature branch. Pushing the feature branch is not "the log is on main." `docs/agents/WORKTREE.md`.
+    **Where (sitting not on `main`):** if item 8’s when-clause is met, write that entry on `main` in the primary tree, never on the worktree/feature branch. Pushing the feature branch is not "the log is on main." `docs/agents/WORKTREE.md`.
 
 ---
 
@@ -103,7 +103,7 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
 **Activation:** User started Wrap (see How to use). These rules run **once** for that close, plus inherited Commit / Push items. A **clean Wrap** (work for this sitting is done, no phase change) does **not** update `docs/PROJECT_STATUS.md` — that is milestone item 13 only. Whiteboard is for side / still-active rows, not a status rewrite.
 
-**Project-log sync (sitting not on `main`):** Before wrap is done, run the log-sync check in `docs/agents/WORKTREE.md` (`git log origin/main..HEAD -- CHANGELOG.md docs/agents/LESSONS_LEARNED.md` must be empty). Write the wrap CHANGELOG on `main` (item 8). Do **not** merge the feature as part of wrap. Keep-worktree is allowed.
+**Project-log sync (sitting not on `main`):** Before wrap is done, run the log-sync check in `docs/agents/WORKTREE.md` (`git log origin/main..HEAD -- CHANGELOG.md docs/agents/LESSONS_LEARNED.md` must be empty). A wrap CHANGELOG on `main` only if item 8’s when-clause is met. Do **not** merge the feature as part of wrap. Keep-worktree is allowed.
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
 
@@ -229,7 +229,7 @@ Before each commit, ask:
   - If yes → update the doc as part of THIS commit.
   - If no → leave it alone.
 - Did the work create something new that warrants a **historical-record** entry (CHANGELOG entry, LESSONS_LEARNED entry, decision doc, audit doc)?
-  - If yes, and it is **`CHANGELOG.md`** → follow item 8 (wrap = yes unless skip; push = usually, no silent skip; handoff = no unless asked; sitting not on `main` → write it on `main`, WORKTREE.md). Do not draft an entry just to close this question.
+  - If yes, and it is **`CHANGELOG.md`** → follow item 8 (opt-in; not because you committed/pushed/merged; sitting not on `main` → write it on `main`, WORKTREE.md). Do not draft an entry just to close this question.
   - If yes, and it is another historical-record doc → write the new entry as part of THIS commit (or a focused documentation commit), still subject to the protected-file Rule (the user names the file).
   - If no → leave the historical record untouched.
 

@@ -72,12 +72,12 @@ Session-tracking files. Walking `SESSION_CHECKLIST.md` on your own is not
 permission to edit them. If the user started Commit, Push, Session End
 (wrap), or Milestone, the cadence writes for **that** scope are in play.
 
-- `CHANGELOG.md` — Append-only event log. **Push:** should usually have an
-  entry for a significant unit; skip is allowed if you **say so** (no silent
-  skip). **Session wrap / end session:** always write an entry unless the
-  user says skip. **Handoff** (pick up later): no entry unless the user
-  asks. Deleting or amending an old entry → ask. Finishing a sub-task or
-  merely reading the checklist does not create an entry.
+- `CHANGELOG.md` — Append-only event log. Do **not** write an entry unless
+  the user asked for one or **explicitly asked to run the full wrap-up /
+  Session End checklist** (`SESSION_CHECKLIST.md` item 8). Commit, push,
+  merge, and casual wrap do not mint an ID. **Handoff:** no entry unless
+  the user asks. Deleting or amending an old entry → ask. Finishing a
+  sub-task or merely reading the checklist does not create an entry.
 - `docs/PROJECT_STATUS.md` — Only **milestone item 13** (or a user-named
   edit). A clean Wrap / Push / Handoff does **not** update this file.
   Phase history is going stale vs `IVP.md`; do not refresh it “because

@@ -34,7 +34,7 @@ One file, every sitting writes it, sequential or append-only. A worktree that al
 
 **Never** stage, commit, or `git add -A` these paths in the worktree. Not "with the feature so history is atomic." Not "I'll copy it to main at wrap."
 
-**When** is not this file's invention. `CHANGELOG.md` header: confirm with the user first. Typically wrap. "Clear up," "that's done," "get back to other work," or an agent-initiated commit/push does **not** mint a `YYYY-MM-DD-NNN`. A lessons-learned note may still be written on `main` when a lesson was actually earned (checklist "log as you go") — that is not a CHANGELOG ID.
+**When** is not this file's invention. `CHANGELOG.md` header + checklist item 8: write an entry only if the user asked for one or explicitly asked to run the **full wrap-up checklist**. "Clear up," "that's done," "merge to main," "get back to other work," or an agent-initiated commit/push does **not** mint a `YYYY-MM-DD-NNN`. A lessons-learned note may still be written on `main` when a lesson was actually earned (checklist "log as you go") — that is not a CHANGELOG ID.
 
 The next CHANGELOG ID is **whatever `origin/main`'s `CHANGELOG.md` already shows, plus one**. Other agents do not need a reservation board, a claimed-ID whiteboard row, or changelog fragments. They read `main`, take the next NNN, commit to `main`. That is the coordination tool.
 

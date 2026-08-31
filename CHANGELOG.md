@@ -1,10 +1,10 @@
 # Changelog
 
-> **When to add an entry:** One entry per **significant unit of completed work**,
-> typically **once per session**, drafted at the **session-end / commit checklist
-> step** (see `docs/agents/SESSION_CHECKLIST.md` items 7–8) — **not** automatically
-> on every change or commit. **Especially do not add an entry on your own for
-> freshly-done work without user input** — confirm with the user first.
+> **When to add an entry:** Only when the user **asks for a CHANGELOG entry**,
+> or **explicitly asks to run the full wrap-up / Session End checklist**
+> (`docs/agents/SESSION_CHECKLIST.md` item 8). **Not** because you committed,
+> pushed, merged, or finished a sitting. Casual wrap / “merge to main” is not
+> that checklist. Handoff is not a wrap.
 
 ## Format
 
