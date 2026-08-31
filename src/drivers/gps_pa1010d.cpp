@@ -178,30 +178,19 @@ static void update_data_from_lwgps() {
 // Public API
 // ============================================================================
 
-bool gps_pa1010d_init() {
-    // Initialize lwGPS parser
-    lwgps_init(&g_gps);
-
-    // Clear data
-    memset(&g_data, 0, sizeof(g_data));
-
-    // Fresh bus state right before GPS (Grok triage — window is tiny).
-    i2c_bus_recover();
-    sleep_ms(20);
-
-    // Wake the I2C-UART bridge with a read. Do not abort on fail.
-    // STEMMA power-cycle can leave 0x10 NACKing writes until someone reads it.
+// Wake the I2C-UART bridge with a read. Do not abort on fail.
+// STEMMA power-cycle can leave 0x10 NACKing writes until someone reads it.
+static void wake_i2c_bridge() {
     uint8_t wake = 0;
     (void)i2c_bus_read(kGpsPa1010dAddr, &wake, 1, kGpsI2cReadTimeoutUs);
-    (void)i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsI2cReadTimeoutUs);
+    (void)i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
+                       kGpsI2cReadTimeoutUs);
     sleep_ms(20);
+}
 
-    // BLIND PMTK config — send the full sequence even if probe fails.
-    // This is the fix for the "GPS never detected" regression: the PA1010D
-    // exposes a transient ACK window at cold boot, then drops to low-power
-    // if no command arrives. Probing first misses that window.
-    //
-    // Const-array PMTK; checksum verified at compile time.
+// Blind PMTK. PA1010D has a cold-boot ACK window then drops to low-power
+// if no command arrives. Probing first misses that window.
+static bool send_pmtk_config() {
     g_pmtkWriteResults[0] = i2c_bus_write(
         kGpsPa1010dAddr,
         reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
@@ -217,25 +206,42 @@ bool gps_pa1010d_init() {
         reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
         sizeof(kPmtk314Sentence) - 1);
     sleep_ms(50);
+    return (g_pmtkWriteResults[0] > 0) && (g_pmtkWriteResults[1] > 0) &&
+           (g_pmtkWriteResults[2] > 0);
+}
 
-    // Aggressive probe retry — now that the module should be locked into
-    // full-power mode by blind PMTK, read a full buffer and look for NMEA.
-    bool found_nmea = false;
-    for (int retry = 0; retry < 8 && !found_nmea; retry++) {
-        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsI2cReadTimeoutUs);
+static bool find_nmea_in_buffer() {
+    for (int retry = 0; retry < 8; retry++) {
+        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
+                                   kGpsI2cReadTimeoutUs);
         if (ret > 0) {
             for (int32_t i = 0; i < ret; i++) {
                 if (g_buffer[i] == kNmeaStart) {
-                    found_nmea = true;
-                    break;
+                    return true;
                 }
             }
         }
-        if (!found_nmea) {
-            sleep_ms(150);
-        }
+        sleep_ms(150);
     }
-    if (!found_nmea) {
+    return false;
+}
+
+bool gps_pa1010d_init() {
+    lwgps_init(&g_gps);
+    memset(&g_data, 0, sizeof(g_data));
+
+    // Do not 9-clock a live GPS. picotool/SWD leaves module 3V3 up; recover
+    // into a streaming MT3333 wedges it until USB POR. i2c_bus_init already
+    // recovered if SDA/SCL were stuck.
+    wake_i2c_bridge();
+    if (!send_pmtk_config()) {
+        (void)i2c_bus_recover();
+        sleep_ms(20);
+        wake_i2c_bridge();
+        (void)send_pmtk_config();
+    }
+
+    if (!find_nmea_in_buffer()) {
         return false;
     }
 

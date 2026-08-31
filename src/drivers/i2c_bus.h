@@ -23,7 +23,8 @@ constexpr uint8_t  kI2cBusSdaPin    = board::kI2cSdaPin;
 constexpr uint8_t  kI2cBusSclPin    = board::kI2cSclPin;
 constexpr uint32_t kI2cBusFreqHz    = 400000;   // 400kHz Fast Mode (I2C spec)
 
-// Timeout for I2C operations (microseconds)
+// Non-stretch transfer budget (microseconds). SCL-low stretch is waited
+// out in the bus layer (SMBus tTIMEOUT), so this is not a number to grow.
 constexpr uint32_t kI2cTimeoutUs    = 10000;
 
 // ============================================================================

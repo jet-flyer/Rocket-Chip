@@ -8,7 +8,7 @@
 
 1. **Always works** - Even when USB is completely broken, the probe can flash, halt, and inspect the device
 2. **Full visibility** - GDB gives you register state, memory contents, and stack traces that LEDs never can
-3. **Faster iteration** - Flash via probe in seconds vs manual BOOTSEL dance
+3. **Faster iteration** - Flash via probe in seconds vs picotool USB reboot. Never ask for a BOOTSEL button except USB-dead last resort (LL Entry 5).
 4. **Catches what LEDs miss** - Hardfaults before LED init, crashes between LED states
 
 ### When to Consider LED Debugging
@@ -201,9 +201,10 @@ printf("Build: v3-static-calibrator\n");  // Update version on each change
 This prevents confusion about whether the latest code was actually flashed.
 
 ### Use Debug Probe Before Asking for Manual BOOTSEL
+Routine flash never uses the BOOTSEL button (`docs/FLASHING.md`).
 When USB is unresponsive:
-1. First try flashing via debug probe (always works if probe connected)
-2. Only ask for manual BOOTSEL as last resort
+1. First try flashing via debug probe (works if the probe is on that board)
+2. Only ask for manual BOOTSEL as last resort if probe attach also fails
 
 ```bash
 cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"

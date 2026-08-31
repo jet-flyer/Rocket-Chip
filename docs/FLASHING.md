@@ -61,39 +61,47 @@ again until the LED is on.
 - Do not leave OpenOCD running across a user power cycle. Kill it
   before the unplug so the next attach is not a stale DAP.
 
-### picotool — preferred for single-shot and multi-board targeting
+### picotool — single-shot and multi-board targeting
+
+Operator **never** holds the BOOTSEL button and **never** uses a
+1200-baud serial poke. Those are retired. Last-resort button BOOTSEL
+is only if USB CDC is dead **and** the probe cannot attach (LL Entry 5).
 
 ```bash
-# Flash a specific board by chip serial (reboots → flashes → runs):
+# Flash a running board by chip serial (USB vendor reboot → write → run):
 picotool load -f --ser <chip-serial> <path-to-rocketchip.uf2>
 ```
 
-The `-f` flag does the USB-vendor reboot into BOOTSEL automatically; no
-manual BOOTSEL dance, no separate 1200-baud poke. `--ser <chip-serial>`
-selects which connected device to target when multiple RP2350s are
-plugged in.
+`-f` talks to a **running** CDC device. Picotool issues a USB vendor
+reboot so it can write flash, then the chip returns to the app. That is
+not a human BOOTSEL procedure. `--ser <chip-serial>` selects which
+RP2350 when more than one is plugged in.
 
-**Why preferred for multi-board:** `--ser` gives explicit targeting by
-ROM-burned serial, independent of USB enumeration order or bus/address
-changes after reboot.
+**Why this exists next to the probe:** `--ser` targets by ROM serial
+when the probe is wired to the other board (typical: probe on vehicle
+Feather, Fruit Jam station has no SWD). Probe `load` is still preferred
+for iteration on the board the probe actually reaches (halt both cores,
+no USB yank).
 
-**Caveats — iterative flashing:**
-- Historically, rapid back-to-back `picotool -f` cycles could cumulatively
-  corrupt the I2C bus via interrupted transactions. That failure mode is
-  fixed in-tree (LL Entries 25, 27, 28, 31 — `i2c_bus_recover()` now
-  deinits/reinits the peripheral; `flash_safe_execute()` callers reset
-  I2C afterward). In current code, picotool for iteration is fine; the
-  probe is still nicer because it halts cleanly rather than mid-reboot.
-- If `picotool` can't find the device, close any open serial monitor on
-  the target's COM port and retry.
+**Caveats:**
+- `picotool load -f` is a **warm MCU reset**. STEMMA 3V3 stays up, so
+  I2C slaves (PA1010D, IMU, Fruit Jam DAC) keep running. Firmware must
+  bring the bus up without a cable pull. A USB unplug is a **module
+  power cycle**, not a flash step.
+- Do **not** use `picotool reboot -f` or `reboot -a -f` for extra
+  counted boots. 2026-08-20 baseline: that dropped CDC (no COM, not
+  BOOTSEL) until a physical USB replug. Extra boots: probe
+  `monitor reset halt` + `monitor resume` on **this** board, or a VBUS
+  cycle if you need a power cut. See Rule 2 in
+  `standards/HW_GATE_DISCIPLINE.md`.
+- If `picotool` can't find the device, close any serial monitor on the
+  target's COM port and retry.
 
 ### Don't use the 1200-baud BOOTSEL poke
 
-`picotool load -f` already handles the reboot. A separate
-`serial.Serial(port, baudrate=1200)` open-and-close before the flash
-adds nothing and creates failure modes (OSError when the port
-disappears mid-open, stuck-BOOTSEL state if picotool isn't called
-immediately after).
+Retired. `picotool load -f` already reboots a running device. A separate
+`serial.Serial(port, baudrate=1200)` open-and-close adds nothing and
+creates failure modes (OSError when the port disappears mid-open).
 
 ---
 
