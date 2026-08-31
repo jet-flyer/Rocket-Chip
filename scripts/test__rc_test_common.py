@@ -41,7 +41,7 @@ from _rc_test_common import (  # noqa: E402
     TARGET_VEHICLE_ANY, TARGET_VEHICLE_FLIGHT,
     TARGET_STATION_ANY, TARGET_STATION_FLIGHT,
     TARGET_EITHER_ANY,
-    classify_banner, rc_test,
+    classify_banner, passive_dump_needs_help, rc_test,
 )
 
 
@@ -102,6 +102,12 @@ UNKNOWN_BANNER = """\
 random uart noise nothing useful here
 just bytes
 """
+
+# HEALTH-only CDC dump: long, no role tokens. peek_banner must still send 'h'.
+HEALTH_RING_DUMP = (
+    "[123456] HEALTH: Core1 -> FAULT\n"
+    "[123556] HEALTH: Core1 RECOVERED\n"
+) * 20
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +191,24 @@ def test_classify_unknown() -> None:
     check('role UNKNOWN',     b.role is Role.UNKNOWN,      f'got {b.role}')
     check('build UNKNOWN',    b.build is Build.UNKNOWN,    f'got {b.build}')
     check('not is_known()',   not b.is_known())
+
+
+def test_health_ring_dump_needs_help() -> None:
+    print('test_health_ring_dump_needs_help')
+    b = classify_banner(HEALTH_RING_DUMP)
+    check('HEALTH-only dump is UNKNOWN', b.role is Role.UNKNOWN, str(b))
+    check('dump is long (>= 64)', len(HEALTH_RING_DUMP) >= 64,
+          f'len={len(HEALTH_RING_DUMP)}')
+    check('long UNKNOWN dump still needs h',
+          passive_dump_needs_help(b))
+    vf = classify_banner(VEHICLE_FLIGHT_BANNER)
+    check('classified vehicle does not need h',
+          not passive_dump_needs_help(vf))
+    mixed = classify_banner(HEALTH_RING_DUMP + VEHICLE_HELP_AFTER_DRAIN)
+    check('HEALTH + help leftover is vehicle',
+          mixed.role is Role.VEHICLE, str(mixed))
+    check('classified mixed dump does not need h',
+          not passive_dump_needs_help(mixed))
 
 
 def test_classify_empty() -> None:
@@ -529,6 +553,7 @@ def main() -> int:
         test_classify_vehicle_modes,
         test_classify_vehicle_help_after_banner_drain,
         test_classify_unknown,
+        test_health_ring_dump_needs_help,
         test_classify_empty,
         test_target_matches,
         test_banner_frozen,

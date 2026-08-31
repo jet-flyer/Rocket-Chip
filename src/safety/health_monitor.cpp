@@ -338,18 +338,9 @@ void health_monitor_init() {
 
 // ============================================================================
 // Core 1 vitality tracking (IVP-117)
-//
-// At 10Hz, a 500ms stall = 5 ticks without core1_loop_count advancing.
-// 6 ticks provides a small margin against normal jitter.
 // ============================================================================
-static constexpr uint8_t kCore1StallThreshold10Hz = 6U;
 static uint32_t g_lastCore1Count = 0;
 static uint8_t  g_core1StallTicks = 0;
-
-// ============================================================================
-// Internal: check Core 1 vitality from seqlock snapshot
-// Returns true if Core 1 is healthy (loop counter advancing).
-// ============================================================================
 
 static bool check_core1_vitality() {
     // Capability gate (IVP-142c A1, council 2026-04-18): on roles that
@@ -362,18 +353,15 @@ static bool check_core1_vitality() {
     }
 
     shared_sensor_data_t snap{};
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return false;  // Torn snapshot — do not treat Core 1 as healthy
-    }
-    if (snap.core1_loop_count != g_lastCore1Count) {
+    const bool seq_ok = seqlock_read(&g_sensorSeqlock, &snap);
+    // Torn seqlock: unknown this tick, still counts toward stall.
+    const bool progressed = seq_ok &&
+                            (snap.core1_loop_count != g_lastCore1Count);
+    if (progressed) {
         g_lastCore1Count = snap.core1_loop_count;
-        g_core1StallTicks = 0;
-        return true;
     }
-    if (g_core1StallTicks < kCore1StallThreshold10Hz) {
-        g_core1StallTicks++;
-    }
-    return (g_core1StallTicks < kCore1StallThreshold10Hz);
+    g_core1StallTicks = core1_stall_ticks_next(g_core1StallTicks, progressed);
+    return g_core1StallTicks < kCore1StallThreshold10Hz;
 }
 
 // ============================================================================

@@ -19,13 +19,7 @@
 
 ## Pre-commit vehicle bench_sim on station-only firmware (OPEN) (2026-08-27)
 
-Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station PA1010D GPS sitting (live COM7 11/11 PASS) still demanded COM5. Classifier then lost the Feather banner to Core1 HEALTH FAULT/RECOVERED on CDC reopen (`unknown firmware`). Owner 2026-08-27: **one-time `--no-verify`** for that GPS commit. Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs) and/or ignore HEALTH lines on re-classify. Related: *bench_sim hook vs canary* row.
-
----
-
-## I?C implementation pickup (OPEN) (2026-08-27)
-
-**Tomorrow:** look at I?C as a whole, not another GPS-only tweak. Station sitting: 10 ms timeout on 255-byte clock-stretch (~90% errors) wedged the PA1010D until USB 3V3 POR; picotool reboot was not enough; GSA-on PMTK barely fit the 255-byte TX buffer; probe-gate hid blind PMTK. Vehicle IMU/baro share `i2c_bus_*` (default timeout still 10 ms). This is the **I?C bus backend** early-impl row (PIO vs DW_apb; Fruit Jam GPS was already the trigger). Do not start that eval in the GPS commit.
+Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station-job diffs still demand COM5. HEALTH-ring reclassify is no longer the reason (Core1 vitality + `passive_dump_needs_help`). Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs). Related: *bench_sim hook vs canary* row.
 
 ---
 

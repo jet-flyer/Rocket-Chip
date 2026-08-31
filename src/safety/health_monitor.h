@@ -100,6 +100,9 @@ static constexpr uint8_t kBaroDegradeThreshold     = 3;    // 3/10 invalid → d
 // N consecutive fault ticks (not IDLE) before auto-action. 5 = 500 ms at 10 Hz.
 static constexpr uint8_t kCriticalFaultPersistTicks = 5;
 
+// 10 Hz; 500 ms stall = 5 ticks; 6 = jitter margin. Torn seqlock counts, not instant FAULT.
+static constexpr uint8_t kCore1StallThreshold10Hz = 6U;
+
 // Pure bump helper for the persistence counter — extracted so the
 // algorithm is testable at host level without the full health_monitor
 // hardware-dep surface. Increments on kHealthFault (saturating at
@@ -112,6 +115,17 @@ inline uint8_t critical_fault_ticks_next(uint8_t prev, HealthLevel lvl) {
         return static_cast<uint8_t>(prev + 1U);
     }
     return kCriticalFaultPersistTicks;
+}
+
+// progressed resets; torn/stale increments. Healthy while result < threshold.
+inline uint8_t core1_stall_ticks_next(uint8_t prev, bool progressed) {
+    if (progressed) {
+        return 0;
+    }
+    if (prev < kCore1StallThreshold10Hz) {
+        return static_cast<uint8_t>(prev + 1U);
+    }
+    return kCore1StallThreshold10Hz;
 }
 
 // MCU die-temp: datasheet Tj max 125 °C; 105 °C = 20 °C margin. WARN may move.

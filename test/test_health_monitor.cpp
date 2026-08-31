@@ -217,6 +217,40 @@ TEST(HealthThresholds, BaroMoreSensitiveThanImu) {
     EXPECT_LT(kBaroDegradeThreshold, kImuDegradeThreshold);
 }
 
+TEST(HealthThresholds, Core1StallIsSixTicksAt10Hz) {
+    EXPECT_EQ(kCore1StallThreshold10Hz, 6);
+}
+
+TEST(Core1Vitality, SingleTornDoesNotFault) {
+    uint8_t stall = 0;
+    stall = core1_stall_ticks_next(stall, false);  // torn / no progress
+    EXPECT_EQ(stall, 1);
+    EXPECT_LT(stall, kCore1StallThreshold10Hz);
+    stall = core1_stall_ticks_next(stall, true);   // next tick advanced
+    EXPECT_EQ(stall, 0);
+}
+
+TEST(Core1Vitality, SixStaleTicksFaultThenSaturate) {
+    uint8_t stall = 0;
+    for (uint8_t i = 0; i < kCore1StallThreshold10Hz - 1; ++i) {
+        stall = core1_stall_ticks_next(stall, false);
+        EXPECT_LT(stall, kCore1StallThreshold10Hz) << "tick " << int(i + 1);
+    }
+    stall = core1_stall_ticks_next(stall, false);
+    EXPECT_EQ(stall, kCore1StallThreshold10Hz);
+    stall = core1_stall_ticks_next(stall, false);
+    EXPECT_EQ(stall, kCore1StallThreshold10Hz);
+}
+
+TEST(Core1Vitality, ProgressResetsAfterNearMiss) {
+    uint8_t stall = 0;
+    for (uint8_t i = 0; i < kCore1StallThreshold10Hz - 1; ++i) {
+        stall = core1_stall_ticks_next(stall, false);
+    }
+    stall = core1_stall_ticks_next(stall, true);
+    EXPECT_EQ(stall, 0);
+}
+
 // ============================================================================
 // HealthState struct
 // ============================================================================

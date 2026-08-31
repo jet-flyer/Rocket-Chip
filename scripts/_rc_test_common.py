@@ -382,6 +382,11 @@ def classify_banner(text: str) -> Banner:
                   mode=mode, raw=t)
 
 
+def passive_dump_needs_help(banner: Banner) -> bool:
+    """True if peek_banner should send 'h' (passive dump did not classify a role)."""
+    return not banner.is_known()
+
+
 # ============================================================================
 # Port probing
 # ============================================================================
@@ -407,10 +412,9 @@ def peek_banner(port_name: str,
     Returns Banner with role=UNKNOWN on persistent failure (port held,
     no response, classification fails). Never raises.
 
-    Strategy: read passively first --- many builds emit a fresh boot
-    banner on USB CDC connect. Only send 'h' (help) if the passive read
-    is short, to avoid sending keystrokes to firmware that may interpret
-    them differently than expected.
+    Strategy: read passively first. Send 'h' only if the dump did not
+    classify a role (passive_dump_needs_help). Dump length is not the
+    proxy — a HEALTH ring dump can be long and still UNKNOWN.
     """
     text = ''
     for attempt in range(retries):
@@ -422,13 +426,15 @@ def peek_banner(port_name: str,
                                   write_timeout=0.5)
                 time.sleep(0.5)
                 data = s.read(8000)
-                if len(data) < 64:
+                text_so_far = data.decode('utf-8', errors='replace')
+                if passive_dump_needs_help(classify_banner(text_so_far)):
                     s.write(b'h')
                     s.flush()
                     time.sleep(peek_timeout)
-                    data += s.read(8000)
+                    text_so_far += s.read(8000).decode('utf-8',
+                                                       errors='replace')
                 s.close()
-                result[0] = data.decode('utf-8', errors='replace')
+                result[0] = text_so_far
             except (serial.SerialException, OSError, PermissionError):
                 pass
 
@@ -891,7 +897,7 @@ __all__ = [
     'TARGET_VEHICLE_ANY', 'TARGET_VEHICLE_FLIGHT',
     'TARGET_STATION_ANY', 'TARGET_STATION_FLIGHT',
     'TARGET_EITHER_ANY',
-    'classify_banner',
+    'classify_banner', 'passive_dump_needs_help',
     # Port probing + navigation
     'peek_banner', 'find_target_port', 'find_vehicle_and_station_ports',
     'open_classified_port', 'enter_cli_menu',
