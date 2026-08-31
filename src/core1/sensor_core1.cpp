@@ -71,6 +71,7 @@ static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;    // 10s
 
 best_gps_fix_t g_bestGpsFix = {};
 std::atomic<bool> g_bestGpsValid{false};
+i2c_gps_sidecar_t g_i2cGpsSidecar = {};
 
 // Fault protection and MPU stack guard now provided by safety/fault_protection.h
 // (OPT-IVP-01). core1_entry() calls the shared mpu_setup_stack_guard().
@@ -284,6 +285,37 @@ static bool poll_bound_gps(gps_data_t* d, bool* parsed) {
     }
 }
 
+static void poll_i2c_gps_sidecar() {
+    if (g_gpsTransport != GPS_TRANSPORT_UART || !gps_pa1010d_ready()) {
+        return;
+    }
+    gps_data_t i2c{};
+    const bool i2c_ok = gps_pa1010d_update();
+    busy_wait_us(kGpsSdaSettleUs);
+    (void)gps_pa1010d_get_data(&i2c);
+    g_i2cGpsSidecar.read_count++;
+    if (!i2c_ok) {
+        g_i2cGpsSidecar.error_count++;
+        return;
+    }
+    if (!i2c.valid) {
+        return;
+    }
+    double lat = i2c.latitude;
+    double lon = i2c.longitude;
+    if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
+    if (lat < kLatMinDeg) { lat = kLatMinDeg; }
+    if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
+    if (lon < kLonMinDeg) { lon = kLonMinDeg; }
+    g_i2cGpsSidecar.lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+    g_i2cGpsSidecar.lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
+    g_i2cGpsSidecar.alt_msl_m = i2c.altitudeM;
+    g_i2cGpsSidecar.hdop = i2c.hdop;
+    g_i2cGpsSidecar.fix_type = static_cast<uint8_t>(i2c.fix);
+    g_i2cGpsSidecar.satellites = i2c.satellites;
+    g_i2cGpsSidecar.valid = true;
+}
+
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
 void core1_read_gps(shared_sensor_data_t* local_data,
                     uint32_t* last_gps_read_us) {
@@ -339,6 +371,7 @@ void core1_read_gps(shared_sensor_data_t* local_data,
 
     core1_gps_staleness_check(parsed, gps_now_us);
     core1_update_best_gps_fix(local_data);
+    poll_i2c_gps_sidecar();
 }
 
 // ============================================================================

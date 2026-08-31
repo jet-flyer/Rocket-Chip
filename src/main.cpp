@@ -111,6 +111,7 @@ static void init_gps() {
         if (gps_uart_init()) {
             g_gpsInitialized.store(true, std::memory_order_release);
             bind_gps_uart_backend();
+            (void)gps_pa1010d_init();
             return;
         }
     }

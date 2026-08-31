@@ -37,6 +37,20 @@ struct best_gps_fix_t {
 extern best_gps_fix_t g_bestGpsFix;
 extern std::atomic<bool> g_bestGpsValid;
 
+// I2C PA1010D snapshot when UART is the flight GPS. Not fused.
+struct i2c_gps_sidecar_t {
+    int32_t lat_1e7;
+    int32_t lon_1e7;
+    float alt_msl_m;
+    float hdop;
+    uint32_t read_count;
+    uint32_t error_count;
+    uint8_t fix_type;
+    uint8_t satellites;
+    bool valid;
+};
+extern i2c_gps_sidecar_t g_i2cGpsSidecar;
+
 // Update best-fix diagnostic when satellite count or HDOP improves.
 // Shared by vehicle Core 1 sensor loop and station idle-bridge tick
 // (Stage 16C IVP-141) so both roles maintain one authoritative

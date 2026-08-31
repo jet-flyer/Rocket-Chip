@@ -451,10 +451,14 @@ bool i2c_bus_recover() {
     release_line(kI2cBusSclPin);
     sleep_us(kBusRecoveryPulseUs);
 
-    bool sda_released = clock_pulse_recovery();
-    generate_stop_condition();
+    // 9-clock only if stuck — same as init. Live PA1010D wedges if clocked.
+    const bool idle = gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin);
+    if (!idle) {
+        (void)clock_pulse_recovery();
+        generate_stop_condition();
+    }
     (void)attach_controller();
-    return sda_released;
+    return gpio_get(kI2cBusSdaPin);
 }
 
 bool i2c_bus_reset() {

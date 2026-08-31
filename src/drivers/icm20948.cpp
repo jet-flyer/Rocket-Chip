@@ -670,6 +670,11 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
 }
 
 bool icm20948_stuck_slave_recovery(uint8_t addr) {
+    // NACK on an idle bus is not a stuck slave. 27 clocks would hit a live PA1010D.
+    if (gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin)) {
+        return false;
+    }
+
     constexpr uint32_t kPulseUs = 5;
     constexpr uint8_t kBankSelReg = 0x7F;
     constexpr uint8_t kBank0Val = 0x00;

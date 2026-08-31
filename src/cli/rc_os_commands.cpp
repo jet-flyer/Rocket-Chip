@@ -356,6 +356,23 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
     } else {
         rc::rc_log("GPS: not detected\n");
     }
+    if (g_i2cGpsSidecar.read_count > 0) {
+        if (g_i2cGpsSidecar.valid) {
+            rc::rc_log("GPS (I2C sidecar): %.7f, %.7f, %.1f m MSL\n",
+                       g_i2cGpsSidecar.lat_1e7 / kGpsCoordScale,
+                       g_i2cGpsSidecar.lon_1e7 / kGpsCoordScale,
+                       (double)g_i2cGpsSidecar.alt_msl_m);
+            rc::rc_log("     Fix=%u Sats=%u HDOP=%.2f  reads=%lu errs=%lu\n",
+                       g_i2cGpsSidecar.fix_type, g_i2cGpsSidecar.satellites,
+                       (double)g_i2cGpsSidecar.hdop,
+                       (unsigned long)g_i2cGpsSidecar.read_count,
+                       (unsigned long)g_i2cGpsSidecar.error_count);
+        } else {
+            rc::rc_log("GPS (I2C sidecar): no fix  reads=%lu errs=%lu\n",
+                       (unsigned long)g_i2cGpsSidecar.read_count,
+                       (unsigned long)g_i2cGpsSidecar.error_count);
+        }
+    }
 }
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
@@ -632,6 +649,9 @@ static void print_gps_status() {
         rc::rc_log(g_gpsTransport == GPS_TRANSPORT_UART
                    ? "[PASS] GPS init (UART on GPIO0/1, 57600 baud)\n"
                    : "[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
+        if (g_gpsTransport == GPS_TRANSPORT_UART && gps_pa1010d_ready()) {
+            rc::rc_log("[PASS] GPS I2C sidecar (0x10, UART remains flight GPS)\n");
+        }
     } else {
         rc::rc_log(g_gpsInitAttempted ? "[FAIL] GPS init failed\n"
                                   : "[N/A ] GPS not installed\n");
