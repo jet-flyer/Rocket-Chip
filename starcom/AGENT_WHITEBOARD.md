@@ -10,6 +10,18 @@ Consumer how-to: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
 
 ---
 
+## Radio settings OTA (WANTED) (2026-08-31)
+
+Owner-wanted. Next RC consumer feature: apply `RadioConfig` (SF / BW /
+CR / power / nav rate) over Starcom ON air as a cmd SDU (IVP 22
+`cmd_sdu`, APID 0x003). STOP-GAP already has `SET_RADIO_CONFIG`
+(MAVLink COMMAND_LONG + `kRadioConfigTable`). RC's implementation of
+Starcom — not a new library increment or air dialect. Not IVP 0–25.
+Not CFDP. Not a license to start this sitting. Desk: two-board ON soak,
+legal table row, ACK + reconfig, link stays up.
+
+---
+
 ## CFDP post-mission offload (WANTED) (2026-08-27)
 
 Owner-wanted. **CCSDS 727.0** file delivery with a checksum over the blob — data offload after a mission, not live TM. Rides in Space Packet user data. Not IVP 0–25. Not SDLS 355.0 (that is telecommand frame auth; RC whiteboard has SDLS for the Rocket profile). Not PLTU CRC-32.

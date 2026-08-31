@@ -42,7 +42,7 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP). Prep worktree `Rocket-Chip-sc-dev` / `grok/sc-dev` is closed.
 
-**Still RC:** barebones vehicle+station ON soak before more SDU fields. **Still Starcom library:** IVP 0–25, tag `starcom-v0.2.25` (`0.2.N` / N = increment). FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
+**Still RC:** barebones vehicle+station ON soak before more SDU fields. Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). **Still Starcom library:** IVP 0–25, tag `starcom-v0.2.25` (`0.2.N` / N = increment). FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
 
 ---
 
