@@ -29,6 +29,12 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ---
 
+## STEMMA I2C + PA1010D desk soak (OPEN) (2026-08-31)
+
+I2C bus redo is on `main`. Desk still has PA1010D at end of STEMMA (IMU+baro). After probe `reset halt`/`resume` 2026-08-31: Core1 looping, UART GPS GO, **IMU 0/0**, **baro 1/200**, I2C sidecar transferring (2067/357). Unplug I2C GPS and USB-POR to A/B whether T1 recovers without it. If IMU/baro stay dead with GPS off, reopen a bus soak — not another timeout bump. PA1010D does not need to stay after that A/B.
+
+---
+
 ## Skills to add (OPEN)
 
 Wanted skills — not written yet. Not a license to author them until scheduled.
@@ -84,7 +90,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 on `main` (`2026-08-23-002`). Phase 4 Grok+Claude overlay on `main` (`2026-08-24-002`). Sitting 6 RF skipped (WN-100). Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 on `main` (`2026-08-23-002`). Phase 4 Grok+Claude overlay on `main` (`2026-08-24-002`). Sitting 6 RF (WN-100) closed 2026-08-31. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -95,7 +101,7 @@ Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted.
 
 **Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Early-impl table.
 
-**DEFER (not a stop):** WN-100 / Starcom / RC_OS structure / early-impl rewrites. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
+**DEFER (not a stop):** Starcom / RC_OS structure / leftover early-impl sittings. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 
@@ -174,9 +180,9 @@ KEEP closed 2026-08-31 (DW_apb I²C, Hamilton quat, seqlock, PCM, flash layout, 
 
 | Candidate | Prefer / lean | Full detail |
 |-----------|---------------|-------------|
-| **Fault beacon (last-gasp)** | Still missing. PIO beacon + SPI stop-gap in one session (council). Not a rewrite. | Research row *PIO beacon + SPI last-gasp* below |
+| **Fault beacon (last-gasp)** | **Held until FPGA PHY work is done.** Then PIO beacon + SPI stop-gap in one session. | Research row *PIO beacon + SPI last-gasp* below |
 | **RC_OS / CLI “pseudo-OS”** | Sitting in progress (`grok/rcos-rework`). | **§ RC_OS Rework** below |
-| **Radio / telem surfaces** | Drivers KEEP. Remaining: Starcom ON two-board soak, WN-100, radio-settings OTA. | Starcom WB; WN-100 |
+| **Radio / telem surfaces** | Drivers KEEP. Remaining: Starcom ON two-board soak, radio-settings OTA. | Starcom WB |
 | **CCSDS TC + COP-1** | KEEP defer post–Stage-17. Starcom library already has COP-P/COP-1. | Project status line |
 
 **Not in this group:** pure process/tooling OPEN items (graphify re-pass, commit hygiene,
@@ -184,28 +190,6 @@ worktrees, IEEE 1028 mapping), accepted Gemini-tier PIO gaps, or active L2-P5 wa
 
 **Add a member:** append a row here + keep/expand the detailed section or WN; do not scatter
 new “maybe rework someday” bullets without listing them in this table.
-
----
-
-## Regulatory / RF compliance safeguards (OPEN) (2026-08-05)
-
-**Origin:** L2-P5 walk on `rfm95w` — casual `// ISM band (US, FCC Part 15)` + default
-915 MHz / high TX power without a project compliance SSOT or risk-line warnings
-(**WN-100**).
-
-**Intent:** Project-wide discipline for knobs that can put firmware **out of
-legal operation** if mis-set or bypassed (frequency, power, band, duty where
-applicable): accurate scoped statements or explicit non-guarantee + **doc SSOT**;
-warnings at the dangerous call sites/defaults; later audit sweep (radios first).
-
-**Starcom special caveat:** When Starcom defines RF/PHY/config surfaces, it must
-adopt the **same safeguards** (or stricter) — do not reintroduce silent “looks
-legal” defaults without policy. Coordinate with RFM95W deferral (**WN-097**).
-
-**Rule:** Not legal advice from agents; owner/legal review for any public
-compliance claims. No mid-walk mass comment campaign.
-
-**Refs:** L2-P5 **WN-100**, `src/drivers/rfm95w.*`, Starcom docs under `starcom/`.
 
 ---
 

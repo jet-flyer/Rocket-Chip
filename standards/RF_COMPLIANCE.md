@@ -1,7 +1,7 @@
 # RF Compliance Reference
 
 **Status:** Active — check on every radio code change
-**Last Updated:** 2026-03-05 (Stage 7 pre-work)
+**Last Updated:** 2026-08-31 (WN-100: driver defaults match this file; not legal advice)
 **Applies to:** `src/drivers/rfm95w.cpp`, `ground_station/radio_rx.cpp`, telemetry service, any code touching radio TX/RX parameters
 
 ---
@@ -76,16 +76,17 @@ Reference: FCC KDB 996369 — Module Certification requirements under 47 CFR 15.
 
 ## RocketChip Radio Configurations
 
-### Default: SF7 / BW250 / CR 4/5 (Stage 7+)
+### Default (firmware): SF7 / BW125 / CR 4/5 / 915 MHz / +20 dBm
+
+Matches `rfm95w_init` / `kDefaultRadioConfig` (live desk 2026-08-31).
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | Spreading Factor | SF7 | Minimum airtime, adequate sensitivity |
-| Bandwidth | 250 kHz | Halves airtime vs BW125, -3 dB sensitivity cost |
+| Bandwidth | 125 kHz | Live default. BW250 is an alternate profile row. |
 | Coding Rate | 4/5 | Minimum redundancy, lowest overhead |
-| Frequency | 915.0 MHz | US ISM center |
-| TX Power (bench) | 5 dBm | Temporary — IVP-57 testing |
-| TX Power (field) | 20 dBm | Full PA_BOOST — module max |
+| Frequency | 915.0 MHz | US ISM center (operator must stay in 902–928) |
+| TX Power | 20 dBm | PA_BOOST max — module grant, not a “safe for any antenna” claim |
 | Preamble | 8 symbols | SX1276 default |
 | Sync Word | 0x12 | LoRa private network default |
 | CRC | Enabled | Hardware CRC-16 |
@@ -114,8 +115,8 @@ Reference: FCC KDB 996369 — Module Certification requirements under 47 CFR 15.
 
 | Config | Use Case | Airtime (54B) | Max Rate | Sensitivity | Range (est.) |
 |--------|----------|---------------|----------|-------------|-------------|
-| SF7/BW125/CR4-5 | Long range / HAB | ~103 ms | 5 Hz max | -123 dBm | 5–15 km |
-| SF7/BW250/CR4-5 | **Default flight** | ~51 ms | 10 Hz | -120 dBm | 3–10 km |
+| SF7/BW125/CR4-5 | **Firmware default** | ~103 ms | 5 Hz max | -123 dBm | 5–15 km |
+| SF7/BW250/CR4-5 | Higher rate profile | ~51 ms | 10 Hz | -120 dBm | 3–10 km |
 | SF6/BW500/CR4-5 | High rate / short range | ~14 ms | 50 Hz theoretical | -111 dBm | 1–5 km |
 
 BW125 does not meet the 500 kHz digital modulation bandwidth requirement on its own, but operates within the module's FCC grant parameters. BW250 is borderline. BW500 clearly meets the 500 kHz threshold.
