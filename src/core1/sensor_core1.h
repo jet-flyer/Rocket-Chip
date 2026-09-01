@@ -4,7 +4,7 @@
 // Core 1 Sensor Loop — Public Interface
 //
 // Entry point for Core 1: high-rate sensor sampling (~1kHz IMU, ~31Hz baro,
-// ~10Hz GPS). Publishes calibrated data via seqlock to Core 0.
+// GPS poll; each GPS backend owns its cadence). Publishes via seqlock.
 //============================================================================
 #ifndef ROCKETCHIP_SENSOR_CORE1_H
 #define ROCKETCHIP_SENSOR_CORE1_H
@@ -51,6 +51,10 @@ struct i2c_gps_sidecar_t {
 };
 extern i2c_gps_sidecar_t g_i2cGpsSidecar;
 
+// Gravity-floor rejects (all-zero IMU data), not I2C NACKs. Seqlock
+// imu_error_count is bus failures only.
+uint32_t core1_imu_zero_reject_count();
+
 // Update best-fix diagnostic when satellite count or HDOP improves.
 // Shared by vehicle Core 1 sensor loop and station idle-bridge tick
 // (Stage 16C IVP-141) so both roles maintain one authoritative
@@ -58,11 +62,11 @@ extern i2c_gps_sidecar_t g_i2cGpsSidecar;
 void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
 
 // Poll the bound GPS transport into seqlock-shaped fields in localData.
-// Rate-limited by *lastGpsReadUs (caller owns). Vehicle Core 1 loop and
-// station idle-bridge share this body. Side effects: may busy-wait SDA
-// settle (I2C), increment gps_error_count, and request a Core-0 UART
-// reinit after 10 s of UART staleness (non-blocking on this core). Caller
-// seqlock_writes localData after return.
+// Rate-limited by *lastGpsReadUs (caller debounce). Vehicle Core 1 and
+// station idle-bridge share this body. I2C settle/cadence live in the
+// GPS backend, not here. May increment gps_error_count and request a
+// Core-0 UART reinit after 10 s of UART staleness. Caller seqlock_writes
+// localData after return.
 void core1_read_gps(shared_sensor_data_t* localData,
                     uint32_t* lastGpsReadUs);
 

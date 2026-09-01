@@ -27,7 +27,9 @@ constexpr uint8_t kGpsPa1010dAddr = kI2cAddrPa1010d;
 // Latched init success, not a live ACK.
 [[nodiscard]] bool gps_pa1010d_ready(void);
 
-// Poll. Module is 1 Hz (PMTK220,1000). true if I2C read completed; false on error.
+// Poll. Rate-limits and post-read settle live here (vendor I2C NMEA
+// guide), not in the bus layer or Core 1. true if the last bus op
+// succeeded or this call was inside the poll interval; false on I2C error.
 [[nodiscard]] bool gps_pa1010d_update(void);
 
 [[nodiscard]] bool gps_pa1010d_get_data(gps_data_t* data);

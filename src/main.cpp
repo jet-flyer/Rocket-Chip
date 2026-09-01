@@ -127,11 +127,7 @@ static void init_gps() {
 }
 
 static void init_sensors() {
-    // Probe-first peripheral detection: only init drivers for devices that
-    // are physically present on the bus. Prevents wasted init attempts and
-    // avoids bus side-effects from absent devices (LL Entry 28).
-    //
-    // Init order matters: IMU + baro FIRST, GPS LAST.
+    // Init order: IMU + baro FIRST, GPS LAST.
     // In bypass mode, AK09916 at 0x0C shares the external I2C bus.
     // Probing the GPS (0x10) triggers NMEA streaming which can corrupt
     // AK09916 init transactions. Defer GPS probe until after IMU bypass
@@ -140,24 +136,22 @@ static void init_sensors() {
     if (!imu_detected) {
         imu_detected = icm20948_stuck_slave_recovery(kIcm20948AddrDefault);
     }
-    bool baro_detected = i2c_bus_probe(kBaroDps310AddrDefault);
+    (void)imu_detected;
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(kSensorSettleMs);
 
-    // Init IMU first — establishes bypass mode for AK09916 at 0x0C
-    if (imu_detected) {
-        g_imuInitAttempted = true;
-        g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
-    }
+    // A 1-byte probe is not presence on a stretching bus (UM10204 SCL
+    // stretch). Driver init is the real transaction. Device-specific
+    // stuck-slave recovery still ran above.
+    g_imuInitAttempted = true;
+    g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
 
-    if (baro_detected) {
-        g_baroInitAttempted = true;
-        g_baroInitialized.store(baro_dps310_init(kBaroDps310AddrDefault),
-                                std::memory_order_release);
-        if (g_baroInitialized.load(std::memory_order_acquire)) {
-            g_baroContinuous = baro_dps310_start_continuous();
-        }
+    g_baroInitAttempted = true;
+    g_baroInitialized.store(baro_dps310_init(kBaroDps310AddrDefault),
+                            std::memory_order_release);
+    if (g_baroInitialized.load(std::memory_order_acquire)) {
+        g_baroContinuous = baro_dps310_start_continuous();
     }
 
     if (!g_gpsInitialized.load(std::memory_order_acquire)) {
@@ -260,6 +254,13 @@ static void init_hardware() {
 
     // I2C bus init (before USB per LL Entry 4/12), then IMU/baro/GPS.
     // GPS I2C is inside init_sensors after IMU bypass (LL 20).
+    {
+        const rc::BootSignals& boot = rc::anomalous_boot_signals();
+        rc::rc_log("[I2C] POR=%d nonPOR=%d reset=0x%08lx\n",
+                   boot.had_por ? 1 : 0,
+                   boot.had_any_non_por ? 1 : 0,
+                   static_cast<unsigned long>(boot.powman_chip_reset));
+    }
     g_i2cInitialized = i2c_bus_init();
     if (g_i2cInitialized) {
         init_sensors();

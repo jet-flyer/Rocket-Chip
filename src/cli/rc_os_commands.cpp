@@ -14,6 +14,7 @@
 #include "starcom_adapt/sc_air.h"
 #include "rocketchip/shared_state.h"     // g_* + core1_i2c_pause/resume (R-17)
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "safety/anomalous_boot.h"
 #include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
@@ -21,6 +22,7 @@
 #include "rocketchip/station_output_mode.h"
 #include "rocketchip/telemetry_encoder.h"
 #include "core1/sensor_core1.h"
+#include "drivers/i2c_bus.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "math/quat.h"
@@ -377,12 +379,13 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
     rc::rc_log("Reads: I=%lu M=%lu B=%lu G=%lu  "
-           "Errors: I=%lu B=%lu G=%lu\n",
+           "Errors: I=%lu Z=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.mag_read_count,
            (unsigned long)snap.baro_read_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.imu_error_count,
+           (unsigned long)core1_imu_zero_reject_count(),
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
     if (AO_Logger_is_initialized()) {
@@ -864,6 +867,19 @@ static void print_hw_failures() {
 
 // Compact boot summary — auto-printed on terminal connect.
 void cli_print_boot_summary() {
+    const rc::BootSignals& boot = rc::anomalous_boot_signals();
+    rc::rc_log("[I2C] POR=%d nonPOR=%d reset=0x%08lx\n",
+               boot.had_por ? 1 : 0,
+               boot.had_any_non_por ? 1 : 0,
+               static_cast<unsigned long>(boot.powman_chip_reset));
+    const i2c_quiesce_trace_t q = i2c_bus_quiesce_trace();
+    if (q.magic == kI2cQuiesceMagic) {
+        rc::rc_log("[I2C] last_quiesce via=%lu count=%lu\n",
+                   static_cast<unsigned long>(q.via),
+                   static_cast<unsigned long>(q.count));
+    } else {
+        rc::rc_log("[I2C] last_quiesce via=0 count=0\n");
+    }
     uint8_t pass = 0;
     uint8_t fail = 0;
     count_hw_checks(pass, fail);

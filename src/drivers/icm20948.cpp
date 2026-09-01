@@ -221,7 +221,11 @@ static bool enable_bypass_mode(icm20948_t* dev) {
     if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &user_ctrl)) {
         return false;
     }
-    user_ctrl &= ~bit::kI2cMstEn;
+    // DS-000189 USER_CTRL: I2C_IF_DIS puts the part in SPI-only (I2C
+    // slave dead until nRESET/VDD). I2C_MST_RST during an active master
+    // xfer can hang the I2C slave. RMW must not leave either bit set.
+    user_ctrl &= static_cast<uint8_t>(~(bit::kI2cMstEn | bit::kI2cIfDis |
+                                        bit::kI2cMstRst));
     if (!write_bank_reg(dev, 0, bank0::kUserCtrl, user_ctrl)) {
         return false;
     }
@@ -670,48 +674,22 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
 }
 
 bool icm20948_stuck_slave_recovery(uint8_t addr) {
-    // NACK on an idle bus is not a stuck slave. 27 clocks would hit a live PA1010D.
-    if (gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin)) {
-        return false;
+    // DS-000189: PWR_MGMT_1 DEVICE_RESET is the software reset, but it
+    // needs an I2C ACK. UM10204 §3.1.16: if SDA is stuck, 9 clocks + STOP
+    // first. If the slave already NACKs with SDA high, the datasheet's
+    // remaining reset is nRESET / VDD cycle — not extra SCL.
+    if (!(gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin))) {
+        (void)i2c_bus_recover();
     }
 
-    constexpr uint32_t kPulseUs = 5;
     constexpr uint8_t kBankSelReg = 0x7F;
     constexpr uint8_t kBank0Val = 0x00;
     constexpr uint8_t kPwrMgmt1Reg = 0x06;
     constexpr uint8_t kDeviceReset = 0x80;
-
-    i2c_deinit(I2C_BUS_INSTANCE);
-    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
-    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
-    gpio_set_dir(kI2cBusSclPin, true);
-    gpio_put(kI2cBusSclPin, true);
-    gpio_set_dir(kI2cBusSdaPin, false);
-    gpio_pull_up(kI2cBusSdaPin);
-
-    for (int i = 0; i < 27; ++i) {
-        gpio_put(kI2cBusSclPin, false);
-        sleep_us(kPulseUs);
-        gpio_put(kI2cBusSclPin, true);
-        sleep_us(kPulseUs);
-    }
-
-    gpio_set_dir(kI2cBusSdaPin, true);
-    gpio_put(kI2cBusSdaPin, false);
-    sleep_us(kPulseUs);
-    gpio_put(kI2cBusSclPin, true);
-    sleep_us(kPulseUs);
-    gpio_put(kI2cBusSdaPin, true);
-    sleep_us(kPulseUs);
-
-    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
-    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
-    i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
-
     const uint8_t bank_sel[2] = {kBankSelReg, kBank0Val};
     const uint8_t pwr_reset[2] = {kPwrMgmt1Reg, kDeviceReset};
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, bank_sel, 2, false, 1000);
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, pwr_reset, 2, false, 1000);
+    (void)i2c_bus_write(addr, bank_sel, 2);
+    (void)i2c_bus_write(addr, pwr_reset, 2);
     sleep_ms(100);
 
     return i2c_bus_probe(addr);

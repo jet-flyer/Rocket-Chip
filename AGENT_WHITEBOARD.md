@@ -29,68 +29,21 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ---
 
-## STEMMA I2C + PA1010D desk soak (HANDOFF / unresolved) (2026-08-31)
+## STEMMA I2C + PA1010D (OPEN) (2026-09-01)
 
-**Parked.** UART GPS is the flight GPS (question was whether UART needed to stay). PA1010D on STEMMA is a **stretching I2C stress slave**, not a second nav GPS.
+WIP `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak`. PA1010D on STEMMA is a stretching stress slave (UART GPS unplugged this sitting).
 
-**Blocked:** picotool/SWD leaves STEMMA 3V3 up. No 9-clock (deprecated — wedges PA1010D). After picotool reboot with PA1010D on the chain: ICM/DPS310 **not installed**. USB-POR unwedges (IMU `WHO_AM_I=0xEA`) then IMU dies if firmware PMTKs 0x10. GPS-off: T1 GO, `bench_sim` 2/2.
+**Iterative flash: probe (OpenOCD `program`) only. Not `picotool load`.** Picotool `-f` BOOTSEL often never enumerates; consecutive picotool ops change personality (`reboot -a` #1 prints application-mode, #2 silent) and still MCU-reset with STEMMA 3V3 up. OpenOCD reset-on-connect also latches until the next USB POR — expect one POR after a probe flash, then iterate with debug `k` (quiesce+watchdog), not another flash.
 
-**WIP** `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak` @ `e4fe076`. Sitting paused 2026-09-01; firmware experiments reverted, no changelog. `e4fe076` still PMTKs `0x10` after UART GPS bind (measured ICM wedge). Not on `main`. Reopen: unwedge without USB-POR, or take PA1010D off the IMU bus (LL 20).
+**Reset latch (partially closed).** Cause was host `i2c_deinit`=`reset_block` mid-byte, then picotool FLASH `watchdog_reboot(..., 100 ms)` letting Core 1 re-attach. Now: DW_apb_i2c ABORT→STOP, `g_quiescing`, Core 1 pause or `multicore_reset_core1` after abort. Debug `k` ×3 after USB POR: ICM `WHO_AM_I=0xEA` each; boot 3 Hardware 13/13. Banner `[I2C] last_quiesce via=1 count=6`. 9 clocks only if SDA stuck low (UM10204 §3.1.16); live/idle 9-clock still forbidden (wedges PA1010D).
 
----
+**Still open — coexistence, do not conflate with the latch:**
+- IMU `I=` errors still ~50%+ with GPS on the chain (POR `I=3824 e=5699`). `k` #2 inited ICM then `imu -> FAULT`.
+- Baro/GPS *init* flaky across boots (not the NACK-until-unplug latch).
+- Picotool `reboot -a` #2 not re-tested after the 100 ms hold.
+- I vs Z counters split (`Errors: I= Z=`). Gravity-floor zeros are not bus NACKs.
 
-## STEMMA PA1010D coexistence — Claude sitting 2026-09-01 (HANDOFF / unresolved)
-
-Adds to the Grok row above; that row stands as written. **Nothing landed.** `src/`
-reverted to `0737f47`; Grok's WIP stash `a5abe2a` restored for work then reverted
-and left **intact**. Full write-up: CHANGELOG `2026-09-01-001`.
-
-**Two separate problems — do not conflate them again:**
-
-1. **Reset latch (mechanism UNKNOWN).** After any MCU reset the ICM NACKs 0x69,
-   0x68 *and* 0x0C while baro 0x77 and GPS 0x10 ACK in the same instant. Only a
-   USB-POR recovers. Degrades across successive resets (boot 1 partial, boots 2-3
-   dead), so the documented extra-restart does not clear it. Ruled out: SparkFun
-   bank-cache bug (our `select_bank()` has no cache). Suspected but unproven: a
-   stray write reaching USER_CTRL and setting I2C_IF_DIS (bit 4 = "disables I2C
-   slave" — confirmed in PX4's register header); guarding that one write did NOT
-   cure it, so the write arrives by some other path.
-2. **Coexistence.** Post-POR, IMU ~54% read failures with the PA1010D present;
-   0 errors with it unplugged (Grok's A/B: 69583/0). GPS is 0 errors throughout.
-
-**Owner steer (2026-09-01):** it is a **timing/collision** problem, not bandwidth —
-same shape as the LoRa half-duplex telem work. ~54% bus duty is NOT a bottleneck;
-an earlier "at its limit" claim was wrong and is retracted. PIO I2C is a **non-
-starter on the Feather MVP** (would need the PA1010D off the Qwiic plugs, defeating
-the point) but **stays a future option once RC has its own board**. GPS stays on the
-shared bus — that is the test.
-
-**Falsified — do not retry:** stretch-tolerant probe timeout (no effect); 100 kHz
-(worse, 46%->96.5%); bus capacitance (<50 cm, shortest Adafruit cables); "our GPS
-transactions cause it" (IMU failed with 0x10 never addressed); **LL 24** (removing
-per-timeout `recover()` gave 98.4% failure — that recovery is load-bearing).
-
-**Worked but reverted, re-land if wanted:** wall-clock GPS poll derived from the
-module's output rate (1.91 Hz, 0 errs; the cycle divider collapsed to 0.67 Hz when
-the loop slowed, starving the drain); blind sensor init instead of probe-gating
-(IMU 0 -> 7351 reads across a reflash).
-
-**Next, untested:** `core1_read_imu()` counts an error for BOTH a real I2C failure
-AND the LL-29 gravity-floor rejection of all-zero data — opposite diagnoses, same
-counter. Split them first; that decides whether this is bus collision or the device
-returning garbage. **Lead for the zeros branch:** `icm20948.h` already documents that
-a burst not reaching TEMP_OUT_L leaves the data-ready flag uncleared and "after ~200
-calls the output registers freeze at zeros" — a known path to exactly the all-zero
-data the gravity floor rejects. Check whether a *failed/truncated* 14-byte read can
-leave the flag uncleared the same way. Also unmeasured: `kI2cStretchTimeoutUs` raised 25 ms -> 100 ms
-(built and flashed, never evaluated — the board latched before measurement).
-
-**Bench note:** measuring anything needs a USB-POR first — SWD reset alone leaves the
-ICM latched. Not a fix, a current limitation of the unknown in (1).
-
-**Log placement:** CHANGELOG `2026-09-01-001` is on this branch. Per
-`docs/agents/WORKTREE.md` + LL 45 it must be carried to `main` before this branch is
-deleted, or it is lost.
+**Falsified — do not retry:** stretch-tolerant probe timeout; 100 kHz; bus capacitance; "GPS xfers cause it" (IMU failed with 0x10 never addressed); always-27 leftover clocks; HAD_POR to skip leftover drain (sticky RO). CHANGELOG `2026-09-01-001` is on this branch — carry to `main` before deleting the branch (WORKTREE.md / LL 45).
 
 ---
 

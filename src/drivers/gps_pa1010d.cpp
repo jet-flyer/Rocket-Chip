@@ -4,6 +4,7 @@
 // Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
 // Prior Art:
 // - CDTop PA1010D datasheet (MT3333 chipset)
+// - GlobalTop NMEA-over-I2C Software Guide v1.2 (poll cadence, 2 ms refill)
 // - Adafruit PA1010D Arduino/CircuitPython GPS library (I2C chunked reads)
 // - lwGPS library (vendored in lib/lwgps/) — NMEA parser
 
@@ -12,6 +13,7 @@
 #include "lwgps/lwgps.h"
 #include "etl/string.h"
 #include "etl/to_string.h"
+#include "pico/time.h"
 #include <string.h>
 
 // NMEA/I2C protocol constants
@@ -70,6 +72,7 @@ static int  g_pmtkWriteResults[3] = { -999, -999, -999 };
 static bool g_pmtkWindowHit = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
+static uint32_t g_lastPollUs = 0;
 
 // I2C read buffer — full 255-byte MT3333 TX buffer per vendor recommendation.
 // GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended."
@@ -77,8 +80,15 @@ static gps_data_t g_data;
 // At 400kHz, 255 bytes takes ~5.8ms.
 // Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
 constexpr size_t kGpsMaxRead = 255;
-// 255-byte MT3333 reads clock-stretch; 10 ms bus timeout NACKs ~90% of station polls.
+// Transfer budget for a 255-byte read. The bus layer waits out SCL stretch
+// up to this same budget (UM10204 unbounded stretch; caller owns the cap).
+// 10 ms NACKed ~90% of station polls; 50 ms worked (CHANGELOG 2026-08-27-002).
 constexpr uint32_t kGpsI2cReadTimeoutUs = 50000;
+// GlobalTop NMEA-over-I2C Software Guide v1.2 §3: poll interval < fix
+// interval (figure: 500 ms at 1 Hz). PMTK220,1000 = 1 Hz.
+constexpr uint32_t kPollMinIntervalUs = 500000;
+// Same guide §3: 2 ms after a packet for the slave TX-buffer refill.
+constexpr uint32_t kPostReadSettleUs = 2000;
 static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
 static size_t g_lastReadLen = 0;           // Last successful read length
 
@@ -241,13 +251,14 @@ bool gps_pa1010d_init() {
         (void)send_pmtk_config();
     }
 
-    if (!find_nmea_in_buffer()) {
-        return false;
-    }
-
-    g_pmtkWindowHit = true;
-    g_initialized = true;
-    return true;
+    // PMTK ACK is presence. A 1 Hz module may not have '$' in the TX
+    // buffer yet (GlobalTop: poll < fix period). Do not fail init and
+    // then never drain — that leaves the slave streaming unaddressed.
+    g_pmtkWindowHit = find_nmea_in_buffer();
+    g_initialized = (g_pmtkWriteResults[0] > 0) &&
+                    (g_pmtkWriteResults[1] > 0) &&
+                    (g_pmtkWriteResults[2] > 0);
+    return g_initialized;
 }
 
 void gps_pa1010d_get_debug_status(char* buf, size_t len) {
@@ -282,9 +293,15 @@ bool gps_pa1010d_update() {
         return false;
     }
 
-    // Read available NMEA data (full 255-byte MT3333 TX buffer)
-    // Returns: >0 = NMEA bytes, 0 = padding only (no new data), <0 = I2C error
+    const uint32_t now_us = time_us_32();
+    if ((now_us - g_lastPollUs) < kPollMinIntervalUs) {
+        return true;  // Cadence owned here; not a bus error.
+    }
+    g_lastPollUs = now_us;
+
+    // Full 255-byte MT3333 TX buffer (vendor: no partial reads).
     int len = read_nmea_data(g_buffer, kGpsMaxRead);
+    busy_wait_us(kPostReadSettleUs);
     if (len < 0) {
         return false;  // I2C failure — caller should count as error
     }

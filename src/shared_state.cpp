@@ -5,6 +5,8 @@
 
 #include "rocketchip/shared_state.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
+#include "pico/multicore.h"
 
 bool g_neopixelInitialized = false;
 bool g_i2cInitialized = false;
@@ -74,3 +76,37 @@ void core1_i2c_resume() {
 }
 
 }  // namespace rc
+
+// Called from i2c_bus_quiesce() before DW_apb_i2c ABORT. Busy-wait so
+// this is safe from the USB reset callback (no sleep_ms). Core 1
+// finishes its current xfer, then stops starting new ones.
+extern "C" void i2c_bus_on_quiesce(void) {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+    if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_core1PauseI2C.store(true, std::memory_order_release);
+    const absolute_time_t t0 = get_absolute_time();
+    constexpr int64_t kPauseAckUs = 100000;  // same as kPauseAckMaxMs
+    while (!g_core1I2CPaused.load(std::memory_order_acquire)) {
+        if (absolute_time_diff_us(t0, get_absolute_time()) >= kPauseAckUs) {
+            break;
+        }
+        tight_loop_contents();
+    }
+}
+
+// After ABORT has issued STOP: if Core 1 never parked, halt it so it
+// cannot attach_controller() during the 100 ms FLASH-reboot watchdog
+// delay (PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS).
+extern "C" void i2c_bus_after_abort(void) {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+    if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+        return;
+    }
+    multicore_reset_core1();
+}

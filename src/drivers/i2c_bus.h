@@ -24,7 +24,7 @@ constexpr uint8_t  kI2cBusSclPin    = board::kI2cSclPin;
 constexpr uint32_t kI2cBusFreqHz    = 400000;   // 400kHz Fast Mode (I2C spec)
 
 // Non-stretch transfer budget (microseconds). SCL-low stretch is waited
-// out in the bus layer (SMBus tTIMEOUT), so this is not a number to grow.
+// out in the bus layer (I2C stretch is unbounded; see i2c_bus.cpp).
 constexpr uint32_t kI2cTimeoutUs    = 10000;
 
 // ============================================================================
@@ -42,6 +42,8 @@ constexpr uint8_t kI2cAddrPa1010d      = 0x10;  // GPS
 // Initialization
 // ============================================================================
 
+// Attach the controller. Stuck line: UM10204 §3.1.16 (9 clocks + STOP).
+// Idle bus: STOP only. Device reset stays in the caller (WN-078).
 [[nodiscard]] bool i2c_bus_init(void);
 
 [[nodiscard]] bool i2c_bus_probe(uint8_t addr);  // 1-byte read, not address-only ACK
@@ -73,10 +75,30 @@ void i2c_bus_scan(void);  // Expected-sensor inventory; skips 0x10 (LL 20)
 // Bus recovery
 // ============================================================================
 
-// Deinit, SIO recover, reinit. true = SDA released. Other core must be paused.
+// DW_apb_i2c ABORT (issues STOP), then 9 clocks only if SDA is stuck
+// (UM10204 §3.1.16). SCL-low is stretch — do not clock into it.
 bool i2c_bus_recover(void);
 
 // recover() then mark initialized even if recover returned false.
 bool i2c_bus_reset(void);
+
+// Who last called i2c_bus_quiesce(). Lives in .uninitialized_data so the
+// next boot can print it (picotool FLASH vs BOOTSEL vs CLI).
+constexpr uint32_t kI2cQuiesceMagic     = 0x31435149u;  // 'IQC1'
+constexpr uint32_t kI2cQuiesceViaWdog   = 1u;  // wrap of watchdog_reboot
+constexpr uint32_t kI2cQuiesceViaBootSel = 2u;  // wrap of rom_reset_usb_boot_extra
+constexpr uint32_t kI2cQuiesceViaCli    = 3u;  // debug-menu MCU reboot
+
+struct i2c_quiesce_trace_t {
+    uint32_t magic;
+    uint32_t via;
+    uint32_t count;
+};
+
+[[nodiscard]] i2c_quiesce_trace_t i2c_bus_quiesce_trace(void);
+
+// Finish any in-flight byte (ABORT → STOP), disable, release pads.
+// Blocks new xfers until the MCU actually resets. `via` is the breadcrumb.
+void i2c_bus_quiesce(uint32_t via);
 
 #endif // ROCKETCHIP_I2C_BUS_H

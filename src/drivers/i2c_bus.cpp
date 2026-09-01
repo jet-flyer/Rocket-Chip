@@ -2,15 +2,20 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // I2C transfer / timeout / recover layer.
 // Prior Art:
-// - NXP UM10204 I2C-bus specification (clock stretch; recovery §3.1.16)
+// - NXP UM10204 I2C-bus specification (clock stretch; bus-free START;
+//   recovery §3.1.16). Stretch is legal and unbounded.
+// - Synopsys DW_apb_i2c / RP2350 I2C: ABORT issues STOP after the current
+//   byte; disable only after ENABLE_STATUS.IC_EN clears. reset_block of
+//   the controller while pads are on the wire leaves slaves mid-byte.
 // - Linux i2c-algo-bit.c (sclhi waits out stretch; per-pulse SDA check)
 // - Linux i2c-core-base.c i2c_generic_scl_recovery (9 clocks, SCL-stuck exit)
-// - SMBus 3.1 tTIMEOUT (25 ms clock-low cap)
 // - Pico SDK hardware/i2c.c (DW_apb_i2c FIFO / TAR / TX_EMPTY_CTRL sequence)
 // Device recovery and part names do not belong here (WN-078 / WN-080).
 
 #include "i2c_bus.h"
 #include "hardware/gpio.h"
+#include "hardware/watchdog.h"
+#include "pico/bootrom.h"
 #include "pico/time.h"
 #include "rocketchip/rc_log.h"
 
@@ -18,12 +23,17 @@
 constexpr uint8_t  kI2cScanStart        = 0x08;
 constexpr uint8_t  kI2cScanEnd          = 0x78;
 
-// UM10204 §3.1.16 / Linux RECOVERY_CLK_CNT.
+// UM10204 §3.1.16: 9 clocks = one leftover byte (8 data + ACK), then STOP.
 constexpr uint8_t  kBusRecoveryCycles   = 9;
+constexpr uint8_t  kLeftoverByteGroups  = 1;
 // Linux i2c-core-base.c RECOVERY_NDELAY = 5000 ns → 5 µs (100 kHz).
 constexpr uint32_t kBusRecoveryPulseUs  = 5;
-// SMBus 3.1 §4.2.2 tTIMEOUT min. Cap for SCL held low (stretch vs short).
-constexpr uint32_t kI2cStretchTimeoutUs = 25000;
+// UM10204 Fast-mode tBUF min 1.3 µs between STOP and next START.
+constexpr uint32_t kI2cTbufUs           = 2;
+// DW_apb_i2c ABORT completes the current byte then STOP. Stretch is
+// unbounded (UM10204); this cap is 2× the longest transfer budget any
+// caller currently passes (50 ms) so ABORT can finish after that xfer.
+constexpr uint32_t kI2cAbortTimeoutUs   = 100000;
 
 enum class WaitEvent : uint8_t {
     kTxEmpty = 0,
@@ -33,7 +43,16 @@ enum class WaitEvent : uint8_t {
 };
 
 static bool g_initialized = false;
+static bool g_quiescing = false;
 static uint32_t g_abort_reason = 0;
+
+struct QuiesceTrace {
+    uint32_t magic;
+    uint32_t via;
+    uint32_t count;
+};
+__attribute__((section(".uninitialized_data")))
+static volatile QuiesceTrace g_quiesce_trace;
 
 // ============================================================================
 // Pin helpers (open-drain: input+pull-up = high, output-0 = low)
@@ -99,8 +118,9 @@ static bool take_tx_abort() {
 }
 
 // 0 = event, PICO_ERROR_GENERIC = NACK/abort, PICO_ERROR_TIMEOUT = stuck.
-// SCL low is stretch: do not charge it against timeout_us. SCL low longer
-// than kI2cStretchTimeoutUs is a stuck bus.
+// SCL low is stretch (UM10204): do not charge it as idle. The caller's
+// timeout_us is the stuck-vs-stretch cap for this transfer — not a
+// bus-global SMBus tTIMEOUT. Slow slaves pass a longer timeout.
 static int wait_hw(WaitEvent ev, uint32_t timeout_us) {
     absolute_time_t t_idle = get_absolute_time();
     absolute_time_t t_stretch = t_idle;
@@ -122,7 +142,7 @@ static int wait_hw(WaitEvent ev, uint32_t timeout_us) {
                 t_stretch = now;
             }
             if (absolute_time_diff_us(t_stretch, now) >=
-                static_cast<int64_t>(kI2cStretchTimeoutUs)) {
+                static_cast<int64_t>(timeout_us)) {
                 return PICO_ERROR_TIMEOUT;
             }
         } else {
@@ -130,6 +150,42 @@ static int wait_hw(WaitEvent ev, uint32_t timeout_us) {
                 stretching = false;
                 t_idle = now;
             }
+            if (absolute_time_diff_us(t_idle, now) >=
+                static_cast<int64_t>(timeout_us)) {
+                return PICO_ERROR_TIMEOUT;
+            }
+        }
+        tight_loop_contents();
+    }
+}
+
+// UM10204: a START is only legal while the bus is free (SDA and SCL
+// high). SCL low is stretch — wait it out. SDA low with SCL high is a
+// busy/stuck slave; that charges the idle budget, then recover.
+static int wait_bus_free(uint32_t timeout_us) {
+    absolute_time_t t_idle = get_absolute_time();
+    absolute_time_t t_stretch = t_idle;
+    bool stretching = false;
+
+    for (;;) {
+        const bool sda_high = gpio_get(kI2cBusSdaPin);
+        const bool scl_high = gpio_get(kI2cBusSclPin);
+        const absolute_time_t now = get_absolute_time();
+        if (sda_high && scl_high) {
+            busy_wait_us(kI2cTbufUs);
+            return 0;
+        }
+        if (!scl_high) {
+            if (!stretching) {
+                stretching = true;
+                t_stretch = now;
+            }
+            if (absolute_time_diff_us(t_stretch, now) >=
+                static_cast<int64_t>(timeout_us)) {
+                return PICO_ERROR_TIMEOUT;
+            }
+        } else {
+            stretching = false;
             if (absolute_time_diff_us(t_idle, now) >=
                 static_cast<int64_t>(timeout_us)) {
                 return PICO_ERROR_TIMEOUT;
@@ -209,6 +265,12 @@ static int write_one_byte(uint8_t data, bool first, bool last, bool nostop,
 
 static int xfer_write(uint8_t addr, const uint8_t* data, size_t len,
                       bool nostop, uint32_t timeout_us) {
+    if (!I2C_BUS_INSTANCE->restart_on_next) {
+        int free_rc = handle_wait(wait_bus_free(timeout_us));
+        if (free_rc != 0) {
+            return free_rc;
+        }
+    }
     arm_target(addr);
     const int ilen = static_cast<int>(len);
     for (int i = 0; i < ilen; i++) {
@@ -231,6 +293,12 @@ static int xfer_write(uint8_t addr, const uint8_t* data, size_t len,
 static int xfer_read(uint8_t addr, uint8_t* data, size_t len, bool nostop,
                      uint32_t timeout_us) {
     i2c_hw_t* hw = I2C_BUS_INSTANCE->hw;
+    if (!I2C_BUS_INSTANCE->restart_on_next) {
+        int free_rc = handle_wait(wait_bus_free(timeout_us));
+        if (free_rc != 0) {
+            return free_rc;
+        }
+    }
     arm_target(addr);
     const int ilen = static_cast<int>(len);
     for (int i = 0; i < ilen; i++) {
@@ -259,20 +327,58 @@ static int xfer_read(uint8_t addr, uint8_t* data, size_t len, bool nostop,
 // Bus recovery (UM10204 §3.1.16 + Linux i2c_generic_scl_recovery)
 // ============================================================================
 
+static bool wait_until(bool (*done)(const i2c_hw_t*), const i2c_hw_t* hw,
+                       uint32_t timeout_us) {
+    const absolute_time_t t0 = get_absolute_time();
+    while (!done(hw)) {
+        if (absolute_time_diff_us(t0, get_absolute_time()) >=
+            static_cast<int64_t>(timeout_us)) {
+            return false;
+        }
+        tight_loop_contents();
+    }
+    return true;
+}
+
+static bool abort_bit_clear(const i2c_hw_t* hw) {
+    return (hw->enable & I2C_IC_ENABLE_ABORT_BITS) == 0U;
+}
+
+static bool controller_disabled(const i2c_hw_t* hw) {
+    return (hw->enable_status & I2C_IC_ENABLE_STATUS_IC_EN_BITS) == 0U;
+}
+
+// RP2350 / DW_apb_i2c: ABORT issues STOP after the current byte, then
+// disable and wait IC_EN. Pico SDK i2c_deinit() is reset_block — that
+// yanks the pads mid-byte and is what latched powered slaves.
+static void abort_then_disable() {
+    i2c_hw_t* hw = I2C_BUS_INSTANCE->hw;
+    if (controller_disabled(hw)) {
+        I2C_BUS_INSTANCE->restart_on_next = false;
+        return;
+    }
+    hw->enable = I2C_IC_ENABLE_ENABLE_BITS | I2C_IC_ENABLE_ABORT_BITS;
+    (void)wait_until(abort_bit_clear, hw, kI2cAbortTimeoutUs);
+    hw->enable = 0;
+    (void)wait_until(controller_disabled, hw, kI2cAbortTimeoutUs);
+    I2C_BUS_INSTANCE->restart_on_next = false;
+}
+
 static bool scl_is_high() {
     release_line(kI2cBusSclPin);
     bool high = gpio_get(kI2cBusSclPin);
     return high;
 }
 
-// SCL-stuck check + 9-pulse clock. Assumes pins already SIO, SDA released
-// (input). Returns true if SDA was released. Does not pulse into held SCL.
-static bool clock_pulse_recovery() {
+// Clock leftover bits with SDA released (open-drain). No mid-byte early-out.
+// Assumes pins already SIO, SDA input. Does not pulse into held SCL.
+static bool clock_out_leftover_bytes() {
+    const uint8_t total =
+        static_cast<uint8_t>(kBusRecoveryCycles * kLeftoverByteGroups);
     if (!scl_is_high()) {
         return false;
     }
-
-    for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
+    for (uint8_t i = 0; i < total; i++) {
         if (!scl_is_high()) {
             return false;
         }
@@ -280,9 +386,6 @@ static bool clock_pulse_recovery() {
         sleep_us(kBusRecoveryPulseUs);
         release_line(kI2cBusSclPin);
         sleep_us(kBusRecoveryPulseUs);
-        if (gpio_get(kI2cBusSdaPin)) {
-            return true;
-        }
     }
     return gpio_get(kI2cBusSdaPin);
 }
@@ -294,6 +397,29 @@ static void generate_stop_condition() {
     sleep_us(kBusRecoveryPulseUs);
     release_line(kI2cBusSdaPin);
     sleep_us(kBusRecoveryPulseUs);
+}
+
+static bool recover_internal(bool clock_even_if_idle) {
+    if (g_quiescing) {
+        return gpio_get(kI2cBusSdaPin);
+    }
+    abort_then_disable();
+
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
+    release_line(kI2cBusSdaPin);
+    release_line(kI2cBusSclPin);
+    sleep_us(kBusRecoveryPulseUs);
+
+    const bool sda_high = gpio_get(kI2cBusSdaPin);
+    const bool scl_high = gpio_get(kI2cBusSclPin);
+    // UM10204 §3.1.16 is SDA stuck low. SCL low is stretch; do not clock.
+    if (clock_even_if_idle || (!sda_high && scl_high)) {
+        (void)clock_out_leftover_bytes();
+        generate_stop_condition();
+    }
+    (void)attach_controller();
+    return gpio_get(kI2cBusSdaPin);
 }
 
 static void log_scan_name(uint8_t addr) {
@@ -333,14 +459,15 @@ bool i2c_bus_init() {
     release_line(kI2cBusSclPin);
     sleep_us(kBusRecoveryPulseUs);
 
-    // MCU reset (picotool / SWD) does not cut slave 3V3. Nine clocks into a
-    // live PA1010D wedges the I2C-UART bridge until USB 3V3 POR. Recover
-    // only when a line is stuck (Linux: recover a busy bus, not a free one).
+    // If a line is stuck, clock leftover bytes. If both high, emit STOP
+    // only (START+STOP if SDA was high) — 27 clocks on an ACK-ing bus
+    // took IMU+baro+GPS down together on this STEMMA chain.
     const bool idle = gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin);
-    if (!idle) {
-        (void)i2c_bus_recover();
-    } else {
+    if (idle) {
+        generate_stop_condition();
         (void)attach_controller();
+    } else {
+        (void)recover_internal(false);
     }
     g_initialized = (I2C_BUS_INSTANCE->hw->enable != 0U);
     return g_initialized;
@@ -392,21 +519,21 @@ void i2c_bus_scan() {
 // ============================================================================
 
 int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len) {
-    if (!g_initialized || data == nullptr || len == 0) {
+    if (!g_initialized || g_quiescing || data == nullptr || len == 0) {
         return -1;
     }
     return xfer_write(addr, data, len, false, kI2cTimeoutUs);
 }
 
 int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len, uint32_t timeout_us) {
-    if (!g_initialized || data == nullptr || len == 0) {
+    if (!g_initialized || g_quiescing || data == nullptr || len == 0) {
         return -1;
     }
     return xfer_read(addr, data, len, false, timeout_us);
 }
 
 int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
-    if (!g_initialized || data == nullptr || len == 0) {
+    if (!g_initialized || g_quiescing || data == nullptr || len == 0) {
         return -1;
     }
 
@@ -418,7 +545,7 @@ int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 }
 
 int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value) {
-    if (!g_initialized) {
+    if (!g_initialized || g_quiescing) {
         return -1;
     }
 
@@ -428,7 +555,7 @@ int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value) {
 }
 
 int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value) {
-    if (!g_initialized || value == nullptr) {
+    if (!g_initialized || g_quiescing || value == nullptr) {
         return -1;
     }
 
@@ -441,29 +568,79 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 }
 
 bool i2c_bus_recover() {
-    // Deinit BEFORE GPIO function switch — see LL Entry 28.
-    i2c_deinit(I2C_BUS_INSTANCE);
-
-    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
-    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
-
-    release_line(kI2cBusSdaPin);
-    release_line(kI2cBusSclPin);
-    sleep_us(kBusRecoveryPulseUs);
-
-    // 9-clock only if stuck — same as init. Live PA1010D wedges if clocked.
-    const bool idle = gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin);
-    if (!idle) {
-        (void)clock_pulse_recovery();
-        generate_stop_condition();
-    }
-    (void)attach_controller();
-    return gpio_get(kI2cBusSdaPin);
+    return recover_internal(false);
 }
 
 bool i2c_bus_reset() {
+    if (g_quiescing) {
+        return false;
+    }
     g_initialized = false;
     bool recovered = i2c_bus_recover();
     g_initialized = true;
     return recovered;
+}
+
+extern "C" void i2c_bus_on_quiesce(void) __attribute__((weak));
+extern "C" void i2c_bus_on_quiesce(void) {}
+extern "C" void i2c_bus_after_abort(void) __attribute__((weak));
+extern "C" void i2c_bus_after_abort(void) {}
+
+i2c_quiesce_trace_t i2c_bus_quiesce_trace() {
+    i2c_quiesce_trace_t out{};
+    if (g_quiesce_trace.magic == kI2cQuiesceMagic) {
+        out.magic = g_quiesce_trace.magic;
+        out.via = g_quiesce_trace.via;
+        out.count = g_quiesce_trace.count;
+    }
+    return out;
+}
+
+void i2c_bus_quiesce(uint32_t via) {
+    g_quiescing = true;
+    const uint32_t prev_count =
+        (g_quiesce_trace.magic == kI2cQuiesceMagic) ? g_quiesce_trace.count : 0u;
+    g_quiesce_trace.via = via;
+    g_quiesce_trace.count = prev_count + 1u;
+    g_quiesce_trace.magic = kI2cQuiesceMagic;
+
+    i2c_bus_on_quiesce();
+    abort_then_disable();
+    i2c_bus_after_abort();
+
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
+    release_line(kI2cBusSdaPin);
+    release_line(kI2cBusSclPin);
+    sleep_us(kBusRecoveryPulseUs);
+    if (!gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin)) {
+        (void)clock_out_leftover_bytes();
+        generate_stop_condition();
+    }
+    g_initialized = false;
+}
+
+extern "C" {
+
+void __real_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms);
+void __attribute__((noreturn))
+__real_rom_reset_usb_boot_extra(int usb_activity_gpio_pin,
+                                uint32_t disable_interface_mask,
+                                bool usb_activity_gpio_pin_active_low);
+
+void __wrap_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
+    i2c_bus_quiesce(kI2cQuiesceViaWdog);
+    __real_watchdog_reboot(pc, sp, delay_ms);
+}
+
+void __attribute__((noreturn))
+__wrap_rom_reset_usb_boot_extra(int usb_activity_gpio_pin,
+                                uint32_t disable_interface_mask,
+                                bool usb_activity_gpio_pin_active_low) {
+    i2c_bus_quiesce(kI2cQuiesceViaBootSel);
+    __real_rom_reset_usb_boot_extra(usb_activity_gpio_pin,
+                                    disable_interface_mask,
+                                    usb_activity_gpio_pin_active_low);
+}
+
 }

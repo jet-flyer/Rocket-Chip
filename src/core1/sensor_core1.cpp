@@ -39,9 +39,9 @@
 // Core 1 sensor loop timing
 static constexpr uint32_t kCore1TargetCycleUs = 1000;           // ~1kHz target
 static constexpr uint32_t kCore1BaroDivider = 32;               // Baro at ~31Hz (DPS310 continuous = 32 SPS)
-static constexpr uint32_t kCore1GpsDivider = 100;               // GPS at ~10Hz
+static constexpr uint32_t kCore1GpsDivider = 100;               // GPS poll ~10Hz; I2C backend rate-limits
 static constexpr uint32_t kCore1McuTempDivider = 1000;          // MCU temp at ~1Hz (Stage 16C IVP-142a)
-static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer refill time
+static constexpr uint32_t kGpsMinIntervalUs = 2000;             // Caller debounce; backend owns slave timing
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
 static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
 static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
@@ -49,9 +49,6 @@ static constexpr uint32_t kBaroMaxReinitAttempts = 3;           // Max baro re-i
 // Pad/1g gravity-floor heuristic (9.8 * cos(72 deg) = 3.0 m/s^2).
 // Free-fall/coast can be below this; the body still treats it as IMU death.
 static constexpr float kAccelMinHealthyMag = 3.0F;
-
-// PA1010D SDA settling delay (LL Entry 24)
-static constexpr uint32_t kGpsSdaSettleUs = 500;
 
 // kCore1PauseAckMaxMs stays in main.cpp — used by Core 0 wait loop, not Core 1.
 
@@ -72,6 +69,12 @@ static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;    // 10s
 best_gps_fix_t g_bestGpsFix = {};
 std::atomic<bool> g_bestGpsValid{false};
 i2c_gps_sidecar_t g_i2cGpsSidecar = {};
+static uint32_t g_imuZeroRejectCount = 0;
+static uint32_t g_imuZeroConsec = 0;
+
+uint32_t core1_imu_zero_reject_count() {
+    return g_imuZeroRejectCount;
+}
 
 // Fault protection and MPU stack guard now provided by safety/fault_protection.h
 // (OPT-IVP-01). core1_entry() calls the shared mpu_setup_stack_guard().
@@ -153,11 +156,20 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
         imu_data.accel.y * imu_data.accel.y +
         imu_data.accel.z * imu_data.accel.z);
     if (raw_accel_mag < kAccelMinHealthyMag) {
-        core1_imu_error_recovery(imu_consec_fail, local_data);
+        // Not a bus NACK — do not share the I2C recover ladder (9/1 split).
+        g_imuZeroRejectCount++;
+        g_imuZeroConsec++;
+        local_data->accel_valid = false;
+        local_data->gyro_valid = false;
+        if (g_imuZeroConsec >= kCore1ConsecFailDevReset) {
+            icm20948_init(&g_imu, kIcm20948AddrDefault);
+            g_imuZeroConsec = 0;
+        }
         return;
     }
 
     *imu_consec_fail = 0;
+    g_imuZeroConsec = 0;
 
     // Feed calibration with RAW data (before cal apply) -- Core 1 owns I2C,
     // so no bus contention. Core 0 must NOT do concurrent icm20948_read().
@@ -276,7 +288,6 @@ static bool poll_bound_gps(gps_data_t* d, bool* parsed) {
         return true;
     case GPS_TRANSPORT_I2C:
         *parsed = gps_pa1010d_update();
-        busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
         (void)gps_pa1010d_get_data(d);
         return true;
     case GPS_TRANSPORT_NONE:
@@ -291,7 +302,6 @@ static void poll_i2c_gps_sidecar() {
     }
     gps_data_t i2c{};
     const bool i2c_ok = gps_pa1010d_update();
-    busy_wait_us(kGpsSdaSettleUs);
     (void)gps_pa1010d_get_data(&i2c);
     g_i2cGpsSidecar.read_count++;
     if (!i2c_ok) {

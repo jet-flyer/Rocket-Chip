@@ -8,6 +8,9 @@
 #include "cli/rc_os_commands.h"
 #include "safety/inject_arm_gate.h"
 #include "drivers/i2c_bus.h"
+#include "rocketchip/shared_state.h"
+#include "rocketchip/sensor_seqlock.h"
+#include "hardware/watchdog.h"
 #include "safety/pyro_edge_logger.h"
 #include "diag/diag_stats.h"
 #include "active_objects/ao_led_engine.h"
@@ -29,7 +32,8 @@ static constexpr uint32_t kEskfLivePeriodUs = 1000000;
 bool dev_debug_menu_enter() {
     rc::rc_log("\n--- Debug ---\n");
     rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-    rc::rc_log("y-Pyro log (WIP)  r-Replay  d-Diag stats  l-LED test  h-Help  z-Back\n");
+    rc::rc_log("y-Pyro log (WIP)  r-Replay  d-Diag stats  l-LED test\n");
+    rc::rc_log("k-I2C quiesce+MCU reboot  h-Help  z-Back\n");
     return true;
 }
 
@@ -173,10 +177,25 @@ bool dev_debug_menu_dispatch(int c) {
                    static_cast<unsigned>(idx));
             break;
         }
+        case 'k': case 'K': {
+            shared_sensor_data_t snap{};
+            (void)seqlock_read(&g_sensorSeqlock, &snap);
+            rc::rc_log("[I2C] quiesce+reboot  I=%lu e=%lu B=%lu e=%lu G=%lu e=%lu\n",
+                       static_cast<unsigned long>(snap.imu_read_count),
+                       static_cast<unsigned long>(snap.imu_error_count),
+                       static_cast<unsigned long>(snap.baro_read_count),
+                       static_cast<unsigned long>(snap.baro_error_count),
+                       static_cast<unsigned long>(snap.gps_read_count),
+                       static_cast<unsigned long>(snap.gps_error_count));
+            i2c_bus_quiesce(kI2cQuiesceViaCli);
+            watchdog_reboot(0, 0, 100);
+            break;
+        }
         case 'h': case 'H': case '?':
             rc::rc_log("\n--- Debug Menu ---\n");
             rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            rc::rc_log("y-Pyro log (WIP)  r-Replay inject  d-Diag stats  l-LED test  z-Back\n");
+            rc::rc_log("y-Pyro log (WIP)  r-Replay inject  d-Diag stats  l-LED test\n");
+            rc::rc_log("k-I2C quiesce+MCU reboot  z-Back\n");
             rc::rc_log("0..5 = local radio cfg (0:BW125/5 1:BW125/10 2:BW250/10\n");
             rc::rc_log("                        3:BW500/10 4:BW125/2 5:BW250/5)\n");
             break;
