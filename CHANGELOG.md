@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-31-002 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**WN-100 closed; STEMMA PA1010D I2C stress sitting parked unresolved.** RF call-site SSOT `315e2a2` / `standards/RF_COMPLIANCE.md`. UART is flight GPS (whether it stays plugged was the question); PA1010D on STEMMA is a stretching I2C **stress slave**, not a second nav GPS. GPS-off: T1 GO, `bench_sim` 2/2. USB-POR: IMU inits then dies if firmware PMTKs 0x10. Picotool reboot (STEMMA 3V3 up, 9-clock deprecated): ICM/DPS310 not installed — wedged. WIP `grok/i2c-stemma-soak` (`Rocket-Chip-i2c`) + stash `wip: STEMMA PA1010D soak`. Reopen: unwedge without 9-clock, or PA1010D off the IMU bus (LL 20).
+
 ### 2026-08-31-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
 
 **I2C slate + Core1 vitality + STEMMA coexistence; early-impl ranked redo closed.** Stretch-aware `i2c_bus` (`f17ae3d`): wall-clock SDK abort no longer treats SCL stretch as timeout; 9-clock only if a line is stuck. Runtime `recover()` and ICM stuck-slave still always-clocked a live PA1010D — that was the slate slip (`112d0a7`). Torn seqlock is unknown, not instant Core1 FAULT; `peek_banner` sends `h` when the dump has no role (`771d63e`). Feather STEMMA GPS at **end of chain** with UART flight GPS: I2C sidecar PMTK `[51,18,51]`, both 3D, IMU/baro I=0 B=0. Live STOP-GAP RF: station TRACK LQ 100% Lost 0. Ranked eval KEEP RFM95W and PCM; skip PIO; do not rewrite RadioScheduler (Starcom COP-P is ON air). Detail: `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. FLASHING.md: no operator BOOTSEL. Verified: Fruit Jam GPS; vehicle `bench_sim` 2/2 PASS COM5; station RF dashboard Lost 0.
