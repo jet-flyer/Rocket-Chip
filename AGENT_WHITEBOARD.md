@@ -221,28 +221,6 @@ compliance claims. No mid-walk mass comment campaign.
 
 ---
 
-## Quaternion convention re-eval — Hamilton vs alternatives (OPEN) (2026-08-04)
-
-**Group:** Early-impl / rework-eval candidates (see index above).
-
-**Origin:** L2-P5 walk on `math/quat.{cpp,h}` — project ships Hamilton product, scalar-first
-`[w,x,y,z]`, body-to-NED (Sola 2017 / IVP Stage 5). Owner: **do not keep the choice only
-to avoid churn**; re-check it is still the *right* convention for this product and
-stack, not merely the historical one.
-
-**Scope:** Quaternion algebra convention (Hamilton vs JPL product / related layout
-choices) and how that decision is documented for implementers. **Not** the separate
-UD/Bierman / Joseph ESKF update-path work (MCU numerics — different “JPL” story).
-
-**Intent:** Dedicated re-read (prior art + current fusion/tests) → either reaffirm with
-written *why*, or plan a deliberate convention change with full stack impact (math,
-ESKF, Mahony, tests, logs). Needs plan before code; no mid-walk flip.
-
-**Refs:** `src/math/quat.h`, IVP quat/ESKF sections, `docs/plans/PHASE5_ESKF_PLAN.md`,
-`test/test_quat.cpp`.
-
----
-
 ## Graphify full re-pass (OPEN) — after L2-P5 formal close; owner-gated
 
 L2-P5 walk WB drained and formal walk close **2026-08-17**. Full `/graphify` remains **owner-gated** (billed). Cheap `graphify update` + curate already runs post-commit. A WN cluster index (findings cites, not this graph) is the first disposition-prep step.
