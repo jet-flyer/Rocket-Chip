@@ -49,8 +49,26 @@ WN-059 asked whether Starcom should supersede PCM. Answer this sitting: **no.** 
 
 No blank-slate of packing, ring, or flush without a log that will not come off the pad.
 
+## Remaining WB early-impl table (2026-08-31)
+
+Walk of every row still on `AGENT_WHITEBOARD.md` after the ranked redo. No code.
+
+| Item | Verdict | Why |
+|------|---------|-----|
+| I²C PIO master | **KEEP DW_apb.** | Stretch-aware bus + end-of-chain PA1010D already desked. PIO I2C is a backend swap for SM budget, not a hole in the current driver. Rides the later PIO sitting if budget remains. |
+| Fault beacon (last-gasp) | **Sitting.** | Not implemented. Council: do not SPI-from-fault-handler; PIO beacon + SPI stop-gap in one session. Missing coverage, not a rewrite of bad code. |
+| RC_OS | **Sitting.** | In progress: `grok/rcos-rework` / `docs/plans/RCOS_REWORK.md`. Still a product console, not “good enough accretion.” |
+| Quaternion (Hamilton) | **KEEP.** | Scalar-first `[w,x,y,z]`, Hamilton product, body-to-NED, Sola 2017, `test/test_quat.cpp`. Matches Eigen/robotics ESKF. JPL left-multiply would retouch quat, ESKF, Mahony, logs, goldens. No fusion bug to justify that. |
+| Sensor seqlock | **KEEP.** | 1 kHz Core 1 → 10 Hz Core 0 snapshot. Seqlock + DMB + 4 retries is the right tool. Vitality already treats torn as unknown. No SPSC ring needed. |
+| Flash layout | **KEEP.** | Offsets derived from `PICO_FLASH_SIZE_BYTES` with overlap asserts. Revisit when a second flash size SKU exists. Not an 8 MB Feather hole. |
+| PIO backup pyro timers | **KEEP the design.** | Deliberate IVP-130 independent countdown on PIO2. Remaining is pyro HW + `pyro_edge_logger` consumer, not a timer-architecture slate. Full PIO pass can pick LL-42. |
+| Radio / telem | **Driver KEEP; sittings remain.** | RFM95W live STOP-GAP pass. RadioScheduler not rewritten. Still open: Starcom ON two-board soak, WN-100 compliance SSOT, radio-settings OTA. |
+| CCSDS TC + COP-1 | **KEEP defer.** | Council: post–Stage-17. Starcom library already has COP-P/COP-1; RC ON uses COP-P. Do not restack STOP-GAP command retry. |
+
 ## Out
 
 - Do not treat RadioScheduler as a Starcom MAC stub.
 - Do not start PIO WDT / backup / last-gasp beacon in this eval.
 - Do not rewrite RFM95W after a passing live RF sitting.
+- Do not flip Hamilton → JPL without a measured fusion defect.
+- Do not swap DW_apb I²C for PIO because the old “prefer PIO” lean predates the stretch-aware bus.

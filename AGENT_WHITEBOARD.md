@@ -170,17 +170,14 @@ shared (watchdog + backup timers already on PIO2; beacon candidate wants PIO0/1)
 order for PIO-touching items should weigh **advantages vs remaining SM/instruction budget**
 together, not in isolation.
 
+KEEP closed 2026-08-31 (DW_apb I²C, Hamilton quat, seqlock, PCM, flash layout, PIO backup-timer design, RFM95W): `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. This table is only sittings that remain.
+
 | Candidate | Prefer / lean | Full detail |
 |-----------|---------------|-------------|
-| **I²C bus backend** | **Prefer PIO master** if advantages hold and **PIO budget** allows; keep thin `i2c_bus_*` façade either way. Flipper `i2c_master_pio` = working RP2350 prior art (license check before import). Driver residual / Fruit Jam GPS cold-boot is a trigger, not a mandate to switch tomorrow. | Research row *I²C bus backend rework-eval* below; `src/drivers/i2c_bus.*`; LL-28/41 |
-| **Fault beacon (last-gasp)** | PIO beacon is the architecturally preferred path; eval with SPI last-gasp stop-gap in one session | Research row *PIO beacon + SPI last-gasp* below |
-| **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
-| **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
-| **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
-| **Flash layout map** | Early feature; re-eval after multi-board / storage evolution (low priority) | L2-P5 **WN-062** (`flash_layout.h`) |
-| **PIO backup pyro timers** | Flesh-out to a proper system (not “why does this exist” — recent deliberate IVP-130). Quality / lifecycle / LL-42 residuals wait on that sitting. Shared **PIO budget**. `pyro_edge_logger` is WIP — not in `init_pio_safety()` until pyro HW is on those pins **and** a PCM/flight-log consumer exists. | L2-P5 **WN-267** / **WN-274**; `src/safety/pio_backup_timer.*` |
-| **Radio / telem surfaces** | RFM95W **KEEP** after live STOP-GAP pass (2026-08-31). RadioScheduler not rewritten (Starcom COP-P is ON air). Remaining is Starcom ON soak / WN-100, not a driver slate. | **WN-041**, **WN-046**, **WN-097**; `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md` |
-| **CCSDS TC + COP-1** | Command reliability layer rework — deferred post–Stage-17 (council) | Project status line; high-priority deferred radio items |
+| **Fault beacon (last-gasp)** | Still missing. PIO beacon + SPI stop-gap in one session (council). Not a rewrite. | Research row *PIO beacon + SPI last-gasp* below |
+| **RC_OS / CLI “pseudo-OS”** | Sitting in progress (`grok/rcos-rework`). | **§ RC_OS Rework** below |
+| **Radio / telem surfaces** | Drivers KEEP. Remaining: Starcom ON two-board soak, WN-100, radio-settings OTA. | Starcom WB; WN-100 |
+| **CCSDS TC + COP-1** | KEEP defer post–Stage-17. Starcom library already has COP-P/COP-1. | Project status line |
 
 **Not in this group:** pure process/tooling OPEN items (graphify re-pass, commit hygiene,
 worktrees, IEEE 1028 mapping), accepted Gemini-tier PIO gaps, or active L2-P5 walk handoff.
