@@ -23,7 +23,8 @@ static constexpr uint32_t kResetPulseHighMs = 10;  // RST high settle
 // Mode transition settling time
 static constexpr uint32_t kModeSettleMs = 10;
 
-// ISM band frequency (US, FCC Part 15)
+// Default 915 MHz / +20 dBm: operator/legal SSOT is standards/RF_COMPLIANCE.md
+// (FCC Part 15.247 US ISM). Not a compliance guarantee.
 static constexpr uint32_t kDefaultFreqHz = 915000000U;
 
 // SX1276 crystal oscillator frequency (datasheet Section 3)
@@ -47,7 +48,7 @@ static constexpr uint8_t kLnaDefault = 0x23;
 // BW>=125), AgcAutoOn[2]=1 (LNA gain set adaptively). SX1276 datasheet §5.4.3.
 static constexpr uint8_t kModemCfg3Default = 0x04;
 
-// Default TX power (dBm) — overridden by RadioConfig from Mission Profile
+// Overridden by RadioConfig. Field default is module max; see RF_COMPLIANCE.md.
 static constexpr int8_t kDefaultTxPowerDbm = 20;
 
 // Private sync word (SX1276 default LoRa sync)
@@ -336,8 +337,8 @@ bool rfm95w_poll_irq(rfm95w_t* dev) {
 }
 
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
-    // 64-bit: 32-bit overflows at 915 MHz.
-    // Frf = (freq_hz * 2^19) / F_XOSC, F_XOSC = 32 MHz.
+    // Out-of-band values are operator/legal, not clamped here. RF_COMPLIANCE.md.
+    // 64-bit: 32-bit overflows at 915 MHz. Frf = (freq_hz * 2^19) / F_XOSC.
     uint64_t frf = (static_cast<uint64_t>(freq_hz) << kFreqRegShift) / kFxoscHz;
 
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kFrMsb,
@@ -349,7 +350,7 @@ void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
 }
 
 void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
-    // Clamp to valid range for PA_BOOST
+    // Clamp is PA_BOOST hardware, not a legal limit. RF_COMPLIANCE.md.
     if (dbm < kPaBoostMinDbm) { dbm = kPaBoostMinDbm; }
     if (dbm > kPaBoostMaxDbm) { dbm = kPaBoostMaxDbm; }
 

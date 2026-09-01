@@ -31,7 +31,7 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ## STEMMA I2C + PA1010D desk soak (OPEN) (2026-08-31)
 
-I2C bus redo is on `main`. Desk still has PA1010D at end of STEMMA (IMU+baro). After probe `reset halt`/`resume` 2026-08-31: Core1 looping, UART GPS GO, **IMU 0/0**, **baro 1/200**, I2C sidecar transferring (2067/357). Unplug I2C GPS and USB-POR to A/B whether T1 recovers without it. If IMU/baro stay dead with GPS off, reopen a bus soak — not another timeout bump. PA1010D does not need to stay after that A/B.
+I2C bus redo is on `main`. **A/B 2026-08-31:** PA1010D unplugged, Feather USB-POR, probe left powered. T1 IMU/baro/ESKF **GO** (IMU 69583/0, baro 2174/0, Core1 looping). Probe residual 3V3 did not prevent T1. With PA1010D on the chain, IMU was 0/0 and baro 1/200 while the I2C sidecar still transferred. Redo does **not** survive end-of-chain PA1010D. GPS I2C stays off. Next sitting if it goes back: soak, not a timeout bump.
 
 ---
 

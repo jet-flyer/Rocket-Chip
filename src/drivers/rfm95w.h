@@ -135,7 +135,7 @@ struct rfm95w_t {
 // ============================================================================
 
 // Performs hardware reset, checks RegVersion (0x12 expected), configures
-// LoRa mode at 915 MHz, SF7, BW 125kHz, CR 4/5, +20 dBm via PA_BOOST.
+// LoRa SF7 / BW125 / CR 4/5 / +20 dBm PA_BOOST. Freq/power: RF_COMPLIANCE.md.
 // If the FeatherWing is not stacked (RegVersion reads 0x00 or 0xFF),
 // returns false and boot continues normally (Council #3: optional peripheral).
 bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);

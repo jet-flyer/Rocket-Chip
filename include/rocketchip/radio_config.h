@@ -50,6 +50,7 @@ constexpr bool operator!=(const RadioConfig& a, const RadioConfig& b) {
 }
 
 // Default radio config — used when no profile [radio] section exists
+// Matches rfm95w_init. Freq/power legality: standards/RF_COMPLIANCE.md.
 inline constexpr RadioConfig kDefaultRadioConfig = {
     .mode             = RadioRole::kTx,
     .protocol         = EncoderType::kCcsds,
