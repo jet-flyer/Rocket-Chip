@@ -35,7 +35,7 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 **Blocked:** picotool/SWD leaves STEMMA 3V3 up. No 9-clock (deprecated — wedges PA1010D). After picotool reboot with PA1010D on the chain: ICM/DPS310 **not installed**. USB-POR unwedges (IMU `WHO_AM_I=0xEA`) then IMU dies if firmware PMTKs 0x10. GPS-off: T1 GO, `bench_sim` 2/2.
 
-**WIP** `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak`: no bit-bang SCL; IMU stays 1 kHz; UART path does not PMTK 0x10 at boot. Not on `main`. Reopen: unwedge without 9-clock, or take PA1010D off the IMU bus (LL 20).
+**WIP** `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak` @ `e4fe076`. Sitting paused 2026-09-01; firmware experiments reverted, no changelog. `e4fe076` still PMTKs `0x10` after UART GPS bind (measured ICM wedge). Not on `main`. Reopen: unwedge without USB-POR, or take PA1010D off the IMU bus (LL 20).
 
 ---
 
@@ -93,6 +93,29 @@ ICM latched. Not a fix, a current limitation of the unknown in (1).
 deleted, or it is lost.
 
 ---
+
+## STEMMA I2C Hamilton sitting 2026-09-01 (HANDOFF / paused)
+
+Firmware experiments on `grok/i2c-stemma-soak` **reverted to `e4fe076`**. No changelog (nothing to keep). Diagnosis only.
+
+**Got somewhere on the latch, not on a fix.** After picotool + extra probe reset (no USB-POR), `0x69` is `ABRT_7B_ADDR_NOACK`. Banner `14:28:40` `e4fe076-dirty`: ICM `[FAIL]` `WHO_AM_I rc=-2 val=0x00 abrt=0x00000001`. `rc=-2` is `REG_BANK_SEL` write failed (never read WHO_AM_I). `val=0x00` is empty, not a wrong ID. DPS310 `[FAIL]` the same boot. UART GPS GO is not the scoreboard.
+
+**Falsified this sitting (do not retry):** DEVICE_RESET without wake; book wake (`0x80` then `0x01`) as recovery; probe-gate as the `[N/A]` cause (WHO_AM_I really ran and died); `0x10` NMEA dump + DW RX/`clr_tx_abrt` flush as an init fix; 9 SCL pulses then STOP at idle `i2c_bus_init` (still ADDR_NOACK). Banks and sleep are falsified for this `[FAIL]` because baro has neither and also NACKs.
+
+**One unreproduced positive:** `11:31:28` SIO 27 clocks with no SDA-high early-out got ICM `0xEA` and mag live; accel invalid; baro init still FAIL. Nine clocks did not repeat it.
+
+**I2C_IF_DIS:** if USER_CTRL bit 4 latched, ICM NACKs until a real 3V3/NRESET POR, not more `0x7F`. Feather STEMMA QT has no RST. USB-POR remains the only unwedge.
+
+**Goddard IRL (2026-09-01, pause, no code):**
+- PA1010D pin 1 is I2C *slave* SDA (CD-PA1010D v.03). "Outputs GPS information" is the NMEA buffer you read at `0x10` (empty = `0xFF`). Pin 4 TX is UART NMEA. Not a free-running talker.
+- pico-sdk [#252](https://github.com/raspberrypi/pico-sdk/issues/252) is this chip vs DW_apb `IC_SDA_TX_HOLD`. Attach already uses `i2c_set_baudrate` (300 ns). Hold is not the remaining latch.
+- Adafruit RST is a pad, not STEMMA QT. `NRESET` is a 5th wire or a 3V3 load switch. CR1220 `VBACKUP` can keep RTC across QT unplug.
+- Datasheet does not ban 9 clocks (SCL is an input). 9-then-STOP failing `ABRT_7B_ADDR_NOACK` is empirical. 27 clocks with no SDA-high early-out is the only unreproduced `0xEA`.
+- Mag bypass (`INT_PIN_CFG.BYPASS_EN`) puts AK09916 at `0x0C` on the same STEMMA as `0x10`. Do not set MST_EN and bypass together.
+- ICM book wake (`0x7F=0x00`, `PWR_MGMT_1=0x80`, ~10 ms, `0x01`, `PWR_MGMT_2=0x00`, then WHO_AM_I) was tried; it does not unwedge address NACK after picotool.
+
+---
+
 
 ## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)
 
