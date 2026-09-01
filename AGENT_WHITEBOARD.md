@@ -39,6 +39,81 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ---
 
+## STEMMA PA1010D coexistence — Claude sitting 2026-09-01 (HANDOFF / unresolved)
+
+Adds to the Grok row above; that row stands as written. **Nothing landed.** `src/`
+reverted to `0737f47`; Grok's WIP stash `a5abe2a` restored for work then reverted
+and left **intact**. Full write-up: CHANGELOG `2026-09-01-001`.
+
+**Two separate problems — do not conflate them again:**
+
+1. **Reset latch (mechanism UNKNOWN).** After any MCU reset the ICM NACKs 0x69,
+   0x68 *and* 0x0C while baro 0x77 and GPS 0x10 ACK in the same instant. Only a
+   USB-POR recovers. Degrades across successive resets (boot 1 partial, boots 2-3
+   dead), so the documented extra-restart does not clear it. Ruled out: SparkFun
+   bank-cache bug (our `select_bank()` has no cache). Suspected but unproven: a
+   stray write reaching USER_CTRL and setting I2C_IF_DIS (bit 4 = "disables I2C
+   slave" — confirmed in PX4's register header); guarding that one write did NOT
+   cure it, so the write arrives by some other path.
+2. **Coexistence.** Post-POR, IMU ~54% read failures with the PA1010D present;
+   0 errors with it unplugged (Grok's A/B: 69583/0). GPS is 0 errors throughout.
+
+**Owner steer (2026-09-01):** it is a **timing/collision** problem, not bandwidth —
+same shape as the LoRa half-duplex telem work. ~54% bus duty is NOT a bottleneck;
+an earlier "at its limit" claim was wrong and is retracted. PIO I2C is a **non-
+starter on the Feather MVP** (would need the PA1010D off the Qwiic plugs, defeating
+the point) but **stays a future option once RC has its own board**. GPS stays on the
+shared bus — that is the test.
+
+**Falsified — do not retry:** stretch-tolerant probe timeout (no effect); 100 kHz
+(worse, 46%->96.5%); bus capacitance (<50 cm, shortest Adafruit cables); "our GPS
+transactions cause it" (IMU failed with 0x10 never addressed); **LL 24** (removing
+per-timeout `recover()` gave 98.4% failure — that recovery is load-bearing).
+
+**Worked but reverted, re-land if wanted:** wall-clock GPS poll derived from the
+module's output rate (1.91 Hz, 0 errs; the cycle divider collapsed to 0.67 Hz when
+the loop slowed, starving the drain); blind sensor init instead of probe-gating
+(IMU 0 -> 7351 reads across a reflash).
+
+**Next, untested:** `core1_read_imu()` counts an error for BOTH a real I2C failure
+AND the LL-29 gravity-floor rejection of all-zero data — opposite diagnoses, same
+counter. Split them first; that decides whether this is bus collision or the device
+returning garbage. **Lead for the zeros branch:** `icm20948.h` already documents that
+a burst not reaching TEMP_OUT_L leaves the data-ready flag uncleared and "after ~200
+calls the output registers freeze at zeros" — a known path to exactly the all-zero
+data the gravity floor rejects. Check whether a *failed/truncated* 14-byte read can
+leave the flag uncleared the same way. Also unmeasured: `kI2cStretchTimeoutUs` raised 25 ms -> 100 ms
+(built and flashed, never evaluated — the board latched before measurement).
+
+**Bench note:** measuring anything needs a USB-POR first — SWD reset alone leaves the
+ICM latched. Not a fix, a current limitation of the unknown in (1).
+
+**Log placement:** CHANGELOG `2026-09-01-001` is on this branch. Per
+`docs/agents/WORKTREE.md` + LL 45 it must be carried to `main` before this branch is
+deleted, or it is lost.
+
+---
+
+## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)
+
+LL entries get cited as current fact, but many are old and rest on assumptions the
+tree has outgrown. Two hit this sitting: **LL 20** (2026-02) prescribes 32-byte
+chunked PA1010D reads — but the MT3333 vendor says partial reads are "not
+recommended", and Adafruit's 32 is just the Arduino `Wire.h` transfer limit, not a
+reasoned departure. **LL 24** (2026-02) says never call `i2c_bus_recover()` in a hot
+loop — **DISPROVED 2026-09-01 by measurement.** Removing the per-timeout
+`i2c_bus_recover()` took IMU failures from 54% to **98.4%** (1101 reads / 68149 errs):
+a timed-out transfer leaves DW_apb wedged until reinit, so recovery there is
+load-bearing on the current bus layer. LL 24 predates the stretch-aware rewrite and
+the 9-clock deletion. **LL 25** is already marked SUPERSEDED, which shows the rot is
+real and unevenly tracked.
+
+Pass should: date-check each entry against current code, add supersession headers in
+place (LL 25 is the pattern), and flag any whose *mechanism* no longer exists. Do not
+rewrite history. Append-only file — owner names it before editing.
+
+---
+
 ## Skills to add (OPEN)
 
 Wanted skills — not written yet. Not a license to author them until scheduled.
