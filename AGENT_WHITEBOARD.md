@@ -29,9 +29,13 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ---
 
-## STEMMA I2C + PA1010D desk soak (OPEN) (2026-08-31)
+## STEMMA I2C + PA1010D desk soak (HANDOFF / unresolved) (2026-08-31)
 
-I2C bus redo is on `main`. **A/B 2026-08-31:** PA1010D unplugged, Feather USB-POR, probe left powered. T1 IMU/baro/ESKF **GO** (IMU 69583/0, baro 2174/0, Core1 looping). Probe residual 3V3 did not prevent T1. With PA1010D on the chain, IMU was 0/0 and baro 1/200 while the I2C sidecar still transferred. Redo does **not** survive end-of-chain PA1010D. GPS I2C stays off. Next sitting if it goes back: soak, not a timeout bump.
+**Parked.** UART GPS is the flight GPS (question was whether UART needed to stay). PA1010D on STEMMA is a **stretching I2C stress slave**, not a second nav GPS.
+
+**Blocked:** picotool/SWD leaves STEMMA 3V3 up. No 9-clock (deprecated — wedges PA1010D). After picotool reboot with PA1010D on the chain: ICM/DPS310 **not installed**. USB-POR unwedges (IMU `WHO_AM_I=0xEA`) then IMU dies if firmware PMTKs 0x10. GPS-off: T1 GO, `bench_sim` 2/2.
+
+**WIP** `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak`: no bit-bang SCL; IMU stays 1 kHz; UART path does not PMTK 0x10 at boot. Not on `main`. Reopen: unwedge without 9-clock, or take PA1010D off the IMU bus (LL 20).
 
 ---
 
