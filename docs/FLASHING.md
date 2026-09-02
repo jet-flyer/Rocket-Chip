@@ -256,9 +256,13 @@ Tier 2 always passes for a correctly-built UF2 on the wrong chip.
 - **CDC dies during write:** TinyUSB ISRs are in flash. Park `u` must
   `tud_disconnect` first. DTR pulse on serial close will also kill the
   park. Use the script, not a hand `Serial()` open.
+- **`I=` stuck after GPS on, banner still green:** STEMMA 4-cores
+  twisted as an FPV rope (LL 47 / `docs/hardware/HARDWARE.md`). Untwist;
+  score `s` twice (`I=` must rise). Not a driver rewrite until the
+  cables are confirmed not twisted. USB unplug is recovery.
 - **Hardware 10/13, ICM/baro NACK, GPS ACK:** MCU-only reset with
   STEMMA 3V3 up (`I2C_IF_DIS`). USB POR is the unwedge. Do not retry
-  `reset halt` or `program`.
+  `reset halt` or `program`. Untwist does not fix this class.
 - **Core 0 in bootrom after "flash":** DTR pulsed, or `reset` was
   issued. Replug is recovery. Next flash: park with DTR held low.
 - **Serial monitor blocks picotool:** Close the COM holder and retry.

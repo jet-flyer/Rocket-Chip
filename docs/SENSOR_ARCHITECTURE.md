@@ -83,7 +83,7 @@ gps_fn_update();
 | File | Transport | Status |
 |------|-----------|--------|
 | `src/drivers/gps.h` | Neutral | Active — `gps_data_t`, `gps_fix_t`, `gps_transport_t` |
-| `src/drivers/gps_pa1010d.h/cpp` | I2C | Active — PA1010D via I2C (Qwiic dev) |
+| `src/drivers/gps_pa1010d.h/cpp` | I2C | Active — PA1010D via I2C (Qwiic stress slave). Never twist the QT 4-core (LL 47). |
 | `src/drivers/gps_uart.h/cpp` | UART | Active — Adafruit Ultimate GPS FeatherWing (GPIO0/1) |
 
 **Detection order:** UART first (2-second timeout), then I2C. UART is preferred in production because it eliminates I2C bus contention entirely (LL Entry 20/24).

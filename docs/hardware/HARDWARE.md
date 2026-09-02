@@ -171,9 +171,11 @@ UBX output parsing is identical across M8/M9/M10 — only configuration commands
 
 #### GPS Interface Note
 
-**Current approach (IVP-31):** PA1010D via I2C — intentional stress test for I2C bus contention handling. Known to cause bus interference when probed (see LL Entry 20). Uses NMEA over I2C with 32-byte chunked reads. 500us post-read settling delay eliminates IMU contention at 10Hz GPS.
+**Current approach (IVP-31):** PA1010D via I2C — intentional stress slave on the IMU/baro QT chain (UART GPS is flight GPS). See LL 20 / 24 / **47**.
 
-**Qwiic chain order:** PA1010D GPS must be **first in chain** (closest to board/power). At end of chain, I2C probe detection is intermittent due to power-up timing. Recommended order: Board → GPS → Baro → IMU. Verified with other GPS modules pending.
+**Qwiic / STEMMA QT harness — do not twist the 4-core.** NXP UM10204: if you twist I2C, each bus line is twisted with a VSS return (or SDA with VDD plus decoupling at both ends). **Never twist SDA with SCL.** QT pin order is GND, VIN, SDA, SCL — SDA and SCL are already adjacent. An FPV-style whole-bundle twist is extra SDA↔SCL coupling on an open-drain Fast-mode bus. Measured 2026-09-02 (LL 47), shortest Adafruit QT: GPS last + twisted → IMU `I=` froze (~18% errors); same chain untwisted → `I=` climbing, `e=1` in ~50k reads; GPS-first untwisted matched. Live-path freeze was the twist, not GPS-last. For LoRa EMI, twist SCL+GND and SDA+VIN or ferrite the QT — not a 4-core rope.
+
+**Qwiic chain order:** PA1010D GPS **first** (closest to board/power) is still preferred (power-up / probe). Recommended: Board → GPS → Baro → IMU. A whole-chain flip (DCBA) is a valid first-vs-last A/B but also swaps IMU/baro adjacency.
 
 **Production approach:** Migrate to u-blox UART GPS (Matek M8Q/M9N). Benefits:
 - UBX binary protocol — no `snprintf`, no NMEA text formatting

@@ -31,9 +31,9 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ## STEMMA PA1010D on IMU bus (OPEN)
 
-`i2c_master` landed (ABORT-then-STOP, skip warm DEVICE_RESET, 50 ms transfer, GPS after USB, park `u` + halt/`write_image`/vector-resume). GPS-off IMU/baro was already `e=0` on the old layer. GPS-on live still ~11% IMU errors and/or freeze; GPS-last can latch ICM/baro while GPS ACKs (`I=0 B=0`). Chain order remains `docs/hardware/HARDWARE.md`: Board → GPS → Baro → IMU. UART GPS (`gps_uart.cpp`) is flight GPS — I2C PA1010D is stress slave. USB unplug is recovery, not a gate.
+Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untwisted shortest Adafruit QT: GPS last and GPS first both `I=` climbing, `e=1` in ~50k. Do not twist SDA with SCL. `i2c_master` landed. UART GPS is flight GPS; I2C PA1010D is stress slave.
 
-Next: idle-but-present 0x10 vs 1 kHz (not more GPS skip). `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach.
+Still open: MCU-only `I2C_IF_DIS` latch (`I=0 B=0`, GPS ACK); `window_hit:0` with PMTK `[51,18,51]` and 3D fix; RF + untwisted QT (radio `kidle` this sitting). `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
 
 ---
 
