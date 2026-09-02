@@ -162,7 +162,7 @@ def dump() -> int:
         for line in hw.splitlines():
             if any(
                 s in line
-                for s in ("ICM", "DPS", "PMTK", "GPS init", "FAIL", "Hardware")
+                for s in ("ICM", "DPS", "PMTK", "GPS", "FAIL", "N/A", "Hardware")
             ):
                 print(line)
         ser.write(b"s")
