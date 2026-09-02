@@ -15,7 +15,8 @@
 #include "pico/time.h"
 #include "hardware/gpio.h"
 #include "drivers/ws2812_status.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
+#include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
@@ -127,23 +128,9 @@ static void init_gps() {
 }
 
 static void init_sensors() {
-    // Init order: IMU + baro FIRST, GPS LAST.
-    // In bypass mode, AK09916 at 0x0C shares the external I2C bus.
-    // Probing the GPS (0x10) triggers NMEA streaming which can corrupt
-    // AK09916 init transactions. Defer GPS probe until after IMU bypass
-    // mode is fully established.
-    bool imu_detected  = i2c_bus_probe(kIcm20948AddrDefault);
-    if (!imu_detected) {
-        imu_detected = icm20948_stuck_slave_recovery(kIcm20948AddrDefault);
-    }
-    (void)imu_detected;
-    // Sensor power-up settling time
-    // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
+    // IMU + baro first, GPS last (bypass mag at 0x0C before PMTK 0x10).
     sleep_ms(kSensorSettleMs);
 
-    // A 1-byte probe is not presence on a stretching bus (UM10204 SCL
-    // stretch). Driver init is the real transaction. Device-specific
-    // stuck-slave recovery still ran above.
     g_imuInitAttempted = true;
     g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
 
@@ -261,7 +248,7 @@ static void init_hardware() {
                    boot.had_any_non_por ? 1 : 0,
                    static_cast<unsigned long>(boot.powman_chip_reset));
     }
-    g_i2cInitialized = i2c_bus_init();
+    g_i2cInitialized = i2c_master_init();
     if (g_i2cInitialized) {
         init_sensors();
     }
@@ -365,7 +352,8 @@ static void init_application() {
     if (g_psramSize > 0 && g_psramSelfTestPassed) {
         rc::core1_i2c_pause();
         g_psramFlashSafePassed = rc::psram_flash_safe_test();
-        (void)i2c_bus_reset();
+        i2c_master_abort_and_idle();
+        i2c_master_reattach();
         rc::core1_i2c_resume();
     }
 

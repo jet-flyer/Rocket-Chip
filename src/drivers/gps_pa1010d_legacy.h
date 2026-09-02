@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
+// PA1010D GPS module driver — I2C transport backend
+// CDTop PA1010D via I2C with NMEA parsing by lwGPS.
+// Uses transport-neutral types from gps.h.
+
+#ifndef ROCKETCHIP_GPS_PA1010D_H
+#define ROCKETCHIP_GPS_PA1010D_H
+
+#include "gps.h"
+#include "i2c_bus_legacy.h"
+#include <stddef.h>
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+constexpr uint8_t kGpsPa1010dAddr = kI2cAddrPa1010d;
+
+// ============================================================================
+// API
+// ============================================================================
+
+// Success latches ready. Re-entry re-sends PMTK. Failure leaves ready false.
+[[nodiscard]] bool gps_pa1010d_init(void);
+
+// Latched init success, not a live ACK.
+[[nodiscard]] bool gps_pa1010d_ready(void);
+
+// Poll. Rate-limits and post-read settle live here (vendor I2C NMEA
+// guide), not in the bus layer or Core 1. true if the last bus op
+// succeeded or this call was inside the poll interval; false on I2C error.
+[[nodiscard]] bool gps_pa1010d_update(void);
+
+[[nodiscard]] bool gps_pa1010d_get_data(gps_data_t* data);
+
+[[nodiscard]] bool gps_pa1010d_has_fix(void);
+
+// buf/len point at an internal buffer; invalid after the next update().
+[[nodiscard]] bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
+
+// PMTK write return codes from gps_pa1010d_init(), plus window-hit and init.
+void gps_pa1010d_get_debug_status(char* buf, size_t len);
+
+#endif // ROCKETCHIP_GPS_PA1010D_H

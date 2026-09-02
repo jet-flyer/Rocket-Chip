@@ -7,7 +7,7 @@
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
 #include "safety/inject_arm_gate.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
 #include "rocketchip/shared_state.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "hardware/watchdog.h"
@@ -33,7 +33,7 @@ bool dev_debug_menu_enter() {
     rc::rc_log("\n--- Debug ---\n");
     rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
     rc::rc_log("y-Pyro log (WIP)  r-Replay  d-Diag stats  l-LED test\n");
-    rc::rc_log("k-I2C quiesce+MCU reboot  h-Help  z-Back\n");
+    rc::rc_log("k-I2C quiesce+MCU reboot  u-I2C park (probe flash)  h-Help  z-Back\n");
     return true;
 }
 
@@ -100,7 +100,7 @@ bool dev_debug_menu_dispatch(int c) {
         case 'i': case 'I':
             if (rc_os_i2c_scan_allowed) {
                 rc::rc_log("\nRescanning I2C bus...\n");
-                i2c_bus_scan();
+                cli_print_i2c_scan();
             } else {
                 rc::rc_log("\nI2C scan disabled (Core 1 owns bus)\n");
             }
@@ -187,15 +187,23 @@ bool dev_debug_menu_dispatch(int c) {
                        static_cast<unsigned long>(snap.baro_error_count),
                        static_cast<unsigned long>(snap.gps_read_count),
                        static_cast<unsigned long>(snap.gps_error_count));
-            i2c_bus_quiesce(kI2cQuiesceViaCli);
-            watchdog_reboot(0, 0, 100);
+            i2c_master_quiesce(kI2cQuiesceViaCli);
+            // 100 ms: ABORT STOP + Core 1 halt must finish before SYSRESET.
+            // 1 ms left slaves mid-byte (PMTK [-2,-2,-2] after k).
+            constexpr uint32_t kI2cRebootDelayMs = 100;
+            watchdog_reboot(0, 0, kI2cRebootDelayMs);
+            break;
+        }
+        case 'u': case 'U': {
+            rc::rc_log("[I2C] park for probe flash (WFI until reset)\n");
+            i2c_master_park();
             break;
         }
         case 'h': case 'H': case '?':
             rc::rc_log("\n--- Debug Menu ---\n");
             rc::rc_log("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
             rc::rc_log("y-Pyro log (WIP)  r-Replay inject  d-Diag stats  l-LED test\n");
-            rc::rc_log("k-I2C quiesce+MCU reboot  z-Back\n");
+            rc::rc_log("k-I2C quiesce+MCU reboot  u-I2C park (probe flash)  z-Back\n");
             rc::rc_log("0..5 = local radio cfg (0:BW125/5 1:BW125/10 2:BW250/10\n");
             rc::rc_log("                        3:BW500/10 4:BW125/2 5:BW250/5)\n");
             break;

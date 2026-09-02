@@ -18,7 +18,7 @@
 #include "hardware/sync.h"
 #include "hardware/structs/mpu.h"
 #include "drivers/ws2812_status.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
@@ -92,12 +92,18 @@ static void core1_imu_error_recovery(uint32_t* imu_consec_fail,
     local_data->accel_valid = false;
     local_data->gyro_valid = false;
     local_data->imu_error_count++;
-    if (*imu_consec_fail >= kCore1ConsecFailDevReset) {
-        icm20948_init(&g_imu, kIcm20948AddrDefault);
+    // NACK is a finished transfer. Recover is for a stuck line (UM10204).
+    // DEVICE_RESET is bring-up (DS-000189) and needs an ACK — do not fire
+    // it every 50 failed data reads on a live stretching bus.
+    // Do not DEVICE_RESET in the 1 kHz path (DS-000189 reset needs ACK and
+    // can set I2C_IF_DIS). Stuck lines: ABORT+STOP, never reset_block.
+    if (*imu_consec_fail >= kCore1ConsecFailBusRecover
+        && (*imu_consec_fail % kCore1ConsecFailBusRecover) == 0) {
+        if (!i2c_master_lines_idle()) {
+            i2c_master_abort_and_idle();
+            i2c_master_reattach();
+        }
         *imu_consec_fail = 0;
-    } else if (*imu_consec_fail >= kCore1ConsecFailBusRecover
-               && *imu_consec_fail % kCore1ConsecFailBusRecover == 0) {
-        i2c_bus_recover();
     }
 }
 
@@ -161,8 +167,8 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
         g_imuZeroConsec++;
         local_data->accel_valid = false;
         local_data->gyro_valid = false;
-        if (g_imuZeroConsec >= kCore1ConsecFailDevReset) {
-            icm20948_init(&g_imu, kIcm20948AddrDefault);
+        if (g_imuZeroConsec >= kCore1ConsecFailBusRecover) {
+            (void)icm20948_ensure_awake(&g_imu);
             g_imuZeroConsec = 0;
         }
         return;
@@ -227,7 +233,10 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
         g_baroConsecFail = 0;
     } else if (g_baroConsecFail >= kCore1ConsecFailBusRecover
                && g_baroConsecFail % kCore1ConsecFailBusRecover == 0) {
-        i2c_bus_recover();
+        if (!i2c_master_lines_idle()) {
+            i2c_master_abort_and_idle();
+            i2c_master_reattach();
+        }
     }
 }
 

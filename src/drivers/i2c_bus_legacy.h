@@ -75,6 +75,9 @@ void i2c_bus_scan(void);  // Expected-sensor inventory; skips 0x10 (LL 20)
 // Bus recovery
 // ============================================================================
 
+// True when SDA and SCL are both high (bus free). Not a transfer.
+[[nodiscard]] bool i2c_bus_lines_idle(void);
+
 // DW_apb_i2c ABORT (issues STOP), then 9 clocks only if SDA is stuck
 // (UM10204 §3.1.16). SCL-low is stretch — do not clock into it.
 bool i2c_bus_recover(void);

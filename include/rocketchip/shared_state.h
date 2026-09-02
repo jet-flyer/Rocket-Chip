@@ -66,7 +66,7 @@ extern icm20948_t g_imu;
 extern bool g_sensorPhaseActive;
 
 // Pause Core 1 I2C around runtime flash_safe_execute (R-17 / LL 31).
-// Not nestable. May return after ~100 ms without ack; callers still i2c_bus_reset().
+// Not nestable. May return after ~100 ms without ack; callers abort/reattach.
 // Wrapped: cal save (including AO_RCOS_start_cal_save), flight erase/download.
 namespace rc {
 void core1_i2c_pause();

@@ -62,7 +62,7 @@ void core1_i2c_pause() {
         }
         sleep_ms(1);
     }
-    // Timeout: continue; post-flash i2c_bus_reset() is the backup (LL 31).
+    // Timeout: continue; caller aborts/reattaches the master.
 }
 
 void core1_i2c_resume() {
@@ -77,10 +77,7 @@ void core1_i2c_resume() {
 
 }  // namespace rc
 
-// Called from i2c_bus_quiesce() before DW_apb_i2c ABORT. Busy-wait so
-// this is safe from the USB reset callback (no sleep_ms). Core 1
-// finishes its current xfer, then stops starting new ones.
-extern "C" void i2c_bus_on_quiesce(void) {
+extern "C" void i2c_master_on_quiesce(void) {
     if (!g_sensorPhaseActive) {
         return;
     }
@@ -90,7 +87,13 @@ extern "C" void i2c_bus_on_quiesce(void) {
     g_core1PauseI2C.store(true, std::memory_order_release);
     const absolute_time_t t0 = get_absolute_time();
     constexpr int64_t kPauseAckUs = 100000;  // same as kPauseAckMaxMs
-    while (!g_core1I2CPaused.load(std::memory_order_acquire)) {
+    constexpr uint32_t kPauseSpinsPerUs = 256;
+    const uint32_t limit =
+        (static_cast<uint32_t>(kPauseAckUs) * kPauseSpinsPerUs) + 1U;
+    for (uint32_t spins = 0; spins < limit; spins++) {
+        if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+            break;
+        }
         if (absolute_time_diff_us(t0, get_absolute_time()) >= kPauseAckUs) {
             break;
         }
@@ -101,7 +104,7 @@ extern "C" void i2c_bus_on_quiesce(void) {
 // After ABORT has issued STOP: if Core 1 never parked, halt it so it
 // cannot attach_controller() during the 100 ms FLASH-reboot watchdog
 // delay (PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS).
-extern "C" void i2c_bus_after_abort(void) {
+extern "C" void i2c_master_after_abort(void) {
     if (!g_sensorPhaseActive) {
         return;
     }

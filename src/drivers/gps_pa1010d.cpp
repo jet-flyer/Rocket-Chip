@@ -1,237 +1,167 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// PA1010D GPS module driver using lwGPS library
-// Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
-// Prior Art:
-// - CDTop PA1010D datasheet (MT3333 chipset)
-// - GlobalTop NMEA-over-I2C Software Guide v1.2 (poll cadence, 2 ms refill)
-// - Adafruit PA1010D Arduino/CircuitPython GPS library (I2C chunked reads)
-// - lwGPS library (vendored in lib/lwgps/) — NMEA parser
+// PA1010D I2C NMEA. Prior Art: GlobalTop v1.2; Adafruit GPS I2C; lwGPS.
 
 #include "gps_pa1010d.h"
-#include "i2c_bus.h"
+#include "i2c_master.h"
 #include "lwgps/lwgps.h"
 #include "etl/string.h"
 #include "etl/to_string.h"
 #include "pico/time.h"
 #include <string.h>
 
-// NMEA/I2C protocol constants
-constexpr uint8_t  kNmeaLf           = 0x0A;   // Line feed — padding byte when GPS buffer empty
-constexpr uint8_t  kNmeaCr           = 0x0D;   // Carriage return — NMEA line terminator
-constexpr uint8_t  kI2cBusErrorByte  = 0xFF;   // Bus error indicator
-constexpr char     kNmeaStart        = '$';    // NMEA sentence start delimiter
+constexpr uint8_t  kNmeaLf = 0x0A;
+constexpr uint8_t  kNmeaCr = 0x0D;
+constexpr uint8_t  kBusErr = 0xFF;
+constexpr char     kNmeaStart = '$';
+constexpr uint16_t kGpsYearBase = 2000;
+constexpr uint8_t  kGsaFixMode3d = 3;
+constexpr uint8_t  kGsaFixMode2d = 2;
+constexpr size_t   kGpsMaxRead = 255;             // GlobalTop NMEA-over-I2C
+constexpr uint32_t kGpsReadTimeoutUs = 50000;     // GlobalTop 50 ms
+constexpr uint32_t kPollMinUs = 500000;           // GlobalTop 500 ms poll
+constexpr uint32_t kPostReadUs = 2000;            // GlobalTop 2 ms refill
+constexpr int      kNmeaMaxBody = 82;             // NMEA-0183 max
+constexpr int      kPmtkUnset = -999;
+constexpr uint8_t  kPmtkCount = 3;
+constexpr uint8_t  kNmeaHuntTries = 8;
+constexpr uint32_t kPmtkGapMs = 50;
+constexpr uint32_t kWakeGapMs = 20;
+constexpr uint32_t kNmeaHuntGapMs = 150;
+constexpr size_t   kPmtk314Len = 51;
+constexpr size_t   kPmtk220Len = 18;
 
-// lwGPS 2-digit year base
-constexpr uint16_t kGpsYearBase      = 2000;
-
-// Fix type thresholds (GSA fixMode values per NMEA spec)
-constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fixMode >= 3 = 3D fix
-constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fixMode == 2 = 2D fix
-
-// Blind PMTK sentences: compile-time checksum, no snprintf on init.
-
-// Compile-time NMEA checksum: XOR of all bytes between '$' and '*' (exclusive).
-// Same algorithm as the now-deleted runtime nmea_checksum() helper.
 constexpr uint8_t nmea_checksum_constexpr(const char* body) {
     uint8_t c = 0;
-    while (*body != '\0') {
-        c ^= static_cast<uint8_t>(*body);
-        ++body;
+    for (int i = 0; i < kNmeaMaxBody; i++) {
+        if (body[i] == '\0') {
+            break;
+        }
+        c ^= static_cast<uint8_t>(body[i]);
     }
     return c;
 }
 
-// PMTK314 — I2C only: RMC + GGA. GSA=0 so one GNSS epoch fits the 255-byte
-// Field order GLL,RMC,VTG,GGA,GSA,GSV: standards/VENDOR_GUIDELINES.md.
-// Sent twice during init per the cold-boot window discovery (see init()).
 constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
-constexpr char kPmtk314Sentence[] =
+constexpr uint8_t kPmtk314Sentence[] =
     "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x28,
-              "PMTK314 checksum mismatch — verify literal matches sentence body");
-static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
-              "PMTK314 sentence byte length mismatch");
+static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x28, "PMTK314 checksum");
+static_assert(sizeof(kPmtk314Sentence) - 1 == kPmtk314Len, "PMTK314 length");
 
-// PMTK220,1000 — set NMEA output interval to 1000ms = 1 Hz.
-constexpr char kPmtk2201HzBody[] = "PMTK220,1000";
-constexpr char kPmtk2201HzSentence[] = "$PMTK220,1000*1F\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk2201HzBody) == 0x1F,
-              "PMTK220,1000 checksum mismatch — verify literal matches sentence body");
-static_assert(sizeof(kPmtk2201HzSentence) - 1 == 18,
-              "PMTK220,1000 sentence byte length mismatch");
-
-// ============================================================================
-// Private State
-// ============================================================================
+constexpr char kPmtk220Body[] = "PMTK220,1000";
+constexpr uint8_t kPmtk220Sentence[] = "$PMTK220,1000*1F\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk220Body) == 0x1F, "PMTK220 checksum");
+static_assert(sizeof(kPmtk220Sentence) - 1 == kPmtk220Len, "PMTK220 length");
 
 static bool g_initialized = false;
-
-// Blind-PMTK write return codes and post-config probe, filled in gps_pa1010d_init().
-static int  g_pmtkWriteResults[3] = { -999, -999, -999 };
+static int g_pmtkWriteResults[kPmtkCount] = {kPmtkUnset, kPmtkUnset, kPmtkUnset};
 static bool g_pmtkWindowHit = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
 static uint32_t g_lastPollUs = 0;
+static uint8_t g_buffer[kGpsMaxRead + 1];
+static size_t g_lastReadLen = 0;
+static uint8_t g_raw[kGpsMaxRead];
 
-// I2C read buffer — full 255-byte MT3333 TX buffer per vendor recommendation.
-// GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended."
-// Pico SDK i2c_read_blocking() has no upper limit (unlike Arduino Wire.h's 32).
-// At 400kHz, 255 bytes takes ~5.8ms.
-// Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
-constexpr size_t kGpsMaxRead = 255;
-// Transfer budget for a 255-byte read. The bus layer waits out SCL stretch
-// up to this same budget (UM10204 unbounded stretch; caller owns the cap).
-// 10 ms NACKed ~90% of station polls; 50 ms worked (CHANGELOG 2026-08-27-002).
-constexpr uint32_t kGpsI2cReadTimeoutUs = 50000;
-// GlobalTop NMEA-over-I2C Software Guide v1.2 §3: poll interval < fix
-// interval (figure: 500 ms at 1 Hz). PMTK220,1000 = 1 Hz.
-constexpr uint32_t kPollMinIntervalUs = 500000;
-// Same guide §3: 2 ms after a packet for the slave TX-buffer refill.
-constexpr uint32_t kPostReadSettleUs = 2000;
-static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
-static size_t g_lastReadLen = 0;           // Last successful read length
-
-// ============================================================================
-// Private Functions
-// ============================================================================
-
-// The PA1010D (MT3333) pads its 255-byte I2C buffer with 0x0A when empty.
-// Three packet types can arrive (per GlobalTop/Quectel app notes):
-// Type 1: [NMEA data][0x0A padding...]   — normal
-// Type 2: [all 0x0A]                     — buffer was empty
-// Type 3: [0x0A padding...][NMEA data]   — read caught tail of prev buffer
-// Adafruit approach: keep 0x0A only when preceded by 0x0D (legitimate \r\n
-// NMEA terminator). Discard all standalone 0x0A (padding). This handles
-// all three packet types and preserves sentence framing for lwGPS.
-// Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
-// max_len is the I2C read size into g_raw[kGpsMaxRead], not the capacity of
-// `buffer`. Requires max_len <= kGpsMaxRead and buffer >= filtered output.
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
-    // Read raw I2C data into a local buffer, then filter in-place
-    static uint8_t g_raw[kGpsMaxRead];
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, max_len, kGpsI2cReadTimeoutUs);
+    int ret = i2c_master_read(kGpsPa1010dAddr, g_raw, max_len, kGpsReadTimeoutUs);
     if (ret <= 0) {
-        return -1;  // I2C failure (NACK or timeout)
+        return -1;
     }
-
-    // Filter: copy valid bytes, discard padding 0x0A and 0xFF
     int32_t out = 0;
-    for (int32_t i = 0; i < ret; i++) {
-        if (g_raw[i] == kI2cBusErrorByte) {
-            // Bus error byte — discard
-        } else if (g_raw[i] == kNmeaLf) {
-            // Keep LF only if it follows CR (legitimate \r\n terminator)
-            if (out > 0 && buffer[out - 1] == kNmeaCr) {
-                buffer[out++] = g_raw[i];
+    for (int i = 0; i < ret; i++) {
+        const uint8_t b = g_raw[static_cast<size_t>(i)];
+        if (b != kBusErr) {
+            if (static_cast<size_t>(out) >= max_len) {
+                break;
             }
-            // Otherwise discard — it's padding
-        } else {
-            buffer[out++] = g_raw[i];
+            if (b == kNmeaLf) {
+                if (out > 0 && buffer[static_cast<size_t>(out - 1)] == kNmeaCr) {
+                    buffer[static_cast<size_t>(out)] = b;
+                    out++;
+                }
+            } else {
+                buffer[static_cast<size_t>(out)] = b;
+                out++;
+            }
         }
     }
-
-    g_lastReadLen = (size_t)out;
+    g_lastReadLen = static_cast<size_t>(out);
     return out;
 }
 
-static void update_data_from_lwgps() {
+static void update_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;
     g_data.altitudeM = static_cast<float>(g_gps.altitude);
-
     g_data.speedKnots = static_cast<float>(g_gps.speed);
     g_data.speedMps = static_cast<float>(lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS));
     g_data.courseDeg = static_cast<float>(g_gps.course);
-
-    // Fix type: prefer GGA fix quality (most reliably updated by lwGPS),
-    // fall back to GSA fixMode for 2D/3D distinction.
-    // GGA fix: 0=none, 1=GPS, 2=DGPS, 3=PPS, 4+=RTK
-    // GSA fixMode: 1=none, 2=2D, 3=3D
     if (g_gps.fix >= 1) {
-        // GGA says we have a fix — use GSA for 2D/3D if available.
-        // GSA 2 = 2D; else 3D, including GSA 1 (no fix) and 0 (not yet received).
         if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;
-        } else {
+        } else if (g_gps.fix_mode == kGsaFixMode3d) {
             g_data.fix = GPS_FIX_3D;
+        } else {
+            g_data.fix = GPS_FIX_3D;  // GGA fix, GSA mode not yet latched
         }
     } else {
         g_data.fix = GPS_FIX_NONE;
     }
-
     g_data.satellites = g_gps.sats_in_use;
     g_data.hdop = static_cast<float>(g_gps.dop_h);
     g_data.vdop = static_cast<float>(g_gps.dop_v);
     g_data.pdop = static_cast<float>(g_gps.dop_p);
-
     g_data.hour = g_gps.hours;
     g_data.minute = g_gps.minutes;
     g_data.second = g_gps.seconds;
-
     g_data.day = g_gps.date;
     g_data.month = g_gps.month;
-    g_data.year = kGpsYearBase + g_gps.year;  // lwGPS stores 2-digit year
-
-    // Valid when RMC reports active AND GGA shows fix
+    g_data.year = kGpsYearBase + g_gps.year;
     g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
     g_data.timeValid = (g_gps.time_valid != 0U);
     g_data.dateValid = (g_gps.date_valid != 0U);
-
-    // Diagnostic: raw lwGPS fields for sensor status debugging
     g_data.ggaFix = g_gps.fix;
     g_data.gsaFixMode = g_gps.fix_mode;
     g_data.rmcValid = lwgps_is_valid(&g_gps);
 }
 
-// ============================================================================
-// Public API
-// ============================================================================
-
-// Wake the I2C-UART bridge with a read. Do not abort on fail.
-// STEMMA power-cycle can leave 0x10 NACKing writes until someone reads it.
-static void wake_i2c_bridge() {
+static void wake_bridge() {
     uint8_t wake = 0;
-    (void)i2c_bus_read(kGpsPa1010dAddr, &wake, 1, kGpsI2cReadTimeoutUs);
-    (void)i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
-                       kGpsI2cReadTimeoutUs);
-    sleep_ms(20);
+    (void)i2c_master_read(kGpsPa1010dAddr, &wake, 1, kGpsReadTimeoutUs);
+    (void)i2c_master_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsReadTimeoutUs);
+    sleep_ms(kWakeGapMs);
 }
 
-// Blind PMTK. PA1010D has a cold-boot ACK window then drops to low-power
-// if no command arrives. Probing first misses that window.
-static bool send_pmtk_config() {
-    g_pmtkWriteResults[0] = i2c_bus_write(
-        kGpsPa1010dAddr,
-        reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
-        sizeof(kPmtk314Sentence) - 1);
-    sleep_ms(50);
-    g_pmtkWriteResults[1] = i2c_bus_write(
-        kGpsPa1010dAddr,
-        reinterpret_cast<const uint8_t*>(kPmtk2201HzSentence),
-        sizeof(kPmtk2201HzSentence) - 1);
-    sleep_ms(50);
-    g_pmtkWriteResults[2] = i2c_bus_write(
-        kGpsPa1010dAddr,
-        reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
-        sizeof(kPmtk314Sentence) - 1);
-    sleep_ms(50);
+static bool send_pmtk() {
+    g_pmtkWriteResults[0] = i2c_master_write(
+        kGpsPa1010dAddr, kPmtk314Sentence,
+        sizeof(kPmtk314Sentence) - 1, kGpsReadTimeoutUs);
+    sleep_ms(kPmtkGapMs);
+    g_pmtkWriteResults[1] = i2c_master_write(
+        kGpsPa1010dAddr, kPmtk220Sentence,
+        sizeof(kPmtk220Sentence) - 1, kGpsReadTimeoutUs);
+    sleep_ms(kPmtkGapMs);
+    g_pmtkWriteResults[2] = i2c_master_write(
+        kGpsPa1010dAddr, kPmtk314Sentence,
+        sizeof(kPmtk314Sentence) - 1, kGpsReadTimeoutUs);
+    sleep_ms(kPmtkGapMs);
     return (g_pmtkWriteResults[0] > 0) && (g_pmtkWriteResults[1] > 0) &&
            (g_pmtkWriteResults[2] > 0);
 }
 
-static bool find_nmea_in_buffer() {
-    for (int retry = 0; retry < 8; retry++) {
-        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
-                                   kGpsI2cReadTimeoutUs);
+static bool find_nmea() {
+    for (int retry = 0; retry < kNmeaHuntTries; retry++) {
+        int ret = i2c_master_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
+                                  kGpsReadTimeoutUs);
         if (ret > 0) {
-            for (int32_t i = 0; i < ret; i++) {
-                if (g_buffer[i] == kNmeaStart) {
+            for (int i = 0; i < ret; i++) {
+                if (g_buffer[static_cast<size_t>(i)] == kNmeaStart) {
                     return true;
                 }
             }
         }
-        sleep_ms(150);
+        sleep_ms(kNmeaHuntGapMs);
     }
     return false;
 }
@@ -239,22 +169,13 @@ static bool find_nmea_in_buffer() {
 bool gps_pa1010d_init() {
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
-
-    // Do not 9-clock a live GPS. picotool/SWD leaves module 3V3 up; recover
-    // into a streaming MT3333 wedges it until USB POR. i2c_bus_init already
-    // recovered if SDA/SCL were stuck.
-    wake_i2c_bridge();
-    if (!send_pmtk_config()) {
-        (void)i2c_bus_recover();
-        sleep_ms(20);
-        wake_i2c_bridge();
-        (void)send_pmtk_config();
+    wake_bridge();
+    if (!send_pmtk()) {
+        sleep_ms(kWakeGapMs);
+        wake_bridge();
+        (void)send_pmtk();
     }
-
-    // PMTK ACK is presence. A 1 Hz module may not have '$' in the TX
-    // buffer yet (GlobalTop: poll < fix period). Do not fail init and
-    // then never drain — that leaves the slave streaming unaddressed.
-    g_pmtkWindowHit = find_nmea_in_buffer();
+    g_pmtkWindowHit = find_nmea();
     g_initialized = (g_pmtkWriteResults[0] > 0) &&
                     (g_pmtkWriteResults[1] > 0) &&
                     (g_pmtkWriteResults[2] > 0);
@@ -262,10 +183,9 @@ bool gps_pa1010d_init() {
 }
 
 void gps_pa1010d_get_debug_status(char* buf, size_t len) {
-    if (buf == nullptr || len == 0) return;
-
-    // etl::string into caller buffer. Double-space after `]` and
-    // after `:N` is load-bearing (Hardware Status `b` parser).
+    if (buf == nullptr || len == 0) {
+        return;
+    }
     etl::string<96> tmp;
     tmp.append("PMTK writes: [");
     etl::to_string(g_pmtkWriteResults[0], tmp, true);
@@ -277,11 +197,9 @@ void gps_pa1010d_get_debug_status(char* buf, size_t len) {
     etl::to_string(g_pmtkWindowHit ? 1 : 0, tmp, true);
     tmp.append("  init:");
     etl::to_string(g_initialized ? 1 : 0, tmp, true);
-
-    // Copy to caller buffer; truncate at len-1 to leave room for NUL.
-    const size_t writable = (tmp.size() < (len - 1U)) ? tmp.size() : (len - 1U);
-    memcpy(buf, tmp.data(), writable);
-    buf[writable] = '\0';
+    const size_t n = (tmp.size() < (len - 1U)) ? tmp.size() : (len - 1U);
+    memcpy(buf, tmp.data(), n);
+    buf[n] = '\0';
 }
 
 bool gps_pa1010d_ready() {
@@ -292,32 +210,22 @@ bool gps_pa1010d_update() {
     if (!g_initialized) {
         return false;
     }
-
     const uint32_t now_us = time_us_32();
-    if ((now_us - g_lastPollUs) < kPollMinIntervalUs) {
-        return true;  // Cadence owned here; not a bus error.
+    if ((now_us - g_lastPollUs) < kPollMinUs) {
+        return true;
     }
     g_lastPollUs = now_us;
-
-    // Full 255-byte MT3333 TX buffer (vendor: no partial reads).
     int len = read_nmea_data(g_buffer, kGpsMaxRead);
-    busy_wait_us(kPostReadSettleUs);
+    busy_wait_us(kPostReadUs);
     if (len < 0) {
-        return false;  // I2C failure — caller should count as error
+        return false;
     }
     if (len == 0) {
-        return true;   // I2C OK but no new NMEA sentence — not an error
+        return true;
     }
-
-    // Null-terminate for safety
-    g_buffer[len] = '\0';
-
-    // Process through lwGPS parser
-    lwgps_process(&g_gps, g_buffer, len);
-
-    // Update our data structure
-    update_data_from_lwgps();
-
+    g_buffer[static_cast<size_t>(len)] = '\0';
+    lwgps_process(&g_gps, g_buffer, static_cast<size_t>(len));
+    update_from_lwgps();
     return true;
 }
 
@@ -325,7 +233,6 @@ bool gps_pa1010d_get_data(gps_data_t* data) {
     if (data == nullptr) {
         return false;
     }
-
     *data = g_data;
     return g_data.valid;
 }
@@ -335,7 +242,7 @@ bool gps_pa1010d_has_fix() {
 }
 
 bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len) {
-    if (!g_initialized || g_lastReadLen == 0) {
+    if (!g_initialized || g_lastReadLen == 0 || buf == nullptr || len == nullptr) {
         return false;
     }
     *buf = g_buffer;

@@ -22,6 +22,9 @@ void cli_print_boot_summary();
 // Full hardware init detail ('b' Boot Log key)
 void cli_print_hw_status();
 
+// Debug 'i' — 7-bit scan; skips PA1010D 0x10 at this job edge.
+void cli_print_i2c_scan();
+
 // Full boot output (summary + HW detail, first connect only)
 void cli_print_boot_status();
 

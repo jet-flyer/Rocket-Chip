@@ -27,7 +27,7 @@
 #include "cli/rc_os.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/cal_hooks.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
 #include "rocketchip/shared_state.h"  // core1_i2c_pause/resume (R-17)
 #include "safety/inject_arm_gate.h"  // R-25-exec step 11: magic-observed -> kMenu
 #include "ao_logger.h"
@@ -352,14 +352,14 @@ static void cal_save_to_flash() {
     // Without this, multicore_lockout halts Core 1's CPU but in-flight
     // DW_apb_i2c transactions outlive the lockout entry, get abandoned at
     // the APB bridge 65535-cycle timeout (datasheet §2.1.4), and corrupt
-    // the peripheral. LL Entry 31's i2c_bus_reset is the recovery; the
+    // the peripheral. LL Entry 31's i2c_master_reset is the recovery; the
     // pause is the prevention. See R-11 SPIN model + R-17 PR notes.
     rc::core1_i2c_pause();
     cal_result_t save_result = calibration_save();
     if (save_result == CAL_RESULT_OK) {
         rc::rc_log(" OK!\n");
-        if (!i2c_bus_reset()) {
-            rc::rc_log("[WARN] I2C bus reset failed after save\n");
+        if (!i2c_master_reset()) {
+            rc::rc_log("[WARN] I2C master reset failed after save\n");
         }
     } else {
         rc::rc_log(" FAILED (%d)\n", save_result);
@@ -1295,8 +1295,8 @@ void AO_RCOS_start_cal_save() {
     cal_result_t result = calibration_save();
     if (result == CAL_RESULT_OK) {
         rc::rc_log(" OK!\n");
-        if (!i2c_bus_reset()) {
-            rc::rc_log("[WARN] I2C bus reset failed after save\n");
+        if (!i2c_master_reset()) {
+            rc::rc_log("[WARN] I2C master reset failed after save\n");
         }
     } else {
         rc::rc_log(" FAILED (%d)\n", static_cast<int>(result));

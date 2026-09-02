@@ -22,7 +22,10 @@
 #include "rocketchip/station_output_mode.h"
 #include "rocketchip/telemetry_encoder.h"
 #include "core1/sensor_core1.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
+#include "rocketchip/i2c_strap.h"
+#include "hardware/gpio.h"
+#include "hardware/i2c.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "math/quat.h"
@@ -123,7 +126,8 @@ static void cmd_radio_config_cycle() {
 #include "active_objects/ao_led_engine.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_storage.h"
-#include "drivers/i2c_bus.h"
+#include "drivers/i2c_master.h"
+#include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_uart.h"
@@ -580,6 +584,32 @@ static const char* get_device_name(uint8_t addr) {
     }
 }
 
+void cli_print_i2c_scan() {
+    constexpr uint8_t kScanStart = 0x08;  // I2C spec reserved 0000xxx
+    constexpr uint8_t kScanEnd = 0x78;    // reserved 1111xxx
+    rc::rc_log("I2C bus scan:\n");
+    rc::rc_log("  Instance: I2C%d\n", I2C_MASTER_INSTANCE == i2c0 ? 0 : 1);
+    rc::rc_log("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
+               kI2cMasterSdaPin, static_cast<int>(gpio_get(kI2cMasterSdaPin)),
+               kI2cMasterSclPin, static_cast<int>(gpio_get(kI2cMasterSclPin)));
+    rc::rc_log("  Configured freq: %lu Hz\n",
+               static_cast<unsigned long>(kI2cMasterFreqHz));
+    int found = 0;
+    for (uint8_t addr = kScanStart; addr < kScanEnd; addr++) {
+        if (addr != kI2cAddrPa1010d) {
+            if (i2c_master_probe(addr, kI2cMasterDefaultTimeoutUs)) {
+                rc::rc_log("  0x%02X (%s)\n", addr, get_device_name(addr));
+                found++;
+            }
+        }
+    }
+    if (found == 0) {
+        rc::rc_log("  No devices found\n");
+    } else {
+        rc::rc_log("  %d device(s) found\n", found);
+    }
+}
+
 static void hw_validate_i2c_devices() {
     if (rc_os_i2c_scan_allowed) {
         static constexpr uint8_t kExpected[] = {
@@ -589,7 +619,7 @@ static void hw_validate_i2c_devices() {
         };
         int found_count = 0;
         for (const auto& addr : kExpected) {
-            bool found = i2c_bus_probe(addr);
+            bool found = i2c_master_probe(addr, kI2cMasterDefaultTimeoutUs);
             rc::rc_log("[----] I2C 0x%02X (%s): %s\n",
                    addr, get_device_name(addr),
                    found ? "FOUND" : "NOT FOUND");
@@ -775,7 +805,8 @@ void cli_print_hw_status() {
 
     if (g_i2cInitialized) {
         rc::rc_log("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
-               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
+               (unsigned long)(kI2cMasterFreqHz / 1000), kI2cMasterSdaPin,
+               kI2cMasterSclPin);
     } else {
         rc::rc_log("[FAIL] I2C bus failed to initialize\n");
     }
@@ -872,7 +903,7 @@ void cli_print_boot_summary() {
                boot.had_por ? 1 : 0,
                boot.had_any_non_por ? 1 : 0,
                static_cast<unsigned long>(boot.powman_chip_reset));
-    const i2c_quiesce_trace_t q = i2c_bus_quiesce_trace();
+    const i2c_quiesce_trace_t q = i2c_master_quiesce_trace();
     if (q.magic == kI2cQuiesceMagic) {
         rc::rc_log("[I2C] last_quiesce via=%lu count=%lu\n",
                    static_cast<unsigned long>(q.via),
@@ -1111,8 +1142,8 @@ static void cmd_flush_log() {
     // means flash_safe_execute() ran. R-17 added the pause BEFORE this point;
     // the reset is still required as belt-and-suspenders against any in-flight
     // transaction that didn't drain in time.
-    if (!i2c_bus_reset()) {
-        rc::rc_log("[WARN] I2C bus reset failed after flush\n");
+    if (!i2c_master_reset()) {
+        rc::rc_log("[WARN] I2C master reset failed after flush\n");
     }
     rc::core1_i2c_resume();
 
@@ -1170,12 +1201,12 @@ void cli_do_erase_flights() {
     }
 
     // R-15 (2026-05-07 audit): per LL Entry 31, every runtime flash_safe_execute()
-    // must be followed by i2c_bus_reset() — matches ao_rcos.cpp:338 protocol on
-    // cal_save_to_flash. Even on partial failure above, flash_safe_execute() ran
+    // must be followed by i2c_master_reset() — matches ao_rcos.cpp cal_save
+    // protocol. Even on partial failure above, flash_safe_execute() ran
     // for some sectors before bailing, so the reset is required regardless of ok.
     (void)ok;
-    if (!i2c_bus_reset()) {
-        rc::rc_log("[WARN] I2C bus reset failed after erase\n");
+    if (!i2c_master_reset()) {
+        rc::rc_log("[WARN] I2C master reset failed after erase\n");
     }
     // R-17: resume Core 1 sensor reads.
     rc::core1_i2c_resume();

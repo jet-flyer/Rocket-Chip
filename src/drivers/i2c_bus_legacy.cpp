@@ -12,7 +12,7 @@
 // - Pico SDK hardware/i2c.c (DW_apb_i2c FIFO / TAR / TX_EMPTY_CTRL sequence)
 // Device recovery and part names do not belong here (WN-078 / WN-080).
 
-#include "i2c_bus.h"
+#include "i2c_bus_legacy.h"
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
@@ -565,6 +565,10 @@ int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value) {
 
 int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
     return i2c_bus_write_read(addr, reg, data, len);
+}
+
+bool i2c_bus_lines_idle() {
+    return gpio_get(kI2cBusSdaPin) && gpio_get(kI2cBusSclPin);
 }
 
 bool i2c_bus_recover() {

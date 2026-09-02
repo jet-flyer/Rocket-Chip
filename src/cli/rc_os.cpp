@@ -12,7 +12,7 @@
 #include "hardware/gpio.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_data.h"
-#include "drivers/i2c_bus.h"
+
 #include "rocketchip/rc_debug.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"

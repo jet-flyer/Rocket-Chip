@@ -346,9 +346,6 @@ else()
     # External Libraries
     # ============================================================================
 
-    # ruuvi.dps310.c - Proven DPS310 barometer driver
-    set(RUUVI_DPS310_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/ruuvi.dps310.c/src)
-
     # lwGPS - NMEA parser
     set(LWGPS_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/lwgps/lwgps/src)
 
@@ -364,7 +361,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
-        src/drivers/i2c_bus.cpp
+        src/drivers/i2c_master.cpp
 
         # -------------------------------------------------------------------------
         # Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
@@ -373,8 +370,6 @@ else()
         # IVP-09: IMU driver
         src/drivers/icm20948.cpp
 
-        # IVP-11: Barometer (requires ruuvi library)
-        ${RUUVI_DPS310_DIR}/dps310.c
         src/drivers/baro_dps310.cpp
 
         # IVP-31: GPS (requires lwGPS library)
@@ -545,7 +540,7 @@ else()
     # those too. Per-file scoping via set_source_files_properties is the
     # only pattern that works here.
     #
-    # Vendor headers our files pull in directly (mavlink, qep, ruuvi,
+    # Vendor headers our files pull in directly (mavlink, qep,
     # lwgps) are classified as SYSTEM below — GCC suppresses pedantic in
     # system headers, so including them in pedantic-checked files is fine.
     #
@@ -556,7 +551,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
-        src/drivers/i2c_bus.cpp
+        src/drivers/i2c_master.cpp
         src/drivers/icm20948.cpp
         src/drivers/baro_dps310.cpp
         src/drivers/gps_pa1010d.cpp
@@ -669,7 +664,6 @@ else()
     target_include_directories(rocketchip SYSTEM PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink          # IVP-61 — third-party telemetry lib
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep              # IVP-67 — vendored QP/C 8.1.3
-        ${RUUVI_DPS310_DIR}                            # IVP-11 — Ruuvi DPS310 driver
         ${LWGPS_DIR}/include                           # IVP-31 — lwgps NMEA parser
         ${CMAKE_CURRENT_LIST_DIR}/EXTERNAL/etl-20.47.1 # R-5 Unit B: ETL for rc_log formatter
     )
