@@ -46,10 +46,6 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
-### 2026-09-02-002 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
-
-**STEMMA live path was FPV-twist, not GPS-last.** LL 47: never twist SDA with SCL. GPS-last twisted froze `I=` (~18%); same last and GPS-first untwisted both `I=` climbing, `e≤1`. CLI `k` with GPS on then `e=0`. GPS N/A if 0x10 NACKs (`d845a48`). NMEA hunt is GlobalTop 255-byte + 2 ms (`window_hit:1`). Half-fix audit: only the 1-byte hunt was a twist-era workaround; `i2c_master`, skip DEVICE_RESET, GPS-after-USB, park path kept. `SCAFFOLDING.md` names `i2c_master`. LoRa vs I2C unscored: vehicle `RegVersion=0xFF` (SX1276 not on SPI). Verified: COM5 GPS-first untwisted, PMTK `[51,18,51]`, ICM `0xEA`, `I=` rising `e=0`, `bench_sim` 2/2.
-
 ### 2026-09-02-001 | Grok 4.6 (Build CLI) | hardware, bugfix, tooling
 
 **STEMMA I2C master + in-place flash without USB unplug.** `i2c_master` replaces `i2c_bus` (ABORT-then-STOP, skip warm ICM DEVICE_RESET, 50 ms transfer). GPS I2C after USB; park `u` disconnects TinyUSB before erase. Probe flash is `scripts/flash_elf_halt_write.py` (never OpenOCD `program` / `reset halt`). `docs/FLASHING.md` rewritten; pre-rewrite snapshots in `docs/deprecated/`. GPS-off IMU/baro was already `e=0` on the old layer; GPS-on coexistence still open. UART GPS untouched. `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Verified: COM5 `vehicle flight v0.16.3-dev`; Hardware 12/13 (GPS FAIL, PA1010D unplugged); ICM `WHO_AM_I=0xEA`, DPS310 continuous; `I=14184→17471 e=0`; `bench_sim` 2/2 PASS; host ctest 873/873.
