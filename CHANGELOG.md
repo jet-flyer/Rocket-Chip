@@ -1,10 +1,10 @@
 # Changelog
 
-> **When to add an entry:** One entry per **significant unit of completed work**,
-> typically **once per session**, drafted at the **session-end / commit checklist
-> step** (see `docs/agents/SESSION_CHECKLIST.md` items 7–8) — **not** automatically
-> on every change or commit. **Especially do not add an entry on your own for
-> freshly-done work without user input** — confirm with the user first.
+> **When to add an entry:** Only when the user **asks for a CHANGELOG entry**,
+> or **explicitly asks to run the full wrap-up / Session End checklist**
+> (`docs/agents/SESSION_CHECKLIST.md` item 8). **Not** because you committed,
+> pushed, merged, or finished a sitting. Casual wrap / “merge to main” is not
+> that checklist. Handoff is not a wrap.
 
 ## Format
 
@@ -45,6 +45,26 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- These format rules stay pinned at the top; the file is newest-first, so a -->
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
+
+### 2026-09-02-002 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
+
+**STEMMA live path was FPV-twist, not GPS-last.** LL 47: never twist SDA with SCL. GPS-last twisted froze `I=` (~18%); same last and GPS-first untwisted both `I=` climbing, `e≤1`. CLI `k` with GPS on then `e=0`. GPS N/A if 0x10 NACKs (`d845a48`). NMEA hunt is GlobalTop 255-byte + 2 ms (`window_hit:1`). Half-fix audit: only the 1-byte hunt was a twist-era workaround; `i2c_master`, skip DEVICE_RESET, GPS-after-USB, park path kept. `SCAFFOLDING.md` names `i2c_master`. Vehicle RFM95 `RegVersion=0xFF` parked WATCH (next radio sitting; not an I2C git regression; LoRa not expected to couple into QT I2C). Verified: COM5 GPS-first untwisted, PMTK `[51,18,51]` `window_hit:1 init:1`, ICM `0xEA`, `I=14119→17348 e=0`, 3D/11, `bench_sim` 2/2.
+
+### 2026-09-02-001 | Grok 4.6 (Build CLI) | hardware, bugfix, tooling
+
+**STEMMA I2C master + in-place flash without USB unplug.** `i2c_master` replaces `i2c_bus` (ABORT-then-STOP, skip warm ICM DEVICE_RESET, 50 ms transfer). GPS I2C after USB; park `u` disconnects TinyUSB before erase. Probe flash is `scripts/flash_elf_halt_write.py` (never OpenOCD `program` / `reset halt`). `docs/FLASHING.md` rewritten; pre-rewrite snapshots in `docs/deprecated/`. GPS-off IMU/baro was already `e=0` on the old layer; GPS-on coexistence still open. UART GPS untouched. `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Verified: COM5 `vehicle flight v0.16.3-dev`; Hardware 12/13 (GPS FAIL, PA1010D unplugged); ICM `WHO_AM_I=0xEA`, DPS310 continuous; `I=14184→17471 e=0`; `bench_sim` 2/2 PASS; host ctest 873/873.
+
+### 2026-09-01-001 | Claude Opus 5 (Code) | hardware, bugfix, documentation
+
+**STEMMA PA1010D I2C coexistence: no net improvement, five hypotheses falsified.** Picked up Grok's parked sitting; his WIP stash `a5abe2a` was restored for work then reverted and left **intact**. Nothing landed — `src/` is back at `0737f47`. Measured on COM5 with the PA1010D on the chain: after a USB-POR the IMU runs 9441 reads / 11239 errs (~54% fail) while the GPS is 86/0; the baro dies at exactly 200 errs (50 fails x 3 reinits + 1 — the existing ladder, not a separate fault). After **any** MCU reset the ICM NACKs 0x69, 0x68 *and* 0x0C while the baro (0x77) and GPS (0x10) ACK in the same instant, and only a USB-POR recovers it; mechanism still unexplained — the SparkFun bank-cache bug is ruled out because `select_bank()` here has no cache. **Falsified:** stretch-tolerant probe timeout (no effect); 100 kHz Standard Mode (worse, 46% -> 96.5%); bus capacitance (bus is <50 cm on shortest Adafruit cables); "our GPS transactions cause it" (the IMU still failed with 0x10 never addressed); and **LL Entry 24** — removing the per-timeout `i2c_bus_recover()` took failures 54% -> 98.4%, so that recovery is load-bearing on the current bus layer, contrary to the entry. **Worked, but reverted with everything else:** GPS poll made wall-clock and derived from the module's configured output rate (measured 1.91 Hz, 0 errs; the previous cycle-divider collapsed to 0.67 Hz when IMU errors slowed the loop, starving the drain), and blind sensor init replacing probe-gating (IMU 0 -> 7351 reads across a reflash, since a probe false-negatives against a streaming PA1010D and the device reset then never runs). An interim "bus is at its limit" claim was **wrong and is retracted** — ~54% duty is not a bottleneck; the owner's read is that this is a timing/collision problem like the LoRa half-duplex work. Resume plan and open questions: `AGENT_WHITEBOARD.md`. Verified: no firmware landed, `src/` clean at `0737f47`; host ctest 873/873 and both roles linked during the sitting.
+
+### 2026-08-31-002 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**WN-100 closed; STEMMA PA1010D I2C stress sitting parked unresolved.** RF call-site SSOT `315e2a2` / `standards/RF_COMPLIANCE.md`. UART is flight GPS (whether it stays plugged was the question); PA1010D on STEMMA is a stretching I2C **stress slave**, not a second nav GPS. GPS-off: T1 GO, `bench_sim` 2/2. USB-POR: IMU inits then dies if firmware PMTKs 0x10. Picotool reboot (STEMMA 3V3 up, 9-clock deprecated): ICM/DPS310 not installed — wedged. WIP `grok/i2c-stemma-soak` (`Rocket-Chip-i2c`) + stash `wip: STEMMA PA1010D soak`. Reopen: unwedge without 9-clock, or PA1010D off the IMU bus (LL 20).
+
+### 2026-08-31-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
+
+**I2C slate + Core1 vitality + STEMMA coexistence; early-impl ranked redo closed.** Stretch-aware `i2c_bus` (`f17ae3d`): wall-clock SDK abort no longer treats SCL stretch as timeout; 9-clock only if a line is stuck. Runtime `recover()` and ICM stuck-slave still always-clocked a live PA1010D — that was the slate slip (`112d0a7`). Torn seqlock is unknown, not instant Core1 FAULT; `peek_banner` sends `h` when the dump has no role (`771d63e`). Feather STEMMA GPS at **end of chain** with UART flight GPS: I2C sidecar PMTK `[51,18,51]`, both 3D, IMU/baro I=0 B=0. Live STOP-GAP RF: station TRACK LQ 100% Lost 0. Ranked eval KEEP RFM95W and PCM; skip PIO; do not rewrite RadioScheduler (Starcom COP-P is ON air). Detail: `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. FLASHING.md: no operator BOOTSEL. Verified: Fruit Jam GPS; vehicle `bench_sim` 2/2 PASS COM5; station RF dashboard Lost 0.
 
 ### 2026-08-30-001 | Grok Researcher (Grok Bot) | documentation, hardware
 

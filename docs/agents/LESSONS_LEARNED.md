@@ -1797,3 +1797,45 @@ GDB `target extended-remote` **stops the cores** (OpenOCD halt-on-connect) befor
 - `docs/FLASHING.md` Debug probe + E2 troubleshooting (process vs errata).
 - `docs/PIO/PIO_WATCHDOG.md` already wanted a post-flash `reset halt` + `resume` for PIO.
 - 2026-08-20 E2 log row remains the last *counted* E2 incident (picotool `-f` + no extra reboot).
+
+---
+
+## Entry 47: FPV-Twist of STEMMA 4-Core Freezes I2C (Not GPS-Last)
+
+**Date:** 2026-09-02
+**Time Spent:** STEMMA PA1010D soak (GPS-off vs on, first vs last, then twist A/B)
+**Severity:** Critical — live 1 kHz IMU freeze with a green Hardware banner; looks like a driver bug
+
+### Problem
+PA1010D on the Feather QT chain (stress slave; UART is flight GPS) made IMU `I=` freeze or run ~11–18% errors. HARDWARE.md already wanted Board → GPS → Baro → IMU. That order was treated as the live-path cause. A/B on `i2c_master` (`main` `d845a48`) with the **shortest Adafruit QT cables** showed the freeze tracked **cable dress**, not GPS-last.
+
+### Symptoms
+- Banner / Hardware `b`: ICM `WHO_AM_I=0xEA`, DPS310 OK, GPS I2C PMTK `[51,18,51]`. Init is not the score.
+- `s` twice: `I=` must rise. Stuck `I=` with errors still climbing is a fail.
+- GPS-off: `I=` climbing, `e=0`.
+- GPS last + **4-core twisted as an FPV rope:** POR, `I=6234` stuck, IMU errors 1158→1188 (~18%), baro stuck.
+- Same GPS last, **untwisted** (kinks left, not a rope): `I=52022→55242`, `e=1` in ~52k, baro/GPS moving, 3D / 8 sats.
+- GPS first, untwisted (whole-chain flip DCBA): `I=43229→46508`, `e=1`. Wash vs GPS-last once untwisted.
+- Skip-poll with GPS still plugged still died in earlier sittings (powered 0x10 is enough). 100 kHz Standard Mode was worse (separate sitting). USB unplug is recovery, not a pass.
+
+### Root Cause
+I2C is open-drain Fast-mode. NXP UM10204: if the bus is twisted-pair, **each line is twisted with a VSS return** (or SDA with VDD plus decoupling at both ends). **Never twist SDA with SCL.** SDA is sampled on SCL’s edge; a 1 is only a pull-up. Mutual C from a twist can turn a 1 into a 0 on a falling SCL (TI SCPA069).
+
+STEMMA QT pin order is GND, VIN, SDA, SCL — SDA and SCL are **already adjacent**. An FPV-style whole-bundle twist is extra SDA↔SCL coupling plus VIN dI/dt (PA1010D 28–36 mA) into the data pair. That is the opposite of servo/FPV twisting, where a push-pull driver owns the line.
+
+GPS-last / IR / lumped Cb remain real physics and still prefer GPS-first, but they were **not** what stuck `I=` on this bench. IMU ~0.8 mA vs GPS ~30 mA: throttling 1 kHz does not fix this class.
+
+### Solution
+- **Never twist the STEMMA/Qwiic 4-core as a rope.** Leave it as a 4-wire (Adafruit stock).
+- LoRa EMI: twist **SCL+GND** and **SDA+VIN** (decouple VIN–GND at the boards), or ferrite the QT. Do not re-twist SDA with SCL.
+- GPS-first (HARDWARE.md) stays the preferred order. A DCBA flip is a valid first-vs-last A/B but also swaps IMU/baro adjacency.
+- Score live `s` twice. Do not call a GPS-on boot good from 13/13 init.
+
+### Prevention
+- `docs/hardware/HARDWARE.md` Qwiic harness rule; `docs/FLASHING.md` troubleshooting if `I=` freezes with GPS on.
+- Do not start an I2C driver rewrite because `I=` froze until the 4-cores are confirmed **not** twisted.
+
+### Related
+- NXP UM10204 twisted-pair / VSS return; TI SCPA069 I2C crosstalk.
+- LL 20 / 24 (PA1010D on the IMU bus) — still valid as stress-slave physics; this entry is cable dress.
+- `docs/FLASHING.md` — MCU-only `I2C_IF_DIS` latch is a **different** class (SYSRESETREQ, STEMMA 3V3 up). Untwist does not close it.
