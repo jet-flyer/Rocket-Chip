@@ -149,8 +149,9 @@ are listed for attribution and academic citation, not license obligation.
 
 - **Specification:** NXP UM10204 "I2C-bus specification and user manual",
   Section 3.1.16 (Bus clear procedure).
-- **Usage:** Stretch-wait in `src/drivers/i2c_bus.cpp`. Bit-bang 9-clock
-  bus-clear is not implemented (wedges PA1010D on STEMMA).
+- **Usage:** Stretch-wait and SDA-stuck 9-clock + STOP in
+  `src/drivers/i2c_master.cpp` (UM10204 §3.1.16; only when SDA is low
+  and SCL is high). Do not clock a live PA1010D at idle.
 
 ---
 

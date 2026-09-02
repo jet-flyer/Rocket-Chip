@@ -21,6 +21,8 @@ These tools must be available in your PATH (Git Bash / MSYS2 recommended):
 ## Scripts Overview
 
 ### Regular / Periodic Use
+- `flash_elf_halt_write.py` — STEMMA-safe probe flash (park + write_image + vector resume). Procedure: `docs/FLASHING.md`.
+- `start_openocd_pico_sdk.ps1` — Pico SDK OpenOCD with repo `openocd_cmsis_dap.cfg` (halt-only).
 - `soak_test.py` — General system stability soak
 - `i2c_soak_test.py` — I2C/sensor error monitoring
 - `bench_sim.py`, `station_bench_sim.py` — Flight Director + CLI end-to-end test

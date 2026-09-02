@@ -204,7 +204,7 @@ Dedicating PIO2 to safety functions keeps it isolated from I/O protocol work on 
 - **Use `pio_claim_unused_sm()` for all SM allocation.** Never hardcode SM numbers — the NeoPixel driver's `pio_claim_free_sm_and_add_program_for_gpio_range()` searches PIO2 first and may claim SMs you expected to be free. Dynamic allocation prevents collisions.
 - **Prefer PIO IRQ flags over GPIO for signaling.** GPIO-based PIO outputs on pins adjacent to I2C (GPIO 2/3) cause bus interference and sensor init failures. IRQ flags (`irq set 0` / `pio_interrupt_get()`) have zero electrical side effects. See LL Entry 33.
 - **Use PIO2 for safety functions.** Dedicated PIO block keeps safety isolated from I/O protocols on PIO0/PIO1.
-- **After flash via debug probe, always do a `monitor reset halt` + `monitor resume`** to ensure clean peripheral state. The probe's `load` command doesn't reset PIO.
+- **After flash via debug probe, do not `reset halt`.** Iterative flash is park + `write_image` + vector resume (`docs/FLASHING.md`). Vector-resume runs `runtime_init`, which reclaims PIO. Extra SYSRESETREQ with STEMMA 3V3 up latches I2C slaves.
 
 ---
 

@@ -19,20 +19,12 @@ live pyro). Not yet certified for live-charge or mission-class flights
 
 Use the debug probe on the bench to confirm the flight binary is ready:
 
-```bash
-# Start OpenOCD
-taskkill //F //IM openocd.exe 2>/dev/null; sleep 2
-/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd \
-  -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts \
-  -f interface/cmsis-dap.cfg -f target/rp2350.cfg \
-  -c "adapter speed 5000" &
-
-# Flash the flight binary (NOT bench — flight tier has no fault hooks)
+```powershell
+# Start OpenOCD + flash the flight binary. Full rules: docs/FLASHING.md
+# (never program / reset halt; STEMMA 3V3 stays up across SYSRESETREQ).
 cmake --build build_flight --target rocketchip
-/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe \
-  build_flight/rocketchip.elf -batch \
-  -ex "target extended-remote localhost:3333" \
-  -ex "monitor reset halt" -ex "load" -ex "monitor resume"
+powershell -ExecutionPolicy Bypass -File scripts/start_openocd_pico_sdk.ps1
+python scripts/flash_elf_halt_write.py --elf build_flight/rocketchip.elf
 ```
 
 - [ ] Flight binary flashes without errors

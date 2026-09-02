@@ -1,336 +1,298 @@
 # Flashing
 
-**Purpose:** Single reference for how to flash RocketChip firmware onto a
-physical board and confirm it landed correctly. Covers method choice
-(picotool vs debug probe), multi-board targeting by chip serial, and
-post-flash verification.
+**Purpose:** How to put RocketChip firmware on a board and prove it is
+running. This file is the source of truth. Scripts implement it;
+`docs/agents/DEBUG_PROBE_NOTES.md` is inspect/debug, not a second flash
+recipe.
 
 ---
 
-## Methods — picotool vs debug probe
+## Hard rules
 
-Both methods produce the same outcome when they succeed. Choose by
-situation.
+These are not optional. They come from the 2026-09 STEMMA sitting
+(PA1010D / ICM-20948 / DPS310 on Feather QT, Analog AN-686).
 
-### Debug probe (SWD) — preferred for iterative development
+1. **Never OpenOCD `program`.** `program` is `reset init` then write.
+   `rp2350.cfg` has no SRST, so that reset is MCU-only SYSRESETREQ.
+   STEMMA 3V3 stays up. The *old* image reboots, Core 1 starts I2C,
+   then halt lands mid-byte and slaves latch (`I2C_IF_DIS` until a
+   real 3V3 drop).
+2. **Never `reset halt` / `reset run` / extra post-write reset.** An
+   extra `reset halt` after write latched Hardware 10/13 (ICM and baro
+   NACK, GPS still ACK). `reset run` can leave Core 1 at bootrom
+   `0x000000da`.
+3. **USB unplug is recovery when stuck, never a pass/fail step and
+   never a counted boot.** It is a module power cycle (STEMMA 3V3
+   drops). Do not unplug to "make the flash count."
+4. **Do not flash unless CDC is live.** Park (`u`) needs a running
+   image. No CDC → refuse. Flashing a live bus without park is the
+   `program` failure mode.
+5. **Hold DTR low** on any serial open used for park. pyserial pulses
+   DTR on open/close by default; that USB-resets Core 0 into bootrom
+   (`pc=0x1ea`) so `u` never holds.
+6. **Score live `s` twice.** `I=` must rise. Banner Hardware 13/13 is
+   init only. A freeze after a green banner is a fail.
+7. **Operator never holds BOOTSEL** and never uses a 1200-baud serial
+   poke. Last-resort button BOOTSEL is only if CDC is dead **and** the
+   probe cannot attach (LL Entry 5).
 
-```bash
-# Start OpenOCD once per session (idempotent):
-taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; \
-  /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd \
-  -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts \
-  -f interface/cmsis-dap.cfg -f target/rp2350.cfg \
-  -c "adapter speed 5000" &
+---
 
-# Flash and run (each iteration):
-/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe \
-  build/rocketchip.elf -batch \
-  -ex "target extended-remote localhost:3333" \
-  -ex "monitor reset halt" \
-  -ex "load" \
-  -ex "monitor resume"
+## Why the probe path is this shape
+
+| Piece | Why |
+|---|---|
+| CLI `u` park | ABORT-then-STOP, Core 1 off the bus, `tud_disconnect`, then WFI. TinyUSB ISRs live in flash; erase with USB IRQs armed kills CDC. |
+| Halt both cores, no reset | Cores stopped. STEMMA slaves still powered, but the master is idle. |
+| `flash write_image erase` + `verify_image` | Writes the ELF. Does not `reset init` first. |
+| MSP/PC from `0x10000000`, `xpsr=0x01000000`, resume Core 0 | Vector-table start of the **new** image. `runtime_init` / `multicore_reset_core1` bring Core 1 up via PSM, not SYSRESETREQ. |
+| Repo `openocd_cmsis_dap.cfg` | Session `reset_config none` (no SRST) and gdb-attach halt-only. Do not `cortex_m reset_config none` — this OpenOCD only accepts `sysresetreq`/`vectreset` there. Starting on stock `rp2350.cfg` reintroduces SYSRESETREQ on connect. |
+
+Do not reconstruct this with GDB `load` + `monitor reset halt`. That is
+the old recipe and it is wrong on this hardware.
+
+---
+
+## Iterative flash (debug probe) — default
+
+Probe must be on the board you are flashing (typical: vehicle Feather).
+
+### 1. Start OpenOCD once per session
+
+From repo root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_openocd_pico_sdk.ps1
 ```
 
-Then **one extra** `monitor reset halt` + `monitor resume` (or the same
-over OpenOCD telnet `:4444`) before Boot 1 of the 3-boot gate. The first
-resume after `load` is not a counted boot — leftover image and USB
-re-enumeration both lie if you `bench_sim` immediately. See Rule 2 in
-`standards/HW_GATE_DISCIPLINE.md` and LL Entry 46.
+Confirm `127.0.0.1:3333` (GDB) and `:4444` (telnet). The script kills
+any existing `openocd.exe`, waits 2 s, and starts Pico SDK OpenOCD
+(`%USERPROFILE%\.pico-sdk\openocd\0.12.0+dev\`) with
+`openocd_cmsis_dap.cfg`. Do **not** start with
+`interface/cmsis-dap.cfg` + `target/rp2350.cfg` alone.
 
-**Why preferred for iteration:** SWD `load` is cleaner than `picotool -f`
-when it works (no USB vendor reboot). It is not "no power cycle ever."
-GDB attach **stops the cores** (LED off for the duration). That is
-OpenOCD halt-on-connect, not proof of silicon E2. After `resume` + the
-extra restart, LED and CDC should come back. If they do not: kill
-OpenOCD first (it may still be holding halt), then a VBUS + probe unplug
-if still dead. Do not halt-to-inspect a missing banner and do not `load`
-again until the LED is on.
+Two OpenOCD installs exist. Chocolatey `openocd` has no RP2350 support.
+Always the Pico SDK path. Details: `docs/agents/DEBUG_PROBE_NOTES.md`.
 
-**Caveats:**
-- Use `monitor resume` (not `monitor reset run`) for dual-core targets
-  in batch mode. `reset run` can leave Core 1 stuck at bootrom `0x000000da`
-  while Core 0 waits for a cross-core flag. See `docs/agents/DEBUG_PROBE_NOTES.md`.
-  Core1 at `0xda` after a flash session is first a resume/process miss,
-  not an automatic E2 diagnosis.
-- Probe physical wiring is limited to whichever board has SWD pins
-  connected. See the project's hardware notes (e.g., repo-documented
-  probe-to-board mapping) to know which board the probe currently reaches.
-- There are two OpenOCD installations on this system; **always use the
-  Pico SDK path** (`/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/`). The
-  Chocolatey one lacks RP2350 support.
-- Do not leave OpenOCD running across a user power cycle. Kill it
-  before the unplug so the next attach is not a stale DAP.
+Kill OpenOCD before a user power cycle so the next attach is not a
+stale DAP: `taskkill /F /IM openocd.exe`.
 
-### picotool — single-shot and multi-board targeting
+### 2. Build
 
-Operator **never** holds the BOOTSEL button and **never** uses a
-1200-baud serial poke. Those are retired. Last-resort button BOOTSEL
-is only if USB CDC is dead **and** the probe cannot attach (LL Entry 5).
+```powershell
+cmake --build build_flight
+```
+
+Station (probe usually not wired there):
+`cmake --build build_station_flight`.
+
+### 3. Flash
+
+CDC must already be up (LED on, COM port present):
+
+```powershell
+python scripts/flash_elf_halt_write.py --elf build_flight/rocketchip.elf
+```
+
+`--dump` waits ~12 s then prints banner, Hardware `b`, and two `s`
+samples. `--no-park` skips CLI `u` — only if the core is already in
+WFI park. `--dump-only` is inspect, no write.
+
+The script will **refuse** if no vehicle CDC is found. That is
+intentional.
+
+### 4. What the script does (do not re-type this by hand unless debugging the script)
+
+1. Open the vehicle CDC with DTR held low. Send `q` then `u`. Close
+   still holding DTR low.
+2. OpenOCD telnet `:4444`:
+   - `rp2350.cm0 cortex_m smp off`
+   - halt Core 1, halt Core 0
+   - `flash write_image erase <elf>`
+   - `verify_image <elf>`
+   - `read_memory 0x10000000 32 2` → `reg msp` / `reg pc`
+   - `reg xpsr 0x01000000`
+   - `resume` Core 0
+3. Success text contains `verified`. Vector-resume **is** Boot 1 once
+   CDC and LED are back. Do not follow it with another reset.
+
+Attach stops the cores (LED off for the duration). That is halt, not
+RP2350-E2. After resume, LED and CDC should return. If they do not:
+kill OpenOCD first (it may still be holding halt), then VBUS + probe
+unplug if still dead. Do not halt-to-inspect a missing banner and do
+not write again until the LED is on.
+
+### 5. Prove it ran
+
+- LED on, CDC enumerates.
+- Boot banner `Board:` matches the physical board.
+- Hardware `b`: sensors the bench has should ACK. GPS PMTK is only a
+  gate if the PA1010D is on the chain; UART GPS is `gps_uart.cpp` and
+  is not this bus.
+- `s` twice, a second or two apart: `I=` must increase. Stuck `I=`
+  after a 13/13 banner is a fail.
+
+`python scripts/bench_sim.py` is the land gate when firmware paths
+changed. It talks to whatever image is already on the chip; flash
+first.
+
+---
+
+## Picotool — station / no-SWD board
+
+Use when the probe is on the other board (typical: Feather has SWD,
+Fruit Jam does not). `--ser` is mandatory if more than one RP2350 is
+plugged in.
 
 ```bash
-# Flash a running board by chip serial (USB vendor reboot → write → run):
 picotool load -f --ser <chip-serial> <path-to-rocketchip.uf2>
 ```
 
-`-f` talks to a **running** CDC device. Picotool issues a USB vendor
-reboot so it can write flash, then the chip returns to the app. That is
-not a human BOOTSEL procedure. `--ser <chip-serial>` selects which
-RP2350 when more than one is plugged in.
+`-f` talks to a **running** CDC device, issues a USB vendor reboot,
+writes, returns to the app. That is a **warm MCU reset**. STEMMA 3V3
+stays up. Firmware must bring the bus up without a cable pull.
 
-**Why this exists next to the probe:** `--ser` targets by ROM serial
-when the probe is wired to the other board (typical: probe on vehicle
-Feather, Fruit Jam station has no SWD). Probe `load` is still preferred
-for iteration on the board the probe actually reaches (halt both cores,
-no USB yank).
+Do **not** use `picotool reboot -f` or `reboot -a -f` for extra counted
+boots (2026-08-20: CDC gone until a physical USB replug). Extra MCU
+restarts on an idle bus: CLI `k` (ABORT-then-STOP then watchdog). Slave
+POR: VBUS cycle. Close any serial monitor if picotool cannot find the
+device.
 
-**Caveats:**
-- `picotool load -f` is a **warm MCU reset**. STEMMA 3V3 stays up, so
-  I2C slaves (PA1010D, IMU, Fruit Jam DAC) keep running. Firmware must
-  bring the bus up without a cable pull. A USB unplug is a **module
-  power cycle**, not a flash step.
-- Do **not** use `picotool reboot -f` or `reboot -a -f` for extra
-  counted boots. 2026-08-20 baseline: that dropped CDC (no COM, not
-  BOOTSEL) until a physical USB replug. Extra boots: probe
-  `monitor reset halt` + `monitor resume` on **this** board, or a VBUS
-  cycle if you need a power cut. See Rule 2 in
-  `standards/HW_GATE_DISCIPLINE.md`.
-- If `picotool` can't find the device, close any serial monitor on the
-  target's COM port and retry.
+`picotool info` without `-f` reads without rebooting.
 
-### Don't use the 1200-baud BOOTSEL poke
+---
 
-Retired. `picotool load -f` already reboots a running device. A separate
-`serial.Serial(port, baudrate=1200)` open-and-close adds nothing and
-creates failure modes (OSError when the port disappears mid-open).
+## Counted boots (HW gate Rule 2)
+
+See `standards/HW_GATE_DISCIPLINE.md` Rule 2.
+
+| Action | What it is |
+|---|---|
+| Vector-resume after `flash_elf_halt_write.py` | Boot 1 once LED+CDC are up |
+| CLI `k` | MCU restart, bus idle (ABORT-then-STOP then watchdog) |
+| USB VBUS unplug/replug | Slave POR (3V3 drops). Recovery, not a gate step |
+| `reset halt` / `program` / picotool `reboot -f` | Not a valid counted boot on STEMMA |
 
 ---
 
 ## Multi-board targeting by chip serial
 
-When multiple RocketChip RP2350s are connected, every `picotool` command
-should use `--ser <chip-serial>` to target the specific physical board.
+When more than one RP2350 is connected, every `picotool` command uses
+`--ser <chip-serial>`.
 
-### Where chip-serial ↔ board mappings live
+**The repo is the source of truth.** Grep `docs/` for the serial. A hit
+that names station vs vehicle is authoritative.
 
-**The repo is the source of truth.** Grep the repo for the serial to
-find its documented role:
+Do not trust: agent memory, USB bus/address order, COM-port numbers.
+If the mapping is not in the repo, ask the user.
 
-```bash
-grep -rn <chip-serial> docs/
-```
-
-A hit like `docs/plans/STAGE_T_FIX_PLAN.md:339:... --ser BEC71B8EDC6AEBD1`
-is authoritative — the doc names it as station, vehicle, or whatever
-role.
-
-### Do not trust
-
-- Agent memory for chip-serial ↔ board mappings. Every historical
-  Frankenstein-flash incident on this project traces back to a
-  memory-held serial mapping that was never verified against repo docs.
-- USB bus/address ordering. These shift across reboots and
-  re-enumeration events.
-- COM-port numbers as identity proxies. Even if the user's current
-  bench has stable COM assignments, that's a local convention, not an
-  authoritative identity source.
-
-### If the mapping isn't in repo docs
-
-Ask the user. Do not guess from bus/address, memory, or other
-ephemeral state.
-
-### Inspect a specific board's binary
+Inspect a flashed UF2:
 
 ```bash
 picotool info -f --ser <chip-serial> -a
 ```
 
-Shows `pico_board:`, build date, binary range, and metadata blocks of
-the currently-flashed UF2. Useful for cross-checking before a flash.
+That reports what is **in the UF2**, not whether it is on the correct
+physical board. See verification below.
 
 ---
 
-## Board / Firmware Verification
+## Board / firmware verification
 
-**Purpose:** Confirm the firmware running on a physical board was built
-for that board. Independent of flashing method.
+A binary that links, flashes, and boots can still have the wrong
+`PICO_BOARD` / role. The firmware will drive the pins it was compiled
+for. That is a Frankenstein board: banner looks fine, peripherals are
+dead.
 
-### The failure mode this prevents (Frankenstein builds)
+Run in order. Stop at the first fail.
 
-A binary that compiles, links, flashes, and boots without asserts —
-with Core 0 running its QV loop normally — can still have **the wrong
-hardware abstraction** if the build was configured with the wrong
-`PICO_BOARD`, wrong role flags, wrong mission profile, etc. The
-firmware doesn't know it's on the wrong board: it drives GPIO 11 as
-`RADIO_RST` because that's what `kRadioRstPin` was set to at compile
-time. The peripheral silently fails, the AO that owns it silently
-gives up, and downstream code runs happily because it doesn't depend
-on that AO succeeding.
+**Pre-flight:** chip-serial ↔ board from the repo (above).
 
-### Why banner/picotool checks don't catch it alone
+**Tier 1 — physical (authoritative):**
 
-Both `picotool info --ser <serial>` and the running firmware banner's
-`Board:` line only report what's *baked into the UF2*. They do not
-prove the UF2 is running on the board it was compiled for. A
-Frankenstein board prints its intended board name perfectly while every
-peripheral silently fails.
+1. Status LED / NeoPixel lights at all. Completely dark from boot is a
+   strong wrong-board signal (each board wires the LED to a different
+   GPIO).
+2. Role-specific peripherals:
+   - **Station:** RSSI bar climbs, `Pkts:` advances, `Last:` stays low
+     once the vehicle is transmitting.
+   - **Vehicle:** `s` shows IMU/baro completing, not zeros. Core 1
+     loop count advances. `I=` rises on a second sample.
+3. Board-unique features only on their board (Fruit Jam HSTX/DVI;
+   Feather does not).
 
-The self-reinforcing trap: verifying "serial ↔ binary" consistency
-always passes for a correctly-built UF2, regardless of which physical
-chip received it. The thing you actually care about — "serial ↔
-physical board" — requires observing the hardware, not the firmware's
-self-report.
+**Tier 2 — binary ↔ serial (necessary, not sufficient):**
 
-### Verification Checklist
+4. `picotool info -f --ser <serial>` `pico_board:` matches the repo.
+5. Running banner `Board:` matches (4).
 
-Run in order. **Stop and investigate** at the first failing check —
-downstream checks assume earlier ones passed.
-
-**Pre-flight: chip-serial ↔ board mapping**
-
-- Source of truth is the repo. See "Multi-board targeting by chip
-  serial" above. Ask the user if docs don't cover it. Never trust
-  agent memory.
-
-**Tier 1 — physical observables (authoritative):**
-
-1. **Status LED / NeoPixel lights up at all.** Each board wires the
-   status LED to a different GPIO; wrong-board firmware drives a pin
-   that isn't connected or is used for something else. Completely dark
-   (not red, not dim) status LED from boot = strong Frankenstein
-   signal.
-2. **Role-specific peripherals function:**
-   - **Station:** RSSI bar climbs out of "dead" state once the vehicle
-     is transmitting. `Pkts:` counter advances. `Last:` stays low
-     (seconds, not minutes). A dead radio is the canonical symptom of
-     station firmware on vehicle hardware (wrong SPI/CS/IRQ pins for
-     the RFM95W).
-   - **Vehicle:** I2C sensors return plausible data. `s` CLI output
-     shows IMU/baro reads completing, not zeros or "not found". Core 1
-     loop count advances.
-3. **Board-unique features only light up on their board.** Fruit Jam
-   has HSTX/DVI output; Feather doesn't. If a Feather binary ends up
-   on Fruit Jam hardware, HSTX init won't produce output on a
-   connected screen.
-
-Tier 1 requires the firmware's compile-time pin/peripheral config to
-actually match the hardware under it. A wrong-board flash fails these.
-
-**Tier 2 — binary ↔ serial consistency (necessary but not sufficient):**
-
-4. `picotool info -f --ser <serial>` — check the `pico_board:` line
-   matches the board the repo documents that serial to be.
-5. Read the running firmware banner — `Board:` line should match (4).
-
-Tier 2 alone is the tautology to avoid. A Frankenstein board passes
-Tier 2 cleanly while failing Tier 1. **Tier 2 is corroborating
-evidence; Tier 1 is the verdict.**
+Tier 2 always passes for a correctly-built UF2 on the wrong chip.
+**Tier 1 is the verdict.**
 
 ---
 
 ## Build-time prevention
 
-The verification checklist catches mistakes after they reach hardware.
-These practices prevent the mistake at build time:
-
-1. Before creating a new `build_*` directory, copy the `cmake`
-   invocation from the closest working build's `CMakeCache.txt` — do
-   not assume defaults are right.
-2. After `cmake -B build_xxx`, run
-   `grep -E "PICO_BOARD|ROCKETCHIP_JOB" build_xxx/CMakeCache.txt`
-   and confirm values match the target role. (Note: `NOT_CERTIFIED_FOR_FLIGHT`
-   was retired in R-25-exec 2026-05-13; the project produces a single
-   flight binary per role with test affordances runtime-gated by
-   `rc::test_mode_active()`. See
-   `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
-3. After flashing, read the boot banner (or GDB-print the build tag
-   and board name symbols) before starting any soak.
-4. The root `CMakeLists.txt` auto-picks the correct `PICO_BOARD`
-   default when `ROCKETCHIP_JOB_STATION=1` is set (as of 2026-04-22) —
-   but this only protects fresh configures, not cached builds with
-   previously-wrong values.
-5. Use a **monotonic build iteration tag** during extended debug
-   sessions (e.g., `kBuildTag = "IVP30-fix-3"`, incremented on every
-   rebuild). `__DATE__ __TIME__` alone blurs together during rapid
-   rebuilds and the same binary flashed twice looks identical. Always
-   verify the tag in serial output before starting a test cycle. See
-   `docs/agents/LESSONS_LEARNED.md` Entry 2.
+1. Before a new `build_*` directory, copy the `cmake` invocation from a
+   working build's `CMakeCache.txt`.
+2. After configure:
+   `grep -E "PICO_BOARD|ROCKETCHIP_JOB" build_xxx/CMakeCache.txt`.
+   Single flight binary per role; test hooks are runtime-gated by
+   `rc::test_mode_active()` (`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`).
+3. After flash, read the banner before any soak.
+4. Root `CMakeLists.txt` picks `PICO_BOARD` when
+   `ROCKETCHIP_JOB_STATION=1` on a **fresh** configure, not a cached
+   wrong one.
+5. Monotonic build tag during long debug (`kBuildTag`); `__DATE__
+   __TIME__` blurs. LL Entry 2.
 
 ---
 
 ## Troubleshooting
 
-- **Serial monitor blocks picotool:** If picotool can't find the device,
-  close any serial monitor / COM port holder on the target port and
-  retry. COM port locks prevent re-enumeration.
-- **GDB "Remote communication error":** Use the Pico SDK's GDB
-  (`/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe`),
-  not Chocolatey's. Version-mismatch issue. Details:
-  `docs/agents/DEBUG_PROBE_NOTES.md`.
-- **"Unable to find CMSIS-DAP device":** Stale OpenOCD processes
-  holding the probe's USB device. `taskkill //F //IM openocd.exe`,
-  wait 2s, restart with full path. Details:
-  `docs/agents/DEBUG_PROBE_NOTES.md`.
-- **USB enumerates to a new COM port after flash:** Normal on Windows
-  after re-enumeration. Don't use COM numbers as identity — identify
-  boards by chip serial or firmware banner content per the checklist
-  above.
-- **Board becomes unresponsive after `picotool -f` or SWD halt-mid-spinlock (E2 signature):**
-  Both `picotool load -f` / `picotool info -f` (via USB vendor
-  reboot) and OpenOCD `monitor halt` during a spinlock wait can
-  produce the same RP2350-E2 spinlock deadlock. The
-  `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` workaround doesn't cover these
-  paths (see `standards/RP2350_ERRATA.md` E2 row, R-1 / R-2).
-  **Underlying cause** (best current understanding): SIO block state
-  and/or exclusive-monitor state persists across the warm reboot
-  issued by either tool, and SIO isn't reset by the warm boot path.
-  The probe itself isn't the bug — it's that the probe (or picotool)
-  is what *issued* the warm reboot. Any warm-reboot path would hit
-  the same silicon gap.
-
-  **Recovery:** unplug the board VBUS. Whether the probe also needs
-  to be replugged depends on whether OpenOCD's DAP session got stuck
-  — often it does because the target vanished mid-session, so replug
-  both as the reliable option. A target-only reset or a probe-only
-  replug will NOT clear it — the SIO state survives warm reboot and
-  only a full board power cycle brings it back.
-
-  **Prevention:** avoid warm-reboot-inducing actions when you don't
-  need them. For running devices, `picotool info` (no `-f`) reads
-  what it can without rebooting. For flashing, prefer the debug probe
-  (SWD `load` is cleaner than picotool `-f`). For debugging, avoid
-  `monitor halt` while the target is in a `spin_lock_blocking` wait
-  — use breakpoints past the spinlock acquisition instead, or
-  `monitor reset halt` to re-enter from a known state.
-
-  A missing LED/CDC right after GDB attach or `load` is often the
-  flash **process** (cores still halted, no extra restart, OpenOCD
-  left holding halt). Do not log that as an E2 recurrence until the
-  extra post-flash restart has run and OpenOCD is not still attached.
-  LL Entry 46.
-
-  **Rescue-DP (not our recovery path — noted for completeness).**
-  RP2350 provides a dedicated recovery Access Port (`RP_AP:CTRL`
-  bit 31 `RESCUE_RESTART`) intended for DAP-stuck scenarios.
-  Raspberry Pi's OpenOCD fork exposes it via `target/rp2040-rescue.cfg`
-  (same file used for RP2350). We do not use it as a primary recovery
-  step because physical replug reliably clears our observed R-1/R-2
-  symptoms and Rescue-DP's applicability to them is unverified
-  (it targets DAP state, not the application-level peripheral state
-  we suspect is involved). If physical replug ever *stops* reliably
-  clearing an incident, Rescue-DP is worth trying as a next step —
-  log the attempt and outcome in `standards/RP2350_ERRATA.md` E2
-  incident log.
+- **Park refused / no CDC:** Do not flash. Kill OpenOCD if cores may
+  still be halted. If LED is off, resume is missing — not an automatic
+  E2. If still dead: VBUS + probe unplug (recovery).
+- **CDC dies during write:** TinyUSB ISRs are in flash. Park `u` must
+  `tud_disconnect` first. DTR pulse on serial close will also kill the
+  park. Use the script, not a hand `Serial()` open.
+- **Hardware 10/13, ICM/baro NACK, GPS ACK:** MCU-only reset with
+  STEMMA 3V3 up (`I2C_IF_DIS`). USB POR is the unwedge. Do not retry
+  `reset halt` or `program`.
+- **Core 0 in bootrom after "flash":** DTR pulsed, or `reset` was
+  issued. Replug is recovery. Next flash: park with DTR held low.
+- **Serial monitor blocks picotool:** Close the COM holder and retry.
+- **GDB "Remote communication error" / errno 10061:** Pico SDK GDB
+  (`…/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe`), not Chocolatey.
+- **"Unable to find CMSIS-DAP device":** Stale OpenOCD.
+  `taskkill /F /IM openocd.exe`, wait 2 s, run the start script.
+- **New COM port after flash:** Normal on Windows. Do not use COM
+  numbers as identity.
+- **Unresponsive after picotool `-f` or halt-mid-spinlock (E2):** See
+  `standards/RP2350_ERRATA.md` E2. Recovery is VBUS unplug (and often
+  probe replug). A target-only warm reset will not clear SIO state.
+  Prevention: prefer the probe path above; do not `picotool info -f`
+  when you only needed `info`. Do not `monitor halt` inside
+  `spin_lock_blocking`. Missing LED right after attach is usually
+  still-halted cores — kill OpenOCD / resume, do not log E2 until
+  that is ruled out.
+- **Rescue-DP:** `RP_AP:CTRL` `RESCUE_RESTART` /
+  `target/rp2040-rescue.cfg` is **not** our primary recovery. Replug
+  first. Try Rescue-DP only if physical replug stops working, and log
+  it on the E2 incident table.
 
 ---
 
 ## See also
 
-- `docs/agents/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, debug
-  probe troubleshooting beyond flashing
-- `docs/BENCH_TEST_PROCEDURE.md` — soak-test procedure; uses this
-  flashing doc + verification checklist as preconditions
-- `docs/agents/LESSONS_LEARNED.md` Entries 25, 27, 28, 31, 36 — historical
-  flash-related failure modes and their fixes
-- `standards/DEBUG_OUTPUT.md` — build iteration tags, serial-terminal
-  compatibility notes
+- `scripts/flash_elf_halt_write.py` — implements the iterative path
+- `scripts/start_openocd_pico_sdk.ps1` / `openocd_cmsis_dap.cfg`
+- `docs/agents/DEBUG_PROBE_NOTES.md` — inspect, GDB, OpenOCD installs
+- `standards/HW_GATE_DISCIPLINE.md` Rule 2 — counted boots
+- `docs/BENCH_TEST_PROCEDURE.md` — soak; uses this file as the flash
+  precondition
+- `docs/agents/LESSONS_LEARNED.md` — historical flash failures (do not
+  treat old `reset halt` recipes there as current procedure)
+- `docs/deprecated/` — pre-rewrite snapshots of this file and
+  `DEBUG_PROBE_NOTES.md` (`origin/main` `9f8aef4`). Not procedure.
+- `standards/DEBUG_OUTPUT.md` — build tags, serial-terminal notes

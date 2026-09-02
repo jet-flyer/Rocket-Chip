@@ -77,15 +77,15 @@ See `docs/agents/DEBUG_PROBE_NOTES.md` for full setup, known issues, and GDB ver
 
 Every injection test must leave the device in a recoverable state. The standard recovery sequence:
 
-```
-(gdb) monitor reset halt
-(gdb) load
-(gdb) monitor resume
-```
+Reflash per `docs/FLASHING.md` (`python scripts/flash_elf_halt_write.py`).
+Never OpenOCD `program` or `reset halt` with STEMMA 3V3 up.
 
-This reflashes and reboots cleanly. **Use `monitor resume`, not `monitor reset run`** — the latter doesn't reliably resume both cores on RP2350 (see DEBUG_PROBE_NOTES.md).
+If CDC is already dead, halt (no reset), then the same write_image path
+with `--no-park` only if the core is already parked. USB unplug is
+recovery, not a step.
 
-If the device is in a watchdog reset loop, `monitor halt` may need to be issued quickly after reset. OpenOCD's `reset halt` handles this.
+**Use `resume`, not `reset run`** — the latter doesn't reliably resume
+both cores on RP2350 (see DEBUG_PROBE_NOTES.md).
 
 ---
 
@@ -181,7 +181,7 @@ Each fault injection test follows this pattern:
    - Watchdog stall: after reboot, recovery counter incremented (`g_recovery.eskf_fail_count`)
    - Queue flood: system either asserts (expected) or recovers (document which)
    - PIO SM halt: document gap if no upper-layer monitor detects halted timer
-9. **Recover** — `monitor reset halt` + `load` + `monitor resume`
+9. **Recover** — `docs/FLASHING.md` (`flash_elf_halt_write.py`), not `reset halt` + `load`
 
 ---
 
@@ -228,12 +228,7 @@ Expected output:
 - `flight_phase_observable_get() = 0` (kIdle)
 - `g_eskfInitialized = true` before call, **`false`** after (state mutation = positive-control signal)
 
-**One-scenario-per-session discipline:** Stringing multiple `fault_force_*` calls into one session is unsafe — the first fault may cascade into MemManage / HardFault before the second call runs. Reset the chip between scenarios:
-```
-monitor reset halt
-monitor resume
-detach
-```
+**One-scenario-per-session discipline:** Stringing multiple `fault_force_*` calls into one session is unsafe — the first fault may cascade into MemManage / HardFault before the second call runs. Reset the chip between scenarios with CLI `k` (ABORT-then-STOP then watchdog) while CDC is live, not `reset halt` (`docs/FLASHING.md`).
 
 **Timing budget:** test_mode arms for 30s post-boot (`kTestModeArmWindowMs`). The `shell sleep 6` + halt + `call` sequence completes well inside the window. Adding multiple inter-call sleeps risks timing out; one scenario per arm cycle.
 

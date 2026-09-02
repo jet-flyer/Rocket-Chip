@@ -21,6 +21,7 @@
 #include "rocketchip/radio_config_table.h"     // T6: whitelist for digit keys
 #include "pico/stdlib.h"
 #include "pico/time.h"
+#include "tusb.h"
 #include "rocketchip/rc_log.h"
 #include <stdlib.h>
 #include <string.h>
@@ -196,6 +197,9 @@ bool dev_debug_menu_dispatch(int c) {
         }
         case 'u': case 'U': {
             rc::rc_log("[I2C] park for probe flash (WFI until reset)\n");
+            // TinyUSB ISRs live in flash. Disconnect before halt/write so
+            // USBCTRL_IRQ cannot run mid-erase (DEBUG_PROBE_NOTES).
+            (void)tud_disconnect();
             i2c_master_park();
             break;
         }

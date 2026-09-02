@@ -127,9 +127,10 @@ static void update_from_lwgps() {
 }
 
 static void wake_bridge() {
+    // 1-byte wake only. A 255-byte drain here steals the cold-ACK window
+    // PMTK needs (init_gps() comments; measured: wedges IMU/baro on k).
     uint8_t wake = 0;
     (void)i2c_master_read(kGpsPa1010dAddr, &wake, 1, kGpsReadTimeoutUs);
-    (void)i2c_master_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead, kGpsReadTimeoutUs);
     sleep_ms(kWakeGapMs);
 }
 
@@ -151,15 +152,12 @@ static bool send_pmtk() {
 }
 
 static bool find_nmea() {
+    // Hunt only after PMTK ACKs. 1-byte, not 8x255 (that wedged the bus).
     for (int retry = 0; retry < kNmeaHuntTries; retry++) {
-        int ret = i2c_master_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
-                                  kGpsReadTimeoutUs);
-        if (ret > 0) {
-            for (int i = 0; i < ret; i++) {
-                if (g_buffer[static_cast<size_t>(i)] == kNmeaStart) {
-                    return true;
-                }
-            }
+        uint8_t b = 0;
+        int ret = i2c_master_read(kGpsPa1010dAddr, &b, 1, kGpsReadTimeoutUs);
+        if (ret > 0 && b == kNmeaStart) {
+            return true;
         }
         sleep_ms(kNmeaHuntGapMs);
     }
@@ -175,10 +173,11 @@ bool gps_pa1010d_init() {
         wake_bridge();
         (void)send_pmtk();
     }
-    g_pmtkWindowHit = find_nmea();
-    g_initialized = (g_pmtkWriteResults[0] > 0) &&
-                    (g_pmtkWriteResults[1] > 0) &&
-                    (g_pmtkWriteResults[2] > 0);
+    const bool pmtk_ok = (g_pmtkWriteResults[0] > 0) &&
+                         (g_pmtkWriteResults[1] > 0) &&
+                         (g_pmtkWriteResults[2] > 0);
+    g_pmtkWindowHit = pmtk_ok && find_nmea();
+    g_initialized = pmtk_ok;
     return g_initialized;
 }
 

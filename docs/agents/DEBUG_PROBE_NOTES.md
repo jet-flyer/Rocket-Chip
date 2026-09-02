@@ -1,229 +1,128 @@
 # Debug Probe Usage Notes
 
-## Priority: Debug Probe Over LED Debugging
+Inspect and debug with the Adafruit SWD probe. **Flashing is
+`docs/FLASHING.md`.** Do not copy a GDB `load` / `reset halt` recipe
+from this file. Pre-rewrite snapshot: `docs/deprecated/DEBUG_PROBE_NOTES.md`.
 
-**CRITICAL GUIDELINE: Always prioritize debug probe over LED-based debugging**, especially when encountering issues that prevent output (USB enumeration failures, hardfaults, early crashes).
+## Probe first
 
-### Why Debug Probe First
+Use the probe before LED-only debugging when USB is dead, the chip
+hardfaulted, or output never started. The probe can halt and dump
+registers even with CDC down. Do not ask for a BOOTSEL button unless
+CDC is dead **and** the probe cannot attach (LL Entry 5).
 
-1. **Always works** - Even when USB is completely broken, the probe can flash, halt, and inspect the device
-2. **Full visibility** - GDB gives you register state, memory contents, and stack traces that LEDs never can
-3. **Faster iteration** - Flash via probe in seconds vs picotool USB reboot. Never ask for a BOOTSEL button except USB-dead last resort (LL Entry 5).
-4. **Catches what LEDs miss** - Hardfaults before LED init, crashes between LED states
+LED watching is fine for runtime-without-breakpoints and for production
+images that will not have a probe. Prefer serial diagnostics over LED
+patterns when CDC is up.
 
-### When to Consider LED Debugging
+## Two OpenOCD installs
 
-Only use LED-based debugging when:
-- Debug probe is not physically connected
-- You specifically need to observe runtime behavior without breakpoints
-- Testing production firmware that won't have probe attached
+| Version | Path | RP2350 |
+|---|---|---|
+| Chocolatey | `C:/ProgramData/chocolatey/lib/openocd/` | No (0.12.0, 2023) |
+| Pico SDK | `%USERPROFILE%/.pico-sdk/openocd/0.12.0+dev/` | Yes (0.12.0+dev) |
 
-Even then, prefer adding diagnostic output over LED patterns when possible.
+`openocd` on PATH is the Chocolatey build. Always the Pico SDK binary.
+Same split for GDB: Pico SDK `14_2_Rel1`, not Chocolatey
+`arm-none-eabi-gdb` (errno 10061 against this OpenOCD).
 
----
+## Start OpenOCD
 
-## Two OpenOCD Installations (CRITICAL)
+From repo root, every time:
 
-There are TWO OpenOCD versions installed on this system:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_openocd_pico_sdk.ps1
+```
 
-| Version | Path | RP2350 Support |
-|---------|------|----------------|
-| **System (Chocolatey)** | `C:/ProgramData/chocolatey/lib/openocd/` | **NO** (0.12.0 from 2023) |
-| **Pico SDK** | `/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/` | **YES** (0.12.0+dev from 2025) |
+Idempotent: kills every `openocd.exe`, waits 2 s, starts Pico SDK
+OpenOCD with `openocd_cmsis_dap.cfg` (halt-only gdb-attach, no
+SYSRESETREQ). Confirm `127.0.0.1:3333` and `:4444`.
 
-**ALWAYS use full paths** to ensure the correct OpenOCD version is used. The system `openocd` in PATH does NOT have RP2350 support.
+Do **not** start with `interface/cmsis-dap.cfg` + `target/rp2350.cfg`
+alone — that default SYSRESETREQs on connect. See `docs/FLASHING.md`.
 
----
+When finished: `taskkill /F /IM openocd.exe`. Kill it before a user
+power cycle so the next attach is not a stale DAP.
 
-## Reliable OpenOCD Startup (USE THIS)
+`Start-Process -ArgumentList` in PowerShell splits `-c "adapter speed
+5000"`. Use the `.ps1`; it passes one `.Arguments` string.
 
-**Standard command to start OpenOCD - use this every time:**
+### Pre-commit `bench_sim`
+
+Firmware-path commits need OpenOCD on `:3333` **and** vehicle CDC so
+`python scripts/bench_sim.py` can find the board. The hook does not
+flash; it talks to whatever image is already on the chip. Flash first
+(`docs/FLASHING.md`), then commit. `--no-verify` needs explicit
+repo-owner approval in this session.
+
+## Flash
+
+```powershell
+python scripts/flash_elf_halt_write.py --elf build_flight/rocketchip.elf
+```
+
+Park + halt + `write_image` + vector resume. Never `program`. Never
+`reset halt` after write. Full rules: `docs/FLASHING.md`.
+
+Attach stops the cores (LED off until resume). That is halt, not E2.
+
+## Inspect (halt, no reset)
 
 ```bash
-# Kill any existing OpenOCD, wait for USB release, then start fresh
-taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000" &
+/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe \
+  build_flight/rocketchip.elf -batch \
+  -ex "target extended-remote localhost:3333" \
+  -ex "monitor halt" -ex "bt"
 ```
 
-This command is idempotent - safe to run even if no OpenOCD is running.
+Same pattern for `print`, `info threads`, `info locals`. Do not
+`monitor reset halt` with STEMMA 3V3 up. After GDB disconnects, halt
+again if you need control — still no reset.
 
-**Why this works:**
-1. `taskkill //F //IM openocd.exe` - Kills ALL OpenOCD processes (pkill doesn't work on Windows)
-2. `sleep 2` - Allows USB device to be released
-3. Full paths ensure Pico SDK OpenOCD is used (not system version)
-4. `&` runs in background so terminal remains usable
+Prefer waiting for CDC to inspect a boot that has not enumerated yet.
+Halting a missing banner is part of a stuck flash process, not a
+firmware dump.
 
-**When done debugging:**
-```bash
-taskkill //F //IM openocd.exe
-```
+`resume`, never `reset run`. `reset run` can leave Core 1 at bootrom
+`0x000000da` while Core 0 waits on a cross-core flag.
 
-**Windows PowerShell (when Cygwin/bash is wrong for your session):** `Start-Process -ArgumentList` often splits `-c "adapter speed 5000"` incorrectly. From repo root: **`powershell -ExecutionPolicy Bypass -File scripts/start_openocd_pico_sdk.ps1`** — it uses `ProcessStartInfo` with a single `.Arguments` string. Then confirm `127.0.0.1:3333` is listening (`netstat -an | findstr 3333` on Windows).
+## USB IRQs vs flash erase
 
-### Git `pre-commit` hook (flight‑critical paths → `bench_sim.py`)
+TinyUSB handlers live in flash. Erase/write with USB IRQs armed breaks
+CDC. The park path calls `tud_disconnect` before WFI so that cannot
+happen. Do not "fix" this by doing flash work before `stdio_init_all`
+on a running board — that is a different problem (boot-time storage
+init). Iterative SWD flash uses park.
 
-Some paths (see `.git/hooks/pre-commit`) require **both**:
+## Known issues
 
-1. **OpenOCD** listening on **`127.0.0.1:3333`** (probe attached; use **`scripts/start_openocd_pico_sdk.ps1`** or bash idiom above — restart if flaky: `taskkill`, wait, start again).
+1. **Multiline bash + GDB.** `\` continuations are unreliable. One line
+   or a `.gdb` script.
+2. **GDB batch timeouts.** Short timeouts; batch mode can hang on a
+   breakpoint that never hits.
+3. **Wrong OpenOCD / GDB.** Chocolatey OpenOCD has no `rp2350.cfg`.
+   Chocolatey GDB vs Pico SDK OpenOCD → errno 10061 even when `:3333`
+   is listening.
+4. **CMSIS-DAP not found.** Stale `openocd.exe` holding the probe.
+   `taskkill /F /IM openocd.exe`, wait 2 s, run the start script.
+   `pkill` is not in Windows Git Bash.
+5. **USB I/O error, PC=0x00000000.** Kill OpenOCD, wait, restart via
+   the script, `monitor halt` (not `reset halt`). If still dead: VBUS
+   + probe unplug. USB unplug is recovery.
+6. **Dual USB.** Target CDC and the probe are separate host
+   connections. A crashed target USB stack can still make the probe
+   report I/O errors. Power-cycle the target.
 
-2. **Vehicle USB CDC** enumerated so **`python scripts/bench_sim.py`** can find the RocketChip port.
+## Probe before printf
 
-Restarting OpenOCD usually fixes `:3333` not listening without re-plugging firmware work. **`git commit --no-verify`** is only for emergencies and **requires explicit repo-owner approval** — autonomous agents **must not** bypass the hook unless the human author instructed it.
+Printf changes timing, can block on the CDC mutex, and can hide the
+bug. Halt and backtrace first.
 
-Before any commit that touches firmware paths, ensure OpenOCD is running and listening on `127.0.0.1:3333` if the pre-commit hook requests hardware verification.
-
----
-
-## Issue: USB CDC breaks after flash operations (RESOLVED)
-
-**Root Cause:**
-Per RP2350_FULL_AP_PORT.md PD1+PD3:
-- Flash operations make entire flash inaccessible during erase/write
-- TinyUSB interrupt handlers are in flash
-- When flash ops run with USB active, USB IRQ handlers can't execute → USB breaks
-
-**Solution (correct approach per DEBUG_OUTPUT.md):**
-Do flash operations BEFORE USB is fully active:
-1. stdio_init_all() - enables USB driver
-2. hal.init() / storage.init() - flash operations happen here
-3. THEN wait for USB connection
-4. THEN print output
-
-This follows DEBUG_OUTPUT.md pattern: "Run program logic immediately, wait for connection before printing results."
-
----
-
-## Working Commands
-
-### Start OpenOCD (RP2350) - FULL PATH VERSION
-```bash
-# Always kill first, then start with full paths
-taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000" &
-```
-
-### GDB Connection (single line - multiline doesn't work well in bash)
-**IMPORTANT:** Use Pico SDK's GDB (14_2_Rel1), NOT Chocolatey's arm-none-eabi-gdb. The Chocolatey version has connection issues with OpenOCD 0.12.0+dev.
-
-```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "bt"
-```
-
-### Flash and Run via GDB
-```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor resume"
-```
-
-Then one extra `monitor reset halt` + `monitor resume` before the first
-trusted `bench_sim` / Boot 1. See `docs/FLASHING.md` and LL Entry 46.
-GDB attach stops the cores (LED off until resume). That is OpenOCD
-halt-on-connect, not by itself an E2 diagnosis.
-
-**CRITICAL (2026-03-04):** Use `monitor resume`, NOT `monitor reset run`, for dual-core targets in GDB batch mode. `monitor reset run` does not reliably resume both cores — Core 1 can appear stuck at bootrom `0x000000da` while Core 0 waits for cross-core flags. `monitor resume` correctly resumes both cores from their halted state after `load`. To inspect state after free-run, prefer waiting for CDC; `monitor halt` of a boot that has not enumerated yet is part of the flash process, not a firmware dump.
-
----
-
-## Known Issues
-
-1. **Multiline bash commands**: The `\` line continuation doesn't work reliably with GDB. Use single-line commands or `&&` chaining.
-
-2. **Timeouts**: GDB batch mode can hang waiting for breakpoints. Use short timeout values.
-
-3. **OpenOCD version confusion**: System OpenOCD (Chocolatey, 0.12.0) doesn't have rp2350.cfg. **Always use full paths** to Pico SDK's OpenOCD at `/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/`.
-
-4. **Target state**: After GDB disconnects, may need `monitor reset halt` to regain control.
-
-5. **USB I/O Errors with PC=0x00000000**: When you see "error submitting USB write: Input/Output Error" and PC=0x00000000 with corrupt stack, the device is in a bad state. Try:
-   - Kill OpenOCD completely: `taskkill //F //IM openocd.exe`
-   - Wait 2-3 seconds
-   - Restart OpenOCD with full path command
-   - Use `monitor reset halt` before any other commands
-   - If still failing, power cycle the device (unplug USB) or use picotool to flash
-
-6. **Dual USB conflict**: The RP2350 target's USB CDC and the debug probe are separate USB connections to the host. However, if the target firmware crashes with USB in a bad state, the CMSIS-DAP probe may also report I/O errors. Power cycling the target usually resolves this.
-
-7. **"Unable to find CMSIS-DAP device"** - **RESOLVED**
-
-   **Root cause identified (2026-01-30):** Multiple stale OpenOCD processes holding the USB device exclusively.
-
-   **Solution:** Always kill all OpenOCD processes before starting:
-   ```bash
-   taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; <start openocd with full path>
-   ```
-
-   **Why `pkill openocd` didn't work:** The `pkill` command is not available in Windows Git Bash. Use `taskkill //F //IM openocd.exe` instead.
-
-8. **GDB "Remote communication error" / "Target disconnected" (error 10061)** - **RESOLVED**
-
-   **Root cause identified (2026-02-01):** Version mismatch between Chocolatey's arm-none-eabi-gdb (10.2, from 2021) and Pico SDK's OpenOCD (0.12.0+dev, from 2025).
-
-   **Solution:** Use Pico SDK's GDB instead of Chocolatey's:
-   ```bash
-   # WRONG - Chocolatey GDB (fails with "Target disconnected")
-   arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" ...
-
-   # CORRECT - Pico SDK GDB
-   /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" ...
-   ```
-
-   **Symptoms:** Port 3333 appears open (`netstat -an | grep 3333`), Python can connect, but GDB reports "Remote communication error. Target disconnected.: (undocumented errno 10061)".
-
----
-
-## Iterative Debugging Tips
-
-### NEVER Add Debug Printf - Use Probe Instead
-
-**CRITICAL:** When debugging issues, **do NOT add printf/debug statements** as the first approach. Printf can:
-1. Change timing and hide/create race conditions
-2. Block on USB CDC mutex, causing deadlocks
-3. Affect the very issue you're trying to debug
-
-**Always use the debug probe first:**
-```bash
-# Halt and get backtrace
-arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "bt"
-
-# Check specific variables
-arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "print my_variable"
-
-# Check program counter on each core
-arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "info threads"
-```
-
-The probe gives you instant visibility without modifying code behavior.
-
-### Add Version String to Debug Output
-When iteratively debugging crashes, add a version identifier to confirm the correct binary is running:
-
-```cpp
-printf("Build: v3-static-calibrator\n");  // Update version on each change
-```
-
-This prevents confusion about whether the latest code was actually flashed.
-
-### Use Debug Probe Before Asking for Manual BOOTSEL
-Routine flash never uses the BOOTSEL button (`docs/FLASHING.md`).
-When USB is unresponsive:
-1. First try flashing via debug probe (works if the probe is on that board)
-2. Only ask for manual BOOTSEL as last resort if probe attach also fails
-
-```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
-```
-
----
-
-## Useful GDB Commands
-
-- `monitor reset halt` - Reset and halt target
-- `load` - Load ELF to flash
-- `break file.cpp:line` - Set breakpoint
-- `continue` - Run until breakpoint
-- `next` / `step` - Step over/into
-- `print variable` - Print variable value
-- `bt` - Backtrace
-- `info locals` - Show local variables
+A monotonic build tag in the banner beats `__DATE__ __TIME__` during
+rapid rebuilds (`docs/FLASHING.md` build-time prevention, LL Entry 2).
 
 ## Ports
+
 - GDB: 3333
 - Telnet: 4444
 - TCL: 6666

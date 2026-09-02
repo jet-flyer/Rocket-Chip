@@ -29,43 +29,11 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ---
 
-## STEMMA I2C + PA1010D (OPEN) (2026-09-01)
+## STEMMA PA1010D on IMU bus (OPEN)
 
-WIP `C:\Users\pow-w\Documents\Rocket-Chip-i2c` / `grok/i2c-stemma-soak`. PA1010D on STEMMA is a stretching stress slave (UART GPS unplugged this sitting).
+`i2c_master` landed (ABORT-then-STOP, skip warm DEVICE_RESET, 50 ms transfer, GPS after USB, park `u` + halt/`write_image`/vector-resume). GPS-off IMU/baro was already `e=0` on the old layer. GPS-on live still ~11% IMU errors and/or freeze; GPS-last can latch ICM/baro while GPS ACKs (`I=0 B=0`). Chain order remains `docs/hardware/HARDWARE.md`: Board → GPS → Baro → IMU. UART GPS (`gps_uart.cpp`) is flight GPS — I2C PA1010D is stress slave. USB unplug is recovery, not a gate.
 
-**Iterative flash: probe (OpenOCD `program`) only. Not `picotool load`.** Picotool `-f` BOOTSEL often never enumerates; consecutive picotool ops change personality (`reboot -a` #1 prints application-mode, #2 silent) and still MCU-reset with STEMMA 3V3 up. OpenOCD reset-on-connect also latches until the next USB POR — expect one POR after a probe flash, then iterate with debug `k` (quiesce+watchdog), not another flash.
-
-**Reset latch (partially closed).** Cause was host `i2c_deinit`=`reset_block` mid-byte, then picotool FLASH `watchdog_reboot(..., 100 ms)` letting Core 1 re-attach. Now: DW_apb_i2c ABORT→STOP, `g_quiescing`, Core 1 pause or `multicore_reset_core1` after abort. Debug `k` ×3 after USB POR: ICM `WHO_AM_I=0xEA` each; boot 3 Hardware 13/13. Banner `[I2C] last_quiesce via=1 count=6`. 9 clocks only if SDA stuck low (UM10204 §3.1.16); live/idle 9-clock still forbidden (wedges PA1010D).
-
-**Still open — coexistence, do not conflate with the latch:**
-- IMU `I=` errors still ~50%+ with GPS on the chain (POR `I=3824 e=5699`). `k` #2 inited ICM then `imu -> FAULT`.
-- Baro/GPS *init* flaky across boots (not the NACK-until-unplug latch).
-- Picotool `reboot -a` #2 not re-tested after the 100 ms hold.
-- I vs Z counters split (`Errors: I= Z=`). Gravity-floor zeros are not bus NACKs.
-
-**Falsified — do not retry:** stretch-tolerant probe timeout; 100 kHz; bus capacitance; "GPS xfers cause it" (IMU failed with 0x10 never addressed); always-27 leftover clocks; HAD_POR to skip leftover drain (sticky RO). CHANGELOG `2026-09-01-001` is on this branch — carry to `main` before deleting the branch (WORKTREE.md / LL 45).
-
----
-
-## STEMMA I2C Hamilton sitting 2026-09-01 (HANDOFF / paused)
-
-Firmware experiments on `grok/i2c-stemma-soak` **reverted to `e4fe076`**. No changelog (nothing to keep). Diagnosis only.
-
-**Got somewhere on the latch, not on a fix.** After picotool + extra probe reset (no USB-POR), `0x69` is `ABRT_7B_ADDR_NOACK`. Banner `14:28:40` `e4fe076-dirty`: ICM `[FAIL]` `WHO_AM_I rc=-2 val=0x00 abrt=0x00000001`. `rc=-2` is `REG_BANK_SEL` write failed (never read WHO_AM_I). `val=0x00` is empty, not a wrong ID. DPS310 `[FAIL]` the same boot. UART GPS GO is not the scoreboard.
-
-**Falsified this sitting (do not retry):** DEVICE_RESET without wake; book wake (`0x80` then `0x01`) as recovery; probe-gate as the `[N/A]` cause (WHO_AM_I really ran and died); `0x10` NMEA dump + DW RX/`clr_tx_abrt` flush as an init fix; 9 SCL pulses then STOP at idle `i2c_bus_init` (still ADDR_NOACK). Banks and sleep are falsified for this `[FAIL]` because baro has neither and also NACKs.
-
-**One unreproduced positive:** `11:31:28` SIO 27 clocks with no SDA-high early-out got ICM `0xEA` and mag live; accel invalid; baro init still FAIL. Nine clocks did not repeat it.
-
-**I2C_IF_DIS:** if USER_CTRL bit 4 latched, ICM NACKs until a real 3V3/NRESET POR, not more `0x7F`. Feather STEMMA QT has no RST. USB-POR remains the only unwedge.
-
-**Goddard IRL (2026-09-01, pause, no code):**
-- PA1010D pin 1 is I2C *slave* SDA (CD-PA1010D v.03). "Outputs GPS information" is the NMEA buffer you read at `0x10` (empty = `0xFF`). Pin 4 TX is UART NMEA. Not a free-running talker.
-- pico-sdk [#252](https://github.com/raspberrypi/pico-sdk/issues/252) is this chip vs DW_apb `IC_SDA_TX_HOLD`. Attach already uses `i2c_set_baudrate` (300 ns). Hold is not the remaining latch.
-- Adafruit RST is a pad, not STEMMA QT. `NRESET` is a 5th wire or a 3V3 load switch. CR1220 `VBACKUP` can keep RTC across QT unplug.
-- Datasheet does not ban 9 clocks (SCL is an input). 9-then-STOP failing `ABRT_7B_ADDR_NOACK` is empirical. 27 clocks with no SDA-high early-out is the only unreproduced `0xEA`.
-- Mag bypass (`INT_PIN_CFG.BYPASS_EN`) puts AK09916 at `0x0C` on the same STEMMA as `0x10`. Do not set MST_EN and bypass together.
-- ICM book wake (`0x7F=0x00`, `PWR_MGMT_1=0x80`, ~10 ms, `0x01`, `PWR_MGMT_2=0x00`, then WHO_AM_I) was tried; it does not unwedge address NACK after picotool.
+Next: idle-but-present 0x10 vs 1 kHz (not more GPS skip). `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach.
 
 ---
 
@@ -116,12 +84,6 @@ Station/relay NeoPixel bar (`ao_radio.cpp` `handle_rssi_bar` → `ws2812_set_rss
 ## Probe dump PC not in the session diff (OPEN) (2026-08-20)
 
 When the board is stuck and the probe stacked PC/LR is **not a line this sitting edited**, do **not** patch that site first. Check E2 / probe residual power (`standards/RP2350_ERRATA.md`, `docs/FLASHING.md`: VBUS cycle; Feather-only unplug is not enough while the probe still feeds the board). Rescue-DP (`RP_AP:CTRL` `RESCUE_RESTART` / `rp2040-rescue.cfg`) is documented as **not** our primary recovery — replug is; try Rescue-DP only if physical replug stops working, and log the attempt on the E2 incident table.
-
----
-
-## SWD flash process (OPEN) (2026-08-21)
-
-Still in this sitting: extra post-flash restart, then 3-boot, only after LED/CDC. Not logged as E2. LL Entry 46, `docs/FLASHING.md`, Rule 2 extra restart.
 
 ---
 

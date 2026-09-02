@@ -59,9 +59,9 @@ Single-boot evidence is insufficient: a transient init quirk, an SDK timing wind
 4. **Cold-restart again.**
 5. **Boot 3:** Observe gate signals.
 
-A "cold restart" means a full chip reset that exercises the boot path from scratch — typically a probe-driven `monitor reset halt` + `monitor resume`. USB replug is sometimes needed if the specific test scenario also exercises CDC re-enumeration, but the 3-boot protocol itself does not require it.
+A "cold restart" means a full chip reset that exercises the boot path from scratch. USB replug is a slave POR (STEMMA 3V3 drops). CLI `k` (ABORT-then-STOP then watchdog) is an MCU restart on an idle bus. Do **not** use probe `monitor reset halt` with STEMMA QT powered: `rp2350.cfg` has no SRST, so that is MCU-only SYSRESETREQ while 3V3 stays up (Analog AN-686 / ICM `I2C_IF_DIS`). USB unplug is recovery when stuck, not a counted-boot step.
 
-**Post-flash extra restart:** a `load` + first `resume` is **not** Boot 1. Throw that boot away (`reset halt` + `resume`) and then start this count. The first `bench_sim` before that extra reboot can still be a leftover image. Do not start the 3-boot count while CDC is missing or the LED is off — GDB attach stops the cores, so a missing LED during the flash session is not by itself a failed boot. See `docs/FLASHING.md` and LL Entry 46.
+**Post-flash:** iterative SWD flash is `scripts/flash_elf_halt_write.py` (park, halt, `write_image`, vector-resume). That vector-resume **is** Boot 1 once CDC and LED are up. Do not follow it with `reset halt` — that extra restart latched Hardware 10/13. OpenOCD `program` is the leftover-image failure mode (it `reset init`s the old image first); this path does not do that. Do not start the 3-boot count while CDC is missing or the LED is off — attach stops the cores, so a missing LED during the flash session is not by itself a failed boot. See `docs/FLASHING.md`.
 
 Gate **passes** only if all 3 boots produce the same positive-control signals.
 

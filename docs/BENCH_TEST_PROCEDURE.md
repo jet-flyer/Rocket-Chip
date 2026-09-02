@@ -11,11 +11,9 @@
 **Binary:** `build/rocketchip.elf` (bench tier, full dev hooks available).
 
 **Procedure:**
-1. Flash via probe:
+1. Flash via probe per `docs/FLASHING.md` (never `program` / `reset halt`):
    ```
-   arm-none-eabi-gdb build/rocketchip.elf -batch \
-     -ex "target extended-remote localhost:3333" \
-     -ex "monitor reset halt" -ex "load" -ex "monitor resume"
+   python scripts/flash_elf_halt_write.py --elf build_flight/rocketchip.elf
    ```
 2. Run `scripts/soak_gdb.gdb` (GDB-only, no serial) for 5 min.
 3. Verify: zero crashes, IMU ≥990 Hz, baro ≥30 Hz, zero accumulated errors.
@@ -39,7 +37,7 @@
    ```
    cd build_flight && cmake --build . --target rocketchip
    ```
-2. Flash via probe (same GDB `load` + `monitor resume` as above).
+2. Flash via probe per `docs/FLASHING.md` (same `flash_elf_halt_write.py` as Tier 1).
 3. Unplug USB. Confirm target running on LiPo (probe should still reach target; probe USB is independent of target USB CDC).
 4. Run `scripts/soak_30min.gdb` — captures snapshots at T=0, 5, 10, 15, 20, 25, 30 min to `logs/soak_30min.log`.
 5. Verify all snapshots pass the Tier 1 criteria, plus:
@@ -190,8 +188,11 @@ monitor halt
 print s_persist_requested     # expect false (write completed)
 print s_persist_debounce_count  # expect 0
 
-# 5. Reset vehicle without reflashing (preserves flash)
-monitor reset halt
+# 5. Reset vehicle without reflashing (preserves flash).
+# Do not `reset halt` with STEMMA 3V3 up (docs/FLASHING.md). CLI `k`
+# (ABORT-then-STOP then watchdog) is the MCU restart on an idle bus.
+monitor halt
+# Then resume after the operator sends CLI `k`, or VBUS-POR if you need a slave POR.
 monitor resume
 
 # 6. Verify boot-read pulled the persisted value
