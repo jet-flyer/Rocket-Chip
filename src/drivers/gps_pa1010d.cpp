@@ -24,10 +24,9 @@ constexpr uint32_t kPostReadUs = 2000;            // GlobalTop 2 ms refill
 constexpr int      kNmeaMaxBody = 82;             // NMEA-0183 max
 constexpr int      kPmtkUnset = -999;
 constexpr uint8_t  kPmtkCount = 3;
-constexpr uint8_t  kNmeaHuntTries = 8;
+constexpr uint8_t  kNmeaHuntTries = 4;            // GlobalTop: several 255 B packets
 constexpr uint32_t kPmtkGapMs = 50;
 constexpr uint32_t kWakeGapMs = 20;
-constexpr uint32_t kNmeaHuntGapMs = 150;
 constexpr size_t   kPmtk314Len = 51;
 constexpr size_t   kPmtk220Len = 18;
 
@@ -127,8 +126,8 @@ static void update_from_lwgps() {
 }
 
 static void wake_bridge() {
-    // 1-byte wake only. A 255-byte drain here steals the cold-ACK window
-    // PMTK needs (init_gps() comments; measured: wedges IMU/baro on k).
+    // 1-byte poke only. A 255-byte drain here is the NMEA hunt, after PMTK;
+    // doing it first steals the cold-ACK window PMTK needs.
     uint8_t wake = 0;
     (void)i2c_master_read(kGpsPa1010dAddr, &wake, 1, kGpsReadTimeoutUs);
     sleep_ms(kWakeGapMs);
@@ -152,14 +151,21 @@ static bool send_pmtk() {
 }
 
 static bool find_nmea() {
-    // Hunt only after PMTK ACKs. 1-byte, not 8x255 (that wedged the bus).
+    // After PMTK. GlobalTop: one 255-byte packet, then 2 ms refill.
+    // 1-byte hunt never saw '$' (window_hit:0 with 3D fix). 8x255 with
+    // 150 ms gaps was a twist-era wedge (LL 47); 4 packets + 2 ms is the
+    // vendor drain, not that loop.
     for (int retry = 0; retry < kNmeaHuntTries; retry++) {
-        uint8_t b = 0;
-        int ret = i2c_master_read(kGpsPa1010dAddr, &b, 1, kGpsReadTimeoutUs);
-        if (ret > 0 && b == kNmeaStart) {
-            return true;
+        int ret = i2c_master_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead,
+                                  kGpsReadTimeoutUs);
+        busy_wait_us(kPostReadUs);
+        if (ret > 0) {
+            for (int i = 0; i < ret; i++) {
+                if (g_buffer[static_cast<size_t>(i)] == kNmeaStart) {
+                    return true;
+                }
+            }
         }
-        sleep_ms(kNmeaHuntGapMs);
     }
     return false;
 }
