@@ -20,7 +20,7 @@ Owner 2026-09-02: **zero Starcom rows** in `standards/ACCEPTED_STANDARDS_DEVIATI
 
 **Resolution:** C++ tokens follow the house scheme. Blue Book field names live in comments and CONFORMANCE. Public verbs are already camelBack (`decodePltu`). `#pragma once` is the existing **project-wide** exception, not a Starcom row.
 
-`Error` enumerators (`uslp_truncated`, `bad_asm`, …) are still snake_case. Next pass: house camelBack (`uslpTruncated`, `badAsm`). Values unchanged; ICD table and tests move with the names.
+`Error` enumerators (`uslp_truncated`, `bad_asm`, …) are the closed ICD set. **Do not rename them.** cFS: existing common-use case is preserved. F´ house style applies when a type is born, not as a retrofit of a closed enum.
 
 ## Tooling
 
@@ -81,15 +81,11 @@ Do not `IgnoredIntegerValues` the 81.
 
 Tidy ignore (do **not** widen): `IgnoredIntegerValues` `0;1;2;3;4;8;16;32;64;100;255;256;1000`. That is why CLCW `0x80u` / `0x40u` flags never appear in the 81. 151 still wants those named. Name them in the same pass. Do **not** put 232.0 / 211.0 field-width literals on that ignore list.
 
-## Remaining pass (this tree)
+## Remainder (not a rename sitting)
 
-1. `Error` enumerators to camelBack. ICD + tests move. Values unchanged.
-2. Mechanical `u` to `U`. Not a protocol change.
-3. Apply the 151 method to the 81 **and** the tidy-blind residuals (CLCW flags, `ss` 0-4, COP-in-effect `0x03u`, SET_VR spare `0xF8`).
-4. Internal linkage on file-local helpers if still flagged. Optional `empty()` where `size() < 1`.
-5. Re-run `scripts/run_clang_tidy.ps1` on this camelBack tree. Tests still pass.
+Owner 2026-09-02: do **not** add code just to rename things. IRL (F´ Types.fpp, cFS `CFE_MSG_APID_MASK`): a field mask is named when the codec is written, on the type that owns the field. We already have `kTfvnV3`, `kIdleApid`, `kFopPSentCap`, `kSetVrDirectiveType`. Use those at the pack site if a literal is still bare.
 
-Do not split `macTick`. Do not widen `IgnoredIntegerValues`. Do not invent a CCSDS tidy rule.
+Do not: `Error::uslp_truncated` → `uslpTruncated`; `MacSs::ss0` for book-numbered slots; a `1u`→`1U` pass; a parallel mask list; split `macTick`; widen `IgnoredIntegerValues`.
 
 ## Out of this remainder
 

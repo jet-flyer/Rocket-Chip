@@ -372,7 +372,7 @@ Not a full JSF / P10 / JPL walk and not L2-P5. RC `standards/CODING_STANDARDS.md
 
 Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Sent copies moved off a 256-FSN table onto `FopP`/`Fop1` (`kFopPSentCap` 127 / `kFop1SentCap` 255). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS.
 
-**No Starcom accepted-deviation row.** NASA F´ uses lower camel case for functions/locals and PascalCase for types; cFS prefers CamelCase for terms. Blue Book field names stay in comments, not as C++ snake_case. House camelBack already supersedes JSF 45/51/52. `Error` enumerators (`uslp_truncated`, …) still need the same house pass (`uslpTruncated`). JSF 151 named field masks + mechanical `u`→`U` are the Grey leftover (`docs/audits/IVP23_REPORT.md`). Function-pointer seams stay later. `#pragma once` is the existing project-wide exception, not a Starcom row. Next is increment 24.
+**No Starcom accepted-deviation row.** NASA F´ uses lower camel case for functions/locals when a type is born; cFS preserves existing common-use names. Closed `Error` ICD (`uslp_truncated`, …) stays. Do not retrofit a rename sitting. JSF 151: existing `k*` at the pack site; no enum wrappers for book-numbered slots (`MacSs::ss0`) and no `u`→`U` pass. Function-pointer seams stay later. `#pragma once` is the existing project-wide exception, not a Starcom row. Next is increment 24.
 
 ### Increment 24 — Hardening close
 

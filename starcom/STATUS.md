@@ -8,8 +8,6 @@ Library-scoped phase and next work. Lighter than Rocket-Chip `docs/PROJECT_STATU
 
 Worktree `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). Starcom-only; not a Rocket-Chip-* folder.
 
-House-bar remainder (not a numbered increment, not a deviation): `Error` enumerators to house camelBack (`uslpTruncated`); JSF 151 named field masks + `u`→`U` (`docs/audits/IVP23_REPORT.md`). NASA F´ / cFS keep book names in comments; C++ tokens follow house.
-
 Sequence through 25 is in `docs/IVP.md` (tag landed). Consumer how-to: `docs/USER_GUIDE.md`. CFDP (727.0) is wanted post-mission offload, not 0–25. FPGA compliant PHY / decode held until board verification. RC two-board soak / telemetry is consumer work on `main`, not a Starcom increment. Future (no new IVP number until scheduled): FSK/bitstream bearer on current RC hardware — RFM95 FSK continuous, T8 may clock bits, 211.2 encode on RP/T8, decode on Pi. Not 211.1 Full. Do not put T8 on the base RC board for comms.
 
 1. Owner-open rows on `AGENT_WHITEBOARD.md`. Consumer map: `docs/integration/CONSUMERS.md`. Handshake: `docs/ICD.md`. Plan: `docs/IVP.md`.
@@ -45,7 +43,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 
 ## Blockers
 
-- Held: FPGA `PhyTier::compliant` / decode until board base-level verification. CFDP wanted, not 0–25. House-bar remainder (Error enumerators → camelBack, JSF 151 names) is not a numbered increment and is **not** an accepted deviation.
+- Held: FPGA `PhyTier::compliant` / decode until board base-level verification. CFDP wanted, not 0–25. Closed `Error` ICD stays (`uslp_truncated`); no rename sitting. New identifiers are house camelBack when born. Do not add enum wrappers for book-numbered slots.
 
 ## Done this sitting
 
