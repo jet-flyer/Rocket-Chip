@@ -31,9 +31,15 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 ## STEMMA PA1010D on IMU bus (OPEN)
 
-Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untwisted shortest Adafruit QT: GPS last and GPS first both `I=` climbing, `e=1` in ~50k. Do not twist SDA with SCL. `i2c_master` landed. UART GPS is flight GPS; I2C PA1010D is stress slave.
+Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untwisted shortest Adafruit QT: GPS last and GPS first both `I=` climbing. Do not twist SDA with SCL. `i2c_master` landed. UART GPS is flight GPS; I2C PA1010D is stress slave. CLI `k` with GPS on passed (`e=0`). `window_hit:1` after 255-byte hunt. Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
 
-Still open: RF + untwisted QT — vehicle `RegVersion=0xFF` (SX1276 not on SPI this bench; not broadcasting). CLI `k` with GPS on passed (`e=0`). `window_hit:1` after 255-byte hunt. Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
+---
+
+## Vehicle RFM95 `RegVersion=0xFF` (WATCH) (2026-09-02)
+
+Parked. I2C sitting did not touch `rfm95w` / `spi_bus` / Feather radio pins / committed `ao_radio`. Same driver as months of working air. Live CLI `d` this bench: `RegVersion=0xFF` (expect `0x12`), AO_Radio `kIdle`, `tx=0`. Not an I2C-land regression in git. Watch on the next radio sitting; do not debug as STEMMA.
+
+**LoRa vs QT:** not expected to couple into the I2C daisy-chain (separate SPI0 vs I2C1 STEMMA). Do not FPV-twist the QT 4-core for RF (LL 47). If a future TX soak shows `I=` dying, that is a new claim — not assumed.
 
 ---
 
