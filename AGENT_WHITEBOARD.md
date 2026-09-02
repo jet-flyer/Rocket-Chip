@@ -33,7 +33,7 @@ Encode as a standing rule (not only `init_gps()` comments): shared-bus physics f
 
 Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untwisted shortest Adafruit QT: GPS last and GPS first both `I=` climbing, `e=1` in ~50k. Do not twist SDA with SCL. `i2c_master` landed. UART GPS is flight GPS; I2C PA1010D is stress slave.
 
-Still open: MCU-only `I2C_IF_DIS` latch (`I=0 B=0`, GPS ACK); `window_hit:0` with PMTK `[51,18,51]` and 3D fix; RF + untwisted QT (radio `kidle` this sitting). `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
+Still open: RF + untwisted QT — vehicle `RegVersion=0xFF` (SX1276 not on SPI this bench; not broadcasting). CLI `k` with GPS on passed (`e=0`). `window_hit:1` after 255-byte hunt. Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
 
 ---
 

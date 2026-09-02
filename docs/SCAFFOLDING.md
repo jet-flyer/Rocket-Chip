@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-08-30
+**Updated:** 2026-09-02
 
 **Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -138,18 +138,20 @@ rocketchip/
 │       ├── telemetry_encoder.h    # CCSDS + MAVLink encoder API
 │       ├── fused_state.h          # ESKF output snapshot
 │       ├── sensor_seqlock.h       # Cross-core sensor data types + seqlock protocol
+│       ├── i2c_strap.h            # Pack 7-bit I2C addresses (not the master)
 │       └── led_patterns.h         # LED pattern constants (single source of truth)
 │
 ├── src/
 │   ├── main.cpp                   # Entry point: boot init, QF_run (QV scheduler), Core 1 sensor loop
 │   │
 │   ├── drivers/                   # Hardware drivers
-│   │   ├── i2c_bus.cpp/.h         # I2C bus init, read/write, probe, recovery
+│   │   ├── i2c_master.cpp/.h      # DW_apb I2C master (ABORT-then-STOP, 50 ms)
+│   │   ├── i2c_bus_legacy.cpp/.h  # Previous i2c_bus (not in the flight link)
 │   │   ├── spi_bus.cpp/.h         # SPI0 bus init, read/write, burst (GPIO-controlled CS)
 │   │   ├── icm20948.cpp/.h        # ICM-20948 9-DoF IMU (I2C bypass mode)
 │   │   ├── baro_dps310.cpp/.h     # DPS310 barometer
 │   │   ├── rfm95w.cpp/.h          # RFM95W (SX1276) LoRa radio driver
-│   │   ├── gps_pa1010d.cpp/.h     # PA1010D GPS (I2C backend)
+│   │   ├── gps_pa1010d.cpp/.h     # PA1010D GPS (I2C NMEA, 255-byte GlobalTop drain)
 │   │   ├── gps_uart.cpp/.h        # GPS UART backend (preferred, 57600 baud / 10Hz)
 │   │   ├── gps.h                  # Transport-neutral GPS interface
 │   │   ├── ws2812_status.cpp/.h   # WS2812 NeoPixel status LED
@@ -273,6 +275,8 @@ rocketchip/
 │   ├── generate_profile.py        # Mission profile .cfg → C++ header generator
 │   ├── bench_sim.py               # Vehicle flight-path regression detector (LL Entry 36 replacement)
 │   ├── station_bench_sim.py       # Station-role regression detector (IVP-146)
+│   ├── flash_elf_halt_write.py    # STEMMA-safe probe flash (park + write_image)
+│   ├── start_openocd_pico_sdk.ps1 # Pico SDK OpenOCD, repo halt-only cfg
 │   └── run_clang_tidy.sh          # Tiered audit: clang-tidy + lizard + RP2350 guards + Prior Art
 │
 ├── lib/                           # External libraries (vendored / git submodules)
@@ -339,10 +343,10 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | Module | Responsibility |
 |--------|----------------|
 | **main.cpp** | Boot init, `QF_run` entry (QV scheduler), Core 1 sensor loop launch, QV idle callback (ESKF, health tick, CLI poll) |
-| **i2c_bus** | I2C peripheral init, bus read/write/probe, 9-clock bit-bang recovery |
+| **i2c_master** | DW_apb I2C master — stretch wait, ABORT-then-STOP, SDA-stuck 9-clock only if SDA low/SCL high |
 | **icm20948** | ICM-20948 IMU driver — accel/gyro/temp reads, AK09916 mag via I2C bypass mode |
 | **baro_dps310** | DPS310 barometer driver — pressure/temperature reads |
-| **gps_pa1010d** | PA1010D GPS driver — I2C backend with 32-byte chunked reads |
+| **gps_pa1010d** | PA1010D GPS driver — I2C NMEA, 255-byte packet + 2 ms refill (GlobalTop) |
 | **gps_uart** | GPS UART backend — interrupt-driven ring buffer, baud negotiation, 10Hz rate |
 | **ws2812_status** | NeoPixel status LED — animation engine with mode-based patterns (Stage L: MODE_ALTERNATE 2-color + MODE_DOUBLE_FLASH) |
 | **eskf** | 24-state Error-State Kalman Filter — propagation + baro/mag/GPS/ZUPT updates |
