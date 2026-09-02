@@ -9,7 +9,7 @@
 
 `starcom/` is a **self-contained comms stack** incubating inside the Rocket-Chip monorepo. It will eventually become its own repository. The **core** is a portable library (`starcom::ccsds`). First-party **ports** (host bearers, reference radio adapters against generic I/O) live here too. Rocket-Chip is the **first consumer and integration driver** — not the owner, not the design boundary.
 
-Identity: a universal CCSDS data-link *stack*, usable by cubesats, ground stations, HABs, and RC alike. See `DESIGN.md` note 2026-08-21 for the stack-vs-library vocabulary.
+Identity: a CCSDS data-link *stack* whose “universal” means **matching PICS**, not every radio. Usable by cubesats, ground stations, HABs, and RC alike when the peer ticks the same book/option. See `DESIGN.md` notes 2026-08-21 and 2026-08-29.
 
 
 ## Vocabulary
@@ -45,7 +45,9 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 - **Do** adopt **sans-I/O** for the core: bytes and timeouts in, events and bytes out. No sockets, no SPI, no GPIO in `src/ccsds/`.
 - **Do** implement protocol state machines as **plain portable C++** (table-testable, no framework dependency). An optional AO adapter may wrap them; the core must work without it.
 - **Do** declare conformance **per component**, honestly — never claim more CCSDS compliance than the code delivers.
-- **Do** treat PHY as **optional adapters** outside the core (none / best-effort / full-compliant tiers).
+- **Do** use three claim levels: **0** (not implemented / out of scope), **Best effort** (non-conformant approximation — still not a PICS tick), **Full** (PICS-claimable for that book/option). Code `PhyTier` maps `none` / `best_effort` / `compliant` onto those. Full 211.1 (`PhyTier::compliant`) is not offered.
+- **Do** treat PHY as **optional adapters** outside the core (0 / Best effort / Full). Best effort is still non-compliant.
+- **Do** pursue Best effort only when it advances product performance or features, especially if the work later transfers to Full. Do not add it just to have it. Radio Best-effort on Rocket-Chip often stays RC-specific (pins, AO); keep those out of `starcom::ccsds`.
 
 ### Documentation
 
@@ -63,7 +65,9 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 ### Code quality (core targets strictest plausible adopter)
 
-In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute. Public verbs were brought to house camelBack in IVP 23 (initial pass, not a full naming/standards walk). Remaining house-bar items are later sittings, not an exemption.
+In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute.
+
+**Identifiers follow the house scheme. No Starcom accepted-deviation row.** NASA F´ ([style guidelines](https://github.com/nasa/fprime/wiki/F%C2%B4-Style-Guidelines)) uses lower camel case for functions and locals, PascalCase for types; cFS prefers CamelCase for terms. Neither keeps Blue Book prose as C++ snake_case — book names stay in comments / CONFORMANCE. House already supersedes JSF 45/51/52 with camelBack / `k`CamelCase / CamelCase types. Public verbs are camelBack (`decodePltu`). Remaining: `Error` enumerators (`uslp_truncated` → `uslpTruncated`) and JSF 151 named field masks. `#pragma once` is the existing project-wide exception, not a Starcom row.
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 - **Do** keep MCU automatic storage tiny. Pico Core 0 stack is 4 KiB. Do not value-init `CoppEndpoint` / `Cop1Endpoint` (`memset` in place). Sent copies are `kFopPSentCap` / `kFop1SentCap`, not a 256-FSN table. Do not put `kTransferFrameMax` (2048) arrays on the stack — caller span or file-scope scratch. GNU `-Wstack-usage=1024` is on the library (`cmake/CompilerWarnings.cmake`).

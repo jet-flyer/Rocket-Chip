@@ -8,6 +8,21 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Sequence: [`docs/IVP.md`](docs
 
 Consumer how-to: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
 
+Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
+
+---
+
+## House identifiers (OPEN) (2026-09-02)
+
+No Starcom accepted-deviation row. NASA F´: functions/locals lower camel case, types PascalCase; enum/constants ALL_CAPS in F´ — house already chose `k`CamelCase over that for constants (CODING_STANDARDS supersedes JSF 45/51/52). cFS prefers CamelCase for terms. Neither NASA tree keeps Blue Book prose as C++ snake_case.
+
+Remaining on this tree:
+
+1. `Error` enumerators (`uslp_truncated` → `uslpTruncated`). ICD table moves with the tokens. Tests move. Not a handshake of *values* — names only.
+2. JSF AV 151 named field masks + mechanical `u`→`U`. Grey map: [`docs/audits/IVP23_REPORT.md`](docs/audits/IVP23_REPORT.md). Reuse existing `k*`. Do not widen `IgnoredIntegerValues`. Do not split `macTick`.
+
+Public verbs are already camelBack (IVP 23 initial pass).
+
 ---
 
 ## Radio settings OTA (WANTED) (2026-08-31)

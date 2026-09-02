@@ -17,6 +17,9 @@ foreach(_line IN LISTS _sc_peek)
 endforeach()
 project(starcom VERSION ${_sc_maj}.${_sc_min}.${_sc_pat} LANGUAGES CXX)
 
+# Host clang-tidy / clangd. Not the Pico firmware compile_commands.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(STARCOM_BUILD_TESTS "Build host unit tests and ctest" ON)
 option(STARCOM_BUILD_HOST_ADAPTERS "UDP/file/loopback host adapters" ON)
 option(STARCOM_SANITIZE "ASan+UBSan on core, adapters, and tests (not MSVC; needs libasan)" OFF)

@@ -270,7 +270,7 @@ Result<std::size_t> radioBusShiftRx(RadioPort&, BusOps const&, std::span<std::by
 
 SAD later seam. ASM hunt, symbol timing, Manchester / FSK-continuous clocks on RP2350. Same codec vectors as the host tests. Do not bake PIO types into `include/starcom`.
 
-Landed. `PioOps` is a caller-owned bit pipe (MSB first, same order as 211.2 Annex C). Host fake PIO round-trips increment 0+1 `v3-header-only` PLTU octets. Not 211.1 residual-carrier PM (Researcher 2026-08-27). Manchester / FSK-continuous waveform claims wait on increment 18.
+Landed. `PioOps` is a caller-owned bit pipe (MSB first, same order as 211.2 Annex C). Host fake PIO round-trips increment 0+1 `v3-header-only` PLTU octets. Not 211.1 residual-carrier PM (Researcher 2026-08-27). FSK-continuous is a future Best-effort bearer (current RC HW), not increment 18 Full.
 
 ```cpp
 struct PioOps {
@@ -286,9 +286,9 @@ Result<std::size_t> pioShiftIn(PioOps const&, std::span<std::byte> out, std::siz
 
 ### Increment 18 — PHY adapter tiers + FPGA C&S
 
-D-1: no blanket 211.1-B-4 claim. Adapters declare **none / best-effort / compliant**. FPGA: conv encode, PLTU on the wire, later LDPC/Viterbi as fabric allows. HDL sim before bitstream. Same codec vectors.
+D-1: no blanket 211.1-B-4 claim. Claim levels are **0 / Best effort / Full** (PICS). Code still uses `PhyTier` {none, best_effort, compliant} mapped onto those. Best effort is **not** a PICS tick. FPGA: conv encode, PLTU on the wire, later LDPC/Viterbi as fabric allows. HDL sim before bitstream. Same codec vectors. Full 211.1 is not offered.
 
-Landed (host). `PhyDecl` / `PhyTier` {none, best_effort, compliant}. Uncoded path `phyUncodedEncode` / `phyUncodedDecode` matches increment 0+1 PLTU octets for none and best_effort. `compliant` is not offered (FPGA / 211.1 waveform). HDL sim before bitstream waits on Researcher. No Electra/UT product claim.
+Landed (host). `PhyDecl` / `PhyTier` {none, best_effort, compliant}. Uncoded path `phyUncodedEncode` / `phyUncodedDecode` matches increment 0+1 PLTU octets for none and best_effort. `compliant` (Full) is not offered (FPGA / 211.1 waveform). HDL sim before bitstream waits on Researcher. No Electra/UT product claim.
 
 ```cpp
 enum class PhyTier : std::uint8_t { none, best_effort, compliant };
@@ -368,9 +368,11 @@ Landed on `grok/sc-dev` (`f71db10`). Host tests PASS. Vehicle ON `Air: starcom-p
 
 Not a full JSF / P10 / JPL walk and not L2-P5. RC `standards/CODING_STANDARDS.md` applies; this increment is a first mechanical pass on `starcom/src` + `include/starcom`, not a claim that the library is standards-complete. Remediate public ICD snake_case vs house camelBack. Review host-loop caps (`kCoppHold`, `kCop1Hold`) — those are not MIB. Starcom is first-party: do **not** add a Starcom row to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project-wide exception, not a new Starcom row.
 
-**Gate:** documented tidy run of the *gated subset* (function size, cognitive complexity, unused-return, reserved-id) plus public-verb camelBack; no Starcom accepted-deviation row; no codec behavior change mixed into the rename unless tests move with it. Does **not** close magic numbers, cyclomatic-vs-cognitive, member/`Error` enumerator naming, function-pointer seams, or a dated audit report.
+**Gate:** documented tidy run of the *gated subset* (function size, cognitive complexity, unused-return, reserved-id) plus public-verb camelBack; **no** Starcom accepted-deviation row; no codec behavior change mixed into the rename unless tests move with it. Does **not** close magic numbers, cyclomatic-vs-cognitive, member/`Error` enumerator naming, function-pointer seams, or a dated audit report. Those remainders follow house identifiers (NASA F´ / cFS practice), not a deviation.
 
-Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). `Error` enumerators stay the closed ICD set (`uslp_truncated`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Sent copies moved off a 256-FSN table onto `FopP`/`Fop1` (`kFopPSentCap` 127 / `kFop1SentCap` 255). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS. Remainder of the house bar (Error enumerators, function-pointer seams, dated audit) is later sittings. Next is increment 24.
+Landed on `grok/sc-dev` (`688ff00`) as that **initial** pass. Public verbs are camelBack (`decodePltu`, `coppInit`, `macTick`, …). Gated clang-tidy was clean on `starcom/src/ccsds` + adapters for those four checks only. `kCoppHold` / `kCop1Hold` remain 64 — host-loop caps, not MIB (RC nav SDU 48 / cmd 30 / ack 16). Sent copies moved off a 256-FSN table onto `FopP`/`Fop1` (`kFopPSentCap` 127 / `kFop1SentCap` 255). Host `starcom.unit` PASS; RC `StarcomBytePump` / `StarcomHostLink` PASS.
+
+**No Starcom accepted-deviation row.** NASA F´ uses lower camel case for functions/locals and PascalCase for types; cFS prefers CamelCase for terms. Blue Book field names stay in comments, not as C++ snake_case. House camelBack already supersedes JSF 45/51/52. `Error` enumerators (`uslp_truncated`, …) still need the same house pass (`uslpTruncated`). JSF 151 named field masks + mechanical `u`→`U` are the Grey leftover (`docs/audits/IVP23_REPORT.md`). Function-pointer seams stay later. `#pragma once` is the existing project-wide exception, not a Starcom row. Next is increment 24.
 
 ### Increment 24 — Hardening close
 
@@ -389,6 +391,10 @@ Owner pick 2026-08-28: product **`0.2.N`** with **N = IVP increment**. This cut 
 **Gate:** tag matches `STARCOM_VERSION`; `kBuildIdentity` is that tag; no `-dev`.
 
 Landed. `STARCOM_VERSION` is `0.2.25` (EXTRA empty). Annotated tag `starcom-v0.2.25`. FPGA remains held until board verification. Do not mint SC-NNN.
+
+## Future path (not an increment number)
+
+**FSK / bitstream on current Rocket-Chip hardware.** Best path with the radios already on the bench: RFM95 FSK continuous (DIO1 DCLK / DIO2 DATA), T8 may clock bits, 211.2 encode on RP/T8, decode on Pi. Transfers toward Pluto Full later. Not 211.1. Not a new IVP number until scheduled. Wrapping 211.2 inside LoRa packets is not this path. Do not put T8 on the base RC board for comms.
 
 ## Closed
 

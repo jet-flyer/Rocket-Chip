@@ -73,11 +73,13 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ---
 
-## Starcom (OPEN) (2026-08-28)
+## Starcom (OPEN) (2026-09-02)
 
-Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP). Prep worktree `Rocket-Chip-sc-dev` / `grok/sc-dev` is closed.
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `starcom-v0.2.25`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP).
 
-**Still RC:** barebones vehicle+station ON soak before more SDU fields. Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). **Still Starcom library:** IVP 0–25, tag `starcom-v0.2.25` (`0.2.N` / N = increment). FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
+**Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). One tree. Not a `Rocket-Chip-*` folder. `docs/starcom-sad-draft` and `grok/starcom-ivp23` are leftovers to drop after this sitting's port.
+
+**Still RC:** barebones vehicle+station ON soak before more SDU fields. Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). **Still Starcom library:** house-bar remainder (Error enumerators → camelBack, JSF 151 names) — **no accepted deviation**. FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
 
 ---
 

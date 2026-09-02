@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-02-001 | Grok 4.6 (Build CLI) | documentation, tooling, architecture
+
+**One Starcom tree + PICS catch-up + no library deviation.** Worktree `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). PICS levels 0 / Best effort / Full in CONFORMANCE; FSK bitstream is a future Best-effort bearer, not 211.1. House identifiers follow NASA F´ / cFS practice (C++ tokens are house camelBack; Blue Book names stay in comments). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `Error` enumerators and JSF 151 names remain open on this tree. Starcom-owned clang-tidy + Grey report under `docs/audits/`. FPGA hub already on `main`. No version bump. No tag.
+
+Verified: documentation + tidy tooling, no firmware path, no HW reseat required.
+
 ### 2026-08-28-003 | Grok 4.6 (Build CLI) | architecture, bugfix, documentation
 
 **Starcom wrap through IVP 25.** MCU: COP encode scratch in BSS; `fop1Init`/`fopPInit` memset in place; GNU `-Wstack-usage=1024`. IVP 24: WSL ASan+UBSan, book-max fuzz, measured size. IVP 10 remainder: FOP-1 Resume/setup/LLIF, TT=1 suspend (232.1 Table 5-1). Sent copies off 256-FSN tables (`CoppEndpoint` 19544→10136). Consumer `docs/USER_GUIDE.md`. Product **`0.2.25`** (owner: `0.2.N`, N = increment), EXTRA empty, tag `starcom-v0.2.25`. FPGA PHY/decode still held; CFDP wanted, not 0–25. No SC-NNN.

@@ -378,3 +378,19 @@ All modifications only on this branch; main untouched for starcom/.
 ---
 
 *Condensation complete per plan. Sources: starcom/docs/* (moved 2026-06-18 from docs/research/). Only starcom/ files were modified for this condensation work. Pre-existing unrelated files (e.g. L2P5 audit docs, agent-tools/, mcps/) visible in broad git status are outside this scope and were not created or modified by the condensation commits.*
+
+## Note — 2026-08-29 (Grok Researcher + Nathan): PICS levels, throughput, FSK path
+
+Append-only. Does not rewrite §0 or the 2026-08-25 PHY note.
+
+**Starcom “universal” is matching PICS, not every radio.** Cross-support is among implementations that tick the same book/option. Three levels: **0** (not implemented / out of scope), **Best effort** (non-conformant approximation — still not a PICS tick), **Full** (PICS-claimable for that book/option). Code `PhyTier` maps `none` / `best_effort` / `compliant` onto those. `PhyTier::compliant` is Full; it is not offered.
+
+**Best-effort rule of thumb** (not a hard red line): only when it advances performance or features, especially if the work later transfers to Full. Do not add it just to have it. A lot of current radio Best-effort is Rocket-Chip-specific even when sequestered; RC pins and AO stay out of `starcom::ccsds`.
+
+**LoRa airtime is the ceiling.** SF7/125 kHz is ~5 kbps with 50–100 ms packets. Wrapping 211.2 inside LoRa packets does not buy dB (packet erasures). FPGA SPI master adds no dB on LoRa. Bit-bang / LoRa / FSK ≠ 211.1 residual-carrier Bi-Phase-L PM (D-1).
+
+**Throughput bearers vs LoRa (not a closer PHY):** RFD900x SiK UART (64–224 kbps, 1 W FHSS, `MAVLINK=0`); RFM69 / CC1200 / AX5043 as *bearers*. AX5043 is still not 211.1. Crossfire/ELRS are RC tunnels, not bulk TM. SX1262 is still LoRa. Pluto/AntSDR = ground/bench 211.1 I/Q + PA, too big for the rocket.
+
+**Future path with current RC HW:** RFM95 FSK continuous bitstream (same chip as LoRa; don’t buy another LoRa). T8 may clock bits. 211.2 encode on RP/T8; decode on Pi. Transferable toward Pluto Full later. **Do not put T8 on the base RC board for comms.**
+
+**§6 MAC:** the 2026-08-25 “not decided” sentence is superseded. Owner locked increment 13 as a full 211.0 §6 module (2026-08-27); it is landed.

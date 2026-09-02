@@ -1,8 +1,401 @@
----
-# Starcom: house FunctionCase is camelBack (CODING_STANDARDS supersedes JSF 45/51/52).
-# Repo-root .clang-tidy still has FunctionCase lower_case for RC C drivers.
-InheritParentConfig: true
-HeaderFilterRegex: 'starcom[/\\](include|src)[/\\]'
+# Starcom clang-tidy - host core (starcom::ccsds)
+#
+# Lives in this tree. Do not call Rocket-Chip scripts/audit/full_tree_clang_tidy.sh.
+# Checks copied from the RC house list (P10 / JPL LOC-1-4 / JSF / CERT / C++ CG).
+# Compile database is starcom/build (host), not the Pico firmware build.
+#
+# Usage:
+#   cmake -S . -B build -G Ninja
+#   scripts/run_clang_tidy.sh          # core src/ccsds
+#   scripts/run_clang_tidy.sh --all    # core + adapters
+#
+# See: docs/WORKING_HERE.md, docs/IVP.md increment 23.
+
+Checks: >
+  -*,
+
+  # ═══════════════════════════════════════════════════════════════
+  # BUGPRONE — Bug-prone code patterns
+  # Maps to: JSF AV general safety, MISRA-adjacent, CERT
+  # ═══════════════════════════════════════════════════════════════
+  bugprone-assert-side-effect,
+  bugprone-assignment-in-if-condition,
+  bugprone-bool-pointer-implicit-conversion,
+  bugprone-branch-clone,
+  bugprone-copy-constructor-init,
+  bugprone-dangling-handle,
+  bugprone-fold-init-type,
+  bugprone-forward-declaration-namespace,
+  bugprone-implicit-widening-of-multiplication-result,
+  bugprone-incorrect-roundings,
+  bugprone-infinite-loop,
+  bugprone-integer-division,
+  bugprone-macro-parentheses,
+  bugprone-macro-repeated-side-effects,
+  bugprone-misplaced-widening-cast,
+  bugprone-multi-level-implicit-pointer-conversion,
+  bugprone-multiple-statement-macro,
+  bugprone-narrowing-conversions,
+  bugprone-redundant-branch-condition,
+  bugprone-signed-char-misuse,
+  bugprone-sizeof-expression,
+  bugprone-string-constructor,
+  bugprone-suspicious-enum-usage,
+  bugprone-suspicious-include,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-missing-comma,
+  bugprone-suspicious-semicolon,
+  bugprone-switch-missing-default-case,
+  bugprone-too-small-loop-variable,
+  bugprone-undefined-memory-manipulation,
+  bugprone-undelegated-constructor,
+  bugprone-unhandled-self-assignment,
+  bugprone-unused-return-value,
+  bugprone-use-after-move,
+  # SKIPPED: bugprone-easily-swappable-parameters — too noisy for embedded
+  # SKIPPED: bugprone-exception-escape — exceptions disabled
+  bugprone-reserved-identifier,
+  # enabled: no Pico SDK names in this tree
+
+  # ═══════════════════════════════════════════════════════════════
+  # CERT — SEI CERT Secure Coding Guidelines
+  # Maps to: JSF AV safety rules, P10 defensive coding
+  # ═══════════════════════════════════════════════════════════════
+  cert-dcl50-cpp,
+  cert-dcl58-cpp,
+  cert-err33-c,
+  cert-err34-c,
+  cert-err52-cpp,
+  cert-flp30-c,
+  cert-mem57-cpp,
+  cert-msc30-c,
+  cert-msc32-c,
+  cert-msc50-cpp,
+  cert-msc51-cpp,
+  cert-oop57-cpp,
+  cert-oop58-cpp,
+  cert-str34-c,
+  # SKIPPED: cert-err58-cpp, cert-err60-cpp — exceptions disabled
+
+  # ═══════════════════════════════════════════════════════════════
+  # C++ CORE GUIDELINES
+  # Maps to: JSF AV Rules 188-189 (goto), 206 (no heap), 209 (types)
+  # ═══════════════════════════════════════════════════════════════
+  cppcoreguidelines-avoid-goto,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-macro-to-enum,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  # SKIPPED: cppcoreguidelines-avoid-c-arrays — frame / PLTU buffers are fixed arrays
+  # SKIPPED: cppcoreguidelines-pro-bounds-* — codec octet walks (pointer+length), not Pico SDK
+  cppcoreguidelines-pro-type-reinterpret-cast,
+  # enabled: core is not MMIO; HW casts belong in ports
+  cppcoreguidelines-pro-type-vararg,
+  cppcoreguidelines-avoid-non-const-global-variables,
+  # enabled: core has no g_ process globals and no printf
+  # SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner
+
+  # ═══════════════════════════════════════════════════════════════
+  # GOOGLE
+  # Maps to: JSF AV Rule 209 (fixed-width types)
+  # ═══════════════════════════════════════════════════════════════
+  google-build-explicit-make-pair,
+  google-build-namespaces,
+  google-build-using-namespace,
+  google-default-arguments,
+  google-explicit-constructor,
+  google-runtime-int,
+
+  # ═══════════════════════════════════════════════════════════════
+  # HICPP — High Integrity C++
+  # Maps to: JSF AV safety, P10-1 (no goto), JSF 14 (literal suffixes)
+  # ═══════════════════════════════════════════════════════════════
+  hicpp-signed-bitwise,
+  hicpp-uppercase-literal-suffix,
+  hicpp-multiway-paths-covered,
+  hicpp-no-assembler,
+  hicpp-vararg,
+  # enabled: sans-I/O core has no BASEPRI asm and no printf
+  # NOTE: hicpp-avoid-goto, hicpp-no-malloc etc. are aliases — already covered
+
+  # ═══════════════════════════════════════════════════════════════
+  # MISC — Miscellaneous quality checks
+  # Maps to: P10-6 (scope), JSF AV general, LOC-3 (defensive coding)
+  # ═══════════════════════════════════════════════════════════════
+  misc-const-correctness,
+  misc-definitions-in-headers,
+  misc-misplaced-const,
+  misc-no-recursion,
+  misc-non-copyable-objects,
+  misc-redundant-expression,
+  misc-static-assert,
+  misc-unconventional-assign-operator,
+  misc-unused-parameters,
+  misc-unused-using-decls,
+  misc-use-internal-linkage,
+  # SKIPPED: misc-include-cleaner — noisy with generated + public headers; re-eval at extract
+  # SKIPPED: misc-confusable-identifiers — slow, not safety-critical
+
+  # ═══════════════════════════════════════════════════════════════
+  # MODERNIZE — C++20 best practices
+  # Maps to: JSF AV Rule 29-31 (constexpr over #define), C++ modernization
+  # ═══════════════════════════════════════════════════════════════
+  modernize-deprecated-headers,
+  modernize-loop-convert,
+  modernize-macro-to-enum,
+  modernize-redundant-void-arg,
+  modernize-use-bool-literals,
+  modernize-use-default-member-init,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  # SKIPPED: modernize-use-auto — explicit types preferred in embedded (audit A.4)
+  # SKIPPED: modernize-use-trailing-return-type — not our style
+  # SKIPPED: modernize-use-nodiscard — C++17 feature, evaluate later
+  # SKIPPED: modernize-use-std-print — codecs do not print
+
+  # ═══════════════════════════════════════════════════════════════
+  # PERFORMANCE
+  # Maps to: embedded real-time constraints
+  # ═══════════════════════════════════════════════════════════════
+  performance-enum-size,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-move-const-arg,
+  performance-move-constructor-init,
+  performance-no-automatic-move,
+  performance-no-int-to-ptr,
+  performance-trivially-destructible,
+  performance-type-promotion-in-math-fn,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+  # SKIPPED: performance-avoid-endl — no iostream usage
+  # SKIPPED: performance-inefficient-string-concatenation — no std::string
+  # SKIPPED: performance-inefficient-vector-operation — no std::vector
+
+  # ═══════════════════════════════════════════════════════════════
+  # READABILITY
+  # Maps to: JSF AV Rules 1 (size), 50-53 (naming), 59 (braces),
+  #          151 (magic numbers), 152 (one var per decl)
+  # ═══════════════════════════════════════════════════════════════
+  readability-avoid-const-params-in-decls,
+  readability-avoid-nested-conditional-operator,
+  readability-braces-around-statements,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-duplicate-include,
+  readability-else-after-return,
+  readability-enum-initial-value,
+  readability-function-cognitive-complexity,
+  readability-function-size,
+  readability-identifier-naming,
+  readability-implicit-bool-conversion,
+  readability-inconsistent-declaration-parameter-name,
+  readability-isolate-declaration,
+  readability-magic-numbers,
+  # DISABLED: readability-math-missing-parentheses — stricter than JSF AV Rule 213,
+  # which explicitly allows arithmetic precedence ("below arithmetic operators").
+  # CERT SEI EXP00-C-EX1 confirms: algebraic order parens are redundant.
+  # ArduPilot's AP_Math (our upstream reference) relies on * before + throughout.
+  readability-misleading-indentation,
+  readability-misplaced-array-index,
+  readability-named-parameter,
+  readability-non-const-parameter,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-redundant-preprocessor,
+  readability-simplify-boolean-expr,
+  readability-static-accessed-through-instance,
+  readability-uppercase-literal-suffix,
+  # SKIPPED: readability-identifier-length — single-char loop vars are fine
+  # SKIPPED: readability-qualified-auto — we don't use auto
+
+  # ═══════════════════════════════════════════════════════════════
+  # CLANG STATIC ANALYZER
+  # Maps to: P10-10 (static analysis), LOC-3 (defensive coding)
+  # Deep flow analysis — catches null deref, div-by-zero, leaks
+  # ═══════════════════════════════════════════════════════════════
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-security.ArrayBound,
+  clang-analyzer-security.FloatLoopCounter,
+  # SKIPPED: clang-analyzer-osx.* — macOS only
+  # SKIPPED: clang-analyzer-unix.Malloc — no heap usage
+  # SKIPPED: clang-analyzer-optin.mpi.* — no MPI
+
+# Only report warnings in our source files, not SDK/third-party headers
+HeaderFilterRegex: '.*(src/ccsds/.+|include/starcom/.+)'
+
 CheckOptions:
+
+  # ═══════════════════════════════════════════════════════════════
+  # FUNCTION SIZE (P10-4 / JSF AV Rule 1 / LOC-4.1)
+  # ═══════════════════════════════════════════════════════════════
+  # P10 target: 60 lines per function
+  # JSF hard limit: 200 statements (anything above is Critical)
+  - key: readability-function-size.LineThreshold
+    value: '60'
+  - key: readability-function-size.StatementThreshold
+    value: '200'
+  - key: readability-function-size.NestingThreshold
+    value: '6'
+  # Parameter count (JPL-C Rule 25). Copied house threshold; not an RC L2-P5 canary.
+  - key: readability-function-size.ParameterThreshold
+    value: '6'
+
+  # ═══════════════════════════════════════════════════════════════
+  # COGNITIVE COMPLEXITY (JSF AV Rule 3)
+  # Cognitive complexity proxy for cyclomatic complexity — clang-tidy
+  # has no native cyclomatic check. JSF AV Rule 3 requires CC <= 20.
+  # Cognitive != cyclomatic (nesting penalties differ), so passing
+  # here does NOT guarantee JSF compliance. Post-dev audit with a
+  # true cyclomatic tool (e.g. lizard) is needed for final sign-off.
+  # ═══════════════════════════════════════════════════════════════
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '25'
+  - key: readability-function-cognitive-complexity.DescribeBasicIncrements
+    value: 'false'
+
+  # ═══════════════════════════════════════════════════════════════
+  # UNCHECKED RETURN VALUES (P10-7 / JPL-14 / JSF-115) — L2-P5 canary closure
+  # ═══════════════════════════════════════════════════════════════
+  # Codec Result/expected APIs should be [[nodiscard]] at the type. This list is
+  # for C-style int-returning helpers we cannot annotate. Empty until one exists.
+  - key: bugprone-unused-return-value.CheckedFunctions
+    value: ''
+
+  # ═══════════════════════════════════════════════════════════════
+  # NAMING CONVENTIONS (JSF AV Rule 50-53)
+  # ═══════════════════════════════════════════════════════════════
+
+  # Functions: house camelBack (CODING_STANDARDS supersedes JSF 45/51/52).
+  # NASA F' is the same for functions (lower camel case). Matches: encodePltu, decodeV3
   - key: readability-identifier-naming.FunctionCase
     value: camelBack
+
+  # constexpr constants: kCamelCase
+  # Matches: kSampleRate, kMaxRetries, kHeartbeatOnMs
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: CamelCase
+  - key: readability-identifier-naming.ConstexprVariablePrefix
+    value: k
+
+  # Global constants: kCamelCase
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: k
+
+  # Static constants (file-scope): kCamelCase
+  - key: readability-identifier-naming.StaticConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.StaticConstantPrefix
+    value: k
+
+  # Global variables: g_camelCase if any exist. Core should have none.
+  - key: readability-identifier-naming.GlobalVariableCase
+    value: camelBack
+  - key: readability-identifier-naming.GlobalVariablePrefix
+    value: 'g_'
+  # No linker-script symbols in the host core.
+  - key: readability-identifier-naming.GlobalVariableIgnoredRegexp
+    value: '^$'
+
+  # File-scope static variables: g_camelCase (same as globals)
+  - key: readability-identifier-naming.StaticVariableCase
+    value: camelBack
+  - key: readability-identifier-naming.StaticVariablePrefix
+    value: 'g_'
+
+  # Local variables: lower_case (JSF AV Rule 51 — function and variable names
+  # entirely lowercase; house standard adds no override for locals)
+  - key: readability-identifier-naming.LocalVariableCase
+    value: lower_case
+
+  # Parameters: lower_case (JSF AV Rule 51 — function and variable names
+  # entirely lowercase; house standard adds no override for parameters)
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+
+  # ═══════════════════════════════════════════════════════════════
+  # MAGIC NUMBERS (JSF AV Rule 151) — mechanical; not an L2-P5 walk lens
+  # ═══════════════════════════════════════════════════════════════
+  # Gate finds candidate bare literals outside the ignore set below.
+  # Commonly-used values that don't need named constants:
+  # Human residual (only when dispositioning hits — not a file-by-file walk):
+  #   - Named constants are required (not optional style), plus a *source*
+  #     (datasheet / SDK / reference) for non-obvious timeouts/sizes/thresholds,
+  #     unless leaving the literal is impossible or highly impractical after
+  #     review — see CODING_STANDARDS "No arbitrary numerical values".
+  #   - Ignore-list is honest-narrow: a value in the set can still be
+  #     contextually magic (e.g. 256 as a buffer size) — flag for judgment
+  #     if a hit looks like that, or if a silent ignore-list value is load-bearing.
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: '0;1;2;3;4;8;16;32;64;100;255;256;1000'
+  - key: readability-magic-numbers.IgnoredFloatingPointValues
+    value: '0.0;1.0;2.0;100.0;1000.0;0.5'
+  - key: readability-magic-numbers.IgnorePowersOf2IntegerValues
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreBitFieldsWidths
+    value: 'true'
+
+  # ═══════════════════════════════════════════════════════════════
+  # FIXED-WIDTH TYPES (JSF AV Rule 209 / google-runtime-int)
+  # ═══════════════════════════════════════════════════════════════
+  # Flag short, long, long long — prefer uint32_t, int32_t etc.
+  # "unsigned short" and "signed long" etc. are flagged
+  - key: google-runtime-int.SignedTypePrefix
+    value: int
+  - key: google-runtime-int.UnsignedTypePrefix
+    value: uint
+  - key: google-runtime-int.TypeSuffix
+    value: _t
+
+  # ═══════════════════════════════════════════════════════════════
+  # NARROWING CONVERSIONS (JSF AV Rule 180 / MISRA)
+  # ═══════════════════════════════════════════════════════════════
+  - key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
+    value: 'true'
+  - key: bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
+    value: 'true'
+
+  # ═══════════════════════════════════════════════════════════════
+  # SPECIAL MEMBER FUNCTIONS (C++ Core Guidelines Rule of 5)
+  # ═══════════════════════════════════════════════════════════════
+  # Relaxed: allow structs with no special members (POD aggregates)
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: 'true'
+  - key: cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions
+    value: 'true'
+
+  # ═══════════════════════════════════════════════════════════════
+  # MISC TUNING
+  # ═══════════════════════════════════════════════════════════════
+  # misc-unused-parameters: don't flag in callback signatures
+  - key: misc-unused-parameters.StrictMode
+    value: 'false'
+
+  # misc-no-recursion: matches P10-1 / LOC-2.1
+  # (no configuration needed — flags any recursion)
+
+  # misc-const-correctness: suggest const where possible (P10-6 / JPL LOC-3.6)
+  - key: misc-const-correctness.WarnPointersAsValues
+    value: 'false'
+  - key: misc-const-correctness.TransformValues
+    value: 'true'
+  - key: misc-const-correctness.TransformReferences
+    value: 'true'
+
+  # readability-braces-around-statements: JSF AV Rule 59
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '0'
