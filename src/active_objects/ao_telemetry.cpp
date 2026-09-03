@@ -10,6 +10,7 @@
 
 #include "ao_telemetry.h"
 #include "ao_radio.h"
+#include "ao_rf_manager.h"
 #include "ao_flight_director.h"
 #include "rocketchip/station_output_mode.h"
 #include "rocketchip/ao_signals.h"
@@ -172,6 +173,20 @@ static void starcom_post_pltu(std::span<const std::byte> octets) {
 }
 
 static void starcom_drain_to_radio() {
+#ifndef ROCKETCHIP_HOST_TEST
+    // Station TX is gated in AO_Radio on RfManager window==0 (Stage T IVP-T14).
+    // pump_bytes_to_send consumes a COP-P AD. If we drain and Radio then
+    // drops the event, FOP-P thinks the frame is in flight. Soak MIB
+    // synch_timeout=0 so SYNCH never expires — the command is lost.
+    // Only drain when Radio will actually air the PLTU.
+    if constexpr (job::kRadioModeRx) {
+        const uint32_t now_us =
+            static_cast<uint32_t>(to_us_since_boot(get_absolute_time()));
+        if (rc::AO_RfManager_next_tx_window_us(now_us) == 0) {
+            return;
+        }
+    }
+#endif
     for (uint8_t i = 0; i < kStarcomDrainCap; ++i) {
         std::byte buf[rc::starcom_adapt::kAirMtu];
         const auto n = rc::starcom_adapt::pump_bytes_to_send(
@@ -866,6 +881,11 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     case SIG_TELEM_TICK: {
 #ifdef ROCKETCHIP_USE_STARCOM
         rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
+        // Station: COP-P may have a queued cmd SDU from before the RX window
+        // opened. Drain here once RfManager has an anchor (gate is inside).
+        if constexpr (job::kRadioModeRx) {
+            starcom_drain_to_radio();
+        }
 #endif
         // Vehicle TX: encode and post to AO_Radio
         if constexpr (!job::kRadioModeRx) {

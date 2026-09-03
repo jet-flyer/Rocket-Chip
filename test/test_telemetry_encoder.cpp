@@ -878,6 +878,8 @@ TEST(StarcomHostLink, NavSduPltuEighteenPlusN) {
     ASSERT_TRUE(rc::unpack_nav_sdu_user(back, sizeof(back), &out));
     EXPECT_EQ(out.lat_1e7, in.lat_1e7);
     EXPECT_EQ(out.battery_mv, in.battery_mv);
+    EXPECT_EQ(out.met_ms, in.met_ms);
+    EXPECT_EQ(out.flags, in.flags);
 }
 
 #endif  // ROCKETCHIP_USE_STARCOM

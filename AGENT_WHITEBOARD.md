@@ -79,7 +79,7 @@ Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBO
 
 **Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). One tree. Not a `Rocket-Chip-*` folder. `docs/starcom-sad-draft` and `grok/starcom-ivp23` are leftovers to drop after this sitting's port.
 
-**Still RC:** barebones vehicle+station ON soak before more SDU fields. Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). **Still Starcom library:** house-bar remainder (Error enumerators → camelBack, JSF 151 names) — **no accepted deviation**. FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
+**Still RC:** two-board ON soak — station COP-P cmd SDU (ARM) after vehicle nav has given RfManager an anchor. Do not drain COP-P when the station TX window is 0 (Radio would drop the PLTU and FOP-P would never resend: synch_timeout=0). Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). FPGA PHY/decode held. Consumer guide: `starcom/docs/USER_GUIDE.md`.
 
 ---
 
