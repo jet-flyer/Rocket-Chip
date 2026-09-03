@@ -17,6 +17,42 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Handoff 2026-09-03 (OPEN) — Pass A soak
+
+Owner to bed. **Plan file:** `starcom/docs/integration/PASS_A_HANDOFF_2026-09-03.md` (copy also in `logs/soak/`, gitignored). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Starcom log: `starcom/CHANGELOG.md` `2026-09-03-001`. Root RC log is a pointer only.
+
+**In progress:** two-board ON soak Pass A. A1 PASS (lock + 2 dBm; ARM leftover FAIL). A2 FAIL as expected. A3–A5 not a different PHY.
+
+**Blocked:** Fruit Jam still `flight-2f7096d` / SET `pwr=20`. Vehicle is 2 dBm. SET ±6 dB gate + TX-busy leftover. Need `build_station_flight/rocketchip.uf2` (`flight-4819102`, 2 dBm table) actually on the Jam (banner must say `4819102`). Dual-board picotool targeting: owner said this was solved months ago — **later, do not reinvent.** Flash with the **other board unplugged**, then plug both in for soak.
+
+**Dirty tree (keep):** `radio_config_table.h` + `kDefaultRocketRadioConfig` 2 dBm; CLI `t` CFG line. UF2 was built from that. Do not `git clean`.
+
+**Do not:** picotool `-f` while COM7 CreateFile is hung; kill that Python; `pnputil /restart-device`; desk SET +20; score a 125 kHz log as A3.
+
+Next: flash Jam → lock → idx-5 SET to BW250/5/2 dBm → real A3, then A4/A5. Skip A6. A7/A8 layout B.
+
+---
+
+## Station LED: COP-P lock vs RSSI (WANTED) (2026-09-03)
+
+Owner: RSSI LEDs can be yellow/green (LoRa heard) while COP-P is **waiting peer PLCW**. Desk 2026-09-03: after Jam reset, RX climbing CRC=0 / yellow LEDs, no lock until vehicle USB replug. Wanted: keep current RSSI colour, **0.5 Hz on/off blink when not locked**. Not a soak step. Not a license to implement this sitting.
+
+---
+
+## FSK mode (WANTED) (2026-09-02)
+
+Owner-wanted after LoRa Pass A. SX1276 FSK (packet and/or continuous bitstream — IVP-63 / ADVANCED_SETTINGS placeholder). Not tonight's LoRa SF/BW matrix. Not hail. Not a license to mint SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot.
+
+---
+
+## Fruit Jam `picotool -f` wedges CDC (OPEN) (2026-09-02)
+
+**Do not `picotool -f` / `reboot -f` / `info -f` / WinUSB `RESET_REQUEST_BOOTSEL` on the Jam.** `docs/FLASHING.md` already: `reboot -f` → CDC gone until USB replug (2026-08-20). On this Fruit Jam it is worse: picotool tracks **empty serial** (`Tracking device serial number  for reboot`), sends vendor BOOTSEL, then cannot re-find the device. `load -f` therefore becomes a failed `reboot -f` — no BOOTSEL volume, COM7 may still enumerate, usbser wedged until VBUS cycle. Feather reset-interface serial is `02FB` and works; Jam’s does not. Also do not kill a Python `CreateFile` on COM7 and do not `pnputil /restart-device` the composite.
+
+2026-09-03: live banner still `flight-2f7096d`. `load -f --ser BEC71` rc -7. `load -f` / `reboot -f -u` asked reboot; chip stayed CDC or wedged usbser (`CreateFile` timeout 121 / ERROR_GEN_FAILURE). Treat rc=0 with no load/verify + no COM drop as a failed write. Do not kill a hung COM7 open. Owner: unplug the board you are not flashing. Dual-board targeting later. UF2: `build_station_flight/rocketchip.uf2`. Soak resume: `logs/soak/2026-09-03_HANDOFF.md`.
+
+---
+
 ## Pre-commit vehicle bench_sim on station-only firmware (OPEN) (2026-08-27)
 
 Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station-job diffs still demand COM5. HEALTH-ring reclassify is no longer the reason (Core1 vitality + `passive_dump_needs_help`). Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs). Related: *bench_sim hook vs canary* row.
@@ -35,13 +71,6 @@ Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untw
 
 ---
 
-## Vehicle RFM95 `RegVersion=0xFF` (WATCH) (2026-09-02)
-
-Parked. I2C sitting did not touch `rfm95w` / `spi_bus` / Feather radio pins / committed `ao_radio`. Same driver as months of working air. Live CLI `d` this bench: `RegVersion=0xFF` (expect `0x12`), AO_Radio `kIdle`, `tx=0`. Not an I2C-land regression in git. Watch on the next radio sitting; do not debug as STEMMA.
-
-**LoRa vs QT:** not expected to couple into the I2C daisy-chain (separate SPI0 vs I2C1 STEMMA). Do not FPV-twist the QT 4-core for RF (LL 47). If a future TX soak shows `I=` dying, that is a new claim — not assumed.
-
----
 
 
 ## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)

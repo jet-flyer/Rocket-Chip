@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**Two-board ON Pass A pre-soak: A1/A2 scored; A3–A5 blocked on station image.** Consumer `ROCKETCHIP_USE_STARCOM=ON`, 45 B nav SDU, desk Class A, 2 dBm. A1: COP-P lock, CRC 0, ~4.6 Hz, ARM leftover FAIL (seq-nav+PLCW TX-busy, paper ~82% of 200 ms). A2 10 Hz FAIL as expected. Live Jam still `flight-2f7096d` SET pwr=20 vs vehicle 2 dBm; SET ±6 dB gate + no leftover → PHY stayed BW125. 2 dBm station UF2 built, not flashed. Dual-board picotool targeting parked (owner: solved months ago; flash with the other board unplugged). Resume: `logs/soak/2026-09-03_HANDOFF.md`. Verified: COM5 CFG BW=125/5/2 dBm RegVersion 0x12 Hardware 13/13; COM7 banner `flight-2f7096d`; no new firmware landed.
+
 ### 2026-09-02-001 | Grok 4.6 (Build CLI) | documentation, tooling, architecture
 
 **One Starcom tree + PICS catch-up + no library deviation.** Worktree `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). PICS levels 0 / Best effort / Full in CONFORMANCE; FSK bitstream is a future Best-effort bearer, not 211.1. House identifiers follow NASA F´ / cFS practice (C++ tokens are house camelBack; Blue Book names stay in comments). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `Error` enumerators and JSF 151 names remain open on this tree. Starcom-owned clang-tidy + Grey report under `docs/audits/`. FPGA hub already on `main`. No version bump. No tag.
