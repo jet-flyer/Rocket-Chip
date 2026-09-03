@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**Two-board ON Pass A pre-soak: A1/A2 scored; A3–A5 blocked on station image.** Consumer `ROCKETCHIP_USE_STARCOM=ON`, 45 B nav SDU, desk Class A, 2 dBm. A1: COP-P lock, CRC 0, ~4.6 Hz, ARM leftover FAIL (seq-nav+PLCW TX-busy, paper ~82% of 200 ms). A2 10 Hz FAIL as expected. Live Jam still `flight-2f7096d` SET pwr=20 vs vehicle 2 dBm; SET ±6 dB gate + no leftover → PHY stayed BW125. 2 dBm station UF2 built, not flashed. Dual-board picotool targeting parked (owner: solved months ago; flash with the other board unplugged). Resume: `logs/soak/2026-09-03_HANDOFF.md` on `grok/sc-dev`. Verified: COM5 CFG BW=125/5/2 dBm RegVersion 0x12 Hardware 13/13; COM7 banner `flight-2f7096d`; no new firmware landed.
+
 ### 2026-08-28-003 | Grok 4.6 (Build CLI) | architecture, bugfix, documentation
 
 **Starcom wrap through IVP 25.** MCU: COP encode scratch in BSS; `fop1Init`/`fopPInit` memset in place; GNU `-Wstack-usage=1024`. IVP 24: WSL ASan+UBSan, book-max fuzz, measured size. IVP 10 remainder: FOP-1 Resume/setup/LLIF, TT=1 suspend (232.1 Table 5-1). Sent copies off 256-FSN tables (`CoppEndpoint` 19544→10136). Consumer `docs/USER_GUIDE.md`. Product **`0.2.25`** (owner: `0.2.N`, N = increment), EXTRA empty, tag `starcom-v0.2.25`. FPGA PHY/decode still held; CFDP wanted, not 0–25. No SC-NNN.

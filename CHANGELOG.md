@@ -48,7 +48,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
 
-**Starcom two-board Pass A pre-soak: A1/A2 scored; A3–A5 blocked on station image.** Vehicle ON `flight-4819102` 45 B nav SDU, desk 2 dBm, Class A. A1: COP-P lock, CRC 0, ~4.6 Hz, ARM leftover FAIL (seq-nav+PLCW already TX-busy, paper ~82% of 200 ms). A2 10 Hz FAIL as expected (vehicle `r`). Live Jam still `flight-2f7096d` SET `pwr=20`; vehicle 2 dBm; SET ±6 dB gate + no leftover → PHY never left BW125. 2 dBm station UF2 built, not flashed. Dual-board picotool targeting parked (owner: solved months ago). Resume: `starcom_dev/logs/soak/2026-09-03_HANDOFF.md`. Verified: COM5 CFG BW=125/5/2 dBm RegVersion 0x12 Hardware 13/13; COM7 banner `flight-2f7096d` after operator reset; no new firmware landed.
+**Starcom consumer Pass A pre-soak is in `starcom/CHANGELOG.md` `2026-09-03-001`, not here.** No Rocket-Chip STEMMA/I2C land this sitting. Resume: `starcom_dev/logs/soak/2026-09-03_HANDOFF.md`. Verified: docs split only; no RC firmware in this commit.
 
 ### 2026-09-02-002 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
 
