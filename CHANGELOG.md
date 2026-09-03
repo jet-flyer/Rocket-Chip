@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**Starcom two-board Pass A pre-soak: A1/A2 scored; A3–A5 blocked on station image.** Vehicle ON `flight-4819102` 45 B nav SDU, desk 2 dBm, Class A. A1: COP-P lock, CRC 0, ~4.6 Hz, ARM leftover FAIL (seq-nav+PLCW already TX-busy, paper ~82% of 200 ms). A2 10 Hz FAIL as expected (vehicle `r`). Live Jam still `flight-2f7096d` SET `pwr=20`; vehicle 2 dBm; SET ±6 dB gate + no leftover → PHY never left BW125. 2 dBm station UF2 built, not flashed. Dual-board picotool targeting parked (owner: solved months ago). Resume: `starcom_dev/logs/soak/2026-09-03_HANDOFF.md`. Verified: COM5 CFG BW=125/5/2 dBm RegVersion 0x12 Hardware 13/13; COM7 banner `flight-2f7096d` after operator reset; no new firmware landed.
+
 ### 2026-09-02-002 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
 
 **STEMMA live path was FPV-twist, not GPS-last.** LL 47: never twist SDA with SCL. GPS-last twisted froze `I=` (~18%); same last and GPS-first untwisted both `I=` climbing, `e≤1`. CLI `k` with GPS on then `e=0`. GPS N/A if 0x10 NACKs (`d845a48`). NMEA hunt is GlobalTop 255-byte + 2 ms (`window_hit:1`). Half-fix audit: only the 1-byte hunt was a twist-era workaround; `i2c_master`, skip DEVICE_RESET, GPS-after-USB, park path kept. `SCAFFOLDING.md` names `i2c_master`. Vehicle RFM95 `RegVersion=0xFF` parked WATCH (next radio sitting; not an I2C git regression; LoRa not expected to couple into QT I2C). Verified: COM5 GPS-first untwisted, PMTK `[51,18,51]` `window_hit:1 init:1`, ICM `0xEA`, `I=14119→17348 e=0`, 3D/11, `bench_sim` 2/2.
