@@ -29,12 +29,19 @@ Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to
 2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
 3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
 4. FSK (below).
-5. Hail.
-6. Adaptive TX power.
+5. **FPV-style scan** (below) — station finds vehicle PHY. Not hail, not Stage T leftover.
+6. Hail (Starcom Prox-1 §6 — different from channel-find).
+7. Adaptive TX power.
 
 Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET table; retire BW125 from desk SNR. Jam flash: `picotool load <uf2> -f --bus/--address` tracking `BEC71` only. Dirty keep: BOOTSEL helpers + `station_phy_scan` untracked — do not `git clean`.
 
 **SET vs lock (parked):** hop-on-send reverted. SET CLI can fire while FOP `V(S)` stays 0. Pass A cells were reflash, not SET.
+
+---
+
+## FPV-style scan (WANTED) (2026-09-03)
+
+Recent restatement (this soak sitting), **not** the Stage T `c`-key leftover. Like FPV goggles scanning for a VTX: vehicle already on the air, station **RX-only** walks unique SF/BW/CR in `kRadioConfigTable` until a packet lands, then COP-P can lock. Not a LoRa beacon. Not Prox-1 hail. WIP parked untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`. **RC consumer — this board, not** `starcom/AGENT_WHITEBOARD.md`. Not a license to implement this sitting.
 
 ---
 
