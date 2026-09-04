@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-04-001 | Grok Hamilton (Grok Bot) | hardware, documentation
+
+**R-32: 10 Hz commanded / ~5 Hz delivered root-cause battery.** Logged problem report and plan (instrumentation counters, T1–T7 split died-in-hold vs died-on-air vs ToA, remediations R1–R4 schedule/hold — not SF/BW). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; evidence `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. No firmware change this commit.
+
 ### 2026-09-03-002 | Grok 4.6 (Build CLI) | hardware, documentation
 
 **Desk Pass A/B soak scored; default still 125/5/2.** Keepers already on `grok/sc-dev` (`6dcea56`: wrap-free USB `-f`, 2 dBm table, TX hold). A/B matrix, U.FL confound, B4 expedited vs A4 squeeze, and next work: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. SET hop still parked. Expedited nav not left in tree. Procedure stays `starcom/docs/integration/TWO_BOARD_SOAK.md`. Verified: CFG-confirmed soaks, COP-P lock / positive-control PASS on scored cells (see report).
