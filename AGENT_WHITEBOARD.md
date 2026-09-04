@@ -29,7 +29,7 @@ Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to
 2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
 3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
 4. FSK (below).
-5. **FPV-style scan** (below) — station finds vehicle PHY. Not hail, not Stage T leftover.
+5. **FPV-style scan / find** (below) — 18 SF×BW cells, goggle dual-use. Not hail.
 6. Hail (Starcom Prox-1 §6 — different from channel-find).
 7. Adaptive TX power.
 
@@ -39,9 +39,15 @@ Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET
 
 ---
 
-## FPV-style scan (WANTED) (2026-09-03)
+## FPV-style scan / find (WANTED) (2026-09-02, restated 2026-09-03)
 
-Recent restatement (this soak sitting), **not** the Stage T `c`-key leftover. Like FPV goggles scanning for a VTX: vehicle already on the air, station **RX-only** walks unique SF/BW/CR in `kRadioConfigTable` until a packet lands, then COP-P can lock. Not a LoRa beacon. Not Prox-1 hail. WIP parked untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`. **RC consumer — this board, not** `starcom/AGENT_WHITEBOARD.md`. Not a license to implement this sitting.
+Stashed as `wip phy-scan leds docs` under **Starcom** “LoRa Hail” — that was the wrong board. **This is RC.** Hail (Prox-1 §6 / LoRa Hail) stays on `starcom/AGENT_WHITEBOARD.md`.
+
+**Find axis = SF×BW at 915.0 / sync `0x12`.** Firmware-legal **6 SF × 3 BW = 18** cells (not hundreds; do not add US915 64-freq hop). CR/power/nav are not find axes. 18 is FPV-goggle sized (Fatshark ~40 ch).
+
+**Dual-use (list stays small):** station tool = (1) find *our* vehicle (valid PLTU) (2) show which cells are occupied (RSSI/CAD) like goggles. Prior art: Hertz-Hunter, MikyM0use OLED-scanner / JAFaR (RX5808 RSSI sweep + autoscan), PortaPack FPV Detect (40-ch AutoScan). Pattern: finite table, RSSI bar per cell, lock strongest / first match. Extra vs analog FPV: CRC’d PLTU vs raw energy. **RX-only while sweeping.**
+
+WIP untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp` (stash also has scan-bar LED + `ao_radio` tick — do not `git stash pop` into a soak wrap). Not a license to implement this sitting.
 
 ---
 
