@@ -38,6 +38,12 @@ asa/openmct into the Rocket Chip tree |
 | layouts/ | Saved oMCT layouts / display configs (empty until hello-world) |
 | plugins/ | Notes or source for RC providers (empty until hello-world) |
 
+## Fixtures
+
+Synthetic hello-world CSV (same columns as Buzz live m capture): [ixtures/omct_hello_fixture.csv](fixtures/omct_hello_fixture.csv).
+
+Live path once boards are on USB: logs/gcs/omct_hello_YYYY-MM-DD.csv.
+
 ## Next sitting
 
 1. Hello-world: one live (or replayed) rate plotted in stock Espresso or Darkmatter
