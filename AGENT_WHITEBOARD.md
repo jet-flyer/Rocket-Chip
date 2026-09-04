@@ -19,15 +19,15 @@
 
 ## R-32 R0 rate counters (OPEN) (2026-09-04)
 
-Worktree `../Rocket-Chip-r0` branch `grok/r0-rate-counters` @ `388fbff` + R32 closed shape. Increment-only RATE on CLI `t`/`d` and station ANSI dashboard. No last_tx_ms (R1), no hold (R2), no T3 mute.
+Worktree `../Rocket-Chip-r0` branch `grok/r0-rate-counters` @ `2c8092c` + **product boot B4 250/10 exp**. Increment-only RATE on CLI `t`/`d` and station ANSI dashboard. No last_tx_ms (R1), no hold (R2), no T3 mute.
 
-**Product boot:** **125 kHz / 5 Hz / SF7 / 2 dBm / CR5 seq-nav**. 10 Hz TM = expedited nav + sparse station PLCW (arm `farm.need_plcw` every 4th CRC-ok RX, including expedited RE3 which does not set it; drain cadence + ACQ bootstrap). Station air ~nav/4 (~1.25 Hz at 5 Hz, ~2.5 Hz at 10 Hz) — not every nav, not one-shot. Buzz: reflash **vehicle + station** Starcom ON. Exit: 125/5/2 RATE, veh submit~5, station_tx a few/sec (1–3 Hz, not 1 total, not ~nav Hz), COP-P lock OK, busy_drop~0.
+**Product boot:** **250 kHz / 10 Hz / SF7 / 2 dBm / CR5 expedited nav** + sparse station PLCW (arm `farm.need_plcw` every 4th CRC-ok RX; drain cadence + ACQ bootstrap). Station air ~nav/4 ≈ 2.5 Hz. **125/10 does not fit** (paper ToA ~118 ms > 100 ms slot). Nathan accepted ~3 dB (BW125→250) for airtime/rate. Buzz: reflash **vehicle + station** Starcom ON. Exit: CFG BW=250 nav=10Hz, veh submit~10, station_tx ~2.5 Hz (not 1 total, not ~nav Hz), COP-P lock OK, busy_drop~0.
 
 ---
 
 ## Next after Pass A/B soak (OPEN) (2026-09-03)
 
-Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Product default **125/5/2 SF7 seq-nav** (this worktree restored). 10 Hz TM = expedited + sparse station PLCW.
+Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Product default now **250/10 SF7 expedited + sparse PLCW** (this worktree). 125/10 does not fit paper ToA.
 
 Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to true time (3D / oMCT). Prefer MET + GPS on both ends; oMCT not wired.
 

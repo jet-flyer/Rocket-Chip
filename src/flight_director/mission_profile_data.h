@@ -94,10 +94,10 @@ static_assert(kDefaultRocketProfile.phase_qr.ramp_steps >= 1,
 inline constexpr RadioConfig kDefaultRocketRadioConfig = {
     .mode             = RadioRole::kTx,
     .protocol         = EncoderType::kCcsds,
-    .nav_rate_hz      = 5,
+    .nav_rate_hz      = 10,
     .power_dbm        = 2,
     .spreading_factor = 7,
-    .bandwidth_khz    = 125,
+    .bandwidth_khz    = 250,
     .coding_rate      = 5,
 };
 

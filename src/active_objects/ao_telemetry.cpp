@@ -314,7 +314,7 @@ static void encode_and_send(TelemAo* me) {
             pkt, me->latest_telem);
         if (!n.has_value() || *n == 0) { return; }
         (void)rc::starcom_adapt::pump_submit_sdu(
-            g_pump, std::span<const std::byte>(pkt, *n), false);
+            g_pump, std::span<const std::byte>(pkt, *n), true);
         starcom_drain_to_radio();
         return;
     }
