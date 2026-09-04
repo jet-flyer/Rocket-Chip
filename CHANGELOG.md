@@ -1,54 +1,58 @@
-# Changelog
+﻿# Changelog
 
 > **When to add an entry:** Only when the user **asks for a CHANGELOG entry**,
 > or **explicitly asks to run the full wrap-up / Session End checklist**
 > (`docs/agents/SESSION_CHECKLIST.md` item 8). **Not** because you committed,
-> pushed, merged, or finished a sitting. Casual wrap / “merge to main” is not
+> pushed, merged, or finished a sitting. Casual wrap / â€œmerge to mainâ€ is not
 > that checklist. Handoff is not a wrap.
 
 ## Format
 
 `### YYYY-MM-DD-NNN | Brand Model (Harness) | tags`
 
-The middle field is the **Author** — see **Agent attribution** below for its required three parts. Example: `### 2026-06-28-003 | Claude Opus 4.8 (Code) | tooling, graphify`.
+The middle field is the **Author** â€” see **Agent attribution** below for its required three parts. Example: `### 2026-06-28-003 | Claude Opus 4.8 (Code) | tooling, graphify`.
 
 Files affected in parentheses if relevant.
 
 **Frequency:** Typically one entry per session, not per individual change. Log when a task is completed or work transitions to a new focus. However, if multiple *significant* changes occur in one session (e.g., refactoring logging system AND redesigning state engine), create separate entries for each.
 
-**Conciseness is the default.** An entry is **one brief paragraph** — what changed and why it matters, no more. **Do not restate information that already lives in another document** (design docs, decision records, usage guides, lessons-learned). Instead **point to it**: name the file/section that carries the detail and let the reader follow the link. The changelog is an index of *what happened*, not a place to re-explain *how it works*.
+**Conciseness is the default.** An entry is **one brief paragraph** â€” what changed and why it matters, no more. **Do not restate information that already lives in another document** (design docs, decision records, usage guides, lessons-learned). Instead **point to it**: name the file/section that carries the detail and let the reader follow the link. The changelog is an index of *what happened*, not a place to re-explain *how it works*.
 
 **Rationale sections are rare.** Only add an italicized rationale block when:
 - An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
 - A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
 - Architectural trade-offs need to be preserved for future contributors
 
-Routine work—even if complex—does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
+Routine workâ€”even if complexâ€”does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
-**History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakes—that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** it’s fine to **edit/refine the entry you’re composing in this commit** until it reads right before you ship it—that isn’t rewriting project history.
+**History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakesâ€”that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** itâ€™s fine to **edit/refine the entry youâ€™re composing in this commit** until it reads right before you ship itâ€”that isnâ€™t rewriting project history.
 
-**Agent attribution (the `Author` field).** When an AI agent authors an entry, the `Author` field has **three parts: `Brand Model (Harness)`** —
+**Agent attribution (the `Author` field).** When an AI agent authors an entry, the `Author` field has **three parts: `Brand Model (Harness)`** â€”
 
-1. **Brand** — the vendor/family: `Claude`, `Grok`, `Gemini`, `GPT`, etc.
-2. **Model** — the specific version: `Opus 4.8`, `4.3`, `2.5 Pro`, etc.
-3. **Harness** — the interface/runtime it's running in, **in parentheses**: `(Code)` (Claude Code CLI), `(Build CLI)` (Grok Build), `(Browser)`, `(IDE)`, etc.
+1. **Brand** â€” the vendor/family: `Claude`, `Grok`, `Gemini`, `GPT`, etc.
+2. **Model** â€” the specific version: `Opus 4.8`, `4.3`, `2.5 Pro`, etc.
+3. **Harness** â€” the interface/runtime it's running in, **in parentheses**: `(Code)` (Claude Code CLI), `(Build CLI)` (Grok Build), `(Browser)`, `(IDE)`, etc.
 
-Examples: `Claude Opus 4.8 (Code)` · `Grok 4.3 (Build CLI)` · `Gemini 2.5 Pro (Browser)`.
+Examples: `Claude Opus 4.8 (Code)` Â· `Grok 4.3 (Build CLI)` Â· `Gemini 2.5 Pro (Browser)`.
 
-A note on reliability: brand and model are almost always in your context, but the **harness is the part agents most often get wrong or omit** — you may know you're "Claude" without the runtime surfacing whether you're in Claude Code, the desktop app, or an IDE extension. If you cannot determine your harness with confidence, state your best identification rather than dropping the field, and prefer the parenthesized form so a reader can see it was attempted. All three parts go in the **header `Author` field**, not the entry body.
+A note on reliability: brand and model are almost always in your context, but the **harness is the part agents most often get wrong or omit** â€” you may know you're "Claude" without the runtime surfacing whether you're in Claude Code, the desktop app, or an IDE extension. If you cannot determine your harness with confidence, state your best identification rather than dropping the field, and prefer the parenthesized form so a reader can see it was attempted. All three parts go in the **header `Author` field**, not the entry body.
 
 ---
 
-<!-- ADD NEW ENTRIES BELOW THIS LINE — newest first, directly under this marker. -->
+<!-- ADD NEW ENTRIES BELOW THIS LINE â€” newest first, directly under this marker. -->
 <!-- These format rules stay pinned at the top; the file is newest-first, so a -->
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-04-002 | Grok Hamilton (Grok Bot) | hardware, feature, bugfix
+
+**R-32 close: product boot 250/10 expedited + sparse station PLCW; station dash RX n/desired.** Commanded 10 Hz now delivers ~9.8 Hz on the desk (busy_drop=0, station_tx ~nav/4). Nathan accepted ~3 dB (BW125->250) so airtime fits; 125/10 does not. Station RF Link shows CRC-good `RX n/desired` (same path as RATE `rx_crc_ok`; denom CFG `nav_rate_hz`). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; branch `grok/r0-rate-counters`. Verified: product smoke submit~=tx_done 9.79 Hz; dash spot-check `RX 9.4-9.6/10 Hz [OK]`.
+
 ### 2026-09-04-001 | Grok Hamilton (Grok Bot) | hardware, documentation
 
-**R-32: 10 Hz commanded / ~5 Hz delivered root-cause battery.** Logged problem report and plan (instrumentation counters, T1–T7 split died-in-hold vs died-on-air vs ToA, remediations R1–R4 schedule/hold — not SF/BW). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; evidence `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. No firmware change this commit.
+**R-32: 10 Hz commanded / ~5 Hz delivered root-cause battery.** Logged problem report and plan (instrumentation counters, T1â€“T7 split died-in-hold vs died-on-air vs ToA, remediations R1â€“R4 schedule/hold â€” not SF/BW). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; evidence `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. No firmware change this commit.
 
 ### 2026-09-03-002 | Grok 4.6 (Build CLI) | hardware, documentation
 
@@ -60,23 +64,23 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-09-02-002 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
 
-**STEMMA live path was FPV-twist, not GPS-last.** LL 47: never twist SDA with SCL. GPS-last twisted froze `I=` (~18%); same last and GPS-first untwisted both `I=` climbing, `e≤1`. CLI `k` with GPS on then `e=0`. GPS N/A if 0x10 NACKs (`d845a48`). NMEA hunt is GlobalTop 255-byte + 2 ms (`window_hit:1`). Half-fix audit: only the 1-byte hunt was a twist-era workaround; `i2c_master`, skip DEVICE_RESET, GPS-after-USB, park path kept. `SCAFFOLDING.md` names `i2c_master`. Vehicle RFM95 `RegVersion=0xFF` parked WATCH (next radio sitting; not an I2C git regression; LoRa not expected to couple into QT I2C). Verified: COM5 GPS-first untwisted, PMTK `[51,18,51]` `window_hit:1 init:1`, ICM `0xEA`, `I=14119→17348 e=0`, 3D/11, `bench_sim` 2/2.
+**STEMMA live path was FPV-twist, not GPS-last.** LL 47: never twist SDA with SCL. GPS-last twisted froze `I=` (~18%); same last and GPS-first untwisted both `I=` climbing, `eâ‰¤1`. CLI `k` with GPS on then `e=0`. GPS N/A if 0x10 NACKs (`d845a48`). NMEA hunt is GlobalTop 255-byte + 2 ms (`window_hit:1`). Half-fix audit: only the 1-byte hunt was a twist-era workaround; `i2c_master`, skip DEVICE_RESET, GPS-after-USB, park path kept. `SCAFFOLDING.md` names `i2c_master`. Vehicle RFM95 `RegVersion=0xFF` parked WATCH (next radio sitting; not an I2C git regression; LoRa not expected to couple into QT I2C). Verified: COM5 GPS-first untwisted, PMTK `[51,18,51]` `window_hit:1 init:1`, ICM `0xEA`, `I=14119â†’17348 e=0`, 3D/11, `bench_sim` 2/2.
 
 ### 2026-09-02-001 | Grok 4.6 (Build CLI) | hardware, bugfix, tooling
 
-**STEMMA I2C master + in-place flash without USB unplug.** `i2c_master` replaces `i2c_bus` (ABORT-then-STOP, skip warm ICM DEVICE_RESET, 50 ms transfer). GPS I2C after USB; park `u` disconnects TinyUSB before erase. Probe flash is `scripts/flash_elf_halt_write.py` (never OpenOCD `program` / `reset halt`). `docs/FLASHING.md` rewritten; pre-rewrite snapshots in `docs/deprecated/`. GPS-off IMU/baro was already `e=0` on the old layer; GPS-on coexistence still open. UART GPS untouched. `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Verified: COM5 `vehicle flight v0.16.3-dev`; Hardware 12/13 (GPS FAIL, PA1010D unplugged); ICM `WHO_AM_I=0xEA`, DPS310 continuous; `I=14184→17471 e=0`; `bench_sim` 2/2 PASS; host ctest 873/873.
+**STEMMA I2C master + in-place flash without USB unplug.** `i2c_master` replaces `i2c_bus` (ABORT-then-STOP, skip warm ICM DEVICE_RESET, 50 ms transfer). GPS I2C after USB; park `u` disconnects TinyUSB before erase. Probe flash is `scripts/flash_elf_halt_write.py` (never OpenOCD `program` / `reset halt`). `docs/FLASHING.md` rewritten; pre-rewrite snapshots in `docs/deprecated/`. GPS-off IMU/baro was already `e=0` on the old layer; GPS-on coexistence still open. UART GPS untouched. `docs/SCAFFOLDING.md` still names `i2c_bus` (hard-protected). Verified: COM5 `vehicle flight v0.16.3-dev`; Hardware 12/13 (GPS FAIL, PA1010D unplugged); ICM `WHO_AM_I=0xEA`, DPS310 continuous; `I=14184â†’17471 e=0`; `bench_sim` 2/2 PASS; host ctest 873/873.
 
 ### 2026-09-01-001 | Claude Opus 5 (Code) | hardware, bugfix, documentation
 
-**STEMMA PA1010D I2C coexistence: no net improvement, five hypotheses falsified.** Picked up Grok's parked sitting; his WIP stash `a5abe2a` was restored for work then reverted and left **intact**. Nothing landed — `src/` is back at `0737f47`. Measured on COM5 with the PA1010D on the chain: after a USB-POR the IMU runs 9441 reads / 11239 errs (~54% fail) while the GPS is 86/0; the baro dies at exactly 200 errs (50 fails x 3 reinits + 1 — the existing ladder, not a separate fault). After **any** MCU reset the ICM NACKs 0x69, 0x68 *and* 0x0C while the baro (0x77) and GPS (0x10) ACK in the same instant, and only a USB-POR recovers it; mechanism still unexplained — the SparkFun bank-cache bug is ruled out because `select_bank()` here has no cache. **Falsified:** stretch-tolerant probe timeout (no effect); 100 kHz Standard Mode (worse, 46% -> 96.5%); bus capacitance (bus is <50 cm on shortest Adafruit cables); "our GPS transactions cause it" (the IMU still failed with 0x10 never addressed); and **LL Entry 24** — removing the per-timeout `i2c_bus_recover()` took failures 54% -> 98.4%, so that recovery is load-bearing on the current bus layer, contrary to the entry. **Worked, but reverted with everything else:** GPS poll made wall-clock and derived from the module's configured output rate (measured 1.91 Hz, 0 errs; the previous cycle-divider collapsed to 0.67 Hz when IMU errors slowed the loop, starving the drain), and blind sensor init replacing probe-gating (IMU 0 -> 7351 reads across a reflash, since a probe false-negatives against a streaming PA1010D and the device reset then never runs). An interim "bus is at its limit" claim was **wrong and is retracted** — ~54% duty is not a bottleneck; the owner's read is that this is a timing/collision problem like the LoRa half-duplex work. Resume plan and open questions: `AGENT_WHITEBOARD.md`. Verified: no firmware landed, `src/` clean at `0737f47`; host ctest 873/873 and both roles linked during the sitting.
+**STEMMA PA1010D I2C coexistence: no net improvement, five hypotheses falsified.** Picked up Grok's parked sitting; his WIP stash `a5abe2a` was restored for work then reverted and left **intact**. Nothing landed â€” `src/` is back at `0737f47`. Measured on COM5 with the PA1010D on the chain: after a USB-POR the IMU runs 9441 reads / 11239 errs (~54% fail) while the GPS is 86/0; the baro dies at exactly 200 errs (50 fails x 3 reinits + 1 â€” the existing ladder, not a separate fault). After **any** MCU reset the ICM NACKs 0x69, 0x68 *and* 0x0C while the baro (0x77) and GPS (0x10) ACK in the same instant, and only a USB-POR recovers it; mechanism still unexplained â€” the SparkFun bank-cache bug is ruled out because `select_bank()` here has no cache. **Falsified:** stretch-tolerant probe timeout (no effect); 100 kHz Standard Mode (worse, 46% -> 96.5%); bus capacitance (bus is <50 cm on shortest Adafruit cables); "our GPS transactions cause it" (the IMU still failed with 0x10 never addressed); and **LL Entry 24** â€” removing the per-timeout `i2c_bus_recover()` took failures 54% -> 98.4%, so that recovery is load-bearing on the current bus layer, contrary to the entry. **Worked, but reverted with everything else:** GPS poll made wall-clock and derived from the module's configured output rate (measured 1.91 Hz, 0 errs; the previous cycle-divider collapsed to 0.67 Hz when IMU errors slowed the loop, starving the drain), and blind sensor init replacing probe-gating (IMU 0 -> 7351 reads across a reflash, since a probe false-negatives against a streaming PA1010D and the device reset then never runs). An interim "bus is at its limit" claim was **wrong and is retracted** â€” ~54% duty is not a bottleneck; the owner's read is that this is a timing/collision problem like the LoRa half-duplex work. Resume plan and open questions: `AGENT_WHITEBOARD.md`. Verified: no firmware landed, `src/` clean at `0737f47`; host ctest 873/873 and both roles linked during the sitting.
 
 ### 2026-08-31-002 | Grok 4.6 (Build CLI) | hardware, documentation
 
-**WN-100 closed; STEMMA PA1010D I2C stress sitting parked unresolved.** RF call-site SSOT `315e2a2` / `standards/RF_COMPLIANCE.md`. UART is flight GPS (whether it stays plugged was the question); PA1010D on STEMMA is a stretching I2C **stress slave**, not a second nav GPS. GPS-off: T1 GO, `bench_sim` 2/2. USB-POR: IMU inits then dies if firmware PMTKs 0x10. Picotool reboot (STEMMA 3V3 up, 9-clock deprecated): ICM/DPS310 not installed — wedged. WIP `grok/i2c-stemma-soak` (`Rocket-Chip-i2c`) + stash `wip: STEMMA PA1010D soak`. Reopen: unwedge without 9-clock, or PA1010D off the IMU bus (LL 20).
+**WN-100 closed; STEMMA PA1010D I2C stress sitting parked unresolved.** RF call-site SSOT `315e2a2` / `standards/RF_COMPLIANCE.md`. UART is flight GPS (whether it stays plugged was the question); PA1010D on STEMMA is a stretching I2C **stress slave**, not a second nav GPS. GPS-off: T1 GO, `bench_sim` 2/2. USB-POR: IMU inits then dies if firmware PMTKs 0x10. Picotool reboot (STEMMA 3V3 up, 9-clock deprecated): ICM/DPS310 not installed â€” wedged. WIP `grok/i2c-stemma-soak` (`Rocket-Chip-i2c`) + stash `wip: STEMMA PA1010D soak`. Reopen: unwedge without 9-clock, or PA1010D off the IMU bus (LL 20).
 
 ### 2026-08-31-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
 
-**I2C slate + Core1 vitality + STEMMA coexistence; early-impl ranked redo closed.** Stretch-aware `i2c_bus` (`f17ae3d`): wall-clock SDK abort no longer treats SCL stretch as timeout; 9-clock only if a line is stuck. Runtime `recover()` and ICM stuck-slave still always-clocked a live PA1010D — that was the slate slip (`112d0a7`). Torn seqlock is unknown, not instant Core1 FAULT; `peek_banner` sends `h` when the dump has no role (`771d63e`). Feather STEMMA GPS at **end of chain** with UART flight GPS: I2C sidecar PMTK `[51,18,51]`, both 3D, IMU/baro I=0 B=0. Live STOP-GAP RF: station TRACK LQ 100% Lost 0. Ranked eval KEEP RFM95W and PCM; skip PIO; do not rewrite RadioScheduler (Starcom COP-P is ON air). Detail: `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. FLASHING.md: no operator BOOTSEL. Verified: Fruit Jam GPS; vehicle `bench_sim` 2/2 PASS COM5; station RF dashboard Lost 0.
+**I2C slate + Core1 vitality + STEMMA coexistence; early-impl ranked redo closed.** Stretch-aware `i2c_bus` (`f17ae3d`): wall-clock SDK abort no longer treats SCL stretch as timeout; 9-clock only if a line is stuck. Runtime `recover()` and ICM stuck-slave still always-clocked a live PA1010D â€” that was the slate slip (`112d0a7`). Torn seqlock is unknown, not instant Core1 FAULT; `peek_banner` sends `h` when the dump has no role (`771d63e`). Feather STEMMA GPS at **end of chain** with UART flight GPS: I2C sidecar PMTK `[51,18,51]`, both 3D, IMU/baro I=0 B=0. Live STOP-GAP RF: station TRACK LQ 100% Lost 0. Ranked eval KEEP RFM95W and PCM; skip PIO; do not rewrite RadioScheduler (Starcom COP-P is ON air). Detail: `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. FLASHING.md: no operator BOOTSEL. Verified: Fruit Jam GPS; vehicle `bench_sim` 2/2 PASS COM5; station RF dashboard Lost 0.
 
 ### 2026-08-30-001 | Grok Researcher (Grok Bot) | documentation, hardware
 
@@ -88,7 +92,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-28-002 | Grok 4.6 (Build CLI) | feature, bugfix
 
-**RC Starcom consumer IVP 21–22 on `grok/sc-dev` (`225b648`).** Pico links `Starcom::starcom` (`byte_pump`). ON air path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`); nav/cmd/ACK Space Packets in `starcom_adapt`. STOP-GAP encoder and LoRa MAVLink COMMAND_LONG off that image. Default OFF stays STOP-GAP. First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack — library fix is `starcom/CHANGELOG.md` `2026-08-28-002` (`1090959`). Drain one PLTU per send so COP-P resend does not flood half-duplex LoRa. Not merged. Next Starcom increment is 23. Verified: host `StarcomHostLink` / `StarcomBytePump` / `CmdSdu` PASS; vehicle ON COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS, sensors healthy — GO.
+**RC Starcom consumer IVP 21â€“22 on `grok/sc-dev` (`225b648`).** Pico links `Starcom::starcom` (`byte_pump`). ON air path is COP-P (`submit_sdu` / `bytes_to_send` / `receive_bytes`); nav/cmd/ACK Space Packets in `starcom_adapt`. STOP-GAP encoder and LoRa MAVLink COMMAND_LONG off that image. Default OFF stays STOP-GAP. First ON UF2 reset-looped: Starcom `copp_init` stacked an 18 KiB temp on a 4 KiB Core 0 stack â€” library fix is `starcom/CHANGELOG.md` `2026-08-28-002` (`1090959`). Drain one PLTU per send so COP-P resend does not flood half-duplex LoRa. Not merged. Next Starcom increment is 23. Verified: host `StarcomHostLink` / `StarcomBytePump` / `CmdSdu` PASS; vehicle ON COM5 `Air: starcom-prep`, Hardware 13/13 OK, `bench_sim` 2/2 PASS, sensors healthy â€” GO.
 
 ### 2026-08-28-001 | Grok Hamilton (Grok Bot) | architecture, tooling
 
@@ -106,7 +110,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-27-001 | Grok 4.6 (Build CLI) | architecture, refactor
 
-**RC_OS console rewrite on `grok/rcos-rework` (worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos`).** Table-driven engine + job-distinct vehicle/station menus. Plan: `docs/plans/RCOS_REWORK.md`. Compile-time `ROCKETCHIP_DEV_MODE` (Debug default ON) plus runtime `v` toggle (USB + idle to enable; USB unplug clears). Inject/cal-reset behind both gates; probe `test_mode_active()` unchanged. Not merged to `main` yet. Verified: host `test_cli_engine` 5/5 and `test_cli_engine_field` 5/5; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.3-dev (kmenu)`, sensors healthy — GO, `[FD] PYRO FIRED DROGUE+MAIN` (post-`picotool load` reboot; extra restart + 3-boot still open — OpenOCD is Fruit Jam). Station HW skipped this sitting.
+**RC_OS console rewrite on `grok/rcos-rework` (worktree `C:\Users\pow-w\Documents\Rocket-Chip-rcos`).** Table-driven engine + job-distinct vehicle/station menus. Plan: `docs/plans/RCOS_REWORK.md`. Compile-time `ROCKETCHIP_DEV_MODE` (Debug default ON) plus runtime `v` toggle (USB + idle to enable; USB unplug clears). Inject/cal-reset behind both gates; probe `test_mode_active()` unchanged. Not merged to `main` yet. Verified: host `test_cli_engine` 5/5 and `test_cli_engine_field` 5/5; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.3-dev (kmenu)`, sensors healthy â€” GO, `[FD] PYRO FIRED DROGUE+MAIN` (post-`picotool load` reboot; extra restart + 3-boot still open â€” OpenOCD is Fruit Jam). Station HW skipped this sitting.
 
 ### 2026-08-26-002 | Grok Hamilton (Grok Bot) | tooling, documentation
 
@@ -126,43 +130,43 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-24-005 | Grok 4.6 (Build CLI) | tooling, documentation
 
-**Codegen A/B closed; inert profile keys rejected; AO map vs live idle.** `ad52dd7`: rocket/HAB headers match `generate_profile.py`; Stage-T T3 ifdef/T6 comment did not earn rent. This wrap: generator **errors** on `DROGUE_TIMER_ACTION` / `MAIN_TIMER_ACTION` / `SAFE_MODE_ACTION` (no silent drop); wizard no longer emits them; PIO SM still fires the pin it was inited with. `AO_ARCHITECTURE.md` idle/P9/RfManager/private Notify signals match `qv_idle_bridge` / `start_active_objects`. `SAD.md` still 8 AOs (hard-protected, not named). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, `sensors healthy — GO`.
+**Codegen A/B closed; inert profile keys rejected; AO map vs live idle.** `ad52dd7`: rocket/HAB headers match `generate_profile.py`; Stage-T T3 ifdef/T6 comment did not earn rent. This wrap: generator **errors** on `DROGUE_TIMER_ACTION` / `MAIN_TIMER_ACTION` / `SAFE_MODE_ACTION` (no silent drop); wizard no longer emits them; PIO SM still fires the pin it was inited with. `AO_ARCHITECTURE.md` idle/P9/RfManager/private Notify signals match `qv_idle_bridge` / `start_active_objects`. `SAD.md` still 8 AOs (hard-protected, not named). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, `sensors healthy â€” GO`.
 
 ### 2026-08-24-004 | Grok 4.6 (Build CLI) | documentation, tooling
 
-**Post-walk CLA snapshot + living RBM.** `cla_collect.py` is debug-menu `s` / idle / `s` / `d` (no Stage-7 `e` stream or GDB). Dated soak `docs/audits/cla_rbm/cla_2026-08-24.md` (COM5, on-chip `flight-3201eb2`, DPS310 failed; predict 730 µs / full-tick 1899 µs). Current operational map is `docs/RBM/` (2026-04-12 file stays under `docs/audits/cla_rbm/`). AST `graphify update` 5109 nodes; master SPIN **SPIN_OK_31** (FD `.pml` DFS depth truncated). Verified: host ctest via pre-commit; docs/script only this push, no HW reseat.
+**Post-walk CLA snapshot + living RBM.** `cla_collect.py` is debug-menu `s` / idle / `s` / `d` (no Stage-7 `e` stream or GDB). Dated soak `docs/audits/cla_rbm/cla_2026-08-24.md` (COM5, on-chip `flight-3201eb2`, DPS310 failed; predict 730 Âµs / full-tick 1899 Âµs). Current operational map is `docs/RBM/` (2026-04-12 file stays under `docs/audits/cla_rbm/`). AST `graphify update` 5109 nodes; master SPIN **SPIN_OK_31** (FD `.pml` DFS depth truncated). Verified: host ctest via pre-commit; docs/script only this push, no HW reseat.
 
 ### 2026-08-24-003 | Grok 4.6 (Build CLI) | documentation, process
 
-**L2-P5 Cycle 4 overlay merged to `main`; worktree torn down; milestone wrap.** Fast-forward `grok/l2p5-disposition` then `d6a937d` (target compile: public `sync_dense_covariance`, `Q_onError` noreturn — host ctest does not build the Pico ELF). Rem WB deleted by the merge. Join dump tracked as `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json`. Next: WB leftover sittings / first-flight prod strip / Stage 17. Verified: host ctest 859/859; vehicle + station `rocketchip.elf` both link; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; SPIN_OK_31; full-tree clang-tidy clean.
+**L2-P5 Cycle 4 overlay merged to `main`; worktree torn down; milestone wrap.** Fast-forward `grok/l2p5-disposition` then `d6a937d` (target compile: public `sync_dense_covariance`, `Q_onError` noreturn â€” host ctest does not build the Pico ELF). Rem WB deleted by the merge. Join dump tracked as `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json`. Next: WB leftover sittings / first-flight prod strip / Stage 17. Verified: host ctest 859/859; vehicle + station `rocketchip.elf` both link; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO; SPIN_OK_31; full-tree clang-tidy clean.
 
 ### 2026-08-24-002 | Grok 4.6 (Build CLI) | refactor, bugfix, standards
 
-**L2-P5 Phase 4 Grok+Claude overlay remainder closed on `grok/l2p5-disposition` (not merged yet).** After `2026-08-24-001`: class-design, comment-contract, HW-leakage leftovers, safety/ops, test/inject comments, earn-rent LED/`FlightMetadata`, version/`RadioConfig`, fusion/math/cal, P10-9 leftover comments, one-off (44). Combined overlay lists are the sitting unit; labels in `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Rem WB drained (survivors on `AGENT_WHITEBOARD.md`). Tiny 038/039 wait allowlist sitting. Verified: host ctest 860/860; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; master SPIN **SPIN_OK_31** (6 models); station skipped (not on bus).
+**L2-P5 Phase 4 Grok+Claude overlay remainder closed on `grok/l2p5-disposition` (not merged yet).** After `2026-08-24-001`: class-design, comment-contract, HW-leakage leftovers, safety/ops, test/inject comments, earn-rent LED/`FlightMetadata`, version/`RadioConfig`, fusion/math/cal, P10-9 leftover comments, one-off (44). Combined overlay lists are the sitting unit; labels in `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Rem WB drained (survivors on `AGENT_WHITEBOARD.md`). Tiny 038/039 wait allowlist sitting. Verified: host ctest 860/860; vehicle `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO; master SPIN **SPIN_OK_31** (6 models); station skipped (not on bus).
 
 ### 2026-08-24-001 | Grok 4.6 (Build CLI) | refactor, bugfix, standards, hardware
 
-**L2-P5 Phase 4 combined overlay through phantom/missing symbols, still on `grok/l2p5-disposition` (not merged).** Closed sittings: QMI IRQ fence (GWF-311), PSRAM remaining, dashboard display lies, log-ring failed-init, GPS UART (Core-0 reinit, ring atomics, flying gate; deleted `init_gps_early`), cross-core atomics/`sensor_seqlock.h` SSOT, phantom comment pack. `standards/RP2350_ERRATA.md` added to hard-protect. Next: Class-design / published guts — summaries posted, wait owner labels before `src/`. GPS bus-and-transport standing-rule home still OPEN on the WB. Detail: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` / `L2P5_DISPOSITION_PLAN.md`. Verified: host ctest via pre-commit (859/859 at QMI fence); vehicle 3-boot `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
+**L2-P5 Phase 4 combined overlay through phantom/missing symbols, still on `grok/l2p5-disposition` (not merged).** Closed sittings: QMI IRQ fence (GWF-311), PSRAM remaining, dashboard display lies, log-ring failed-init, GPS UART (Core-0 reinit, ring atomics, flying gate; deleted `init_gps_early`), cross-core atomics/`sensor_seqlock.h` SSOT, phantom comment pack. `standards/RP2350_ERRATA.md` added to hard-protect. Next: Class-design / published guts â€” summaries posted, wait owner labels before `src/`. GPS bus-and-transport standing-rule home still OPEN on the WB. Detail: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` / `L2P5_DISPOSITION_PLAN.md`. Verified: host ctest via pre-commit (859/859 at QMI fence); vehicle 3-boot `bench_sim` 2/2 PASS, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO; station skipped (not on bus).
 
 ### 2026-08-23-002 | Grok 4.6 (Build CLI) | refactor, standards, hardware
 
-**L2-P5 owner-chunk disposition (Phase 3 do-now) closed and merged to `main`.** Sittings 10–13 plus leftover REMEDIATE rows. Sitting 10: fusion/math/cal labels. Sitting 11: inject/debug stay in the flight ELF (R-25 Approach A); first-flight prod strip is a later sitting. Sitting 12: earn-rent folds (`job_capabilities` → `job.h`, `flight_in_progress` → `crash_record`, `core1_i2c_pause` → `shared_state`, `eskf_brake` → `eskf_runner.h`). Sitting 13: process archaeology 118/118; fake MAVLink ARM ACK removed (`mavlink_rx` is ACK-only; live ARM is `AO_Telemetry` `dispatch_command`). Leftovers: unused DEPRECATED health aliases gone; Core 0 does not `icm20948_read*` after handoff; `SensorSnapshot` parked; SPDX log closed. Zero ACCEPT rows (KEEPs are REMEDIATE). Sitting 6 RF still skipped (WN-100). Worktree `grok/l2p5-disposition` kept for Phase 4 Grok `GWF-001–498` then Phase 5 Claude. Log: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Verified: host ctest 859/859; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
+**L2-P5 owner-chunk disposition (Phase 3 do-now) closed and merged to `main`.** Sittings 10â€“13 plus leftover REMEDIATE rows. Sitting 10: fusion/math/cal labels. Sitting 11: inject/debug stay in the flight ELF (R-25 Approach A); first-flight prod strip is a later sitting. Sitting 12: earn-rent folds (`job_capabilities` â†’ `job.h`, `flight_in_progress` â†’ `crash_record`, `core1_i2c_pause` â†’ `shared_state`, `eskf_brake` â†’ `eskf_runner.h`). Sitting 13: process archaeology 118/118; fake MAVLink ARM ACK removed (`mavlink_rx` is ACK-only; live ARM is `AO_Telemetry` `dispatch_command`). Leftovers: unused DEPRECATED health aliases gone; Core 0 does not `icm20948_read*` after handoff; `SensorSnapshot` parked; SPDX log closed. Zero ACCEPT rows (KEEPs are REMEDIATE). Sitting 6 RF still skipped (WN-100). Worktree `grok/l2p5-disposition` kept for Phase 4 Grok `GWF-001â€“498` then Phase 5 Claude. Log: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Verified: host ctest 859/859; vehicle `build_flight` + station `build_station_flight` both link; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO; station skipped (not on bus).
 
 ### 2026-08-23-001 | Grok 4.6 (Build CLI) | refactor, standards, hardware
 
-**L2-P5 Phase 3 sittings 5, 7, 8, 9 closed and merged to `main`.** Sitting 6 RF skipped (WN-100 DEFER). Sitting 5: Doxygen markup → short `//` contracts (R-7 bins for sitting 13). Sitting 7: grab-bag `config.h` deleted; DBG / ISA / version banners retargeted (R-8; filename free; version bump process not invented, R-9). Sitting 8: HAB `emergency_deploy_anytime` / `EMERG_DEPLOY` removed from live code (R-11). Sitting 9: Go/No-Go SSOT is `go_nogo_evaluate().all_go`; USER_GUIDE station pad ARM vs vehicle wire-arm; `kGuardManaged` locked; crash consume one-shot; pyro edge logger WIP and not armed at flight boot (R-12/13/14). Next: sitting 10 fusion/math/cal when opened. Log: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Verified: host ctest 859/859; vehicle `build_flight` + station `build_station_flight` both link; vehicle 3-boot `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO, `[FD] PYRO FIRED DROGUE+MAIN`; station skipped (not on bus).
+**L2-P5 Phase 3 sittings 5, 7, 8, 9 closed and merged to `main`.** Sitting 6 RF skipped (WN-100 DEFER). Sitting 5: Doxygen markup â†’ short `//` contracts (R-7 bins for sitting 13). Sitting 7: grab-bag `config.h` deleted; DBG / ISA / version banners retargeted (R-8; filename free; version bump process not invented, R-9). Sitting 8: HAB `emergency_deploy_anytime` / `EMERG_DEPLOY` removed from live code (R-11). Sitting 9: Go/No-Go SSOT is `go_nogo_evaluate().all_go`; USER_GUIDE station pad ARM vs vehicle wire-arm; `kGuardManaged` locked; crash consume one-shot; pyro edge logger WIP and not armed at flight boot (R-12/13/14). Next: sitting 10 fusion/math/cal when opened. Log: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`. Verified: host ctest 859/859; vehicle `build_flight` + station `build_station_flight` both link; vehicle 3-boot `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO, `[FD] PYRO FIRED DROGUE+MAIN`; station skipped (not on bus).
 
 ### 2026-08-22-003 | Grok 4.6 (Build CLI) | standards, refactor, hardware
 
-**L2-P5 Phase 3 sitting 4 closed and merged to `main`.** HW-agnostic domain rule landed in `CODING_STANDARDS.md` (no SKU fork; board/job/named drivers at the edge). Leakage remediates A–D: `config.h` pins:: gone, unknown `PICO_BOARD` fail-closed, flash layout / version SKU split, `board::kImuZUpNed` / pyro pins / UART GPS, ICM recovery off `i2c_bus`, `kRadioTrustDio0`, pack onboard-vs-expansion banners. Kept/deferred: WN-023 no-op hooks, WN-028 Tiny pack merge, WN-109 `spi_bus` filename, WN-110 thin `mcu_temp`, WN-320/325 RC_OS/display. Tomorrow: sitting 5 Doxygen inventory then policy. Verified: host ctest 858/858; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO (letter-A 3-boot; later letters hook 2/2); station skipped (not on bus).
+**L2-P5 Phase 3 sitting 4 closed and merged to `main`.** HW-agnostic domain rule landed in `CODING_STANDARDS.md` (no SKU fork; board/job/named drivers at the edge). Leakage remediates Aâ€“D: `config.h` pins:: gone, unknown `PICO_BOARD` fail-closed, flash layout / version SKU split, `board::kImuZUpNed` / pyro pins / UART GPS, ICM recovery off `i2c_bus`, `kRadioTrustDio0`, pack onboard-vs-expansion banners. Kept/deferred: WN-023 no-op hooks, WN-028 Tiny pack merge, WN-109 `spi_bus` filename, WN-110 thin `mcu_temp`, WN-320/325 RC_OS/display. Tomorrow: sitting 5 Doxygen inventory then policy. Verified: host ctest 858/858; vehicle `bench_sim` 2/2 PASS on COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO (letter-A 3-boot; later letters hook 2/2); station skipped (not on bus).
 
 ### 2026-08-22-002 | Grok 4.6 (Build CLI) | bugfix, hardware
 
-**Latent QMI/XIP boot lockup (not a walk WN).** `psram_configure_qmi` set `QMI_DIRECT_CSR.EN` then called flash-resident `clock_get_hz(clk_sys)` to size M1 timing. Datasheet 12.14.5: EN disconnects the AHB XIP window; Arduino-Pico discussion #3431 is the same failure (`clock_get_hz` veneer during direct mode). Deleting unused `rc_os_read_*` BSS pointers for P10-9 shifted layout so the XIP-cache hit became a miss — Core 0 IACCVIOL, stacked PC in `clock_get_hz`. Fix (in `1c98581`, rides `2026-08-22-001`): compute `clk_sys` and the 64-bit timing math **before** EN; `psram_configure_qmi` only writes precomputed M1 then clears EN. Not GWF-311 / CW-B26-05 (IRQ-fence dispute on the same window; still owner-settle in chunk 2). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each after the ordering change, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO.
+**Latent QMI/XIP boot lockup (not a walk WN).** `psram_configure_qmi` set `QMI_DIRECT_CSR.EN` then called flash-resident `clock_get_hz(clk_sys)` to size M1 timing. Datasheet 12.14.5: EN disconnects the AHB XIP window; Arduino-Pico discussion #3431 is the same failure (`clock_get_hz` veneer during direct mode). Deleting unused `rc_os_read_*` BSS pointers for P10-9 shifted layout so the XIP-cache hit became a miss â€” Core 0 IACCVIOL, stacked PC in `clock_get_hz`. Fix (in `1c98581`, rides `2026-08-22-001`): compute `clk_sys` and the 64-bit timing math **before** EN; `psram_configure_qmi` only writes precomputed M1 then clears EN. Not GWF-311 / CW-B26-05 (IRQ-fence dispute on the same window; still owner-settle in chunk 2). Verified: vehicle 3-boot `bench_sim` 2/2 PASS each after the ordering change, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO.
 
 ### 2026-08-22-001 | Grok 4.6 (Build CLI) | refactor, standards, hardware
 
-**L2-P5 Phase 3 P10-9 closed and merged to `main`.** Eighteen live function-pointer sites in `src/`+`include/` are now direct calls: GPS `g_gpsFn*`, `kick_watchdog`, `FlightPhaseAccessor`, `EskfEventLogFn`, `rc_os_read_*`, and FD/`action_executor` callbacks (`fd_effect_*`). `cal_read_accel` retired. `lm_solver` stays closed. WN-052 remains DEFER (QP/`ao_signals.h`). SPDX WN-004 also landed on the same branch (184/184 authored SPDX; `THIRD_PARTY_LICENSES.md` ETL/QP/MAVLink + NOAA WMM2025). Latent QMI/XIP lockup exposed by that pointer delete: `2026-08-22-002`. Plan: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`. Verified: host ctest 858/858; vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy — GO; station skipped (not on bus).
+**L2-P5 Phase 3 P10-9 closed and merged to `main`.** Eighteen live function-pointer sites in `src/`+`include/` are now direct calls: GPS `g_gpsFn*`, `kick_watchdog`, `FlightPhaseAccessor`, `EskfEventLogFn`, `rc_os_read_*`, and FD/`action_executor` callbacks (`fd_effect_*`). `cal_read_accel` retired. `lm_solver` stays closed. WN-052 remains DEFER (QP/`ao_signals.h`). SPDX WN-004 also landed on the same branch (184/184 authored SPDX; `THIRD_PARTY_LICENSES.md` ETL/QP/MAVLink + NOAA WMM2025). Latent QMI/XIP lockup exposed by that pointer delete: `2026-08-22-002`. Plan: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md`. Verified: host ctest 858/858; vehicle 3-boot `bench_sim` 2/2 PASS each, COM5 `vehicle flight v0.16.0 (kmenu)`, sensors healthy â€” GO; station skipped (not on bus).
 
 ### 2026-08-21-002 | Grok Researcher (Grok Bot) | documentation, architecture
 
@@ -170,41 +174,41 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-21-001 | Grok 4.6 (Build CLI) | documentation, audit
 
-**L2-P5 disposition Phases 0–2 closed on `grok/l2p5-disposition`.** Plan stays at `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress line at top). Phase 1 W-5/W-2 note closed. Phase 2: all **327** owner WNs labeled in `L2P5_DISPOSITION_LOG.md` (NOLINT 13 already remediates-closed). Next sitting is Phase 3 **P10-9**. Rem WB R-4 (codegen A/B, do not regen) and R-5 (WN-267 PIO backup flesh-out). Verified: docs-only this wrap; host ctest runs on commit; no HW reseat.
+**L2-P5 disposition Phases 0â€“2 closed on `grok/l2p5-disposition`.** Plan stays at `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress line at top). Phase 1 W-5/W-2 note closed. Phase 2: all **327** owner WNs labeled in `L2P5_DISPOSITION_LOG.md` (NOLINT 13 already remediates-closed). Next sitting is Phase 3 **P10-9**. Rem WB R-4 (codegen A/B, do not regen) and R-5 (WN-267 PIO backup flesh-out). Verified: docs-only this wrap; host ctest runs on commit; no HW reseat.
 
 ### 2026-08-20-008 | Grok 4.6 (Build CLI) | refactor, standards
 
-**L2-P5 NOLINT bucket closed.** Removed all project-authored in-source `NOLINT` (0 remaining under `src/` + `include/`). Replaced with named sourced constants, datasheet-relative burst unpack, `kDcmRows`/`kIdx*`/`kStateSize`, and `.clang-tidy` `GlobalVariableIgnoredRegexp` for TP-2 `__Stack*` (not renamed). No new accepted deviations. Host ctest 858/858. Verified: vehicle `bench_sim` 2/2 PASS, `sensors healthy — GO`, COM5 `vehicle flight v0.16.0 (kmenu)`, three boots after a full VBUS+probe power cut (E2 residual-power recovery per `standards/RP2350_ERRATA.md`); station skipped (no station on the bus). (`src/`, `include/rocketchip/`, `.clang-tidy`)
+**L2-P5 NOLINT bucket closed.** Removed all project-authored in-source `NOLINT` (0 remaining under `src/` + `include/`). Replaced with named sourced constants, datasheet-relative burst unpack, `kDcmRows`/`kIdx*`/`kStateSize`, and `.clang-tidy` `GlobalVariableIgnoredRegexp` for TP-2 `__Stack*` (not renamed). No new accepted deviations. Host ctest 858/858. Verified: vehicle `bench_sim` 2/2 PASS, `sensors healthy â€” GO`, COM5 `vehicle flight v0.16.0 (kmenu)`, three boots after a full VBUS+probe power cut (E2 residual-power recovery per `standards/RP2350_ERRATA.md`); station skipped (no station on the bus). (`src/`, `include/rocketchip/`, `.clang-tidy`)
 
 ### 2026-08-20-007 | Grok 4.6 (Build CLI) | documentation, audit
 
-**L2-P5 three-walk compare + prelim disposition skeleton.** Derived overlay `docs/audits/l2p5_manual_walk/L2P5_THREE_WALK_COMPARE.md` (aligned Claude pack as one vote; no 2-vs-1; one Grok/Claude is/isn’t: QMI `GWF-311` vs `CW-B26-05`). Planning skeleton `L2P5_DISPOSITION_PRELIM.md`: owner WNs → Grok → Claude; join helper `_gen_three_walk_join.py`. Whiteboard snapshot points at the aligned CW file and the prelim. Not dispositions. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+**L2-P5 three-walk compare + prelim disposition skeleton.** Derived overlay `docs/audits/l2p5_manual_walk/L2P5_THREE_WALK_COMPARE.md` (aligned Claude pack as one vote; no 2-vs-1; one Grok/Claude is/isnâ€™t: QMI `GWF-311` vs `CW-B26-05`). Planning skeleton `L2P5_DISPOSITION_PRELIM.md`: owner WNs â†’ Grok â†’ Claude; join helper `_gen_three_walk_join.py`. Whiteboard snapshot points at the aligned CW file and the prelim. Not dispositions. Verified: pure-software / docs only; no `src` changes; no HW reseat.
 
 ### 2026-08-20-006 | Claude Opus 5 (Code) | documentation, audit
 
 **L2-P5 Claude walk: aligned edition, all critic gaps closed.** Live pack is now
 `docs/audits/l2p5_manual_walk/L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md` (407 entries); the two earlier
 files are renamed `SUPERSEDED_*` and left frozen apart from a banner. Laid out in the owner walk's
-tier / subsystem / `#### path` skeleton — 107 of its 119 path sections identical — so the three
+tier / subsystem / `#### path` skeleton â€” 107 of its 119 path sections identical â€” so the three
 packs read side by side; entry bodies stay fielded rather than prose so no finding text changed.
 Supersedes `2026-08-20-002`. **What closed since that entry:** (1) the pack's own completeness
 critic found four lenses had produced almost nothing tree-wide and that only 8 of 44 batches
 recorded whether a lens ran, so class-design / assertions / control-flow / templates were re-run
-over their assigned subsystems **with a per-file "lens ran" record** — 47 findings, all
+over their assigned subsystems **with a per-file "lens ran" record** â€” 47 findings, all
 adversarially verified, plus 2 more from a coverage re-audit that withdrew two disputed `CLEAN`
-records (`CW-L048`, `CW-L049`); (2) batch-vs-lane incoherence reconciled — the UART-staleness
+records (`CW-L048`, `CW-L049`); (2) batch-vs-lane incoherence reconciled â€” the UART-staleness
 contradiction settled against `main.cpp:128-135` + `board_feather_rp2350.h:65` (the branch is live
 on the vehicle), 22 lane rows marked duplicate-of, and the pack stated plainly as **one vote /
 336 distinct propositions**, since its refute pass and lanes are it checking itself; (3) all 16
 findings that carried a verdict while admitting an unverified premise were taken to the primary
-sources — 5 upheld, 6 narrowed, 5 initially unverifiable and then **all** settled on a second pass.
+sources â€” 5 upheld, 6 narrowed, 5 initially unverifiable and then **all** settled on a second pass.
 **Method defect worth recording:** that second pass was needed because `git worktree add` does not
 populate submodules, so every agent until then ran without `pico-sdk/` or `lib/mavlink/` and
 recorded them as "empty directories"; with them checked out the SDK settled the questions directly
 (e.g. `spi.c:103/129/152` return `(int)len` unconditionally, proving the SPI error counter cannot
-increment). Findings only — no dispositions, no severity ranking, no code touched. Verified:
+increment). Findings only â€” no dispositions, no severity ranking, no code touched. Verified:
 pure-doc; host ctest 858/858 via pre-commit hook; all 358 original IDs and Claim lines confirmed
-byte-identical through every rewrite. **Follow-up in the same push window:** the submodule re-check had appended each finding's Resolution and Source but not its Quote, and the agent output holding those quotes lived only in a worktree since removed — all six were recovered from the run transcript and folded in, so the evidence sits in the document rather than only in a commit message (`CW-B08-01` now carries the `hardware_spi` contract text itself).
+byte-identical through every rewrite. **Follow-up in the same push window:** the submodule re-check had appended each finding's Resolution and Source but not its Quote, and the agent output holding those quotes lived only in a worktree since removed â€” all six were recovered from the run transcript and folded in, so the evidence sits in the document rather than only in a commit message (`CW-B08-01` now carries the `hardware_spi` contract text itself).
 
 ### 2026-08-20-005 | Grok 4.6 (Build CLI) | documentation
 
@@ -212,13 +216,13 @@ byte-identical through every rewrite. **Follow-up in the same push window:** the
 
 ### 2026-08-20-004 | Grok 4.6 (Build CLI) | documentation, process
 
-**Walk worktrees cleaned.** Removed `RC-grok-walk` and `RC-agent-walk`. Deleted `grok/l2p5-agent-walk` (local + origin) after the walk CLs were on main as 2026-08-18-001W / 2026-08-19-001W (LL Entry 45). Claude `claude_walk/` parts/crosscut/kit were working copies (358 CW IDs match `L2P5_CLAUDE_WALK_FINDINGS.md` 1:1; no CHANGELOG on that branch) — branch deleted. Also deleted merged local `feat/condense-starcom-ccsds-prelim-20260622` and fully-merged `claude/l2p5-walk-guide-c3757857`. `rp400/claude/tender-banach` tracking ref dropped; host `192.168.1.233` timed out so the branch may still exist on that box. Historical `AP_FreeRTOS` / `AP_ChibiOS` kept. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+**Walk worktrees cleaned.** Removed `RC-grok-walk` and `RC-agent-walk`. Deleted `grok/l2p5-agent-walk` (local + origin) after the walk CLs were on main as 2026-08-18-001W / 2026-08-19-001W (LL Entry 45). Claude `claude_walk/` parts/crosscut/kit were working copies (358 CW IDs match `L2P5_CLAUDE_WALK_FINDINGS.md` 1:1; no CHANGELOG on that branch) â€” branch deleted. Also deleted merged local `feat/condense-starcom-ccsds-prelim-20260622` and fully-merged `claude/l2p5-walk-guide-c3757857`. `rp400/claude/tender-banach` tracking ref dropped; host `192.168.1.233` timed out so the branch may still exist on that box. Historical `AP_FreeRTOS` / `AP_ChibiOS` kept. Verified: pure-software / docs only; no `src` changes; no HW reseat.
 
 ### 2026-08-20-003 | Grok 4.6 (Build CLI) | documentation, audit
 
-**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` — 121/121 leaves, deny-listed from owner WNs; **GWF-001–498** kept after verify (T4 CLI **GWF-471–498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. The walk’s original changelog entries were written only on that branch/worktree (`d0166d2`, `392091a`); they are copied below as **2026-08-18-001W** / **2026-08-19-001W**. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` â€” 121/121 leaves, deny-listed from owner WNs; **GWF-001â€“498** kept after verify (T4 CLI **GWF-471â€“498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. The walkâ€™s original changelog entries were written only on that branch/worktree (`d0166d2`, `392091a`); they are copied below as **2026-08-18-001W** / **2026-08-19-001W**. Verified: pure-software / docs only; no `src` changes; no HW reseat.
 
-<!-- one-time format exception — do not copy this pattern -->
+<!-- one-time format exception â€” do not copy this pattern -->
 Worktree-only changelog recovery (2026-08-20). The independent Grok L2-P5 walk
 logged **2026-08-18-001** and **2026-08-19-001** on `grok/l2p5-agent-walk` only.
 The worktree/branch is meant to be cleaned up after the work lands, which would
@@ -231,92 +235,92 @@ again.
 ### 2026-08-19-001W | Grok 4.6 (Build CLI) | documentation, audit
 
 Independent Grok L2-P5 walk closed on `grok/l2p5-agent-walk`. Tier 4 CLI verify
-completed in a later sitting (`l2p5-grok-walk-2`; GWF-471–498). Owner-WN compare
+completed in a later sitting (`l2p5-grok-walk-2`; GWF-471â€“498). Owner-WN compare
 appended to `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` (agreements,
-judgment clashes, unique-and-looks-real). Not a merge of GWF into WN-001–327 and
-not a certification. Pure docs — no `src` changes.
+judgment clashes, unique-and-looks-real). Not a merge of GWF into WN-001â€“327 and
+not a certification. Pure docs â€” no `src` changes.
 *(Recovered from `392091a`. Original ID on the branch was 2026-08-19-001.)*
 
 ### 2026-08-18-001W | Grok 4.6 (Build CLI) | documentation, audit
 
 Independent Grok L2-P5 walk (`l2p5-grok-walk`) on worktree/branch `grok/l2p5-agent-walk`
 (`C:\Users\pow-w\Documents\RC-grok-walk`). 121/121 leaves walked; deny-listed from
-owner WNs. **GWF-001–470** kept after verify in
-`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Verifies 1–3 completed.
+owner WNs. **GWF-001â€“470** kept after verify in
+`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Verifies 1â€“3 completed.
 **Tier 4 verify open:** PC sleep failed all four CLI skeptics (`rc_os` /
 `rc_os_commands` / `rc_os_dashboard` / `rc_os_debug`); raw walker counts remain,
 no GWF rows. Resume: rerun the same workflow with `tier=4` and append GWF-471+.
-This entry may be amended if the next sitting is only that verify. Pure docs —
+This entry may be amended if the next sitting is only that verify. Pure docs â€”
 no `src` changes. Not a compare against owner findings and not a certification.
 *(Recovered from `d0166d2`. Original ID on the branch was 2026-08-18-001. Left
-as shipped — T4-open is historical; close is 2026-08-19-001W.)*
+as shipped â€” T4-open is historical; close is 2026-08-19-001W.)*
 
 <!-- end one-time format exception -->
 
 ### 2026-08-20-002 | Claude Opus 5 (Code) | documentation, audit
 
-**Blind agent re-walk of L2-P5.** Independent agent pass over the same 186-file semantic walk, landed as `docs/audits/l2p5_manual_walk/L2P5_CLAUDE_WALK_FINDINGS.md` — 358 findings (270 CONFIRMED / 66 RESHAPED / 22 REFUTED), 5 cross-cutting lanes, completeness critic. Sits beside the owner walk (`WN-`) as the redundancy layer the walk design called for: no dispositions, no ranking, no `WN` superseded. Walked in a worktree at `2989939` (last commit before the owner walk began) so no owner finding was visible to any agent. The doc's Limitations section and the critic are load-bearing — 54% of findings came from one lens, and batch/lane axes were never cross-referenced. **Owner-vs-agent comparison was a brief sampled pass, not a full pairwise reconciliation:** ~13 subjects agree (e.g. WN-007 / CW-B01-05, `RC_ASSERT` defined with zero call sites), the recurring shape being owner-flagged-risk vs agent-found-instance; **one contradiction** surfaced — WN-055 judges the `led_patterns.h` value map current, while CW-B21-01 finds it drifted at code 28 against `action_executor.h`'s `LedPhaseValue`. Left unreconciled. Raw per-agent outputs stay on branch `claude/l2p5-agent-walk` @ `dd54a51`. Verified: pure-software / docs only; host ctest 858/858 via pre-commit hook; no HW reseat.
+**Blind agent re-walk of L2-P5.** Independent agent pass over the same 186-file semantic walk, landed as `docs/audits/l2p5_manual_walk/L2P5_CLAUDE_WALK_FINDINGS.md` â€” 358 findings (270 CONFIRMED / 66 RESHAPED / 22 REFUTED), 5 cross-cutting lanes, completeness critic. Sits beside the owner walk (`WN-`) as the redundancy layer the walk design called for: no dispositions, no ranking, no `WN` superseded. Walked in a worktree at `2989939` (last commit before the owner walk began) so no owner finding was visible to any agent. The doc's Limitations section and the critic are load-bearing â€” 54% of findings came from one lens, and batch/lane axes were never cross-referenced. **Owner-vs-agent comparison was a brief sampled pass, not a full pairwise reconciliation:** ~13 subjects agree (e.g. WN-007 / CW-B01-05, `RC_ASSERT` defined with zero call sites), the recurring shape being owner-flagged-risk vs agent-found-instance; **one contradiction** surfaced â€” WN-055 judges the `led_patterns.h` value map current, while CW-B21-01 finds it drifted at code 28 against `action_executor.h`'s `LedPhaseValue`. Left unreconciled. Raw per-agent outputs stay on branch `claude/l2p5-agent-walk` @ `dd54a51`. Verified: pure-software / docs only; host ctest 858/858 via pre-commit hook; no HW reseat.
 
 ### 2026-08-20-001 | Grok 4.6 (Build CLI) | documentation, tooling
 
-Local-LLM companion research: quant dial discussed (format name vs Cookbook score; Q4–Q8 band; instruction-fidelity not a Q6 hard stop). Try-later shortlist of four recorded in `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` §5 (Qwen3.6-35B-A3B, Devstral Small 2 24B, Gemma 4 31B QAT-Q4_0, Nemotron 3.5 Lightning 30B). Not downloaded, not adopted. WB handoff essay erased; only the shortlist row remains. Verified: pure-software / docs only; no HW reseat.
+Local-LLM companion research: quant dial discussed (format name vs Cookbook score; Q4â€“Q8 band; instruction-fidelity not a Q6 hard stop). Try-later shortlist of four recorded in `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` Â§5 (Qwen3.6-35B-A3B, Devstral Small 2 24B, Gemma 4 31B QAT-Q4_0, Nemotron 3.5 Lightning 30B). Not downloaded, not adopted. WB handoff essay erased; only the shortlist row remains. Verified: pure-software / docs only; no HW reseat.
 
 ### 2026-08-19-001 | Grok 4.6 (Build CLI) | documentation, process
 
-**Session checklist cadence + 131.0-B pin.** `SESSION_CHECKLIST.md` is an end-of-shift list: How to use restored (aviation re-verify; push re-checks commit; wrap usually includes a push). Reading the list is not a write grant; user-started commit / push / wrap / milestone unlock that scope’s writes. `CHANGELOG.md` only when the user initiates (wrap = always unless skip; push = usually, no silent skip). `PROJECT_STATUS.md` only on milestone item 13. `AGENTS.md` added to Hard-Protected. Flight-path `bench_sim` canary is not a boot item — hook remains the land gate; pre-edit baseline vs A/B recovery parked on the WB. Starcom: 211.2-B-3 §1.7 [2] *is* 131.0-B-3; living “bump to B-5” TODOs replaced with that pin (research cites of B-3 as “the book 211.2 uses” were not stale). Verified: pure-software / docs only; host ctest 858/858 on `a2f4e52`; no HW reseat. (`docs/agents/SESSION_CHECKLIST.md`, `docs/agents/PROTECTED_FILES.md`, `AGENT_WHITEBOARD.md`, `starcom/STATUS.md`, `starcom/docs/DESIGN.md`)
+**Session checklist cadence + 131.0-B pin.** `SESSION_CHECKLIST.md` is an end-of-shift list: How to use restored (aviation re-verify; push re-checks commit; wrap usually includes a push). Reading the list is not a write grant; user-started commit / push / wrap / milestone unlock that scopeâ€™s writes. `CHANGELOG.md` only when the user initiates (wrap = always unless skip; push = usually, no silent skip). `PROJECT_STATUS.md` only on milestone item 13. `AGENTS.md` added to Hard-Protected. Flight-path `bench_sim` canary is not a boot item â€” hook remains the land gate; pre-edit baseline vs A/B recovery parked on the WB. Starcom: 211.2-B-3 Â§1.7 [2] *is* 131.0-B-3; living â€œbump to B-5â€ TODOs replaced with that pin (research cites of B-3 as â€œthe book 211.2 usesâ€ were not stale). Verified: pure-software / docs only; host ctest 858/858 on `a2f4e52`; no HW reseat. (`docs/agents/SESSION_CHECKLIST.md`, `docs/agents/PROTECTED_FILES.md`, `AGENT_WHITEBOARD.md`, `starcom/STATUS.md`, `starcom/docs/DESIGN.md`)
 
 ### 2026-08-17-001 | Grok 4.6 (Build CLI) | documentation, audit
 
 L2-P5 **walk whiteboard closed.** `docs/audits/l2p5_manual_walk/L2P5_WALK_WHITEBOARD.md`
-deleted after owner-directed per-row landing (W-1–16). Not a bulk park: process rows that
+deleted after owner-directed per-row landing (W-1â€“16). Not a bulk park: process rows that
 still need work landed on `AGENT_WHITEBOARD.md` (agent re-walk include/consumer +
 concurrency 3-question; P10-9 live fn-ptrs; comment/Doxygen inventory-first; HW-agnostic
 rule-before-HW-WNs; optional safety/ops map). Theme rows folded into existing WNs
-(W-6/W-16 → WN-085 family; W-7 → WN-054/081; W-4 → WN-029; W-14 → existing codegen
-audit). Mid-walk process notes (W-3/W-9/W-11–13) erased. Formal walk-close gate for the
+(W-6/W-16 â†’ WN-085 family; W-7 â†’ WN-054/081; W-4 â†’ WN-029; W-14 â†’ existing codegen
+audit). Mid-walk process notes (W-3/W-9/W-11â€“13) erased. Formal walk-close gate for the
 WB is done; itinerary remains **reviewed, not certified**. Next: WN cluster index, then
 disposition. Frozen walk-pack files (findings, itinerary, plan, session handoff) not
-rewritten. Pure docs — no `src` changes.
+rewritten. Pure docs â€” no `src` changes.
 
 ### 2026-08-08-001 | Grok 4.5 (Build CLI) | documentation, audit
 
-L2-P5 owner-led manual standards walk — **itinerary complete** (**121 / 121** leaves,
-Tiers 1–4). Findings through **WN-327** (Next ID **WN-328**). Pure docs — no
+L2-P5 owner-led manual standards walk â€” **itinerary complete** (**121 / 121** leaves,
+Tiers 1â€“4). Findings through **WN-327** (Next ID **WN-328**). Pure docs â€” no
 firmware/`src` changes. **Not a certification** of code quality (reviewed paths only).
 **Formal walk close still pending:** empty `L2P5_WALK_WHITEBOARD.md` via real per-row
-disposition (W-1–16); do not bulk-park on main whiteboard. Details:
+disposition (W-1â€“16); do not bulk-park on main whiteboard. Details:
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. Next: drain walk WB, then
 disposition prep / Cycle-4 remediation when owner schedules.
 
 ### 2026-08-07-001 | Grok 4.5 (Build CLI) | documentation, audit
 
-L2-P5 owner-led manual walk — **Tier 2 complete** (domain logic & infrastructure).
+L2-P5 owner-led manual walk â€” **Tier 2 complete** (domain logic & infrastructure).
 Itinerary **92 / 121 leaves** (all Tier-2 checkboxes; Tier 1 already done). Findings
-**WN-116–242** (Next ID **WN-243**). Pure docs — no firmware/`src` changes. Resume
+**WN-116â€“242** (Next ID **WN-243**). Pure docs â€” no firmware/`src` changes. Resume
 Tier 3 at `safety/fault_protection.{cpp,h}`. Cold-start: `docs/audits/l2p5_manual_walk/L2P5_SESSION_HANDOFF.md`.
-Walk process deltas this sitting: **W-12**–**W-16** (overview keywords, condense WNs,
+Walk process deltas this sitting: **W-12**â€“**W-16** (overview keywords, condense WNs,
 codegen regen check, ops criticality list, stage/IVP comment sync). Details:
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
 
 ### 2026-08-04-001 | Grok 4.5 (Build CLI) | documentation, audit
 
-L2-P5 manual walk (owner-led) through public headers — **itinerary 25/184** at session end.
-Findings **WN-019–WN-054** (Next ID **WN-055**). No firmware/`src` changes. (Continues and
+L2-P5 manual walk (owner-led) through public headers â€” **itinerary 25/184** at session end.
+Findings **WN-019â€“WN-054** (Next ID **WN-055**). No firmware/`src` changes. (Continues and
 supersedes the same-day walk log previously dated 2026-08-03-001; single daily entry, date
 corrected after midnight.)
 
 **Coverage:** board HAL; job family; notify; radio config/table/scheduler (Starcom-gated);
 sensor seqlock/snapshot; telemetry encoder/state/mavlink_rx (Starcom-gated); `ao_signals`
 (QP/QF-gated). Project-wide: comment-density **header exemption re-eval** (**WN-054**).
-Walk WB: W-4 addressed; **W-5**–**W-7**. Clear stop: next leaf `led_patterns.h`. Details:
+Walk WB: W-4 addressed; **W-5**â€“**W-7**. Clear stop: next leaf `led_patterns.h`. Details:
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
 
 ### 2026-08-02-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 semantic walk progress: itinerary **3/184** (`shared_state.h`, `rc_log.h`, `config.h`
-ticked). Findings log grown through **WN-018** (Next ID WN-019) — Project-wide license
+ticked). Findings log grown through **WN-018** (Next ID WN-019) â€” Project-wide license
 hygiene (**WN-004**); `rc_log` comment mass (**WN-003**); `config.h` grab-bag/assert/version/
-tier/job/pins/DBG cluster (**WN-005–018**) plus brief `version.h` phantom helper (**WN-011**).
+tier/job/pins/DBG cluster (**WN-005â€“018**) plus brief `version.h` phantom helper (**WN-011**).
 Findings header: path-placement rule, Project-wide section. Full list:
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. Resume: next itinerary row
 `include/rocketchip/board*.h`.
@@ -330,10 +334,10 @@ Council-shaped rules compressed into the file header. Further walk findings appe
 
 ### 2026-07-30-002 | Grok 4.5 (Build CLI) | documentation, audit
 
-**L2-P5 contract-surface helper — thin/hub files that look empty.** Added
+**L2-P5 contract-surface helper â€” thin/hub files that look empty.** Added
 `docs/audits/l2p5_manual_walk/L2P5_CONTRACT_SURFACE_HELPER.md`: pedagogical + practical guide
 for evaluating files that feel skippable (pure `extern`s, prototypes, enums, layouts, signal
-catalogs) but hold ownership, API, vocabulary, or layout contracts. Taxonomy A–F, five-step
+catalogs) but hold ownership, API, vocabulary, or layout contracts. Taxonomy Aâ€“F, five-step
 procedure, claim-vs-truth verify-now/later, worksheet, worked mini-examples (`shared_state.h`,
 `rc_log.h`, flash/version, linker symbols). Field manual keeps criteria; helper is the *how*.
 Light discovery links only in guide / itinerary / plan / walk whiteboard. Verified:
@@ -341,17 +345,17 @@ pure-documentation change, no `src/`/CMake/build. (`docs/audits/l2p5_manual_walk
 
 ### 2026-07-30-001 | Claude Opus 5 (Code) | documentation, audit
 
-**L2-P5 walk instrumentation — whiteboard opened, itinerary hot-spot cues, pre-remediation gate
+**L2-P5 walk instrumentation â€” whiteboard opened, itinerary hot-spot cues, pre-remediation gate
 check.** Opened `L2P5_WALK_WHITEBOARD.md`, a temporary companion to the walk triad for items with no
 home yet; every row carries a disposition target and **empty-at-close** joined the plan's
-verification list (file deleted once empty). Two rows, detailed there: **W-1** — P10-9's
+verification list (file deleted once empty). Two rows, detailed there: **W-1** â€” P10-9's
 function-pointer ban is triaged "policed by deviation log" and the log reads all-resolved, while
 `src/` holds 18 declaration sites across 7 files, so the procedure yields PASS without anyone looking
-(LL 43 family). **W-2** — the 31-object shared-mutable inventory that is the worklist for the
-Concurrency lens's three-question test. Itinerary: 16 rows gained a short hot-spot clause — counts
+(LL 43 family). **W-2** â€” the 31-object shared-mutable inventory that is the worklist for the
+Concurrency lens's three-question test. Itinerary: 16 rows gained a short hot-spot clause â€” counts
 and lens pointers only, no verdicts, so a later mirror pass stays independent. Plan: new **"Before
 remediation begins"** checklist, since Gate 2 (clang-tidy) and Gate 3 (host ctest) both *silently*
-skip in a fresh worktree, making the walk→code transition invisible. Done on `claude/l2p5-walk` in a
+skip in a fresh worktree, making the walkâ†’code transition invisible. Done on `claude/l2p5-walk` in a
 `git worktree` (first exercise of the WB worktree proposal), merged fast-forward. Verified:
 pure-documentation change, no `src/`/CMake/build files; FLIGHT_CRITICAL regex does not match `docs/`
 and that worktree has no `build_host`, so neither host ctest nor clang-tidy ran on these commits.
@@ -359,89 +363,89 @@ and that worktree has no `build_host`, so neither host ctest nor clang-tidy ran 
 
 ### 2026-07-29-001 | Grok 4.5 (Build CLI) | documentation, hardware
 
-**Aether Booster Pack research draft archived.** Added `docs/hardware/AETHER_BOOSTER_PACK.md` — Feb 2026 Claude research on air-data sensing (flush FADS for HPR + multi-hole probe for UAS; airspeed/α/β). Status: research/feasibility, post-MVP R&D. Source session: https://claude.ai/chat/e7648f05-8e09-479f-a951-d8572fc0fd92
+**Aether Booster Pack research draft archived.** Added `docs/hardware/AETHER_BOOSTER_PACK.md` â€” Feb 2026 Claude research on air-data sensing (flush FADS for HPR + multi-hole probe for UAS; airspeed/Î±/Î²). Status: research/feasibility, post-MVP R&D. Source session: https://claude.ai/chat/e7648f05-8e09-479f-a951-d8572fc0fd92
 
 ### 2026-07-28-003 | Grok 4.5 (Build CLI) | documentation, audit
 
-**L2-P5 pre-walk hygiene + Class 13 demotion.** Dry-ran the live walk triad (no `src/` walk). Itinerary **184** files (glob refresh); scrubbed dead §LV tags; clarified walk-ready / Phase C (open `-Wconversion` stays §CM, non-blocking). **Magic numbers (JSF 151 / Class 13) demoted** off the semantic walk to mechanical `readability-magic-numbers`; residual only when dispositioning hits — **named + sourced required** unless impossible/highly impractical after review (notes on `.clang-tidy`, `CODING_STANDARDS.md`, triage). Live guide: active-vs-reference map; archive left historical. Next: file-by-file walk. Verified: pure-software docs/config comments only — no firmware or host ctest. (`docs/audits/l2p5_manual_walk/*`, `.clang-tidy`, `standards/CODING_STANDARDS.md`, `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`, `AGENT_WHITEBOARD.md`)
+**L2-P5 pre-walk hygiene + Class 13 demotion.** Dry-ran the live walk triad (no `src/` walk). Itinerary **184** files (glob refresh); scrubbed dead Â§LV tags; clarified walk-ready / Phase C (open `-Wconversion` stays Â§CM, non-blocking). **Magic numbers (JSF 151 / Class 13) demoted** off the semantic walk to mechanical `readability-magic-numbers`; residual only when dispositioning hits â€” **named + sourced required** unless impossible/highly impractical after review (notes on `.clang-tidy`, `CODING_STANDARDS.md`, triage). Live guide: active-vs-reference map; archive left historical. Next: file-by-file walk. Verified: pure-software docs/config comments only â€” no firmware or host ctest. (`docs/audits/l2p5_manual_walk/*`, `.clang-tidy`, `standards/CODING_STANDARDS.md`, `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`, `AGENT_WHITEBOARD.md`)
 
 ### 2026-07-28-002 | Grok 4.5 (Build CLI) | documentation, tooling
 
-**Local-LLM companion research §2 — Odysseus handoff + hybrid workflow.** Appended multi-agent section to `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` (did not edit Claude §1): measured Odysseus/Docker GPU overlay + Windows `COMPOSE_FILE` `;` separator + ~30 GB container RAM vs ~62 GB host; MCP as local/remote tool protocol; serve-stack glossary (Ollama/llama.cpp/vLLM/TRT-LLM/NIM); hybrid cloud+local routing as mainstream; RocketChip-specific best/poor fits (audit work-orders, AST renames, gate evidence vs flight judgment); HW validation as lab-tech procedure runner under `HW_GATE_DISCIPLINE`; Cookbook composite score meaning; next-session open questions (model/quant first). Research/handoff only — no code or adoption. (`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`)
+**Local-LLM companion research Â§2 â€” Odysseus handoff + hybrid workflow.** Appended multi-agent section to `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` (did not edit Claude Â§1): measured Odysseus/Docker GPU overlay + Windows `COMPOSE_FILE` `;` separator + ~30â€¯GB container RAM vs ~62â€¯GB host; MCP as local/remote tool protocol; serve-stack glossary (Ollama/llama.cpp/vLLM/TRT-LLM/NIM); hybrid cloud+local routing as mainstream; RocketChip-specific best/poor fits (audit work-orders, AST renames, gate evidence vs flight judgment); HW validation as lab-tech procedure runner under `HW_GATE_DISCIPLINE`; Cookbook composite score meaning; next-session open questions (model/quant first). Research/handoff only â€” no code or adoption. (`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`)
 
 ### 2026-07-28-001 | Claude Opus 5 (Code) | documentation, tooling
 
-**Local-LLM companion research — new multi-agent handover doc.** Opened
+**Local-LLM companion research â€” new multi-agent handover doc.** Opened
 `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` to collect research on self-hosted models as a
 *companion* to frontier cloud models for straightforward, verifiable work (file ops, applying
-already-decided changes, audit-remediation execution). Doc is **append-only and multi-agent — no
+already-decided changes, audit-remediation execution). Doc is **append-only and multi-agent â€” no
 agent edits another's section**; convention is stated in its header and Grok/Gemini research is
 expected to land there. Covers: measured hardware baseline, model landscape verified against
-primary model cards (with an Unverified Claims log — one widely-recommended model could not be
+primary model cards (with an Unverified Claims log â€” one widely-recommended model could not be
 traced to any vendor source), what QAT is and its format-lock caveat, the verifiability-not-
 difficulty principle for delegating work, and a mapping onto `RULE_VERIFIABILITY_TRIAGE.md`'s
-existing buckets. Also added two AGENT_WHITEBOARD Research/Deferred items — datasheet RAG and
-spec-table→code transcription (both worth visiting local *or* cloud) — plus a session-handoff row
+existing buckets. Also added two AGENT_WHITEBOARD Research/Deferred items â€” datasheet RAG and
+spec-tableâ†’code transcription (both worth visiting local *or* cloud) â€” plus a session-handoff row
 carrying the open quantization / model-budget questions. Pure doc: no code, no tooling, no
 adoption, no build impact. Surfaced but deliberately **not** actioned: `docs/SCAFFOLDING.md:84-85`
-lists `docs/tools/` with 1 of now-4 files (pre-existing drift; protected doc, owner decision —
+lists `docs/tools/` with 1 of now-4 files (pre-existing drift; protected doc, owner decision â€”
 see WB). (`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`, `AGENT_WHITEBOARD.md`)
 
 ### 2026-07-09-002 | Grok 4.5 (Build CLI) | bugfix, refactor, tooling, documentation
 
-**Post-Bierman cascade + ROI-scoped trim.** Residual dead-code: removed unused blocking 6-pos API (`calibration_collect_6pos_position` + `accel_read_fn`; async path is sole caller). Cascade: `ESKF::healthy()` uses UD **D** when dense `P` is lazy after multi-aid (same authority idea as `scalar_innovation_s`); host test `HealthyAfterMultiAidWithoutDenseSync`. §4 keep/defer table + Pass C skip (`rc_log` still fully used — no prune/rewrite) + RC_OS structural deferral to future **RC_OS Rework** (origin CODE_TRIMMING 2026-07-03 “pseudo-OS” note) in new audit `docs/audits/POST_BIERMAN_TRIM_CASCADE_2026-07-09.md` (does not rewrite historical CODE_TRIMMING). WB: RC_OS Rework open; probable full `/graphify` after L2-P5 manual walk. Net code ~−22 LOC (trim small; healthy() helpers added). Verified: host ctest 858/858; vehicle SWD load + compare-sections; bench_sim 2/2 PASS COM7. (`src/calibration/*`, `src/fusion/eskf.*`, `test/test_eskf_bierman.cpp`, audit, `AGENT_WHITEBOARD.md`)
+**Post-Bierman cascade + ROI-scoped trim.** Residual dead-code: removed unused blocking 6-pos API (`calibration_collect_6pos_position` + `accel_read_fn`; async path is sole caller). Cascade: `ESKF::healthy()` uses UD **D** when dense `P` is lazy after multi-aid (same authority idea as `scalar_innovation_s`); host test `HealthyAfterMultiAidWithoutDenseSync`. Â§4 keep/defer table + Pass C skip (`rc_log` still fully used â€” no prune/rewrite) + RC_OS structural deferral to future **RC_OS Rework** (origin CODE_TRIMMING 2026-07-03 â€œpseudo-OSâ€ note) in new audit `docs/audits/POST_BIERMAN_TRIM_CASCADE_2026-07-09.md` (does not rewrite historical CODE_TRIMMING). WB: RC_OS Rework open; probable full `/graphify` after L2-P5 manual walk. Net code ~âˆ’22 LOC (trim small; healthy() helpers added). Verified: host ctest 858/858; vehicle SWD load + compare-sections; bench_sim 2/2 PASS COM7. (`src/calibration/*`, `src/fusion/eskf.*`, `test/test_eskf_bierman.cpp`, audit, `AGENT_WHITEBOARD.md`)
 
 ### 2026-07-09-001 | Grok 4.5 (Build CLI) | architecture, refactor, bugfix, testing
 
-Bierman host/flight consolidation: host `rc_fusion` matches flight Bierman UD measurement path; Joseph dual path and `rc_fusion_bierman` removed; dense-P contract (`sync_dense_covariance`, per-instance UD); replay goldens rebaselined; mat `joseph_update*` deleted. Rule-7 fixes: multi-ESKF shared UD, factorize-fail→NaN on long mag, Bierman D floors. UD-aware `scalar_innovation_s()` for NIS/gating after multi-aid in one epoch (stale dense P). Thornton predict documented as RP2350 cycle-budget shelve (not impossible) with revisit triggers; post-commit graphify verify-vs-snapshot removed (manual/milestone only; rebuild+curate remain). Host regressions: `DualESKFIndependentUD`, `LongMagAidingStaysFinite`, `SequentialAidUsesUdAwareS`. Verified: host ctest; vehicle flash + banner `flight-0382b17`; bench_sim 2/2 PASS COM7.
+Bierman host/flight consolidation: host `rc_fusion` matches flight Bierman UD measurement path; Joseph dual path and `rc_fusion_bierman` removed; dense-P contract (`sync_dense_covariance`, per-instance UD); replay goldens rebaselined; mat `joseph_update*` deleted. Rule-7 fixes: multi-ESKF shared UD, factorize-failâ†’NaN on long mag, Bierman D floors. UD-aware `scalar_innovation_s()` for NIS/gating after multi-aid in one epoch (stale dense P). Thornton predict documented as RP2350 cycle-budget shelve (not impossible) with revisit triggers; post-commit graphify verify-vs-snapshot removed (manual/milestone only; rebuild+curate remain). Host regressions: `DualESKFIndependentUD`, `LongMagAidingStaysFinite`, `SequentialAidUsesUdAwareS`. Verified: host ctest; vehicle flash + banner `flight-0382b17`; bench_sim 2/2 PASS COM7.
 
 **Follow-up (same day): graphify PreToolUse dual-protocol.** Grok was fail-open logging `project/settings:pre_tool_use[0]` exit 1 from Claude-style `hookSpecificOutput` JSON plus unexpanded `${CLAUDE_PROJECT_DIR}` spawn paths. Hooks now run as workspace-relative `python scripts/hooks/graphify_pretool_{bash,read}.py`; Grok gets `{"decision":"allow"}` + exit 0, Claude still gets search/read `additionalContext` nudges. Live-verified on Grok Build: tools green, no PreToolUse exit-code noise. (`.claude/settings.json`, `scripts/hooks/graphify_pretool_*.py`)
 
 ### 2026-07-04-001 | Claude Opus 4.8 (Code) | documentation, audit
 
-**L2-P5 manual walk: itinerary reordered to dependency tiers + IEEE 1028 adopted as the review-process standard.** Reordered `L2P5_WALK_ITINERARY.md` from criticality-first to graphify-derived bottom-up dependency tiers (foundations → integrators; criticality demoted to a within-tier tiebreak — for a 100%-coverage sweep, risk-triage ordering optimizes a failure mode that's out of scope). Membership is now glob-defined, not graph-defined, which recovered a dropped file (`linker_symbols.h`; 185 → 186). Added a graphify live-navigation note, a "declaration-only headers are contracts, not skips" procedural note, and grounded the `.cpp`/`.h` pairing rule in Fagan 1976 / IEEE 1028 (labeled review methodology, not a house-standard clause). Recorded **IEEE Std 1028-2008 (Software Reviews and Audits)** in `standards/AUDIT_GUIDANCE.md` Appendix B.5 as a review/audit-process reference — provisional and broad, not a fully-vetted or sole review standard (complementary standards may join it later) — kept deliberately distinct from the JSF/P10/JPL coding standards; mapping its five review levels onto the "When to Do What" decision table is a deferred rework (see `AGENT_WHITEBOARD.md`). Verified: docs-only change — no firmware or host ctest impact. (docs/audits/l2p5_manual_walk/*, standards/AUDIT_GUIDANCE.md, AGENT_WHITEBOARD.md)
+**L2-P5 manual walk: itinerary reordered to dependency tiers + IEEE 1028 adopted as the review-process standard.** Reordered `L2P5_WALK_ITINERARY.md` from criticality-first to graphify-derived bottom-up dependency tiers (foundations â†’ integrators; criticality demoted to a within-tier tiebreak â€” for a 100%-coverage sweep, risk-triage ordering optimizes a failure mode that's out of scope). Membership is now glob-defined, not graph-defined, which recovered a dropped file (`linker_symbols.h`; 185 â†’ 186). Added a graphify live-navigation note, a "declaration-only headers are contracts, not skips" procedural note, and grounded the `.cpp`/`.h` pairing rule in Fagan 1976 / IEEE 1028 (labeled review methodology, not a house-standard clause). Recorded **IEEE Std 1028-2008 (Software Reviews and Audits)** in `standards/AUDIT_GUIDANCE.md` Appendix B.5 as a review/audit-process reference â€” provisional and broad, not a fully-vetted or sole review standard (complementary standards may join it later) â€” kept deliberately distinct from the JSF/P10/JPL coding standards; mapping its five review levels onto the "When to Do What" decision table is a deferred rework (see `AGENT_WHITEBOARD.md`). Verified: docs-only change â€” no firmware or host ctest impact. (docs/audits/l2p5_manual_walk/*, standards/AUDIT_GUIDANCE.md, AGENT_WHITEBOARD.md)
 
 ### 2026-06-29-001 | Claude Opus 4.8 (Code) | tooling, graphify
 
-**Gitignore the auto-rebuilt graphify-out root outputs — resolves the post-commit dirty-tree churn.** The post-commit hook rebuilds the graph on every commit, so tracking the volatile root files (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`, `.graphify_{analysis,labels,root}`, `.curate_*`) + graphify's dated auto-backup folders left the working tree perpetually dirty (forcing manual `git checkout -- graphify-out/` after every commit). Per graphify's own guidance (issue [#1018](https://github.com/safishamsi/graphify/issues/1018), closed/fixed v8 `80301a0` — fixes the rebuild *loop*, and the maintainer notes the design assumes most users don't track these) and git-hooks best practice (a post-commit hook can't leave a clean tree if it rewrites tracked files): gitignored + untracked those root outputs. They stay on disk and the hook keeps them current locally, so `graphify query` and the curate/verify wiring are unaffected — nothing lost by not committing them. Protected snapshot subdirs (`claude-build-*/`, `grok-build-*/`) stay tracked as frozen verification baselines. Verified live: a real commit fired the hook and the tracked tree stayed clean. Context in `AGENT_WHITEBOARD.md` "Multi-agent commit collisions". Verified: pure-software change (git ignore/config) — no firmware or host ctest impact. (.gitignore, graphify-out/ root outputs untracked)
+**Gitignore the auto-rebuilt graphify-out root outputs â€” resolves the post-commit dirty-tree churn.** The post-commit hook rebuilds the graph on every commit, so tracking the volatile root files (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`, `.graphify_{analysis,labels,root}`, `.curate_*`) + graphify's dated auto-backup folders left the working tree perpetually dirty (forcing manual `git checkout -- graphify-out/` after every commit). Per graphify's own guidance (issue [#1018](https://github.com/safishamsi/graphify/issues/1018), closed/fixed v8 `80301a0` â€” fixes the rebuild *loop*, and the maintainer notes the design assumes most users don't track these) and git-hooks best practice (a post-commit hook can't leave a clean tree if it rewrites tracked files): gitignored + untracked those root outputs. They stay on disk and the hook keeps them current locally, so `graphify query` and the curate/verify wiring are unaffected â€” nothing lost by not committing them. Protected snapshot subdirs (`claude-build-*/`, `grok-build-*/`) stay tracked as frozen verification baselines. Verified live: a real commit fired the hook and the tracked tree stayed clean. Context in `AGENT_WHITEBOARD.md` "Multi-agent commit collisions". Verified: pure-software change (git ignore/config) â€” no firmware or host ctest impact. (.gitignore, graphify-out/ root outputs untracked)
 
 ### 2026-06-28-003 | Claude Opus 4.8 (Code) | tooling, graphify
 
-**Graphify curated-graph durability: reconciliation filter + content verifier.** Added `scripts/graphify_curate.py` (drops `graphify update`'s structural-fragment bloat and restores cache-orphaned curated nodes/bridges, no LLM) and `scripts/graphify_verify.py` (content-level parity guarding the count-parity fallacy), keeping the canonical root graph at parity with the curated north-star (`graphify-out/claude-build-2026-06-28/`) on every rebuild. Mechanism, workflow, and verification contract in `docs/tools/GRAPHIFY_USAGE.md` §11; milestone re-pass prompt in `docs/agents/SESSION_CHECKLIST.md` item 17d (repo-owner authorized). Supersedes the in-progress-session note in 2026-06-28-002. Verified: pure tooling/doc change — no firmware or host ctest impact. (scripts/graphify_curate.py, scripts/graphify_verify.py, docs/tools/GRAPHIFY_USAGE.md, docs/agents/SESSION_CHECKLIST.md, graphify-out/)
+**Graphify curated-graph durability: reconciliation filter + content verifier.** Added `scripts/graphify_curate.py` (drops `graphify update`'s structural-fragment bloat and restores cache-orphaned curated nodes/bridges, no LLM) and `scripts/graphify_verify.py` (content-level parity guarding the count-parity fallacy), keeping the canonical root graph at parity with the curated north-star (`graphify-out/claude-build-2026-06-28/`) on every rebuild. Mechanism, workflow, and verification contract in `docs/tools/GRAPHIFY_USAGE.md` Â§11; milestone re-pass prompt in `docs/agents/SESSION_CHECKLIST.md` item 17d (repo-owner authorized). Supersedes the in-progress-session note in 2026-06-28-002. Verified: pure tooling/doc change â€” no firmware or host ctest impact. (scripts/graphify_curate.py, scripts/graphify_verify.py, docs/tools/GRAPHIFY_USAGE.md, docs/agents/SESSION_CHECKLIST.md, graphify-out/)
 
-**Update (same session): curate+verify wired into the post-commit hook.** No longer manual — both scripts now run automatically inside the detached rebuild child in `scripts/hooks/post-commit` (after `_rebuild_code`, the only point the bloated graph exists), so every commit auto-reconciles to the curated shape and self-verifies; curate is best-effort, verify-fail/curate-ABORT log loudly to `~/.cache/graphify-rebuild.log`. Validated live (hook fired: rebuild 2465 → curate 2448 → verify ALL CHECKS PASSED). Verified: bench_sim HW gate 2/2 PASS against vehicle board (OpenOCD `127.0.0.1:3333`, RP2350 cm0+cm1, serial E663AC91D3487137; board reset to clear a stale debug-halt NO-GO before the run). (scripts/hooks/post-commit)
+**Update (same session): curate+verify wired into the post-commit hook.** No longer manual â€” both scripts now run automatically inside the detached rebuild child in `scripts/hooks/post-commit` (after `_rebuild_code`, the only point the bloated graph exists), so every commit auto-reconciles to the curated shape and self-verifies; curate is best-effort, verify-fail/curate-ABORT log loudly to `~/.cache/graphify-rebuild.log`. Validated live (hook fired: rebuild 2465 â†’ curate 2448 â†’ verify ALL CHECKS PASSED). Verified: bench_sim HW gate 2/2 PASS against vehicle board (OpenOCD `127.0.0.1:3333`, RP2350 cm0+cm1, serial E663AC91D3487137; board reset to clear a stale debug-halt NO-GO before the run). (scripts/hooks/post-commit)
 
 ### 2026-06-28-002 | Claude (Opus 4.8) | hooks, tooling
 
-**Protected PreToolUse hook — root-caused and rebuilt to a category-driven `ask` model (RESOLVES 2026-06-28-001).** The prior "exit 1 forever" framing was wrong; the real defects were (1) the script emitted a fictional `{"decision":...}`+exit-2 protocol instead of the real `hookSpecificOutput.permissionDecision` contract that both Claude Code and Grok Build CLI use, (2) the wired command hard-depended on `${GROK_WORKSPACE_ROOT}` (unset under Claude Code → launch failure), and (3) the transcript-scraping "authorization" heuristic was structurally leaky (false-positives on "don't edit X", cross-file bleed, stale auth, and self-authorization from the assistant's own narration — all reproduced live). Rebuilt `scripts/hooks/protected-file-pretool.py` to drop transcript-scanning entirely and instead categorize the target file (parsed from `docs/agents/PROTECTED_FILES.md` `###` headers) and escalate via the `ask` permission decision (capability-probed and confirmed working on this Claude Code build). Categories: **Hard-Protected** (any edit → ask), **Historical/frozen** (any edit → ask), **Checklist-cadence** (CHANGELOG: pure additions allowed, destructive → ask; PROJECT_STATUS: any edit → ask). Workspace root now resolved by walking up from the edited file to find `PROTECTED_FILES.md` (fixes the launch-dir/`CLAUDE_PROJECT_DIR`-points-at-home scope bug). `AGENT_WHITEBOARD.md` removed from protection (non-permanent by design). Restructured `docs/agents/PROTECTED_FILES.md` into the three categories (repo-owner authorized). Verified: `tools/scratch/protected_hook/contract-test.py` 20/20 (incl. mid-file CHANGELOG insertion → allow, line-delete → ask, via a difflib line-diff addition check); live end-to-end on this build — hard-protected edit prompts, CHANGELOG addition allows silently, CHANGELOG deletion prompts. Hook wired in user-level `~/.claude/settings.json` (loads regardless of launch dir) plus project `.claude/settings.json` and the two `.grok/hooks/*.json` for Grok Build. `mcps/` gitignored (generated MCP tool-definition cache). Pure tooling/doc change — no firmware or host ctest impact.
+**Protected PreToolUse hook â€” root-caused and rebuilt to a category-driven `ask` model (RESOLVES 2026-06-28-001).** The prior "exit 1 forever" framing was wrong; the real defects were (1) the script emitted a fictional `{"decision":...}`+exit-2 protocol instead of the real `hookSpecificOutput.permissionDecision` contract that both Claude Code and Grok Build CLI use, (2) the wired command hard-depended on `${GROK_WORKSPACE_ROOT}` (unset under Claude Code â†’ launch failure), and (3) the transcript-scraping "authorization" heuristic was structurally leaky (false-positives on "don't edit X", cross-file bleed, stale auth, and self-authorization from the assistant's own narration â€” all reproduced live). Rebuilt `scripts/hooks/protected-file-pretool.py` to drop transcript-scanning entirely and instead categorize the target file (parsed from `docs/agents/PROTECTED_FILES.md` `###` headers) and escalate via the `ask` permission decision (capability-probed and confirmed working on this Claude Code build). Categories: **Hard-Protected** (any edit â†’ ask), **Historical/frozen** (any edit â†’ ask), **Checklist-cadence** (CHANGELOG: pure additions allowed, destructive â†’ ask; PROJECT_STATUS: any edit â†’ ask). Workspace root now resolved by walking up from the edited file to find `PROTECTED_FILES.md` (fixes the launch-dir/`CLAUDE_PROJECT_DIR`-points-at-home scope bug). `AGENT_WHITEBOARD.md` removed from protection (non-permanent by design). Restructured `docs/agents/PROTECTED_FILES.md` into the three categories (repo-owner authorized). Verified: `tools/scratch/protected_hook/contract-test.py` 20/20 (incl. mid-file CHANGELOG insertion â†’ allow, line-delete â†’ ask, via a difflib line-diff addition check); live end-to-end on this build â€” hard-protected edit prompts, CHANGELOG addition allows silently, CHANGELOG deletion prompts. Hook wired in user-level `~/.claude/settings.json` (loads regardless of launch dir) plus project `.claude/settings.json` and the two `.grok/hooks/*.json` for Grok Build. `mcps/` gitignored (generated MCP tool-definition cache). Pure tooling/doc change â€” no firmware or host ctest impact.
 
-**Update (same session): hook DISABLED.** Grok Build CLI's PreToolUse hook contract is `{"decision":"allow"|"deny"}` only — it has **no `ask`/prompt**, so the `ask` output fails open and the protected edit silently succeeds (critical false-positive observed in a Grok session). Grok's permission *rules* (`permissions.ask` patterns) can prompt on both runners but are static/file-granularity (no diff logic), and Grok's user-facing modes are only always-approve/normal with zero granularity — none was the desired solution. Per repo-owner direction the hook is disabled (PreToolUse `Edit|Write|MultiEdit` entry removed from both `.claude/settings.json`; `.grok/hooks/protected-pretool.json` deleted; graphify Bash/Read|Glob hooks untouched). Assets kept dormant for future revival: `scripts/hooks/protected-file-pretool.py`, `tools/scratch/protected_hook/contract-test.py`, and the 3-category structure in `PROTECTED_FILES.md` (hook-specific language removed; categories now read as policy). Protection now relies on the `PROTECTED_FILES.md` rule + agent compliance. Also added a CHANGELOG cadence rule to this file's header (one entry per significant unit, at the checklist step, not auto, and not without user input). See `temp/grok-hooks-claude-intake-notes.md` + `~/.grok/docs/user-guide/10-hooks.md`.
+**Update (same session): hook DISABLED.** Grok Build CLI's PreToolUse hook contract is `{"decision":"allow"|"deny"}` only â€” it has **no `ask`/prompt**, so the `ask` output fails open and the protected edit silently succeeds (critical false-positive observed in a Grok session). Grok's permission *rules* (`permissions.ask` patterns) can prompt on both runners but are static/file-granularity (no diff logic), and Grok's user-facing modes are only always-approve/normal with zero granularity â€” none was the desired solution. Per repo-owner direction the hook is disabled (PreToolUse `Edit|Write|MultiEdit` entry removed from both `.claude/settings.json`; `.grok/hooks/protected-pretool.json` deleted; graphify Bash/Read|Glob hooks untouched). Assets kept dormant for future revival: `scripts/hooks/protected-file-pretool.py`, `tools/scratch/protected_hook/contract-test.py`, and the 3-category structure in `PROTECTED_FILES.md` (hook-specific language removed; categories now read as policy). Protection now relies on the `PROTECTED_FILES.md` rule + agent compliance. Also added a CHANGELOG cadence rule to this file's header (one entry per significant unit, at the checklist step, not auto, and not without user input). See `temp/grok-hooks-claude-intake-notes.md` + `~/.grok/docs/user-guide/10-hooks.md`.
 
-*Note:* a separate, still-in-progress Claude graphify session owns the uncommitted `graphify-out/*` rebuild + `CLAUDE.md`/`docs/tools/GRAPHIFY_USAGE.md` graphify-rule rewrite + `.grok/rules/` + `grok-trusted.ps1`. That work was intentionally left uncommitted here for that session to finish and commit directly — it is **not** part of this entry.
+*Note:* a separate, still-in-progress Claude graphify session owns the uncommitted `graphify-out/*` rebuild + `CLAUDE.md`/`docs/tools/GRAPHIFY_USAGE.md` graphify-rule rewrite + `.grok/rules/` + `grok-trusted.ps1`. That work was intentionally left uncommitted here for that session to finish and commit directly â€” it is **not** part of this entry.
 
 ### 2026-06-28-001 | Grok Build CLI | debugging, handoff
 
-**Protected PreToolUse hook debugging + handover (Grok 4.3 / Build harness; not resolved).** Direct tests with self-inserted phrases in real histories confirmed the script produces correct 0/2 exits. The hook command was updated to `py -3 -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py` in `.grok/hooks/protected-pretool.json`, the global `~/.grok/hooks/rocket-chip-protected-pretool.json`, and `.claude/settings.json`. A detailed handoff document was created at `temp/grok-4.3-opencode-handover.md` with full status, evidence, and next steps; only the handoff files received local commits. Real Grok invocations of the hook still exit with code 1. Verified: pure debugging/handover change — no firmware or host ctest impact. 
+**Protected PreToolUse hook debugging + handover (Grok 4.3 / Build harness; not resolved).** Direct tests with self-inserted phrases in real histories confirmed the script produces correct 0/2 exits. The hook command was updated to `py -3 -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py` in `.grok/hooks/protected-pretool.json`, the global `~/.grok/hooks/rocket-chip-protected-pretool.json`, and `.claude/settings.json`. A detailed handoff document was created at `temp/grok-4.3-opencode-handover.md` with full status, evidence, and next steps; only the handoff files received local commits. Real Grok invocations of the hook still exit with code 1. Verified: pure debugging/handover change â€” no firmware or host ctest impact. 
 
 Later in session (per user direction): duplicate native `.grok/hooks/protected-pretool.json` deleted (the `.claude/settings.json` wiring left in place for now). Claude has since added 2026-06-28-002 documenting the full hook disable and current protection approach. Work left open for receiving agent. (Net change from this Grok action: deletion of the useless duplicate Grok-native hook file only.)
 Follow-up (4c7d660): `.grok/` gitignored (resolves untracked bootstrap rule file).
 
 ### 2026-06-27-007 | Claude (Opus) | tooling, graphify
 
-**Graphify graph rebuilt as a curated current-state code+docs map.** Replaced the bloated bootstrap graph at `graphify-out/` (prior ~14.8k-node version pulled in vendored libs + historical churn). Agent-driven semantic extraction (Claude Code subagents, no API key) over the curated corpus, then a prune + doc↔code reconcile pass.
+**Graphify graph rebuilt as a curated current-state code+docs map.** Replaced the bloated bootstrap graph at `graphify-out/` (prior ~14.8k-node version pulled in vendored libs + historical churn). Agent-driven semantic extraction (Claude Code subagents, no API key) over the curated corpus, then a prune + docâ†”code reconcile pass.
 
 - **Curation** (`.graphifyignore`, already trimmed in `078451f`): excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical/point-in-time churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). Keeps `src/`+`include/`+evergreen `docs/`+`standards/`.
 - **Result:** 2,448 nodes / 4,521 edges / 186 communities; 71% in the giant component (up from 50% pre-prune); full-detail HTML (under graphify's 5k-node viz limit).
-- **Protected snapshot:** `graphify-out/claude-build-2026-06-27/` (with README), mirroring the `grok-build-pass3-2026-06-27/` pattern — safe from a future `graphify .` (which only rewrites the root). Grok's pass-3 snapshot untouched.
-- **DEFERRED (when API rate-limit window resets):** doc→code connectivity pass — `standards/` (113 nodes) + ~431 `docs/` nodes remain their own islands (doc concepts vs code symbols differ in naming; chunk-parallel extraction dropped ~672 cross-refs on ID mismatch). Next: targeted linking subagent given the AST symbol list + orphaned docs. See `AGENT_WHITEBOARD.md`. Lesson: dispatch graphify extraction subagents in batches of ~4 (17-at-once tripped a server rate limit). Verified: pure tooling/doc change — no firmware or host ctest impact.
+- **Protected snapshot:** `graphify-out/claude-build-2026-06-27/` (with README), mirroring the `grok-build-pass3-2026-06-27/` pattern â€” safe from a future `graphify .` (which only rewrites the root). Grok's pass-3 snapshot untouched.
+- **DEFERRED (when API rate-limit window resets):** docâ†’code connectivity pass â€” `standards/` (113 nodes) + ~431 `docs/` nodes remain their own islands (doc concepts vs code symbols differ in naming; chunk-parallel extraction dropped ~672 cross-refs on ID mismatch). Next: targeted linking subagent given the AST symbol list + orphaned docs. See `AGENT_WHITEBOARD.md`. Lesson: dispatch graphify extraction subagents in batches of ~4 (17-at-once tripped a server rate limit). Verified: pure tooling/doc change â€” no firmware or host ctest impact.
 
 ### 2026-06-27-006 | Grok Build | documentation, agent instructions
 
-**AGENTS.md cleanup + repo-authority wording.** Removed stale Adafruit preference, CHANGELOG mandate, duplicate "Core Standards" block, and `@standards/GIT_WORKFLOW.md` reference. Reworded repository-authority sentence to emphasize "repository is almost always the correct, double check with user". Added WB note flagging `GIT_WORKFLOW.md` for future deprecation review. Verified: pure documentation change — no firmware or host ctest impact.
+**AGENTS.md cleanup + repo-authority wording.** Removed stale Adafruit preference, CHANGELOG mandate, duplicate "Core Standards" block, and `@standards/GIT_WORKFLOW.md` reference. Reworded repository-authority sentence to emphasize "repository is almost always the correct, double check with user". Added WB note flagging `GIT_WORKFLOW.md` for future deprecation review. Verified: pure documentation change â€” no firmware or host ctest impact.
 
 ### 2026-06-27-005 | Grok Build | agent workflow, safety
 
-**PreToolUse hook for protected files (hard enforcement).** Added mechanical pre-tool gate that intercepts `search_replace` / edit / write operations on files listed in `docs/agents/PROTECTED_FILES.md`. The hook (`scripts/hooks/protected-file-pretool.py`) scans the current session transcript for a recent explicit user authorization (e.g. "Edit <file>", "Update README.md") before allowing the edit. No recent matching authorization → hard deny with instruction to authorize first. This is the "pre-tool use hook" equivalent to the prior prompt-only rule in AGENTS.md + PROTECTED_FILES.md.
+**PreToolUse hook for protected files (hard enforcement).** Added mechanical pre-tool gate that intercepts `search_replace` / edit / write operations on files listed in `docs/agents/PROTECTED_FILES.md`. The hook (`scripts/hooks/protected-file-pretool.py`) scans the current session transcript for a recent explicit user authorization (e.g. "Edit <file>", "Update README.md") before allowing the edit. No recent matching authorization â†’ hard deny with instruction to authorize first. This is the "pre-tool use hook" equivalent to the prior prompt-only rule in AGENTS.md + PROTECTED_FILES.md.
 
 Wired in both:
 - `.claude/settings.json` (existing PreToolUse block)
@@ -451,25 +455,25 @@ Requires project hooks trust (`/hooks-trust`) and reload (`r` in hooks view) aft
 
 ### 2026-06-27-004 | Composer 2.5 (via Build CLI) / Grok Build | documentation, tooling
 
-**Post-rebase SHA alignment + Graphify Pass 3 (Grok Build).** After `git rebase` reworded commit subjects (`2516e5a`, `9bdc848`), updated stale citations in `CHANGELOG.md` `2026-06-27-002`, `docs/tools/GRAPHIFY_USAGE.md`, and `graphify-out/GRAPH_REPORT.md` (`0079c3c`/`3a9aa8b` → current SHAs). 
+**Post-rebase SHA alignment + Graphify Pass 3 (Grok Build).** After `git rebase` reworded commit subjects (`2516e5a`, `9bdc848`), updated stale citations in `CHANGELOG.md` `2026-06-27-002`, `docs/tools/GRAPHIFY_USAGE.md`, and `graphify-out/GRAPH_REPORT.md` (`0079c3c`/`3a9aa8b` â†’ current SHAs). 
 
-Additionally: completed Graphify "Pass 3" (semantic/document extraction enabled + processed; custom modular layout with AOs/telemetry/core clusters; further .graphifyignore trims for Python/scripts/Starcom/non-core; protected snapshot in `graphify-out/grok-build-pass3-2026-06-27/` with metadata crediting Grok Build; docs now included for architecture/AO/IMU links). Amended this entry (no separate) per instructions. Pure-software change — no firmware or host ctest impact. Snapshot preserves the state; use `graphify update .` + re-layout for future increments.
+Additionally: completed Graphify "Pass 3" (semantic/document extraction enabled + processed; custom modular layout with AOs/telemetry/core clusters; further .graphifyignore trims for Python/scripts/Starcom/non-core; protected snapshot in `graphify-out/grok-build-pass3-2026-06-27/` with metadata crediting Grok Build; docs now included for architecture/AO/IMU links). Amended this entry (no separate) per instructions. Pure-software change â€” no firmware or host ctest impact. Snapshot preserves the state; use `graphify update .` + re-layout for future increments.
 
-Verified: pure documentation/tooling change — no firmware or host ctest impact.
+Verified: pure documentation/tooling change â€” no firmware or host ctest impact.
 
 ### 2026-06-27-003 | Composer 2.5 (via Build CLI) | tooling, documentation
 
-**Graphify community labels + HTML export; agent attribution correction.** Generated heuristic names for 809 communities in `graphify-out/.graphify_labels.json` (mavlink dialects, ETL, Rocket-Chip `src/` modules) and regenerated `graphify-out/graph.html` as an aggregated community view (809 nodes, 2675 cross-community edges). Corrected 2026-06-27 CHANGELOG author fields and `docs/tools/GRAPHIFY_USAGE.md` install audit (Grok → Composer 2.5 via Build CLI).
+**Graphify community labels + HTML export; agent attribution correction.** Generated heuristic names for 809 communities in `graphify-out/.graphify_labels.json` (mavlink dialects, ETL, Rocket-Chip `src/` modules) and regenerated `graphify-out/graph.html` as an aggregated community view (809 nodes, 2675 cross-community edges). Corrected 2026-06-27 CHANGELOG author fields and `docs/tools/GRAPHIFY_USAGE.md` install audit (Grok â†’ Composer 2.5 via Build CLI).
 
-Verified: pure tooling/docs change — no firmware or host ctest impact.
+Verified: pure tooling/docs change â€” no firmware or host ctest impact.
 
 ### 2026-06-27-002 | Composer 2.5 (via Build CLI) | tooling, documentation, agent instructions
 
-**Graphify knowledge-graph bootstrap.** Installed upstream [Graphify](https://github.com/safishamsi/graphify) (`graphifyy` 0.8.50 via `uv tool install`) and wired project-scoped agent integrations for Grok/Cursor (`.agents/skills/graphify/`, `.cursor/rules/graphify.mdc`), Claude Code (`.claude/skills/graphify/`, root `CLAUDE.md`, PreToolUse hooks in `.claude/settings.json`), plus git auto-rebuild hooks under `scripts/hooks/` (`core.hooksPath`). Added `.graphifyignore`, `graphify-out/cost.json` gitignore entry, and `docs/tools/GRAPHIFY_USAGE.md` (install audit + operational notes — canonical reference for this work).
+**Graphify knowledge-graph bootstrap.** Installed upstream [Graphify](https://github.com/safishamsi/graphify) (`graphifyy` 0.8.50 via `uv tool install`) and wired project-scoped agent integrations for Grok/Cursor (`.agents/skills/graphify/`, `.cursor/rules/graphify.mdc`), Claude Code (`.claude/skills/graphify/`, root `CLAUDE.md`, PreToolUse hooks in `.claude/settings.json`), plus git auto-rebuild hooks under `scripts/hooks/` (`core.hooksPath`). Added `.graphifyignore`, `graphify-out/cost.json` gitignore entry, and `docs/tools/GRAPHIFY_USAGE.md` (install audit + operational notes â€” canonical reference for this work).
 
-Bootstrap graph is **code-only** (14,847 nodes / 43,609 edges / 734 communities, built from tree at `2516e5a`, 0 token cost): headless CLI had no LLM API key and `.graphifyignore` temporarily excludes `docs/`, `standards/`, and markdown for semantic deferral. Full doc↔code graph not built yet (deferral block still in `.graphifyignore`; run `/graphify .` from an agent when ready). `pico-sdk/` excluded from scan.
+Bootstrap graph is **code-only** (14,847 nodes / 43,609 edges / 734 communities, built from tree at `2516e5a`, 0 token cost): headless CLI had no LLM API key and `.graphifyignore` temporarily excludes `docs/`, `standards/`, and markdown for semantic deferral. Full docâ†”code graph not built yet (deferral block still in `.graphifyignore`; run `/graphify .` from an agent when ready). `pico-sdk/` excluded from scan.
 
-Verified: pure tooling/docs change — no firmware or host ctest impact. Committed `9bdc848`. No whiteboard handoff — clean session break.
+Verified: pure tooling/docs change â€” no firmware or host ctest impact. Committed `9bdc848`. No whiteboard handoff â€” clean session break.
 
 ### 2026-06-27-001 | Composer 2.5 (via Build CLI) | documentation, agent instructions
 
@@ -483,42 +487,42 @@ Pure branch hygiene / archival. Main tree and builds unaffected.
 
 ### 2026-06-25-002 | Claude Opus 4.8 (Code) | documentation, audit, research, build
 
-**L2-P5 walk-prep FINISHED — field manual is walk-ready (Cycle 4).** Completed Phase D (§RP research), Phase E (wrap), the §CM gate-wiring audit, and the open standards corrections. The **semantic walk** is now the gestalt human-eye **spine** + the judgment-heavy classes (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); mechanical classes — incl. **Class 14, demoted** — are gate/§CM-covered, not hand-walked.
+**L2-P5 walk-prep FINISHED â€” field manual is walk-ready (Cycle 4).** Completed Phase D (Â§RP research), Phase E (wrap), the Â§CM gate-wiring audit, and the open standards corrections. The **semantic walk** is now the gestalt human-eye **spine** + the judgment-heavy classes (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); mechanical classes â€” incl. **Class 14, demoted** â€” are gate/Â§CM-covered, not hand-walked.
 
-- **§RP (Phase D)** — Manual-class judging criteria sourced + adversarially verified + folded, via **five multi-agent Workflow passes** (~57 agents; fan-out → verify → synth; LL-37 anti-fabrication — multiple fabricated/mis-attributed stats caught + quarantined): gestalt/function-shape + rule-classes (CCG/CERT/Fowler/P10); AI-code-review general (SEI/NIST/OWASP + peer-reviewed); agentic-era refresh 2024-2026 (**durable error-TYPES are the criteria; frequencies `[model,year]`-stamped** — the type persists across generations, the rate ages); embedded applicability (ADD bare-metal / DROP web-centric); Spine-2 re-run after its first pass returned placeholder schema-values (the verify net caught it). New stash `docs/audits/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + criteria + UNVERIFIED clearance log) → folded into the field-manual **spine** + §RP per-class map.
-- **§CM gate-wiring** — audited all 11 spine-§D mechanical items vs the real build config: **10 already gated** (`.clang-tidy` + `-Wall -Wextra -Werror`; `-fno-exceptions -fno-rtti` confirmed in all 76 TUs). One gap — **missing virtual dtor (C.35/OOP52)** — wired: **`-Wnon-virtual-dtor`** on authored C++ under `-Werror` (`CMakeLists.txt:598/607/608`) + added to `check_warning_gate_coverage.py` REQUIRED. **0 current violations** (no authored virtual functions); positive-controlled on the ARM compiler + 6 real TUs syntax-clean through QP/C+ETL includes.
-- **`-Wconversion`/`-Wsign-conversion` MEASURED** (not deferred-as-noise): **56 findings** (33 sign / 12 conv / 11 float), **54 located** file:line in `docs/audits/L2P5_WCONVERSION_FINDINGS_2026-06-25.md` — a **§CM mechanical remediation batch** (fix-then-gate; eskf hits bit-exact). **Class 14 demoted to mechanical** (§CM/§SC), removed from the semantic walk (proven 100% tool-caught).
-- **Standards corrections** — `CODING_STANDARDS.md` (repo-owner authorized): "Identifier naming (JSF 45/51/52)" bullet added to Foundation → Worked-consolidation-decisions + Pre-Commit Checklist `:469` reworded → **closes the false-completion** where `2026-06-23-001` #2 + triage §459 both claimed it done when only the nullptr bullet had landed (LL 36/40/43 class). QP/Samek naming divergence homed in `QP_APPLICATION_GUIDE.md` §6.5 (a decision, not a deviation — QP naming non-binding). **Triage errata fixed at source** (`rc_log` is `void` → N/A to return-checking; `#pragma once` was 3 headers not 1, all remediated; P10-7 canary closed; LL-40 gate dual-hardcode). Field-manual Class 2 flipped open-over-claim → resolved.
+- **Â§RP (Phase D)** â€” Manual-class judging criteria sourced + adversarially verified + folded, via **five multi-agent Workflow passes** (~57 agents; fan-out â†’ verify â†’ synth; LL-37 anti-fabrication â€” multiple fabricated/mis-attributed stats caught + quarantined): gestalt/function-shape + rule-classes (CCG/CERT/Fowler/P10); AI-code-review general (SEI/NIST/OWASP + peer-reviewed); agentic-era refresh 2024-2026 (**durable error-TYPES are the criteria; frequencies `[model,year]`-stamped** â€” the type persists across generations, the rate ages); embedded applicability (ADD bare-metal / DROP web-centric); Spine-2 re-run after its first pass returned placeholder schema-values (the verify net caught it). New stash `docs/audits/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + criteria + UNVERIFIED clearance log) â†’ folded into the field-manual **spine** + Â§RP per-class map.
+- **Â§CM gate-wiring** â€” audited all 11 spine-Â§D mechanical items vs the real build config: **10 already gated** (`.clang-tidy` + `-Wall -Wextra -Werror`; `-fno-exceptions -fno-rtti` confirmed in all 76 TUs). One gap â€” **missing virtual dtor (C.35/OOP52)** â€” wired: **`-Wnon-virtual-dtor`** on authored C++ under `-Werror` (`CMakeLists.txt:598/607/608`) + added to `check_warning_gate_coverage.py` REQUIRED. **0 current violations** (no authored virtual functions); positive-controlled on the ARM compiler + 6 real TUs syntax-clean through QP/C+ETL includes.
+- **`-Wconversion`/`-Wsign-conversion` MEASURED** (not deferred-as-noise): **56 findings** (33 sign / 12 conv / 11 float), **54 located** file:line in `docs/audits/L2P5_WCONVERSION_FINDINGS_2026-06-25.md` â€” a **Â§CM mechanical remediation batch** (fix-then-gate; eskf hits bit-exact). **Class 14 demoted to mechanical** (Â§CM/Â§SC), removed from the semantic walk (proven 100% tool-caught).
+- **Standards corrections** â€” `CODING_STANDARDS.md` (repo-owner authorized): "Identifier naming (JSF 45/51/52)" bullet added to Foundation â†’ Worked-consolidation-decisions + Pre-Commit Checklist `:469` reworded â†’ **closes the false-completion** where `2026-06-23-001` #2 + triage Â§459 both claimed it done when only the nullptr bullet had landed (LL 36/40/43 class). QP/Samek naming divergence homed in `QP_APPLICATION_GUIDE.md` Â§6.5 (a decision, not a deviation â€” QP naming non-binding). **Triage errata fixed at source** (`rc_log` is `void` â†’ N/A to return-checking; `#pragma once` was 3 headers not 1, all remediated; P10-7 canary closed; LL-40 gate dual-hardcode). Field-manual Class 2 flipped open-over-claim â†’ resolved.
 
-Verified: docs-only **except** the `-Wnon-virtual-dtor` build-flag (warning-only, **0 violations → compiled binary unchanged**, positive-controlled) + the coverage script. **NOT yet committed** — `CMakeLists.txt` matches the flight-critical pre-commit trigger, so committing the build-config change needs the `bench_sim` HW gate (probe); held pending repo-owner review (changes likely). Files: `CMakeLists.txt`, `scripts/audit/check_warning_gate_coverage.py`, `standards/CODING_STANDARDS.md`, `docs/audits/{L2P5_MANUAL_WALK_GUIDE, RULE_VERIFIABILITY_TRIAGE, L2P5_RP_SOURCES_2026-06-25 [new], L2P5_WCONVERSION_FINDINGS_2026-06-25 [new]}.md`, `docs/plans/L2P5_WALK_PLAN.md`, `docs/flight_director/QP_APPLICATION_GUIDE.md`, `AGENT_WHITEBOARD.md`.
+Verified: docs-only **except** the `-Wnon-virtual-dtor` build-flag (warning-only, **0 violations â†’ compiled binary unchanged**, positive-controlled) + the coverage script. **NOT yet committed** â€” `CMakeLists.txt` matches the flight-critical pre-commit trigger, so committing the build-config change needs the `bench_sim` HW gate (probe); held pending repo-owner review (changes likely). Files: `CMakeLists.txt`, `scripts/audit/check_warning_gate_coverage.py`, `standards/CODING_STANDARDS.md`, `docs/audits/{L2P5_MANUAL_WALK_GUIDE, RULE_VERIFIABILITY_TRIAGE, L2P5_RP_SOURCES_2026-06-25 [new], L2P5_WCONVERSION_FINDINGS_2026-06-25 [new]}.md`, `docs/plans/L2P5_WALK_PLAN.md`, `docs/flight_director/QP_APPLICATION_GUIDE.md`, `AGENT_WHITEBOARD.md`.
 
 ### 2026-06-25-001 | Claude Opus 4.8 (Code) | refactor, standards
 
-**Identifier-naming remediation completed (continues `2026-06-24-001`).** The remaining categories renamed to the house standard via **clang-refactor (AST-safe)**: file-statics + globals → `g_camelCase` (`55e3d62`, `cb069c1`); constexpr/constants → `kCamelCase` and QP/C state-handler functions → `lower_case` (`1bfa602`) — **including all QP-idiom names** (`l_`/`AO_`/`Xxx_initial`/`s_evt`) per a convention-conflict pass (QP/C naming is guidance, not a framework mandate; JSF governs, no deviation). **0 naming findings across every category** — full house-standard compliance. Behavior-neutral (host ctest 857/857; both builds clean; bench_sim per commit). L2-P5 walk-prep Phases A–C complete; **Phase D (§RP research) is next** (see WB handoff). (LL Entry 44; QP-divergence tracked on `AGENT_WHITEBOARD.md`)
+**Identifier-naming remediation completed (continues `2026-06-24-001`).** The remaining categories renamed to the house standard via **clang-refactor (AST-safe)**: file-statics + globals â†’ `g_camelCase` (`55e3d62`, `cb069c1`); constexpr/constants â†’ `kCamelCase` and QP/C state-handler functions â†’ `lower_case` (`1bfa602`) â€” **including all QP-idiom names** (`l_`/`AO_`/`Xxx_initial`/`s_evt`) per a convention-conflict pass (QP/C naming is guidance, not a framework mandate; JSF governs, no deviation). **0 naming findings across every category** â€” full house-standard compliance. Behavior-neutral (host ctest 857/857; both builds clean; bench_sim per commit). L2-P5 walk-prep Phases Aâ€“C complete; **Phase D (Â§RP research) is next** (see WB handoff). (LL Entry 44; QP-divergence tracked on `AGENT_WHITEBOARD.md`)
 
 ### 2026-06-24-001 | Claude Opus 4.8 (Code) | refactor, standards, bugfix
 
-**L2-P5 "walk-ready" mechanical-tier clearing (Cycle 4).** Every script-decidable / known-mechanical JSF/P10 violation cleared and gated before the manual semantic walk, plus the WMM generator repair and the start of the identifier-naming remediation. All behavior-preserving — host ctest **857/857** and **bench_sim 2/2 PASS** verified per commit.
+**L2-P5 "walk-ready" mechanical-tier clearing (Cycle 4).** Every script-decidable / known-mechanical JSF/P10 violation cleared and gated before the manual semantic walk, plus the WMM generator repair and the start of the identifier-naming remediation. All behavior-preserving â€” host ctest **857/857** and **bench_sim 2/2 PASS** verified per commit.
 
-- **Code remediation batch** (`6f2cf6b` lock) — cleared every known mechanical violation: `continue`×28 → structured flow (council reversed its "keep" lean), `#pragma once`→`#ifndef`×3 (incl. via the profile generator), `offsetof`→pointer-span×2, QP/C `(void*)0`→`nullptr`×24, JSF-202 float`==` sentinel → `CAL_STATUS_WMM_SET` bit + `has_default_location`, JSF-182 casts centralized into `evt_cast<E>` + CRC `const void*` + `static_cast` overlays + `uintptr_t` MPU cast, JPL-25 >6-param refactors. New "Auto-Generated Code" rule in `CODING_STANDARDS.md` after `mission_profile_data.h` was found drifted from its generator. (45 files; bit-exact on flight-math paths)
-- **Complexity regression fix** — extracted `evaluate_one_combinator` from `combinator_set_evaluate` (cognitive complexity 30→≤25) after the `continue`-inversion tripped JSF-3. (`guard_combinator.cpp`)
-- **`-Wshadow`/`-Wfloat-equal` gate-coverage hole** (`60ce731`) — `set_source_files_properties(COMPILE_OPTIONS)` *replaces*, not appends, silently dropping the flags from `eskf.cpp`/`eskf_codegen.cpp`; re-carried them, positive-controlled by planting + catching violations. (LL Entry 43)
-- **P10-7 return-value canary closed** (`ffc8a68`) via `[[nodiscard]]` API contracts (compiler-enforced under `-Werror`) instead of `NOLINT`; new `scripts/audit/full_tree_clang_tidy.sh` is the single gated-check source (hook + `SESSION_CHECKLIST` item 17 both call it — fixes the LL-40 dual-hardcode). `ParameterThreshold=6` (JPL-25).
-- **WMM magnetic-table generator repaired + regenerated** (`e5b4b6c`) — was failing its own NOAA `--verify` 97/100 (281° max declination error) while the committed table was correct (a codegen-drift landmine — its `Regenerate:` banner would have shipped garbage heading). Three Schmidt-Legendre bugs fixed (spurious `/(1-K)`, B_φ sign, geodetic→geocentric radius/altitude) → **0.005°/0.005°/0 nT**. Fixed the generator (not the product) and regenerated; 3-component WMM2025 model unchanged.
-- **Uppercase literal suffixes** (`f7d2170`) — JSF AV Rule 14, 207 `f`→`F` / `u`→`U` across 24 authored sources (generated/vendored excluded).
-- **Identifier naming — locals + parameters** (`a96a8a2`) — 521 renames to snake_case (JSF AV Rule 51) via clang-refactor (AST-safe). The `.clang-tidy` config corrected to match the standard (it had demanded `camelBack` locals/params with no basis). Completed across the remaining categories on 06-25 (see `2026-06-25-001`).
+- **Code remediation batch** (`6f2cf6b` lock) â€” cleared every known mechanical violation: `continue`Ã—28 â†’ structured flow (council reversed its "keep" lean), `#pragma once`â†’`#ifndef`Ã—3 (incl. via the profile generator), `offsetof`â†’pointer-spanÃ—2, QP/C `(void*)0`â†’`nullptr`Ã—24, JSF-202 float`==` sentinel â†’ `CAL_STATUS_WMM_SET` bit + `has_default_location`, JSF-182 casts centralized into `evt_cast<E>` + CRC `const void*` + `static_cast` overlays + `uintptr_t` MPU cast, JPL-25 >6-param refactors. New "Auto-Generated Code" rule in `CODING_STANDARDS.md` after `mission_profile_data.h` was found drifted from its generator. (45 files; bit-exact on flight-math paths)
+- **Complexity regression fix** â€” extracted `evaluate_one_combinator` from `combinator_set_evaluate` (cognitive complexity 30â†’â‰¤25) after the `continue`-inversion tripped JSF-3. (`guard_combinator.cpp`)
+- **`-Wshadow`/`-Wfloat-equal` gate-coverage hole** (`60ce731`) â€” `set_source_files_properties(COMPILE_OPTIONS)` *replaces*, not appends, silently dropping the flags from `eskf.cpp`/`eskf_codegen.cpp`; re-carried them, positive-controlled by planting + catching violations. (LL Entry 43)
+- **P10-7 return-value canary closed** (`ffc8a68`) via `[[nodiscard]]` API contracts (compiler-enforced under `-Werror`) instead of `NOLINT`; new `scripts/audit/full_tree_clang_tidy.sh` is the single gated-check source (hook + `SESSION_CHECKLIST` item 17 both call it â€” fixes the LL-40 dual-hardcode). `ParameterThreshold=6` (JPL-25).
+- **WMM magnetic-table generator repaired + regenerated** (`e5b4b6c`) â€” was failing its own NOAA `--verify` 97/100 (281Â° max declination error) while the committed table was correct (a codegen-drift landmine â€” its `Regenerate:` banner would have shipped garbage heading). Three Schmidt-Legendre bugs fixed (spurious `/(1-K)`, B_Ï† sign, geodeticâ†’geocentric radius/altitude) â†’ **0.005Â°/0.005Â°/0 nT**. Fixed the generator (not the product) and regenerated; 3-component WMM2025 model unchanged.
+- **Uppercase literal suffixes** (`f7d2170`) â€” JSF AV Rule 14, 207 `f`â†’`F` / `u`â†’`U` across 24 authored sources (generated/vendored excluded).
+- **Identifier naming â€” locals + parameters** (`a96a8a2`) â€” 521 renames to snake_case (JSF AV Rule 51) via clang-refactor (AST-safe). The `.clang-tidy` config corrected to match the standard (it had demanded `camelBack` locals/params with no basis). Completed across the remaining categories on 06-25 (see `2026-06-25-001`).
 
 ### 2026-06-23-001 | Claude Opus 4.8 (Code) | documentation, standards, audit
 
-**L2-P5 standards-walk — disposition decision-lock (Cycle 4).** Resolves the known JSF/P10 walk findings before the manual walk begins — all fix-oriented or ruleset-internal-compliant, no pre-judged accepts. This entry also covers two earlier same-session commits that shipped unlogged: `1eea319` (field manual + 185-file itinerary + work plan + adopted-code policy + TP-2 `__StackBottom` accepted-via-vendoring) and `a9dc8de` (precedence restructured into one unified house standard — timeline/lineage, containment model, most-restrictive conflict rule with escapes, recency demoted to a soft factor).
+**L2-P5 standards-walk â€” disposition decision-lock (Cycle 4).** Resolves the known JSF/P10 walk findings before the manual walk begins â€” all fix-oriented or ruleset-internal-compliant, no pre-judged accepts. This entry also covers two earlier same-session commits that shipped unlogged: `1eea319` (field manual + 185-file itinerary + work plan + adopted-code policy + TP-2 `__StackBottom` accepted-via-vendoring) and `a9dc8de` (precedence restructured into one unified house standard â€” timeline/lineage, containment model, most-restrictive conflict rule with escapes, recency demoted to a soft factor).
 
-This commit (pure-doc): **(1)** JSF-175 `nullptr` supersession recorded + codebase verified uniformly `nullptr` (only `NULL` in `src/` is a doc comment); the QP/C `(void *)0` sender idiom (23 sites) dispositioned → `nullptr`. **(2)** Naming supersession (JSF 45/51/52 → house camelBack/`k`-/`g_`) promoted from a Pre-Commit-Checklist parenthetical into a Worked-consolidation-decisions peer bullet; checklist now references it. **(3)** JSF-182 dispositioned per-category against the rule's verbatim Exception 1/2 (primary-source-verified from the PDF via `pdftotext`): literal/HW-address→pointer **compliant** (Exc 2); CRC struct→`uint8_t*` + buffer→header overlay **remediated to compliance** (Exc 1); QP/C `QEvt*`→derived downcast **centralized** into a `static_assert`-guarded `evt_cast<E>` helper. Two native-code residuals logged as the project's **first accepted deviations in project-authored code** — **CAST-1** (MPU linker-symbol→`uintptr_t`, hardware-interface; Rule-182 truncation rationale provably inapplicable on a 32-bit target) and **CAST-2** (`evt_cast`, well-defined via the C++ standard-layout first-member guarantee); both justified by reasoning external to the JSF text. **(4)** Triage over-claim ("all of JSF-182 is a standing deviation") plus 175/naming corrected at source in `RULE_VERIFIABILITY_TRIAGE.md`. **(5)** Phase-C disposition table refreshed (all FIX/recorded). **(6)** WB: medium-priority QP/C-vs-QP/C++ evaluation added — the framework C-vs-C++ sub-choice was never surfaced to the repo owner; the C++ edition would retire CAST-2.
+This commit (pure-doc): **(1)** JSF-175 `nullptr` supersession recorded + codebase verified uniformly `nullptr` (only `NULL` in `src/` is a doc comment); the QP/C `(void *)0` sender idiom (23 sites) dispositioned â†’ `nullptr`. **(2)** Naming supersession (JSF 45/51/52 â†’ house camelBack/`k`-/`g_`) promoted from a Pre-Commit-Checklist parenthetical into a Worked-consolidation-decisions peer bullet; checklist now references it. **(3)** JSF-182 dispositioned per-category against the rule's verbatim Exception 1/2 (primary-source-verified from the PDF via `pdftotext`): literal/HW-addressâ†’pointer **compliant** (Exc 2); CRC structâ†’`uint8_t*` + bufferâ†’header overlay **remediated to compliance** (Exc 1); QP/C `QEvt*`â†’derived downcast **centralized** into a `static_assert`-guarded `evt_cast<E>` helper. Two native-code residuals logged as the project's **first accepted deviations in project-authored code** â€” **CAST-1** (MPU linker-symbolâ†’`uintptr_t`, hardware-interface; Rule-182 truncation rationale provably inapplicable on a 32-bit target) and **CAST-2** (`evt_cast`, well-defined via the C++ standard-layout first-member guarantee); both justified by reasoning external to the JSF text. **(4)** Triage over-claim ("all of JSF-182 is a standing deviation") plus 175/naming corrected at source in `RULE_VERIFIABILITY_TRIAGE.md`. **(5)** Phase-C disposition table refreshed (all FIX/recorded). **(6)** WB: medium-priority QP/C-vs-QP/C++ evaluation added â€” the framework C-vs-C++ sub-choice was never surfaced to the repo owner; the C++ edition would retire CAST-2.
 
 Code remediations these dispositions call for land in a following bench_sim-gated batch. Verified: pure-software change (docs only), matrix `TRIGGER_FLIGHT_BENCH=0`, host ctest unaffected, no HW gate required. (standards/CODING_STANDARDS.md, standards/ACCEPTED_STANDARDS_DEVIATIONS.md, docs/audits/RULE_VERIFIABILITY_TRIAGE.md, docs/plans/L2P5_WALK_PLAN.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
 ### 2026-06-21-001 | Claude Opus 4.8 (Code) | documentation, audit
 
-**L2-P5 manual standards-walk preparation (Cycle 4).** Retroactive entry covering the audit-prep docs landed across two commit waves that had not been logged. **Post-written note:** this entry was authored in a later session, after a restart, once another session surfaced that the 2026-06-21 handoff had shipped work without a CHANGELOG entry; the repo owner returned to close that gap. It is intentionally dated to the handoff it documents (2026-06-21), not to the later date it was written — so the date here is earlier than this entry's own commit timestamp. Deliverables, all pushed: (1) `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (new, `5a6cf87` 2026-06-17) — unified master rule-verifiability triage over the full audited corpus (Power of Ten 10 + JPL-C LOC-1..4 31 + JSF AV 233 distinct IDs; 225 property-rows; JPL LOC-5/6 MISRA deferred-with-rationale), workflow-generated and primary-source-verified, classifying every rule Det-direct / Det-by-reference / Grey / Manual / Split / Compliant-by-construction with an enforcement-honesty diagnostic (none / honest-narrow / over-claiming); plus the repo-owner-authorized bounded "Cross-standard rule-equivalence map" amendment to `standards/CODING_STANDARDS.md` (table under Foundation). (2) `docs/audits/L2P5_MANUAL_WALK_GUIDE.md` (rebuilt, `ab44feb`/`ccc67ad` 2026-06-21) — re-scoped per repo-owner direction onto the triage spine: the walk now covers everything the scripts cannot fully+correctly evaluate across all of `src/` (not the post-`fcd3496` file delta), tiered into semantic-walk / one-shot-mechanical / script-covered; Classes 1-3 plus the live-violations and one-shot-mechanical sections built, Classes 4-14 indexed for the next pass. Findings surfaced (not actioned) in triage §7: naming over-claim at `standards/CODING_STANDARDS.md:433`, P10-7 `CheckedFunctions` coverage gap, live JSF-18/27/190/202 violations. No firmware code changes. Verified: pure-software change (docs only), matrix `TRIGGER_FLIGHT_BENCH=0`, host ctest unaffected, no HW gate required. (docs/audits/RULE_VERIFIABILITY_TRIAGE.md, docs/audits/L2P5_MANUAL_WALK_GUIDE.md, standards/CODING_STANDARDS.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
+**L2-P5 manual standards-walk preparation (Cycle 4).** Retroactive entry covering the audit-prep docs landed across two commit waves that had not been logged. **Post-written note:** this entry was authored in a later session, after a restart, once another session surfaced that the 2026-06-21 handoff had shipped work without a CHANGELOG entry; the repo owner returned to close that gap. It is intentionally dated to the handoff it documents (2026-06-21), not to the later date it was written â€” so the date here is earlier than this entry's own commit timestamp. Deliverables, all pushed: (1) `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (new, `5a6cf87` 2026-06-17) â€” unified master rule-verifiability triage over the full audited corpus (Power of Ten 10 + JPL-C LOC-1..4 31 + JSF AV 233 distinct IDs; 225 property-rows; JPL LOC-5/6 MISRA deferred-with-rationale), workflow-generated and primary-source-verified, classifying every rule Det-direct / Det-by-reference / Grey / Manual / Split / Compliant-by-construction with an enforcement-honesty diagnostic (none / honest-narrow / over-claiming); plus the repo-owner-authorized bounded "Cross-standard rule-equivalence map" amendment to `standards/CODING_STANDARDS.md` (table under Foundation). (2) `docs/audits/L2P5_MANUAL_WALK_GUIDE.md` (rebuilt, `ab44feb`/`ccc67ad` 2026-06-21) â€” re-scoped per repo-owner direction onto the triage spine: the walk now covers everything the scripts cannot fully+correctly evaluate across all of `src/` (not the post-`fcd3496` file delta), tiered into semantic-walk / one-shot-mechanical / script-covered; Classes 1-3 plus the live-violations and one-shot-mechanical sections built, Classes 4-14 indexed for the next pass. Findings surfaced (not actioned) in triage Â§7: naming over-claim at `standards/CODING_STANDARDS.md:433`, P10-7 `CheckedFunctions` coverage gap, live JSF-18/27/190/202 violations. No firmware code changes. Verified: pure-software change (docs only), matrix `TRIGGER_FLIGHT_BENCH=0`, host ctest unaffected, no HW gate required. (docs/audits/RULE_VERIFIABILITY_TRIAGE.md, docs/audits/L2P5_MANUAL_WALK_GUIDE.md, standards/CODING_STANDARDS.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
 ### 2026-06-18-001 | Composer 2.5 (via Build CLI) | docs, starcom
 
@@ -526,9 +530,9 @@ Code remediations these dispositions call for land in a following bench_sim-gate
 
 ### 2026-06-19-001 | Claude Opus 4.8 (Code) | documentation, research, council
 
-**Starcom design record — councils + design consensus.** Added `docs/research/STARCOM_CLAUDE_COUNCIL_VERDICT.md`, the Claude-side consolidated Starcom design record (scope, architecture decisions, council rounds, research passes, design notes). Captures: §0 canonical scope (universal CCSDS library; RC = first consumer + flight-blocker driver; library end-goal = the Blue Books, MVP goalpost = empirical); Round 2 universal-library reframe (three-tier PHY as adapters, per-component conformance system, compliance-neutrality of internal abstractions); Round 3 (USLP as the strategic unifying spine carrying COP-1+COP-P per VC; Proximity-1 as a sibling protocol family; adversarial re-grounding on the **broken half-duplex telemetry flight blocker**; "architecturally complete / feature-incremental" build philosophy; MVP first cut = V-3/PLTU + COP-P + minimal half-duplex turnaround pulled forward, verified independently of the reliability layer). Research-backed core decision: CCSDS state machines are small/flat (FOP-1 6 states, FARM-1 3) → **plain table-driven sans-I/O passive core, no QP/framework dependency**, AO an optional consumer-side adapter (verified vs OSDLP/cFS/yamcs prior art). Also recorded: function-generated CCSDS test telemetry as a deterministic-testing deliverable; pedagogical intent as foundational. Standalone Claude-side record; condensation with the Grok council verdict deferred. Pure research/documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required.
+**Starcom design record â€” councils + design consensus.** Added `docs/research/STARCOM_CLAUDE_COUNCIL_VERDICT.md`, the Claude-side consolidated Starcom design record (scope, architecture decisions, council rounds, research passes, design notes). Captures: Â§0 canonical scope (universal CCSDS library; RC = first consumer + flight-blocker driver; library end-goal = the Blue Books, MVP goalpost = empirical); Round 2 universal-library reframe (three-tier PHY as adapters, per-component conformance system, compliance-neutrality of internal abstractions); Round 3 (USLP as the strategic unifying spine carrying COP-1+COP-P per VC; Proximity-1 as a sibling protocol family; adversarial re-grounding on the **broken half-duplex telemetry flight blocker**; "architecturally complete / feature-incremental" build philosophy; MVP first cut = V-3/PLTU + COP-P + minimal half-duplex turnaround pulled forward, verified independently of the reliability layer). Research-backed core decision: CCSDS state machines are small/flat (FOP-1 6 states, FARM-1 3) â†’ **plain table-driven sans-I/O passive core, no QP/framework dependency**, AO an optional consumer-side adapter (verified vs OSDLP/cFS/yamcs prior art). Also recorded: function-generated CCSDS test telemetry as a deterministic-testing deliverable; pedagogical intent as foundational. Standalone Claude-side record; condensation with the Grok council verdict deferred. Pure research/documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required.
 
-**Standards-currency audit flagged on WB.** Web-verified (2 research agents): CCSDS **131.0-B-3 superseded twice → current 131.0-B-5** (Sep 2023), referenced stale in the Starcom research docs — flagged high-priority on `AGENT_WHITEBOARD.md` to fix before code locks coding definitions (verify which 131.0-B issue 211.2-B-3 normatively references). **MISRA C++:2023 confirmed paywalled → not adopted** (stays a compatible-with target). All other cited standards (JSF AV C++, P10, JPL-C, six other CCSDS Blue Books) confirmed current. (docs/research/STARCOM_CLAUDE_COUNCIL_VERDICT.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
+**Standards-currency audit flagged on WB.** Web-verified (2 research agents): CCSDS **131.0-B-3 superseded twice â†’ current 131.0-B-5** (Sep 2023), referenced stale in the Starcom research docs â€” flagged high-priority on `AGENT_WHITEBOARD.md` to fix before code locks coding definitions (verify which 131.0-B issue 211.2-B-3 normatively references). **MISRA C++:2023 confirmed paywalled â†’ not adopted** (stays a compatible-with target). All other cited standards (JSF AV C++, P10, JPL-C, six other CCSDS Blue Books) confirmed current. (docs/research/STARCOM_CLAUDE_COUNCIL_VERDICT.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
 ### 2026-06-17-002 | Grok 4.3 (Build CLI) | documentation, process
 
@@ -536,11 +540,11 @@ Code remediations these dispositions call for land in a following bench_sim-gate
 
 ### 2026-06-17-001 | Grok 4.3 (Build CLI) | documentation, research, council
 
-**Starcom council review + naming decisions.** Appended "Council Review — Universal CCSDS Scope (Grok, 2026-06)" section to `docs/research/STARCOM_RESEARCH_COMPARISON.md` after Entry 2. Re-framed findings and suggestions for universal CCSDS library use (cubesats and any other project needing standards-based telemetry), not RocketChip-only. Covered: PHY spectrum considerations (none at all / best-effort via PIO+COTS / eventual full-compliant); core naming "Starcom Core"; `ILink` (and Ixxx de-facto C++ interface convention from COM/MFC) as the neutral seam; best-effort and full PHY tiers as optional, clearly-labeled adapters/ports outside the bedrock core. Updated `AGENT_WHITEBOARD.md` to mark the council review complete with key outcomes (per whiteboard rules). Core content change landed in commit 552fc6f; this entry supplies the required CHANGELOG coverage. Pure documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required. (docs/research/STARCOM_RESEARCH_COMPARISON.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
+**Starcom council review + naming decisions.** Appended "Council Review â€” Universal CCSDS Scope (Grok, 2026-06)" section to `docs/research/STARCOM_RESEARCH_COMPARISON.md` after Entry 2. Re-framed findings and suggestions for universal CCSDS library use (cubesats and any other project needing standards-based telemetry), not RocketChip-only. Covered: PHY spectrum considerations (none at all / best-effort via PIO+COTS / eventual full-compliant); core naming "Starcom Core"; `ILink` (and Ixxx de-facto C++ interface convention from COM/MFC) as the neutral seam; best-effort and full PHY tiers as optional, clearly-labeled adapters/ports outside the bedrock core. Updated `AGENT_WHITEBOARD.md` to mark the council review complete with key outcomes (per whiteboard rules). Core content change landed in commit 552fc6f; this entry supplies the required CHANGELOG coverage. Pure documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required. (docs/research/STARCOM_RESEARCH_COMPARISON.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
 ### 2026-06-02-001 | Claude Opus 4.8 (Code) | documentation, research
 
-**Starcom research cross-document comparison.** Added `docs/research/STARCOM_RESEARCH_COMPARISON.md`, a shared multi-agent log comparing both pairs of Starcom research docs (CCSDS-domain Claude vs Grok; library-dev Claude vs Grok). Produced via a 16-agent workflow: structured pairwise diff per pair → adversarial verification of each substantive conflict against the verified CCSDS Blue-Book fact set → synthesis. Findings: on every load-bearing CCSDS fact the docs agree or have converged, with the Claude docs the stronger spine; the genuine open forks are architectural (sans-I/O pure core vs in-core `IPhysicalLayer`; static-vs-header-only default; USLP-v4 vs native-v3 framing). Five concrete decisions teed up for the implementation plan (D-1 PHY-honesty, D-2 sans-I/O core, D-3 form+error-backport, D-4 framing, D-5 CI/packaging). Document is append-only with mandatory per-finding attribution for future comparison agents. The comparison agents read the Grok docs in their pre-`5b33e39` (2026-05-30) state; per user direction the findings are recorded as-originally-found with per-finding `Status (post-5b33e39)` notes, since Grok's `5b33e39` remediation had already corrected most of the factual items (CLCW owner, PLTU/ASM, AX5043 category, SX1276 rev, LTO claim, vcpkg scope). Pure research/documentation — no code, no firmware, no builds. (docs/research/STARCOM_RESEARCH_COMPARISON.md, CHANGELOG.md)
+**Starcom research cross-document comparison.** Added `docs/research/STARCOM_RESEARCH_COMPARISON.md`, a shared multi-agent log comparing both pairs of Starcom research docs (CCSDS-domain Claude vs Grok; library-dev Claude vs Grok). Produced via a 16-agent workflow: structured pairwise diff per pair â†’ adversarial verification of each substantive conflict against the verified CCSDS Blue-Book fact set â†’ synthesis. Findings: on every load-bearing CCSDS fact the docs agree or have converged, with the Claude docs the stronger spine; the genuine open forks are architectural (sans-I/O pure core vs in-core `IPhysicalLayer`; static-vs-header-only default; USLP-v4 vs native-v3 framing). Five concrete decisions teed up for the implementation plan (D-1 PHY-honesty, D-2 sans-I/O core, D-3 form+error-backport, D-4 framing, D-5 CI/packaging). Document is append-only with mandatory per-finding attribution for future comparison agents. The comparison agents read the Grok docs in their pre-`5b33e39` (2026-05-30) state; per user direction the findings are recorded as-originally-found with per-finding `Status (post-5b33e39)` notes, since Grok's `5b33e39` remediation had already corrected most of the factual items (CLCW owner, PLTU/ASM, AX5043 category, SX1276 rev, LTO claim, vcpkg scope). Pure research/documentation â€” no code, no firmware, no builds. (docs/research/STARCOM_RESEARCH_COMPARISON.md, CHANGELOG.md)
 
 ---
 
@@ -564,51 +568,51 @@ Code remediations these dispositions call for land in a following bench_sim-gate
 
 ### 2026-05-30-002 | Claude Opus 4.8 (Code) | documentation, research
 
-**Starcom CCSDS research — independent second-agent document.** Added `docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md`, a standalone external-research artifact produced without reading the existing `STARCOM_CCSDS_LIBRARY_RESEARCH.md` (to avoid biasing the cross-check). Covers CCSDS 211.1-B-4 Physical Layer requirements vs. the 211.2-B Coding & Synchronization Sublayer boundary, RP2350 + SX1276/RFM95W @ 915 MHz feasibility, priced COTS-radio / SDR / IP-core surveys, USLP/COP-1/COP-P/OCF standards detail, JPL User Terminal (Blue Ghost 2) attribution, and FCC 915 MHz legality. Findings adversarially fact-checked against primary sources in two passes (0 claims refuted; nuance corrections folded in inline). Verdict: the named COTS hardware cannot emit a 211.1-B-4-compliant residual-carrier Bi-Phase-L/PM waveform — Starcom's value lands at 211.2-B / data-link over COTS links. Existing Grok research document left untouched. Pure research/documentation — no code, no firmware, no builds. (docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
+**Starcom CCSDS research â€” independent second-agent document.** Added `docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md`, a standalone external-research artifact produced without reading the existing `STARCOM_CCSDS_LIBRARY_RESEARCH.md` (to avoid biasing the cross-check). Covers CCSDS 211.1-B-4 Physical Layer requirements vs. the 211.2-B Coding & Synchronization Sublayer boundary, RP2350 + SX1276/RFM95W @ 915 MHz feasibility, priced COTS-radio / SDR / IP-core surveys, USLP/COP-1/COP-P/OCF standards detail, JPL User Terminal (Blue Ghost 2) attribution, and FCC 915 MHz legality. Findings adversarially fact-checked against primary sources in two passes (0 claims refuted; nuance corrections folded in inline). Verdict: the named COTS hardware cannot emit a 211.1-B-4-compliant residual-carrier Bi-Phase-L/PM waveform â€” Starcom's value lands at 211.2-B / data-link over COTS links. Existing Grok research document left untouched. Pure research/documentation â€” no code, no firmware, no builds. (docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
 
-**Starcom library-development research — second document (added to this entry).** Added `docs/research/CLAUDE_STARCOM_LIBRARY_DEVELOPMENT_RESEARCH.md`, a learning-oriented reference on how to architect/build/test/document/maintain a reusable modern C++ library, taught embedded-first (RP2350, freestanding-ish, no-heap-after-init, no exceptions/RTTI, JSF/JPL/P10 rigor) then generalized, with named exemplars (fmt, spdlog, nlohmann/json, Abseil, ETL) cited as evidence. Keystone recommendation: a **sans-I/O** pure-protocol core driven by the application (bytes/timeouts in, events out), enabling ~100% host-side branch coverage with no hardware and portability across MCU + ground station + SDR + tests. Includes a council deliberation (JPL/ArduPilot/Rocketeer/Cubesat — unanimous for one portable core + thin adapters, not two parallel libraries), error-handling guidance (`Result`/`expected` backport since `std::expected` is C++23 not C++17), modern-CMake packaging (static-default + the three consumption paths + install/export), protocol-library testing (golden vectors, property-based, parser fuzzing, sanitizers), governance (Apache-2.0, Keep-a-Changelog, SemVer/deprecation), and a concrete proposed directory layout + 7-phase build plan. Authored without reading the parallel Grok library-dev research, to keep the cross-check unbiased; that document left untouched. Pure research/documentation — no code, no firmware, no builds. (docs/research/CLAUDE_STARCOM_LIBRARY_DEVELOPMENT_RESEARCH.md, CHANGELOG.md)
+**Starcom library-development research â€” second document (added to this entry).** Added `docs/research/CLAUDE_STARCOM_LIBRARY_DEVELOPMENT_RESEARCH.md`, a learning-oriented reference on how to architect/build/test/document/maintain a reusable modern C++ library, taught embedded-first (RP2350, freestanding-ish, no-heap-after-init, no exceptions/RTTI, JSF/JPL/P10 rigor) then generalized, with named exemplars (fmt, spdlog, nlohmann/json, Abseil, ETL) cited as evidence. Keystone recommendation: a **sans-I/O** pure-protocol core driven by the application (bytes/timeouts in, events out), enabling ~100% host-side branch coverage with no hardware and portability across MCU + ground station + SDR + tests. Includes a council deliberation (JPL/ArduPilot/Rocketeer/Cubesat â€” unanimous for one portable core + thin adapters, not two parallel libraries), error-handling guidance (`Result`/`expected` backport since `std::expected` is C++23 not C++17), modern-CMake packaging (static-default + the three consumption paths + install/export), protocol-library testing (golden vectors, property-based, parser fuzzing, sanitizers), governance (Apache-2.0, Keep-a-Changelog, SemVer/deprecation), and a concrete proposed directory layout + 7-phase build plan. Authored without reading the parallel Grok library-dev research, to keep the cross-check unbiased; that document left untouched. Pure research/documentation â€” no code, no firmware, no builds. (docs/research/CLAUDE_STARCOM_LIBRARY_DEVELOPMENT_RESEARCH.md, CHANGELOG.md)
 
 ---
 
 ### 2026-05-30-001 | Grok 4.3 (Build CLI) | documentation, research
 
-**Starcom CCSDS library research document initialized.** Created living external research artifact `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` covering official CCSDS Physical Layer (211.1-B-4) requirements, feasibility with current SX1276 + RP2350 PIO hardware, commercial full-compliance options, and practical in-field tradeoffs for <50 km rocket use cases. Document structured with per-section authorship for multi-agent collaboration. Pure research/documentation — no code or implementation. (docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
+**Starcom CCSDS library research document initialized.** Created living external research artifact `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` covering official CCSDS Physical Layer (211.1-B-4) requirements, feasibility with current SX1276 + RP2350 PIO hardware, commercial full-compliance options, and practical in-field tradeoffs for <50 km rocket use cases. Document structured with per-section authorship for multi-agent collaboration. Pure research/documentation â€” no code or implementation. (docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
 
 **Starcom library-development research document delivered + cleanup.** Completed exhaustive external research artifact `docs/research/STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md` (MCU-first C++ protocol library architecture, header-mostly patterns, `std::expected`/`tl::expected`, CMake/FetchContent+vcpkg, narrow IPhysicalLayer, fuzz/PBT testing, F' non-viability as plugin, JSF AV Rule 206 alignment, prior-art deep dives on CCSDSPack/OSDLP/COMMS/libcyphal/ETL, and recommended defaults for future plan). Per user direction later in session: removed all internal "Written by" authorship headers (adopted separate per-agent documents model) and trimmed the corresponding AGENT_WHITEBOARD.md handoff note from novel-length to short pointer + link to the research doc. Pure research + doc hygiene. No src/ changes. (docs/research/STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
 **2026-05-30 research document corrections.** Fact-check remediation on both Grok research artifacts:
-- CCSDS doc: CLCW bit layout corrected to 232.0-B-4 (layout) + 232.1-B-2 (COP-1 procedures); PLTU/ASM ownership corrected to 211.2-B-3; AX5043 language corrected (suppressed-carrier BPSK, not residual-carrier 60° PM); SX1276 datasheet updated to Rev. 7 (May 2020); early optimistic §2.3 language toned down with pointer to the later corrected §2.5 analysis; duplicate/scramble tail after §2.5 excised for document hygiene.
+- CCSDS doc: CLCW bit layout corrected to 232.0-B-4 (layout) + 232.1-B-2 (COP-1 procedures); PLTU/ASM ownership corrected to 211.2-B-3; AX5043 language corrected (suppressed-carrier BPSK, not residual-carrier 60Â° PM); SX1276 datasheet updated to Rev. 7 (May 2020); early optimistic Â§2.3 language toned down with pointer to the later corrected Â§2.5 analysis; duplicate/scramble tail after Â§2.5 excised for document hygiene.
 - Library-dev doc: Removed incorrect claim that header-only is required for LTO (LTO is a `-flto` flag property, works with static libs); softened "vcpkg non-negotiable for air-gapped/cert" language to match the project's documented hobbyist/educational scope.
 - Cross-check of Claude doc uncertain items (CRC-32 poly and 211.2-B-3 cover date) performed against the actual 211.2-B-3 PDF (Issue 3, October 2019); both confirmed accurate (poly via annex C reference to standard CCSDS CRC-32 procedure).
 All other citations/dates in the Grok docs audited for recency. (Both research docs, CHANGELOG.md)
 
 ### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
 
-**CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.
+**CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation â€” no src/ changes this session.
 
 ---
 
 ### 2026-05-22-003 | Claude | tooling, audit, council, documentation, refactor
 
-**Three workstreams, 9 commits.** (1) **Scratch-tool + dead-code policy.** Council unanimous (JPL + Prof + ArduPilot + Cubesat → JPL + Prof + ArduPilot + Rocketeer across rounds): `tools/scratch/` path convention, `_PURPOSE` file pattern, milestone-close stale-review at 4 months ([`SESSION_CHECKLIST.md`](.claude/SESSION_CHECKLIST.md) item 17a). Dead-code policy with history-trace-before-deletion rule ([`standards/CODING_STANDARDS.md`](standards/CODING_STANDARDS.md)). Tooling: [`scripts/audit/find_dead_code.py`](scripts/audit/find_dead_code.py) (Class 1/2/3/4 detection) + [`scripts/audit/survey_test_subjects.py`](scripts/audit/survey_test_subjects.py); both wired to SESSION_CHECKLIST item 17b. (2) **Dead-code execution.** Detector caught 3 orphans: `tools/i2c_bare_test/` → `tools/scratch/`; `src/fusion/baro_kf.{h,cpp}` + `test/test_baro_kf.cpp` deleted (-11 tests; firmware removal had ambivalently retained host tests); `src/fusion/ud_factor.cpp` Thornton variants + helpers deleted (Phase-1 benchmark concluded codegen+Bierman wins; -191 lines, coverage 33% → 89%); `test/test_qep_smoke.cpp` deleted (IVP-67 scaffolding superseded by IVP-68; -12 tests). Coverage report at [`docs/audits/COVERAGE_2026-05-22.md`](docs/audits/COVERAGE_2026-05-22.md) — broad improvements (mavlink_rx 42→92%, telemetry_encoder 53→95%, notify_backend_led 61→93%, eskf 77→84%). (3) **OpenRocket integration evaluation + user doc.** 4-phase plan ([`C:\Users\pow-w\.claude\plans\toasty-sparking-squirrel.md`](C:\Users\pow-w\.claude\plans\toasty-sparking-squirrel.md)) producing [`docs/decisions/OPENROCKET_INTEGRATION_EVALUATION_2026-05-22.md`](docs/decisions/OPENROCKET_INTEGRATION_EVALUATION_2026-05-22.md) (catalog + council verdicts on 8 candidates) and [`docs/tools/OPENROCKET_USAGE.md`](docs/tools/OPENROCKET_USAGE.md) (user-facing how-to, 264 lines). Only C6.a approved-now; built [`scripts/audit/check_mission_profile_vs_or.py`](scripts/audit/check_mission_profile_vs_or.py) (advisory cross-check, 6/6 OK against F15-6 nominal). Phase 2 council caught a critical Phase 1 framing error: catalog claimed C3 needed converter "verification," but the converter docstring explicitly says R(q) for lateral motion is NOT implemented — so C3 needs R(q) extension as prerequisite, restructured C3 from approve-now to approve-in-principle separate session. New `docs/tools/` directory introduced for tool-usage guides.
+**Three workstreams, 9 commits.** (1) **Scratch-tool + dead-code policy.** Council unanimous (JPL + Prof + ArduPilot + Cubesat â†’ JPL + Prof + ArduPilot + Rocketeer across rounds): `tools/scratch/` path convention, `_PURPOSE` file pattern, milestone-close stale-review at 4 months ([`SESSION_CHECKLIST.md`](.claude/SESSION_CHECKLIST.md) item 17a). Dead-code policy with history-trace-before-deletion rule ([`standards/CODING_STANDARDS.md`](standards/CODING_STANDARDS.md)). Tooling: [`scripts/audit/find_dead_code.py`](scripts/audit/find_dead_code.py) (Class 1/2/3/4 detection) + [`scripts/audit/survey_test_subjects.py`](scripts/audit/survey_test_subjects.py); both wired to SESSION_CHECKLIST item 17b. (2) **Dead-code execution.** Detector caught 3 orphans: `tools/i2c_bare_test/` â†’ `tools/scratch/`; `src/fusion/baro_kf.{h,cpp}` + `test/test_baro_kf.cpp` deleted (-11 tests; firmware removal had ambivalently retained host tests); `src/fusion/ud_factor.cpp` Thornton variants + helpers deleted (Phase-1 benchmark concluded codegen+Bierman wins; -191 lines, coverage 33% â†’ 89%); `test/test_qep_smoke.cpp` deleted (IVP-67 scaffolding superseded by IVP-68; -12 tests). Coverage report at [`docs/audits/COVERAGE_2026-05-22.md`](docs/audits/COVERAGE_2026-05-22.md) â€” broad improvements (mavlink_rx 42â†’92%, telemetry_encoder 53â†’95%, notify_backend_led 61â†’93%, eskf 77â†’84%). (3) **OpenRocket integration evaluation + user doc.** 4-phase plan ([`C:\Users\pow-w\.claude\plans\toasty-sparking-squirrel.md`](C:\Users\pow-w\.claude\plans\toasty-sparking-squirrel.md)) producing [`docs/decisions/OPENROCKET_INTEGRATION_EVALUATION_2026-05-22.md`](docs/decisions/OPENROCKET_INTEGRATION_EVALUATION_2026-05-22.md) (catalog + council verdicts on 8 candidates) and [`docs/tools/OPENROCKET_USAGE.md`](docs/tools/OPENROCKET_USAGE.md) (user-facing how-to, 264 lines). Only C6.a approved-now; built [`scripts/audit/check_mission_profile_vs_or.py`](scripts/audit/check_mission_profile_vs_or.py) (advisory cross-check, 6/6 OK against F15-6 nominal). Phase 2 council caught a critical Phase 1 framing error: catalog claimed C3 needed converter "verification," but the converter docstring explicitly says R(q) for lateral motion is NOT implemented â€” so C3 needs R(q) extension as prerequisite, restructured C3 from approve-now to approve-in-principle separate session. New `docs/tools/` directory introduced for tool-usage guides.
 
-WB groomed during session: 4 stale rows erased + ctest-count snapshot updated. Net session: 9 commits, 857 ctest entries (was 871, lost 23 from orphan deletions, gained 1 audit-cycle entry for OR cross-check), 4 new audit scripts in tree, ~340 lines deleted from `src/`, 3 new docs (1 standards section, 1 decision doc, 1 user-facing guide), zero firmware bytes touched. Commits `23ca50c` → `0ba2af5`.
+WB groomed during session: 4 stale rows erased + ctest-count snapshot updated. Net session: 9 commits, 857 ctest entries (was 871, lost 23 from orphan deletions, gained 1 audit-cycle entry for OR cross-check), 4 new audit scripts in tree, ~340 lines deleted from `src/`, 3 new docs (1 standards section, 1 decision doc, 1 user-facing guide), zero firmware bytes touched. Commits `23ca50c` â†’ `0ba2af5`.
 
 ### 2026-05-22-002 | Claude | council, audit, bookkeeping
 
-**R-29 opened + closed NO REPRO; R-28 bookkeeping advance; Commandment XII source-rot WB row.** Bench-measured the LL Entry 39 rc_log drain known-limitation (council-approved protocol, [`Testing/rc_log_drain_measure.py`](Testing/rc_log_drain_measure.py)): under ~900 rc_log emissions/sec sustained for 60s, IMU rate held at ~1025/s with zero new errors. Empty-ring fast-path is sufficient; R-29 closed as ACCEPT per LL Entry 38. R-28 state-advanced `verified → closed` (the 7/7 IVP-131 tests + 879/879 ctest at original landing IS R-28's audit-suite regression; advance was missed 2026-05-21). Investigating R-27 surfaced that Commandment XII in [`docs/decisions/AO_COMMANDMENTS.md`](docs/decisions/AO_COMMANDMENTS.md) cites LL Entry 36 (test-tool rot) which doesn't support the rule; agent confirmed no substitute citation exists in the doc's stated sources. Added high-priority WB row for a full 12-Commandment source-audit per [LL Entry 37](.claude/LESSONS_LEARNED.md) discipline; R-27 disposition deferred. Commits `49cd93d` + this.
+**R-29 opened + closed NO REPRO; R-28 bookkeeping advance; Commandment XII source-rot WB row.** Bench-measured the LL Entry 39 rc_log drain known-limitation (council-approved protocol, [`Testing/rc_log_drain_measure.py`](Testing/rc_log_drain_measure.py)): under ~900 rc_log emissions/sec sustained for 60s, IMU rate held at ~1025/s with zero new errors. Empty-ring fast-path is sufficient; R-29 closed as ACCEPT per LL Entry 38. R-28 state-advanced `verified â†’ closed` (the 7/7 IVP-131 tests + 879/879 ctest at original landing IS R-28's audit-suite regression; advance was missed 2026-05-21). Investigating R-27 surfaced that Commandment XII in [`docs/decisions/AO_COMMANDMENTS.md`](docs/decisions/AO_COMMANDMENTS.md) cites LL Entry 36 (test-tool rot) which doesn't support the rule; agent confirmed no substitute citation exists in the doc's stated sources. Added high-priority WB row for a full 12-Commandment source-audit per [LL Entry 37](.claude/LESSONS_LEARNED.md) discipline; R-27 disposition deferred. Commits `49cd93d` + this.
 
 ### 2026-05-22-001 | Claude | refactor, tooling, council, audit
 
 **IVP-131 host-side verification: pivot from per-row ESKF state-tolerance to phase-window FD test.** Original approach implemented partway and surfaced its own failure: ESKF innovation gates trip on synthesized OR trajectories, filter goes open-loop, state diverges ~50km. Cross-reference research (ArduPilot Tools/Replay, PX4 ECL #14651, JPL MONTE) confirmed per-row state-tolerance is reserved for real-flight log replay; synthesized inputs use phase-window event assertions. Two councils ran this session (initial then pivot); pivot approved with 8 amendments, all folded in. Plan + full council transcripts at [`C:\Users\pow-w\.claude\plans\lexical-zooming-hejlsberg.md`](C:\Users\pow-w\.claude\plans\lexical-zooming-hejlsberg.md). Commit `3bdd71f`.
 
-Replacement: [`test/test_flight_director_replay.cpp`](test/test_flight_director_replay.cpp) drives the FD state machine through an OR-derived `FusedState` stream and asserts dual invariants per profile: (a) phase ordering with no out-of-order transitions, (b) each transition timestamp within its window. 6 Big Daddy fault profiles + 1 differential test (cleared health bit must cause divergence, not frozen velocity). Apogee/burnout windows derived from OR CSV; operator-event windows hardcoded ±100 ms. Test-file disclaimer header declares non-coverage (ESKF math, pyro hardware, real sensor noise). 879/879 host ctest PASS; host-only, zero `src/` or `include/` touches.
+Replacement: [`test/test_flight_director_replay.cpp`](test/test_flight_director_replay.cpp) drives the FD state machine through an OR-derived `FusedState` stream and asserts dual invariants per profile: (a) phase ordering with no out-of-order transitions, (b) each transition timestamp within its window. 6 Big Daddy fault profiles + 1 differential test (cleared health bit must cause divergence, not frozen velocity). Apogee/burnout windows derived from OR CSV; operator-event windows hardcoded Â±100 ms. Test-file disclaimer header declares non-coverage (ESKF math, pyro hardware, real sensor noise). 879/879 host ctest PASS; host-only, zero `src/` or `include/` touches.
 
-Toolchain: [`scripts/trajectory_to_sensors.py`](scripts/trajectory_to_sensors.py) (OR → sensor CSV converter, future-use utility). OpenRocket 23.09 + Adoptium JDK 17 + orlab 0.2.7 installed at `C:\Users\pow-w\OpenRocket\` + `C:\Users\pow-w\Java\jdk-17.0.19+10\` — version choice driven by orlab issue #2 (24.12 namespace breakage). OR export verified end-to-end with F15-6 + 40g nosecone override; converter cross-checked against OR source for convention details (NED-up positive accel, elevation-from-horizontal orientation, mbar pressure, pre-liftoff unconstrained accel). Inputs: [`tests/replay_profiles/openrocket_export/big_daddy_f15_6_nominal.csv`](tests/replay_profiles/openrocket_export/big_daddy_f15_6_nominal.csv), [`tests/replay_profiles/RC_estes_big_daddy.rkt`](tests/replay_profiles/RC_estes_big_daddy.rkt), [`tests/replay_profiles/CONTENT_VALIDATION.md`](tests/replay_profiles/CONTENT_VALIDATION.md).
+Toolchain: [`scripts/trajectory_to_sensors.py`](scripts/trajectory_to_sensors.py) (OR â†’ sensor CSV converter, future-use utility). OpenRocket 23.09 + Adoptium JDK 17 + orlab 0.2.7 installed at `C:\Users\pow-w\OpenRocket\` + `C:\Users\pow-w\Java\jdk-17.0.19+10\` â€” version choice driven by orlab issue #2 (24.12 namespace breakage). OR export verified end-to-end with F15-6 + 40g nosecone override; converter cross-checked against OR source for convention details (NED-up positive accel, elevation-from-horizontal orientation, mbar pressure, pre-liftoff unconstrained accel). Inputs: [`tests/replay_profiles/openrocket_export/big_daddy_f15_6_nominal.csv`](tests/replay_profiles/openrocket_export/big_daddy_f15_6_nominal.csv), [`tests/replay_profiles/RC_estes_big_daddy.rkt`](tests/replay_profiles/RC_estes_big_daddy.rkt), [`tests/replay_profiles/CONTENT_VALIDATION.md`](tests/replay_profiles/CONTENT_VALIDATION.md).
 
 Dropped (council amendment #6 + LL Entry 36): the 5 pre-existing `big_daddy_*.csv` files with bogus accelerometer physics. Regeneration is one command if a future session needs them.
 
-R-28 advanced `analyzed → verified (Level-1)` in [`docs/PROBLEM_REPORTS.md`](docs/PROBLEM_REPORTS.md) with three reopen triggers: IVP-135a real-flight log replay becomes feasible; new ESKF state machine kind without guard-path coverage; supersonic-capable airframe (needs sidecar-exclusion infrastructure). Real-flight log capture stays at IVP-135a per [`docs/plans/STAGE17_TAPERED_BUILDUP.md`](docs/plans/STAGE17_TAPERED_BUILDUP.md) — zero file-overlap with pivot work.
+R-28 advanced `analyzed â†’ verified (Level-1)` in [`docs/PROBLEM_REPORTS.md`](docs/PROBLEM_REPORTS.md) with three reopen triggers: IVP-135a real-flight log replay becomes feasible; new ESKF state machine kind without guard-path coverage; supersonic-capable airframe (needs sidecar-exclusion infrastructure). Real-flight log capture stays at IVP-135a per [`docs/plans/STAGE17_TAPERED_BUILDUP.md`](docs/plans/STAGE17_TAPERED_BUILDUP.md) â€” zero file-overlap with pivot work.
 
 Memory additions: [feedback-no-shipping-broken-code](.claude/projects/c--Users-pow-w-Documents-Rocket-Chip/memory/feedback_no_shipping_broken_code.md), [feedback-stop-asking-about-pausing](.claude/projects/c--Users-pow-w-Documents-Rocket-Chip/memory/feedback_stop_asking_about_pausing.md), [feedback-dont-jump-ahead-of-user-blocker](.claude/projects/c--Users-pow-w-Documents-Rocket-Chip/memory/feedback_dont_jump_ahead_of_user_blocker.md), [feedback-no-scope-caps-in-plans](.claude/projects/c--Users-pow-w-Documents-Rocket-Chip/memory/feedback_no_scope_caps_in_plans.md). WB row added: OpenRocket usage guide + broader-integration evaluation (deferred pending more workflow experience).
 
@@ -616,7 +620,7 @@ Memory additions: [feedback-no-shipping-broken-code](.claude/projects/c--Users-p
 
 ### 2026-05-21-001 | Claude | refactor, audit, tooling, council
 
-**Audit-residual cleanup session — 19 commits across five workstreams.** (a) 4-tier compile-time scaffolding retirement per "no backwards compat" direction — see [`docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md`](docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md). (b) Cycle 3 station GPS cold-boot diagnostic — 5/5 NO-REPRO, closed pending re-encounter — see [`docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md`](docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md). (c) Code Classification table retired (council unanimous) — single-binary statement + case-by-case deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. (d) R-25-exec audit-invariant mechanized as ctest `scripts_fault_force_gate_audit`. (e) L2-P3 citation infrastructure complete (`scripts/audit/{list_citations,pdf_section_lookup,verify_citations}.py`); walk caught one R-26-class finding (NASA SWE §8.5 → §8.05 padding per handbook canonical). Commits `f62073a` → `4431e22`. (CMakePresets.json, scripts/audit/*, multiple src/ + standards/ + docs/ — see commit messages)
+**Audit-residual cleanup session â€” 19 commits across five workstreams.** (a) 4-tier compile-time scaffolding retirement per "no backwards compat" direction â€” see [`docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md`](docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md). (b) Cycle 3 station GPS cold-boot diagnostic â€” 5/5 NO-REPRO, closed pending re-encounter â€” see [`docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md`](docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md). (c) Code Classification table retired (council unanimous) â€” single-binary statement + case-by-case deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. (d) R-25-exec audit-invariant mechanized as ctest `scripts_fault_force_gate_audit`. (e) L2-P3 citation infrastructure complete (`scripts/audit/{list_citations,pdf_section_lookup,verify_citations}.py`); walk caught one R-26-class finding (NASA SWE Â§8.5 â†’ Â§8.05 padding per handbook canonical). Commits `f62073a` â†’ `4431e22`. (CMakePresets.json, scripts/audit/*, multiple src/ + standards/ + docs/ â€” see commit messages)
 
 ---
 
@@ -632,19 +636,19 @@ Verified so far: single runs 2/2 PASS + clean exit on this hardware. Multi-run s
 
 ### 2026-05-20-002 | Claude | bugfix, tooling, council
 
-**Bug A: ESKF/Mahony stays UNHEALTHY across FD RESET-to-IDLE — fixed.** The post-RESULT cleanup work in [2026-05-20-001] above was chasing the wrong target. Council 2026-05-20 (NASA/JPL + Professor + ArduPilot + Cubesat, unanimous) traced the failing back-to-back repro to a defect in FD RESET semantics: `state_idle` Q_ENTRY did no subsystem-reset action, so ESKF stayed in its post-flight state (diverged or brake-tripped) and the operator could not re-ARM without power-cycle. Worse silent path: pad-abort auto-IDLE timeout lands in the same state with no operator input that caused it. Fix is a new `reset_subsystems_cb` callback on `FlightDirector`, wired in `ao_flight_director.cpp` to `eskf_runner_request_reinit()` (clears `g_eskfInitialized` + `g_mahonyInitialized` + `eskf_reenable()`). Covers four IDLE-entry paths: RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, pad-abort auto-IDLE timeout. The bench_sim cleanup machinery from [2026-05-20-001] reverted in commit c3fc03d — bench_sim returns directly after RESULT without trying to navigate the chip state, because tests themselves work fine in single-invocation and the back-to-back failure was always Bug A + Bug B in firmware. Council split Bug B (CDC wedge during sustained NO-GO output) as separate WB-tracked work; see AGENT_WHITEBOARD.md "Bug B" row. (src/flight_director/flight_director.{h,cpp}, src/active_objects/ao_flight_director.cpp, src/fusion/eskf_runner.{h,cpp}, test/test_flight_director.cpp, scripts/bench_sim.py, scripts/hooks/pre-commit, docs/decisions/FAULT_RECOVERY_2026-05-14.md)
+**Bug A: ESKF/Mahony stays UNHEALTHY across FD RESET-to-IDLE â€” fixed.** The post-RESULT cleanup work in [2026-05-20-001] above was chasing the wrong target. Council 2026-05-20 (NASA/JPL + Professor + ArduPilot + Cubesat, unanimous) traced the failing back-to-back repro to a defect in FD RESET semantics: `state_idle` Q_ENTRY did no subsystem-reset action, so ESKF stayed in its post-flight state (diverged or brake-tripped) and the operator could not re-ARM without power-cycle. Worse silent path: pad-abort auto-IDLE timeout lands in the same state with no operator input that caused it. Fix is a new `reset_subsystems_cb` callback on `FlightDirector`, wired in `ao_flight_director.cpp` to `eskf_runner_request_reinit()` (clears `g_eskfInitialized` + `g_mahonyInitialized` + `eskf_reenable()`). Covers four IDLE-entry paths: RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, pad-abort auto-IDLE timeout. The bench_sim cleanup machinery from [2026-05-20-001] reverted in commit c3fc03d â€” bench_sim returns directly after RESULT without trying to navigate the chip state, because tests themselves work fine in single-invocation and the back-to-back failure was always Bug A + Bug B in firmware. Council split Bug B (CDC wedge during sustained NO-GO output) as separate WB-tracked work; see AGENT_WHITEBOARD.md "Bug B" row. (src/flight_director/flight_director.{h,cpp}, src/active_objects/ao_flight_director.cpp, src/fusion/eskf_runner.{h,cpp}, test/test_flight_director.cpp, scripts/bench_sim.py, scripts/hooks/pre-commit, docs/decisions/FAULT_RECOVERY_2026-05-14.md)
 
-Also in this window: pre-commit hook had a Gate 2 early-exit bug eating Gates 3 + 4 (host ctest + bench_sim HW gate) — fix wraps Gate 2 in `if` instead of `exit 0` so the verification gates run unconditionally. This is the LL Entry 36 / 40 "fail-open when prerequisites missing" pattern; it had been masking the chain that led to Bug A's surfacing. (scripts/hooks/pre-commit)
+Also in this window: pre-commit hook had a Gate 2 early-exit bug eating Gates 3 + 4 (host ctest + bench_sim HW gate) â€” fix wraps Gate 2 in `if` instead of `exit 0` so the verification gates run unconditionally. This is the LL Entry 36 / 40 "fail-open when prerequisites missing" pattern; it had been masking the chain that led to Bug A's surfacing. (scripts/hooks/pre-commit)
 
-Comment-density follow-up from R-5 audit (WB row 2026-05-17) shipped: five hot-spot functions trimmed from 30-48% per-function density into the Polyspace healthy band (≤20% per user direction). Multi-paragraph rationale for the kAbort invariant + B.3 checksummed-pair design extracted to `docs/decisions/FAULT_RECOVERY_2026-05-14.md` (retroactive capture). Sister commit earlier this window: LL Entry 41 captured the RP2350B GPIO pad-isolation gotcha + `i2c_bus.cpp` trim (commit 9e74713). (src/active_objects/ao_telemetry.cpp, src/drivers/gps_uart.cpp, src/flight_director/flight_director.cpp, src/drivers/i2c_bus.cpp, .claude/LESSONS_LEARNED.md)
+Comment-density follow-up from R-5 audit (WB row 2026-05-17) shipped: five hot-spot functions trimmed from 30-48% per-function density into the Polyspace healthy band (â‰¤20% per user direction). Multi-paragraph rationale for the kAbort invariant + B.3 checksummed-pair design extracted to `docs/decisions/FAULT_RECOVERY_2026-05-14.md` (retroactive capture). Sister commit earlier this window: LL Entry 41 captured the RP2350B GPIO pad-isolation gotcha + `i2c_bus.cpp` trim (commit 9e74713). (src/active_objects/ao_telemetry.cpp, src/drivers/gps_uart.cpp, src/flight_director/flight_director.cpp, src/drivers/i2c_bus.cpp, .claude/LESSONS_LEARNED.md)
 
-Verified locally: host ctest 869/869 PASS (was 863, +6 new Bug A contract tests covering RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, ARMED-timeout, pad-abort-auto-IDLE, and startup-doesn't-fire-cb negative case); vehicle + station target builds clean; bench (post-flash) cycle-1 ABORT-RESET → wait 6s → cycle-2 ARM accepted with `Platform: 8/8 GO` (was `7/8 NO-GO ESKF UNHEALTHY`). Banner: vehicle flight v0.16.0 (kmenu). All commits in window passed the (now-fixed) pre-commit hook with bench_sim 2/2 PASS.
+Verified locally: host ctest 869/869 PASS (was 863, +6 new Bug A contract tests covering RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, ARMED-timeout, pad-abort-auto-IDLE, and startup-doesn't-fire-cb negative case); vehicle + station target builds clean; bench (post-flash) cycle-1 ABORT-RESET â†’ wait 6s â†’ cycle-2 ARM accepted with `Platform: 8/8 GO` (was `7/8 NO-GO ESKF UNHEALTHY`). Banner: vehicle flight v0.16.0 (kmenu). All commits in window passed the (now-fixed) pre-commit hook with bench_sim 2/2 PASS.
 
 ---
 
 ### 2026-05-20-003 | Claude | bugfix, council, safety
 
-**Bug B: Critical PIO program lifecycle asymmetry in `pio_backup_timer.cpp` — backup pyro silently dead on any second-or-later ARM cycle, latent since IVP-89 (commit `e1f0438`).** The "Bug B" in [2026-05-20-002] above was framed as a CDC-drain issue per initial council; GDB backtrace revealed the real root cause was an SDK assertion in `pio_remove_program` (paired with arm/disarm instead of init/teardown). Fix removes the disarm `pio_remove_program` and re-calls `backup_timer_program_init` in arm() to restore pin function + SM state. See LL Entry 42 for the full repro + sub-lesson "check GDB before reasoning from prior CDC-wedge LL entries." (src/safety/pio_backup_timer.cpp, .claude/LESSONS_LEARNED.md, docs/MULTICORE_RULES.md, docs/CONFIG_TEST_MATRIX.md, AGENT_WHITEBOARD.md; commits `860c3c9`, `24afa68`)
+**Bug B: Critical PIO program lifecycle asymmetry in `pio_backup_timer.cpp` â€” backup pyro silently dead on any second-or-later ARM cycle, latent since IVP-89 (commit `e1f0438`).** The "Bug B" in [2026-05-20-002] above was framed as a CDC-drain issue per initial council; GDB backtrace revealed the real root cause was an SDK assertion in `pio_remove_program` (paired with arm/disarm instead of init/teardown). Fix removes the disarm `pio_remove_program` and re-calls `backup_timer_program_init` in arm() to restore pin function + SM state. See LL Entry 42 for the full repro + sub-lesson "check GDB before reasoning from prior CDC-wedge LL entries." (src/safety/pio_backup_timer.cpp, .claude/LESSONS_LEARNED.md, docs/MULTICORE_RULES.md, docs/CONFIG_TEST_MATRIX.md, AGENT_WHITEBOARD.md; commits `860c3c9`, `24afa68`)
 
 Verified: host ctest 869/869, vehicle + station target builds clean, three-cycle bench `a/l/x/r` passes with no SDK assertion and no CDC wedge.
 
@@ -652,7 +656,7 @@ Verified: host ctest 869/869, vehicle + station target builds clean, three-cycle
 
 ### 2026-05-17-001 | Claude | refactor, architecture, council
 
-**R-5 stdio removal CLOSED at Level-3 — Units F through K shipped.** R-5 plan ([`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md)) closed at firmware level (Units F-J) + audit-suite Level-3 regression (Unit K). All `src/*.cpp` are now stdio-free; pre-commit gate upgraded to unconditional rejection of `<stdio.h>`; allowlist file deleted. Council 2026-05-17 (unanimous, parser-extract framing): new `rc::rc_snprintf` + `rc::strbuf` siblings to `rc::rc_log` share one parser, three sinks. Side fixups along the way: cross-checked Grok 4.3's ICM-20948 stuck-slave recovery (`dfabcd4`) with a minor correctness tweak to the post-clock blind writes (4× 1-byte → 2× `[reg,value]` 2-byte — the 27-pulse SCL clocking that actually does the recovery work was unchanged); GPS UART sticky-baud handler (CR1220 backup battery makes the MT3339 baud survive host reset); dashboard hint string + RCOS doc drift; HW_GATE_DISCIPLINE Rule 2 cable-reseat language retired; comment-density audit (aggregate 22.8%, in 15-25% band). Level-3 regression: 6/6 cold-restart bench_sim, 863/863 host ctest, SPIN_OK_31, station dashboard live + RF Link TRACK 100%, vehicle preflight 9/9 GO. PROBLEM_REPORTS R-5 + R-2 both closed; L2-P5 + L2-P10 R-5 dependency cleared. PROJECT_STATUS Future Features gains GPS 10Hz experimental-mode + eyalroz/printf exit-ramp candidate entries.
+**R-5 stdio removal CLOSED at Level-3 â€” Units F through K shipped.** R-5 plan ([`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md)) closed at firmware level (Units F-J) + audit-suite Level-3 regression (Unit K). All `src/*.cpp` are now stdio-free; pre-commit gate upgraded to unconditional rejection of `<stdio.h>`; allowlist file deleted. Council 2026-05-17 (unanimous, parser-extract framing): new `rc::rc_snprintf` + `rc::strbuf` siblings to `rc::rc_log` share one parser, three sinks. Side fixups along the way: cross-checked Grok 4.3's ICM-20948 stuck-slave recovery (`dfabcd4`) with a minor correctness tweak to the post-clock blind writes (4Ã— 1-byte â†’ 2Ã— `[reg,value]` 2-byte â€” the 27-pulse SCL clocking that actually does the recovery work was unchanged); GPS UART sticky-baud handler (CR1220 backup battery makes the MT3339 baud survive host reset); dashboard hint string + RCOS doc drift; HW_GATE_DISCIPLINE Rule 2 cable-reseat language retired; comment-density audit (aggregate 22.8%, in 15-25% band). Level-3 regression: 6/6 cold-restart bench_sim, 863/863 host ctest, SPIN_OK_31, station dashboard live + RF Link TRACK 100%, vehicle preflight 9/9 GO. PROBLEM_REPORTS R-5 + R-2 both closed; L2-P5 + L2-P10 R-5 dependency cleared. PROJECT_STATUS Future Features gains GPS 10Hz experimental-mode + eyalroz/printf exit-ramp candidate entries.
 
 ### 2026-05-16-003 | Grok 4.3 (via OpenCode) | bugfix, hardware
 
@@ -662,11 +666,11 @@ Verified: host ctest 869/869, vehicle + station target builds clean, three-cycle
 
 **R-5 stdio removal Units D + E shipped; meta-policy gate widening; rc_log idle-drain IMU regression fixed.** 8 commits this session.
 
-R-5 Tier 2 (Unit D, 3 sub-commits: `c71090e` gps_pa1010d, `89c1571` gps_uart, `caa9b42` i2c_bus) and Tier 3 (Unit E, 1 commit: `857b573` safety/diag) closed. ~125 callsites migrated, 5 dead-export public functions deleted (FreeRTOS-era), 3 files dropped from `scripts/hooks/stdio_allowlist.txt`. Unit B-fixup #2 (`2749a99`) corrected drain semantics: hold-on-disconnect ring + drop-oldest + `tud_cdc_write_flush()` per Pico SDK `stdio_usb_out_chars` pattern + ring 1KB→8KB per council. Verified via byte-on-wire diff on station for `q→d` diag_stats dump + 3D GPS lock confirmed on vehicle UART path (gps_uart Unit D part 2b also fixed a latent baud-bug — `gps_uart_send_command` early-return-on-`!g_initialized` was silently dropping PMTK251 baud-change, ride-along per HW_GATE Rule 7).
+R-5 Tier 2 (Unit D, 3 sub-commits: `c71090e` gps_pa1010d, `89c1571` gps_uart, `caa9b42` i2c_bus) and Tier 3 (Unit E, 1 commit: `857b573` safety/diag) closed. ~125 callsites migrated, 5 dead-export public functions deleted (FreeRTOS-era), 3 files dropped from `scripts/hooks/stdio_allowlist.txt`. Unit B-fixup #2 (`2749a99`) corrected drain semantics: hold-on-disconnect ring + drop-oldest + `tud_cdc_write_flush()` per Pico SDK `stdio_usb_out_chars` pattern + ring 1KBâ†’8KB per council. Verified via byte-on-wire diff on station for `qâ†’d` diag_stats dump + 3D GPS lock confirmed on vehicle UART path (gps_uart Unit D part 2b also fixed a latent baud-bug â€” `gps_uart_send_command` early-return-on-`!g_initialized` was silently dropping PMTK251 baud-change, ride-along per HW_GATE Rule 7).
 
-`8cd6368` **rc_log drain ring-empty fast-path** — bisect-confirmed `8adab2d` (R-5 Unit B-fixup wiring `rc_log_drain_to_cdc()` into `qv_idle_bridge`) was disrupting Core 1's ICM-20948 I2C reads via continuous TinyUSB calls contending with the SDK's stdio_usb mutex/IRQ machinery. Fix: 3-line early-return when ring is empty (most idle ticks). Restored `IMU reads=41694 errs=0` + bench_sim 2/2 PASS. LL Entry 39 added.
+`8cd6368` **rc_log drain ring-empty fast-path** â€” bisect-confirmed `8adab2d` (R-5 Unit B-fixup wiring `rc_log_drain_to_cdc()` into `qv_idle_bridge`) was disrupting Core 1's ICM-20948 I2C reads via continuous TinyUSB calls contending with the SDK's stdio_usb mutex/IRQ machinery. Fix: 3-line early-return when ring is empty (most idle ticks). Restored `IMU reads=41694 errs=0` + bench_sim 2/2 PASS. LL Entry 39 added.
 
-`a40e7f5` **pre-commit gate widening: "categories not enumerations" (LL Entry 40)** — council unanimous (NASA/JPL + Prof + ArduPilot + Cubesat, 5 questions). FLIGHT_CRITICAL regex in `scripts/ci/pre_commit_matrix.py` widened from ~7 narrow path patterns to any change that can affect rocketchip.elf (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, `EXTERNAL/etl-`, `lib/`) plus the gate self-rot vector (`scripts/hooks/`, `scripts/ci/`, `scripts/bench_sim.py`, `scripts/station_bench_sim.py`). Pure-doc/test/script exempt by virtue of not matching, NOT explicit carve-out. Direct meta-application of R-25-exec's "all code uploaded = flight code" principle to gate scope. `7bcecdb` realigned the host test that encoded the prior narrow policy and added codified anti-regression assertions for the 8adab2d-class path (`main.cpp + rc_log.h`), the three gate-self-rot vectors, and pure-doc exemption.
+`a40e7f5` **pre-commit gate widening: "categories not enumerations" (LL Entry 40)** â€” council unanimous (NASA/JPL + Prof + ArduPilot + Cubesat, 5 questions). FLIGHT_CRITICAL regex in `scripts/ci/pre_commit_matrix.py` widened from ~7 narrow path patterns to any change that can affect rocketchip.elf (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, `EXTERNAL/etl-`, `lib/`) plus the gate self-rot vector (`scripts/hooks/`, `scripts/ci/`, `scripts/bench_sim.py`, `scripts/station_bench_sim.py`). Pure-doc/test/script exempt by virtue of not matching, NOT explicit carve-out. Direct meta-application of R-25-exec's "all code uploaded = flight code" principle to gate scope. `7bcecdb` realigned the host test that encoded the prior narrow policy and added codified anti-regression assertions for the 8adab2d-class path (`main.cpp + rc_log.h`), the three gate-self-rot vectors, and pure-doc exemption.
 
 **WB followups tracked** (`AGENT_WHITEBOARD.md`): doc realignment of `standards/CODING_STANDARDS.md` Code Classification table + `docs/CONFIG_TEST_MATRIX.md` Tier 6b section (descriptive docs lag shipped gate policy per AK Rule 3 surgical scope). Tier-5-drain rate-limiting (LL 39 known-limitation) for when sustained rc_log output enters the picture during CLI tier migration.
 
@@ -682,21 +686,21 @@ R-5 Tier 2 (Unit D, 3 sub-commits: `c71090e` gps_pa1010d, `89c1571` gps_uart, `c
 
 **R-5 stdio removal Units A + B closed.** Unit A produced the format-spec inventory (`docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md`) and pre-R5 baseline (`docs/baselines/PRE_R5_BASELINE_2026-05-15.md`). Inventory surfaced a scope correction: actual migration target is 23 files / ~624 callsites (not 18/600 as originally framed) because `include/rocketchip/config.h`'s old DBG_PRINT macros pulled `<stdio.h>` transitively into 5 files (most importantly `flight_director.cpp`'s 10 `[FD]` log lines that bench_sim regex parses).
 
-Unit B landed `rc_log` infrastructure: vendored ETL 20.47.1 at `EXTERNAL/etl-20.47.1/` (acceptance criterion verified — no `<stdio.h>`/`vsnprintf` in format+to_string subtree), built `include/rocketchip/rc_log.h` + `src/log/rc_log.cpp` (~500 LOC hand-rolled printf-subset formatter dispatching to `etl::to_string`), 27 host ctests covering the 13 format-spec patterns + boundary cases (`-0.0`, halfway-rounding, truncation marker, bench_sim-monitored log lines). Repointed `DBG_PRINT`/`RC_ASSERT` macros in `config.h` from `printf` to `rc::rc_log` and retired the `<stdio.h>`/`<cstdio>` transitive-leak includes from `config.h`. HW smoke verified: vehicle banner reads `flight-<hash>` Hardware 14/14 OK byte-identical to pre-Unit-B baseline across 3 probe-driven boots. Binary-size cost +6072 bytes / +2.7% (re-measured at Unit J close per council amendment #3).
+Unit B landed `rc_log` infrastructure: vendored ETL 20.47.1 at `EXTERNAL/etl-20.47.1/` (acceptance criterion verified â€” no `<stdio.h>`/`vsnprintf` in format+to_string subtree), built `include/rocketchip/rc_log.h` + `src/log/rc_log.cpp` (~500 LOC hand-rolled printf-subset formatter dispatching to `etl::to_string`), 27 host ctests covering the 13 format-spec patterns + boundary cases (`-0.0`, halfway-rounding, truncation marker, bench_sim-monitored log lines). Repointed `DBG_PRINT`/`RC_ASSERT` macros in `config.h` from `printf` to `rc::rc_log` and retired the `<stdio.h>`/`<cstdio>` transitive-leak includes from `config.h`. HW smoke verified: vehicle banner reads `flight-<hash>` Hardware 14/14 OK byte-identical to pre-Unit-B baseline across 3 probe-driven boots. Binary-size cost +6072 bytes / +2.7% (re-measured at Unit J close per council amendment #3).
 
-**Pivot from plan, council 3-persona Approach A focused review (2026-05-15):** float formatter is hand-rolled, NOT ETL's. Council acceptance criterion #1 surfaced two real ETL divergences from libc — strips sign of `-0.0`, uses round-half-away-from-zero instead of IEEE 754 round-half-to-even. Pathfinder-class systematic divergence risk for ground-side parsers; ETL has no build flag to fix. Pivoted to hand-rolled formatter using C99 `nearbyint()` (FE_TONEAREST = round-half-to-even = matches libc). Float-to-string research (`C:\Users\pow-w\.claude\plans\float-to-string-research-agent-a7c2e9d318f6b40a1.md`) confirmed the scale-and-round approach matches ArduPilot/PX4/F'/Cubesat flight-software practice and is sub-noise-floor for IMU/ESKF data; one documented within-1-ULP edge case (synthetic decimal-halfway literals like `3.785`).
+**Pivot from plan, council 3-persona Approach A focused review (2026-05-15):** float formatter is hand-rolled, NOT ETL's. Council acceptance criterion #1 surfaced two real ETL divergences from libc â€” strips sign of `-0.0`, uses round-half-away-from-zero instead of IEEE 754 round-half-to-even. Pathfinder-class systematic divergence risk for ground-side parsers; ETL has no build flag to fix. Pivoted to hand-rolled formatter using C99 `nearbyint()` (FE_TONEAREST = round-half-to-even = matches libc). Float-to-string research (`C:\Users\pow-w\.claude\plans\float-to-string-research-agent-a7c2e9d318f6b40a1.md`) confirmed the scale-and-round approach matches ArduPilot/PX4/F'/Cubesat flight-software practice and is sub-noise-floor for IMU/ESKF data; one documented within-1-ULP edge case (synthetic decimal-halfway literals like `3.785`).
 
 10 commits this session: `8872c14` (T2b Level-2 closure), `6006785` (T3a deprecation), `8c0732e` (Cycle 1 audit catchup), `c6195d1` (Cycle 3+4 stash), `0b02e4b` (Unit A inventory + baseline), `0fe851c` (ETL vendor), `5f2a805` (rc_log infra), `16bc36b` (rc_log brace-fix), `a97c6bf` (migration guide API correction), `7eda5e3` (DBG_PRINT macro repoint).
 
-**Active plan:** [`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md). Units C-J (per-tier callsite migration: proving ground → drivers → safety/diag → telemetry/AO → CLI/dashboard → cleanup) remain. Unit K = Level-3 independent regression at allowlist-empty.
+**Active plan:** [`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md). Units C-J (per-tier callsite migration: proving ground â†’ drivers â†’ safety/diag â†’ telemetry/AO â†’ CLI/dashboard â†’ cleanup) remain. Unit K = Level-3 independent regression at allowlist-empty.
 
 ---
 
 ### 2026-05-15-002 | Claude | architecture, safety, council
 
-**In-flight fault recovery architecture rework (B.1-B.8).** Fault handlers now phase-aware: `kIdle` captures + visible-signal + AIRCR-reset; any flight phase transitions to `kFault` and busy-loops while PIO backup timers continue autonomously. Anomalous-boot gate suppresses auto-zero-baro when POWMAN_CHIP_RESET + flight-in-progress sentinel indicate mid-flight reboot — prevents council-flagged silent-reset-re-zeros-baro failure mode.
+**In-flight fault recovery architecture rework (B.1-B.8).** Fault handlers now phase-aware: `kIdle` captures + visible-signal + AIRCR-reset; any flight phase transitions to `kFault` and busy-loops while PIO backup timers continue autonomously. Anomalous-boot gate suppresses auto-zero-baro when POWMAN_CHIP_RESET + flight-in-progress sentinel indicate mid-flight reboot â€” prevents council-flagged silent-reset-re-zeros-baro failure mode.
 
-Three commits: `ed7c569` (anomalous-boot gate + kFault enum + brownout latch), `8baa18a` (phase-aware dispatch + checksummed pair + reentrance guard + GoNoGo prior-fault stations), `5566050` (doc close-out: WB + LL Entry 38). Commit-(c) SPI last-gasp beacon deferred per council round 3 — merged with future PIO-beacon session.
+Three commits: `ed7c569` (anomalous-boot gate + kFault enum + brownout latch), `8baa18a` (phase-aware dispatch + checksummed pair + reentrance guard + GoNoGo prior-fault stations), `5566050` (doc close-out: WB + LL Entry 38). Commit-(c) SPI last-gasp beacon deferred per council round 3 â€” merged with future PIO-beacon session.
 
 See: plan `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (3 council rounds, 4 research rounds, all unanimous); `AGENT_WHITEBOARD.md` PIO-beacon-and-SPI-last-gasp combined future-session row.
 
@@ -706,7 +710,7 @@ Verified locally: host ctest 800/800, both flight tiers compile clean, HW probe-
 
 ### 2026-05-14-002 | Claude | audit, verification
 
-**R-25-exec audit-suite regression — Tier 0 + Tier 1 + T2a complete at Level-2.** Re-ordered the flat 6-step audit checklist into 4 dependency tiers. T0a (verify_boot_parity), T1a (station_bench_sim 3/3), T1b/T1c (warm-reboot G-W2 + G-W3 via labeled-soft runbook after script flaked on Windows USB CDC re-enum), and T2a (negative-control gated-fault check) all PASS.
+**R-25-exec audit-suite regression â€” Tier 0 + Tier 1 + T2a complete at Level-2.** Re-ordered the flat 6-step audit checklist into 4 dependency tiers. T0a (verify_boot_parity), T1a (station_bench_sim 3/3), T1b/T1c (warm-reboot G-W2 + G-W3 via labeled-soft runbook after script flaked on Windows USB CDC re-enum), and T2a (negative-control gated-fault check) all PASS.
 
 Closes R-24 + R-23 at Level-2. R-22 + R-25-exec at partial Level-2 pending T2b/T3a (now unblocked by the 2026-05-15-002 rework).
 
@@ -716,7 +720,7 @@ See: `AGENT_WHITEBOARD.md` "R-25-exec audit-suite regression status" row for ful
 
 ### 2026-05-14-001 | Claude | refactor, architecture, cleanup
 
-**R-25-exec COMPLETE — bench tier collapsed 4→2.** All `src/dev/*` modules either migrated test-mode-gated into the single flight binary (fault_inject, station_fault_inject → `src/safety/`; diag_stats → `src/diag/`; dev_cli → `src/cli/rc_os_debug.cpp`) or deleted (replay_inject, station_replay per amendment #4 — host-side replay TBD). 12 commits, 12 numbered steps + doc sweep, plus 10 stage-archived host scripts and 3 replay scripts deleted. Closes R-22, R-23, R-24, R-25-exec as side-effects.
+**R-25-exec COMPLETE â€” bench tier collapsed 4â†’2.** All `src/dev/*` modules either migrated test-mode-gated into the single flight binary (fault_inject, station_fault_inject â†’ `src/safety/`; diag_stats â†’ `src/diag/`; dev_cli â†’ `src/cli/rc_os_debug.cpp`) or deleted (replay_inject, station_replay per amendment #4 â€” host-side replay TBD). 12 commits, 12 numbered steps + doc sweep, plus 10 stage-archived host scripts and 3 replay scripts deleted. Closes R-22, R-23, R-24, R-25-exec as side-effects.
 
 See: `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` for the council-approved plan + 7 amendments; `docs/PROBLEM_REPORTS.md` for R-22/R-23/R-24/R-25-exec closure rows (each cites its commit SHA); `standards/CODING_STANDARDS.md` Code Classification table for the new test-mode-gated entries + the audit invariant grep targets.
 
@@ -726,15 +730,15 @@ Verified: 2 firmware tiers compile clean (-Wpedantic + -Werror=cmse), host ctest
 
 ### 2026-05-13-007 | Claude | audit, cleanup, decision
 
-**Deferred-Cleanup Cycle DC-2026-05-13 Sessions 2 + 3 — R-22 deferred, R-27 fixed, R-25-eval council-APPROVED.** Session 2 (R-22 warm-reboot audit script) hit a flight-tier-firmware design wall after 4 iterations + council redesign; deferred to R-25-exec. Session 3 (R-25-eval bench-tier deprecation evaluation) closed with unanimous council approval of Approach A (single-binary runtime test-mode, probe-only gated — PX4 `SYS_FAILURE_EN` pattern). R-25-exec inherits the council-amended plan as a separate execution session.
+**Deferred-Cleanup Cycle DC-2026-05-13 Sessions 2 + 3 â€” R-22 deferred, R-27 fixed, R-25-eval council-APPROVED.** Session 2 (R-22 warm-reboot audit script) hit a flight-tier-firmware design wall after 4 iterations + council redesign; deferred to R-25-exec. Session 3 (R-25-eval bench-tier deprecation evaluation) closed with unanimous council approval of Approach A (single-binary runtime test-mode, probe-only gated â€” PX4 `SYS_FAILURE_EN` pattern). R-25-exec inherits the council-amended plan as a separate execution session.
 
 **R-27 REMEDIATED:** `docs/ROCKETCHIP_OS.md` main-menu key table stale (claimed `s`/`e`/`b` as Status keys + `i` as Radio key; Stage L 2026-04-18 reassigned `b` to Beacon and moved status keys to q-Debug submenu). Same drift class as R-26. Surfaced during R-22 iteration 4 when the script's main-menu `b` keystroke activated Beacon instead of Hardware Status.
 
 **R-25-eval decision (council unanimous, NASA/JPL + Prof + ArduPilot + Cubesat):** Approach A with 6 amendments + 4 R-25-exec checklist items. Decision grounded in 3 evidence-of-real-bugs from the dual-binary failure mode this cycle (R-23 bench-tier INVPC HardFault, F-2026-05-13-004 pedantic-gate drift, R-22 design wall). User-preferred original direction (Approach B patch-based) rejected after IRL aerospace dev-code-sequestration research showed patch-rot is a known failure mode. Approach C (minimal bench tier) rejected because it retains the same structural problem at smaller scope.
 
-**`CODING_STANDARDS.md` amended (state-of-system trigger-driven edit):** NASA Software Engineering Handbook reference broadened from "§8.11 + §8.5" to handbook-as-whole; specific section citations live at the point where applied.
+**`CODING_STANDARDS.md` amended (state-of-system trigger-driven edit):** NASA Software Engineering Handbook reference broadened from "Â§8.11 + Â§8.5" to handbook-as-whole; specific section citations live at the point where applied.
 
-**R-25-exec inherits:** 13-item plan in `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` § "R-25-exec follow-on session." Closes R-22, R-23, R-24 as side-effects. Council-required `peek_banner`-based redesign for R-22 preserved at `C:\Users\pow-w\.claude\plans\snoopy-wibbling-noodle.md`.
+**R-25-exec inherits:** 13-item plan in `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` Â§ "R-25-exec follow-on session." Closes R-22, R-23, R-24 as side-effects. Council-required `peek_banner`-based redesign for R-22 preserved at `C:\Users\pow-w\.claude\plans\snoopy-wibbling-noodle.md`.
 
 Verified: pure-software / doc-only this session. End-of-session sanity check passed (host ctest 794/794, bench_sim 2/2 PASS, SPIN_OK_31). No HW reseat required.
 
@@ -748,14 +752,14 @@ Files: `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` (new), `docs/ROCKET
 
 Session ran per council-approved plan in `docs/plans/DEFERRED_CLEANUP_PLAN_2026-05-13.md`:
 
-- **A1 self-check** (open): F-001/002/003 against `origin/main` — 30/30 fixture rows PASS, inventory generated, drift report clean.
+- **A1 self-check** (open): F-001/002/003 against `origin/main` â€” 30/30 fixture rows PASS, inventory generated, drift report clean.
 - **C4-2 (L2-P9)**: Toolchain version audit 2026-05-13 produced from F-003 mechanical pull. `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-05-13.md` (new). No new drift vs 2026-04-27 baseline.
 - **C4-5 (L2-P2/P3/P4)**: Audit-policy doc edits in `AUDIT_GUIDANCE.md` Tier 3.8 (exhaustive-coverage rule, citation-inventory tooling-gap, scope-language reporting rule) + `STANDARDS_AUDIT.md` template "How to Use" section.
-- **C4-3 (R-10b)**: Stack-usage SDK gap re-eval decision recorded in PROBLEM_REPORTS — no new evidence, defer to next milestone close.
-- **C4-1**: Archive 16 verified rows (R-1, R-3, R-4, R-6c, R-7, R-9c, R-11, R-12, R-13, R-15, R-16, R-17, R-18, R-19, R-26, P8-FMEA-Pyro) from Active → Archive section in PROBLEM_REPORTS.md. Each cites Grok Tier 5/6/7 merge `1a32103` as the audit-suite-regression that closed it.
+- **C4-3 (R-10b)**: Stack-usage SDK gap re-eval decision recorded in PROBLEM_REPORTS â€” no new evidence, defer to next milestone close.
+- **C4-1**: Archive 16 verified rows (R-1, R-3, R-4, R-6c, R-7, R-9c, R-11, R-12, R-13, R-15, R-16, R-17, R-18, R-19, R-26, P8-FMEA-Pyro) from Active â†’ Archive section in PROBLEM_REPORTS.md. Each cites Grok Tier 5/6/7 merge `1a32103` as the audit-suite-regression that closed it.
 - **End-of-session sanity check**: host ctest 794/794, bench_sim 2/2 PASS (vehicle flight v0.16.0 (kmenu) COM7, 6.5s), SPIN_OK_31 across 6 models.
 
-Active PROBLEM_REPORTS table now contains only DEFER rows (R-2, R-5, R-10b, R-20, R-21, R-22, R-23, R-24, R-25 + L2-P5..L2-P11) — 9 R-* + 7 L2-P*.
+Active PROBLEM_REPORTS table now contains only DEFER rows (R-2, R-5, R-10b, R-20, R-21, R-22, R-23, R-24, R-25 + L2-P5..L2-P11) â€” 9 R-* + 7 L2-P*.
 
 Next: Session 2 (R-22 warm-reboot audit script + R-24 boot-parity extension, ~3-4 hr HW work) and Session 3 (R-25-eval bench-tier deprecation evaluation, ~2 hr decision-doc).
 
@@ -769,11 +773,11 @@ Verified: pure-software / doc-only session. Host ctest 794/794, bench_sim 2/2 PA
 
 **Audit-infrastructure follow-up: F-001/002/003 REMEDIATED.** Three audit-tooling scripts shipped to close the DEFERRED findings from the 2026-05-13 master cycle:
 
-- `scripts/audit/pre_commit_fixture_test.py` (F-001) — 30-row fixture exercises `scripts/ci/pre_commit_matrix.py`.
-- `scripts/audit/list_bench_sim_pass_tokens.py` (F-002) — bidirectional regex-vs-emission inventory for `bench_sim.py` and `station_bench_sim.py`.
-- `scripts/audit/check_toolchain_drift.py` (F-003) — mechanical upstream-version pulls vs CMakeLists.txt pins + local installs.
+- `scripts/audit/pre_commit_fixture_test.py` (F-001) â€” 30-row fixture exercises `scripts/ci/pre_commit_matrix.py`.
+- `scripts/audit/list_bench_sim_pass_tokens.py` (F-002) â€” bidirectional regex-vs-emission inventory for `bench_sim.py` and `station_bench_sim.py`.
+- `scripts/audit/check_toolchain_drift.py` (F-003) â€” mechanical upstream-version pulls vs CMakeLists.txt pins + local installs.
 
-`standards/AUDIT_GUIDANCE.md` Tier 1.3 / 1.4(b) / 2.3 now name the three scripts as the audit-time mechanisms. `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` findings table retroactively amended (DEFER → REMEDIATED) per `.claude/SESSION_CHECKLIST.md` retroactive-amendment rule (cycle explicitly deferred with expectation of follow-up).
+`standards/AUDIT_GUIDANCE.md` Tier 1.3 / 1.4(b) / 2.3 now name the three scripts as the audit-time mechanisms. `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` findings table retroactively amended (DEFER â†’ REMEDIATED) per `.claude/SESSION_CHECKLIST.md` retroactive-amendment rule (cycle explicitly deferred with expectation of follow-up).
 
 Verified locally: F-001 30/30 fixture rows PASS; F-002 10/11 token classes match firmware emissions ([ESKF] empty + documented as doc-vs-firmware drift); F-003 confirms no NEW toolchain drift vs `TOOLCHAIN_VERSION_AUDIT_2026-04-27.md` baseline. Host ctest 794/794 (no source changes).
 
@@ -797,7 +801,7 @@ Files: `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` (appended), `CHANGELOG
 
 ### 2026-05-13-003 | Claude | audit, architecture, documentation, council
 
-**Audit-coverage gap-fill cycle (steps 0, 1a, 1b, Tiers 1-4).** Procedure refactored 8-step flat → 7-tier dependency-ordered (council-approved with 8 amendments). Tiers 5-7 deferred to a different agent for DO-178C verification-independence. See `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` for the cycle's findings + handoff to next agent; `AUDIT_GUIDANCE_REWRITE_PROPOSAL_2026-05-13.md` for the council verdict; `AUDIT_COVERAGE_INVENTORY_2026-05-13.md` for the gap-list inventory; `STANDARDS_AUDIT_2026-05-13.md` for the Tier 3 dated companion.
+**Audit-coverage gap-fill cycle (steps 0, 1a, 1b, Tiers 1-4).** Procedure refactored 8-step flat â†’ 7-tier dependency-ordered (council-approved with 8 amendments). Tiers 5-7 deferred to a different agent for DO-178C verification-independence. See `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` for the cycle's findings + handoff to next agent; `AUDIT_GUIDANCE_REWRITE_PROPOSAL_2026-05-13.md` for the council verdict; `AUDIT_COVERAGE_INVENTORY_2026-05-13.md` for the gap-list inventory; `STANDARDS_AUDIT_2026-05-13.md` for the Tier 3 dated companion.
 
 F-2026-05-13-004 (Major) remediated in this commit: 3 production .cpp files restored to the `-Wpedantic` gate. All 4 build tiers rebuilt clean.
 
@@ -809,9 +813,9 @@ Files: `CMakeLists.txt`, `standards/AUDIT_GUIDANCE.md`, `standards/STANDARDS_AUD
 
 ### 2026-05-13-002 | Claude | audit, architecture, documentation
 
-**Master Standards Audit 2026-05-07 — Phase 8L2 (updated audit) wrapped with findings.** Per-finding record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` § Phase 8L2; PR tracker `docs/PROBLEM_REPORTS.md` updated.
+**Master Standards Audit 2026-05-07 â€” Phase 8L2 (updated audit) wrapped with findings.** Per-finding record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` Â§ Phase 8L2; PR tracker `docs/PROBLEM_REPORTS.md` updated.
 
-Two source-code fixes implemented + verified (R-19 + R-26). Multiple findings DEFER to future cycles (R-20/R-21/R-22/R-23/R-24/R-25 + audit-policy L2-P2/P3/P4 + post-L2 remediation queue L2-1..L2-20 from cppcheck/lizard/coverage). R-19 (`multicore_reset_core1()` before `multicore_launch_core1()`) closes the AGENT_WHITEBOARD-tracked SIO_FIFO_IRQ wedge from R-3 verification — verified via probe-driven AIRCR test, 3-power-cycle baseline, 5× rapid picotool warm-reboot. R-26 fixes a stale RP2350 datasheet citation (§1.4.3 → §14.9.1) surfaced by Phase 7 exhaustive citation walk.
+Two source-code fixes implemented + verified (R-19 + R-26). Multiple findings DEFER to future cycles (R-20/R-21/R-22/R-23/R-24/R-25 + audit-policy L2-P2/P3/P4 + post-L2 remediation queue L2-1..L2-20 from cppcheck/lizard/coverage). R-19 (`multicore_reset_core1()` before `multicore_launch_core1()`) closes the AGENT_WHITEBOARD-tracked SIO_FIFO_IRQ wedge from R-3 verification â€” verified via probe-driven AIRCR test, 3-power-cycle baseline, 5Ã— rapid picotool warm-reboot. R-26 fixes a stale RP2350 datasheet citation (Â§1.4.3 â†’ Â§14.9.1) surfaced by Phase 7 exhaustive citation walk.
 
 **Coverage gap acknowledged at L2 close:** L2 (and yesterday's original) ran tool-driven sweeps + a P10 per-rule applicability snapshot (10 rules, all CONFIRMED-status at Phase 2.3) but did NOT walk the **221 JSF AV rules + JPL C LOC-1..4 + project-specific + agent-behavioral** that the original 2026-02-07 audit covered. AUDIT_GUIDANCE.md Step 2 calls for a full `STANDARDS_AUDIT.md` template walk producing a dated `STANDARDS_AUDIT_YYYY-MM-DD.md` companion; yesterday substituted a partial P10 sub-walk for that. Logged as L2-P5 + sibling re-audit gaps (L2-P6 DEV_CODE, L2-P7 VERSION_STRING, L2-P8 AO_COMMANDMENTS, L2-P9 TOOLCHAIN) for a focused audit-coverage-catchup cycle.
 
@@ -821,49 +825,49 @@ Two source-code fixes implemented + verified (R-19 + R-26). Multiple findings DE
 
 ### 2026-05-13-001 | Claude | audit, architecture, documentation
 
-**Master Standards Audit 2026-05-07 — Phase 8 wrapped (L1 only; L2 deferred).** Continuation of `2026-05-12-001` audit work. Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker in `docs/PROBLEM_REPORTS.md`. Disposition table populated in audit report `## Remediation` section.
+**Master Standards Audit 2026-05-07 â€” Phase 8 wrapped (L1 only; L2 deferred).** Continuation of `2026-05-12-001` audit work. Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker in `docs/PROBLEM_REPORTS.md`. Disposition table populated in audit report `## Remediation` section.
 
 This session ran the remaining Cat 3 / Cat 4 work + audit-cycle-surfaced cascade + sub-checks + wrap:
 
-- **R-6c — FP-1 template-dispatch (verified).** Extracted LM solver to `src/calibration/lm_solver.{h,cpp}` as pure-function module; replaced function-pointer dispatch with C++ templates; added `test/test_calibration_lm.cpp` host coverage (host ctest 788 → 794). FP-1 moved Active → Resolved in ACCEPTED_STANDARDS_DEVIATIONS.md.
+- **R-6c â€” FP-1 template-dispatch (verified).** Extracted LM solver to `src/calibration/lm_solver.{h,cpp}` as pure-function module; replaced function-pointer dispatch with C++ templates; added `test/test_calibration_lm.cpp` host coverage (host ctest 788 â†’ 794). FP-1 moved Active â†’ Resolved in ACCEPTED_STANDARDS_DEVIATIONS.md.
 
-- **R-11 + R-17 — SPIN flash-protocol model + cooperative pause (verified).** R-11 SPIN model (`tools/spin/rocketchip_flash_protocol.pml`, 3 LTL properties) initially failed `p_no_i2c_during_flash` against pre-R-17 firmware — counterexample matched the LL Entry 31 race in micro-detail. R-17 extracts general `core1_i2c_pause()` / `core1_i2c_resume()` primitives in new `src/safety/core1_i2c_pause.{h,cpp}` and wraps every reachable runtime `flash_safe_execute()` callsite. Model + firmware now both pass (master gate SPIN_OK_31, was 28). The `core1_i2c_resume()` clears BOTH atomics so back-to-back flash ops can't observe a stale paused-ack — surfaced by SPIN counterexample, fixed within the R-11+R-17 commit.
+- **R-11 + R-17 â€” SPIN flash-protocol model + cooperative pause (verified).** R-11 SPIN model (`tools/spin/rocketchip_flash_protocol.pml`, 3 LTL properties) initially failed `p_no_i2c_during_flash` against pre-R-17 firmware â€” counterexample matched the LL Entry 31 race in micro-detail. R-17 extracts general `core1_i2c_pause()` / `core1_i2c_resume()` primitives in new `src/safety/core1_i2c_pause.{h,cpp}` and wraps every reachable runtime `flash_safe_execute()` callsite. Model + firmware now both pass (master gate SPIN_OK_31, was 28). The `core1_i2c_resume()` clears BOTH atomics so back-to-back flash ops can't observe a stale paused-ack â€” surfaced by SPIN counterexample, fixed within the R-11+R-17 commit.
 
-- **R-12 — SPIN boot-handshake model (verified).** New `tools/spin/rocketchip_boot.pml` covers vehicle (bounded wait + timeout) and station/relay (Holzmann scheduler exemption) cases non-deterministically. 2 LTL properties verify clean (97 + 164 states, errors: 0). Master gate SPIN_OK_28.
+- **R-12 â€” SPIN boot-handshake model (verified).** New `tools/spin/rocketchip_boot.pml` covers vehicle (bounded wait + timeout) and station/relay (Holzmann scheduler exemption) cases non-deterministically. 2 LTL properties verify clean (97 + 164 states, errors: 0). Master gate SPIN_OK_28.
 
-- **R-15 — i2c_bus_reset after CLI flush + erase (verified).** Surfaced during R-11 prep. CLI handlers `cmd_flush_log()` + `cli_do_erase_flights()` were missing the LL Entry 31 prescribed `i2c_bus_reset()` after their flash_safe_execute chains. Added to match the ao_rcos.cpp:338 pattern.
+- **R-15 â€” i2c_bus_reset after CLI flush + erase (verified).** Surfaced during R-11 prep. CLI handlers `cmd_flush_log()` + `cli_do_erase_flights()` were missing the LL Entry 31 prescribed `i2c_bus_reset()` after their flash_safe_execute chains. Added to match the ao_rcos.cpp:338 pattern.
 
-- **R-18 — dead cal_pre_hook cleanup (verified).** Surfaced during R-17 implementation. The `cal_pre_hook()` function in cal_hooks.cpp was DEFINED but never called from anywhere (function-pointer table `rc_os_cal_pre_hook` was assigned at main.cpp:315 but never invoked). R-17 made it fully redundant. R-18 removes the dead function + function-pointer table + simplifies cal_post_hook.
+- **R-18 â€” dead cal_pre_hook cleanup (verified).** Surfaced during R-17 implementation. The `cal_pre_hook()` function in cal_hooks.cpp was DEFINED but never called from anywhere (function-pointer table `rc_os_cal_pre_hook` was assigned at main.cpp:315 but never invoked). R-17 made it fully redundant. R-18 removes the dead function + function-pointer table + simplifies cal_post_hook.
 
-- **R-7 — Holzmann inverted-rule exemption (verified).** Already documented in CODING_STANDARDS.md Foundation section; added single-sentence cross-reference to ACCEPTED_STANDARDS_DEVIATIONS.md "Note on Power-of-10 Rule 2" where the project's compliant non-terminating loops are enumerated.
+- **R-7 â€” Holzmann inverted-rule exemption (verified).** Already documented in CODING_STANDARDS.md Foundation section; added single-sentence cross-reference to ACCEPTED_STANDARDS_DEVIATIONS.md "Note on Power-of-10 Rule 2" where the project's compliant non-terminating loops are enumerated.
 
-- **R-13 — SESSION_CHECKLIST trigger row for SPIN model ride-along (verified).** Added one row to the Per-doc trigger map for `tools/spin/*.pml` — when firmware behavior matching a candidate SPIN extension lands, the corresponding `.pml` edit rides in the same commit.
+- **R-13 â€” SESSION_CHECKLIST trigger row for SPIN model ride-along (verified).** Added one row to the Per-doc trigger map for `tools/spin/*.pml` â€” when firmware behavior matching a candidate SPIN extension lands, the corresponding `.pml` edit rides in the same commit.
 
-- **R-16 — Systematic LL-entry freshness audit (verified, no fix needed).** Audited 23 Critical/High LL entries. Zero stale entries detected. LL 31 specifically reinforced by R-15/R-17/R-18. LL 25 already SUPERSEDED 2026-04-22. LL 22 (USB reconnect Core 1 IMU rate) remains open observation per its own framing (no flight concern). Recommendation: cadence-driven milestone-close discipline.
+- **R-16 â€” Systematic LL-entry freshness audit (verified, no fix needed).** Audited 23 Critical/High LL entries. Zero stale entries detected. LL 31 specifically reinforced by R-15/R-17/R-18. LL 25 already SUPERSEDED 2026-04-22. LL 22 (USB reconnect Core 1 IMU rate) remains open observation per its own framing (no flight concern). Recommendation: cadence-driven milestone-close discipline.
 
-- **P8-FMEA-Pyro — pyro state-machine FMEA (verified, no fix needed).** Reviewed 9 multi-transition failure modes (double-drogue, main-before-drogue, pyro-from-IDLE, DISARM-after-fire, ABORT-double-fire ordering, RESET-mid-descent, auto-DISARM-race, hardware-path boundary, double-APOGEE). All mitigated by HSM dispatch semantics. R-14 unified pyro protocol SPIN model NOT queued — not justified given existing rocketchip_fd.pml coverage + single-actor pyro hardware.
+- **P8-FMEA-Pyro â€” pyro state-machine FMEA (verified, no fix needed).** Reviewed 9 multi-transition failure modes (double-drogue, main-before-drogue, pyro-from-IDLE, DISARM-after-fire, ABORT-double-fire ordering, RESET-mid-descent, auto-DISARM-race, hardware-path boundary, double-APOGEE). All mitigated by HSM dispatch semantics. R-14 unified pyro protocol SPIN model NOT queued â€” not justified given existing rocketchip_fd.pml coverage + single-actor pyro hardware.
 
 - **Comment-density audit (verified, no fix needed).** End-of-cycle audit + NASA/Polyspace research. src/ overall .cpp = 21.8% (within 15-25% target band). CODING_STANDARDS updated with formal target band, research basis (Polyspace 20% lower limit; Arafati & Riehle 2009 mean 19%/median 17%; Elish & Offutt mean 15.2%), headers-excluded measurement method, per-context guidance.
 
-**Cascade chain surfaced this session (Rule 7 in-scope):** R-11 → R-15 → R-17 → R-18 + firmware fix in R-17 commit. Each surfacing was the previous PR's verification path failing to produce its claimed positive-control signal until the underlying issue was fixed.
+**Cascade chain surfaced this session (Rule 7 in-scope):** R-11 â†’ R-15 â†’ R-17 â†’ R-18 + firmware fix in R-17 commit. Each surfacing was the previous PR's verification path failing to produce its claimed positive-control signal until the underlying issue was fixed.
 
 **Phase 8 wrap L1 regression at commit:** 4 target tiers compile clean, host ctest 794/794, master SPIN gate SPIN_OK_31 (6 models, 31 LTL properties), vehicle bench_sim 2/2 PASS. L2 audit-suite regression (re-run Phases 1/3/4/5/7) deferred to a future dedicated session per user direction ("finish this up first; we need a solid foundation and need to clear known issues so the new audit isn't as cluttered").
 
-Disposition totals: 5 Cat 1 closed + 14 verified-pending-L2 + 3 deferred + 1 audit-only finding = 23. No new permanent deviations added. ACCEPTED_STANDARDS_DEVIATIONS edits: FP-1 moved Active → Resolved by R-6c.
+Disposition totals: 5 Cat 1 closed + 14 verified-pending-L2 + 3 deferred + 1 audit-only finding = 23. No new permanent deviations added. ACCEPTED_STANDARDS_DEVIATIONS edits: FP-1 moved Active â†’ Resolved by R-6c.
 
 Verified: pure-software / pure-doc commits this cycle. Each commit cites per-commit positive-control per HW_GATE Rule 3. Host ctest 794/794 PASS at session end. Target-build parity (4 tiers) verified at every source-touching commit. Vehicle bench_sim 2/2 PASS on flight + dev binaries at multiple gate points.
 
 ### 2026-05-12-001 | Claude | audit, architecture, documentation, tooling
 
-**Master Standards Audit 2026-05-07 — Phases A through 8 partial.** Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker (established this cycle) in `docs/PROBLEM_REPORTS.md`. Resume point next session: R-6c.
+**Master Standards Audit 2026-05-07 â€” Phases A through 8 partial.** Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker (established this cycle) in `docs/PROBLEM_REPORTS.md`. Resume point next session: R-6c.
 
 Outcomes by phase / category:
-- **Phase A.2 + R-6 + R-6b** — renamed `STANDARDS_DEVIATIONS.md` → `ACCEPTED_STANDARDS_DEVIATIONS.md`, re-evaluated every Active deviation row, corrected a JSF Rule 170 misreading proliferation and re-attributed FP-1 to its actual governing standard (Power of 10 Rule 9). New standards-precedence rule in `CODING_STANDARDS.md`. LL Entry 37 added.
-- **Phases B / 0 / 1-7** — `AUDIT_GUIDANCE.md` Appendix B inlined; scripted sweeps + manual phases ran end-to-end (Phase 4 PARTIAL became R-9a/b/c; Phases 5/6/7 PASS).
-- **Phase 8 ordering framework** — `AUDIT_GUIDANCE.md` Appendix C (4-category remediation ordering), `PROBLEM_REPORTS.md` established, `SESSION_CHECKLIST.md` Per-Commit 5a (Change Impact Analysis), `HW_GATE_DISCIPLINE.md` Rule 6 (regression-suite credit) + Rule 7 (surfaced-bugs in-scope).
-- **Phase 8 Cat 1 closed** — P8-SPIN-A/B, R-10a, R-9a, R-9b.
-- **Phase 8 Cat 2 closed** — R-3 (capture-state-then-reset hardfault handler; R-4 MPU AP encoding + MEMFAULTENA folded in per surfaced-bug rule; later amended to inline-only handler after fault-on-fault lockup surfaced during verification). `docs/decisions/FAULT_HANDLER_DESIGN.md` captures rationale.
-- **Phase 8 Cat 3 partial** — R-1 verified (bounded Core 1 boot-wait), R-9c verified (log-on-change for secondary health bits), **R-5 deferred** to a dedicated session with proliferation gate active NOW (`scripts/hooks/pre-commit` + `stdio_allowlist.txt` block new `<stdio.h>` includes; `docs/decisions/STDIO_REPLACEMENT_PLAN.md` + `docs/STDIO_TO_RC_LOG_MIGRATION_GUIDE.md` describe the design), **R-2 absorbed** into the R-5 session (council review preserved). R-6c, R-11, R-12, P8-FMEA-Pyro remain.
+- **Phase A.2 + R-6 + R-6b** â€” renamed `STANDARDS_DEVIATIONS.md` â†’ `ACCEPTED_STANDARDS_DEVIATIONS.md`, re-evaluated every Active deviation row, corrected a JSF Rule 170 misreading proliferation and re-attributed FP-1 to its actual governing standard (Power of 10 Rule 9). New standards-precedence rule in `CODING_STANDARDS.md`. LL Entry 37 added.
+- **Phases B / 0 / 1-7** â€” `AUDIT_GUIDANCE.md` Appendix B inlined; scripted sweeps + manual phases ran end-to-end (Phase 4 PARTIAL became R-9a/b/c; Phases 5/6/7 PASS).
+- **Phase 8 ordering framework** â€” `AUDIT_GUIDANCE.md` Appendix C (4-category remediation ordering), `PROBLEM_REPORTS.md` established, `SESSION_CHECKLIST.md` Per-Commit 5a (Change Impact Analysis), `HW_GATE_DISCIPLINE.md` Rule 6 (regression-suite credit) + Rule 7 (surfaced-bugs in-scope).
+- **Phase 8 Cat 1 closed** â€” P8-SPIN-A/B, R-10a, R-9a, R-9b.
+- **Phase 8 Cat 2 closed** â€” R-3 (capture-state-then-reset hardfault handler; R-4 MPU AP encoding + MEMFAULTENA folded in per surfaced-bug rule; later amended to inline-only handler after fault-on-fault lockup surfaced during verification). `docs/decisions/FAULT_HANDLER_DESIGN.md` captures rationale.
+- **Phase 8 Cat 3 partial** â€” R-1 verified (bounded Core 1 boot-wait), R-9c verified (log-on-change for secondary health bits), **R-5 deferred** to a dedicated session with proliferation gate active NOW (`scripts/hooks/pre-commit` + `stdio_allowlist.txt` block new `<stdio.h>` includes; `docs/decisions/STDIO_REPLACEMENT_PLAN.md` + `docs/STDIO_TO_RC_LOG_MIGRATION_GUIDE.md` describe the design), **R-2 absorbed** into the R-5 session (council review preserved). R-6c, R-11, R-12, P8-FMEA-Pyro remain.
 
 Architecture work captured this cycle: AGENT_WHITEBOARD "In-flight fault recovery architecture" 5-question framing for a dedicated future session (including the surfaced Core 1 SIO_FIFO_IRQ post-AIRCR-reset wedge); PROJECT_STATUS "Side Projects & Future Product Lines" re-added; TP-1 deviation row for a Pico SDK `spi_set_format` cognitive-complexity finding.
 
@@ -879,17 +883,17 @@ Files: `scripts/`, `standards/AUDIT_GUIDANCE.md`, `scripts/run_clang_tidy.sh`, `
 
 ### 2026-04-27-007 | Claude | documentation, refactor
 
-**`.claude/SESSION_CHECKLIST.md` restructured: four-scope hierarchy + Trigger-Driven Documentation Edits.** Surfaced by user observation that the previous structure conflated multiple events — "Session End (Normal Completion)" mixed per-commit hygiene (verification, message format, no-orphans) with per-push gates (CHANGELOG, WB cleanup, build parity), and the absence of an explicit COMMIT layer meant "ready to push" got read as "ready to end the session." Triggered-driven doc edits (CHANGELOG, WB, PROJECT_STATUS, drift checks) were inline as cadence rules rather than as content-driven triggers, which is how they actually work.
+**`.claude/SESSION_CHECKLIST.md` restructured: four-scope hierarchy + Trigger-Driven Documentation Edits.** Surfaced by user observation that the previous structure conflated multiple events â€” "Session End (Normal Completion)" mixed per-commit hygiene (verification, message format, no-orphans) with per-push gates (CHANGELOG, WB cleanup, build parity), and the absence of an explicit COMMIT layer meant "ready to push" got read as "ready to end the session." Triggered-driven doc edits (CHANGELOG, WB, PROJECT_STATUS, drift checks) were inline as cadence rules rather than as content-driven triggers, which is how they actually work.
 
-**New hierarchy:** `COMMIT ⊂ PUSH ⊂ SESSION_END ⊂ MILESTONE`. Each outer scope inherits inner-scope rules and adds its own. Per-Commit covers build verification, no orphans, no unintended deletions, commit message format + HW gate citation per `HW_GATE_DISCIPLINE.md` Rule 3. Per-Push adds station/vehicle 4-tier parity rebuild, "triggered-doc-edits-are-committed" gate, and CHANGELOG-covers-the-push-window. Session End adds no-broken-code-on-main, push-to-remote, handoff notes (folding what was previously the separate "Session End (Handoff)" section into the default Session-End mode). Session-End: Milestone keeps its existing rot-detection layer (protected-doc drift check, build-system audit, full-tree clang-tidy, lessons-learned consideration) and is now explicitly named as a structurally-authorized retroactive-fix moment.
+**New hierarchy:** `COMMIT âŠ‚ PUSH âŠ‚ SESSION_END âŠ‚ MILESTONE`. Each outer scope inherits inner-scope rules and adds its own. Per-Commit covers build verification, no orphans, no unintended deletions, commit message format + HW gate citation per `HW_GATE_DISCIPLINE.md` Rule 3. Per-Push adds station/vehicle 4-tier parity rebuild, "triggered-doc-edits-are-committed" gate, and CHANGELOG-covers-the-push-window. Session End adds no-broken-code-on-main, push-to-remote, handoff notes (folding what was previously the separate "Session End (Handoff)" section into the default Session-End mode). Session-End: Milestone keeps its existing rot-detection layer (protected-doc drift check, build-system audit, full-tree clang-tidy, lessons-learned consideration) and is now explicitly named as a structurally-authorized retroactive-fix moment.
 
-**New section: Trigger-Driven Documentation Edits.** Captures the principle that a protected/architecture document is edited only when the session's work directly contradicts its current contents — not on cadence, not on stage transitions, not "at session end" by default. The edit rides with the trigger (same commit as the change), so `git log --follow` on the doc and `git bisect` see code + doc atomically consistent.
+**New section: Trigger-Driven Documentation Edits.** Captures the principle that a protected/architecture document is edited only when the session's work directly contradicts its current contents â€” not on cadence, not on stage transitions, not "at session end" by default. The edit rides with the trigger (same commit as the change), so `git log --follow` on the doc and `git bisect` see code + doc atomically consistent.
 
 **Two-category framing for protected docs:**
 
 - **State-of-system docs** (SAD, SCAFFOLDING, AO_ARCHITECTURE, MULTICORE_RULES, CODING_STANDARDS, RP2350_ERRATA, HW_GATE_DISCIPLINE, COUNCIL_PROCESS, .claude/CLAUDE.md, AK_GUIDELINES, PROTECTED_FILES, SESSION_CHECKLIST, README, PROJECT_STATUS, AGENT_WHITEBOARD): forward-going edit applies. When the diff makes the doc wrong, fix it in the same commit that triggered the wrongness.
 - **Historical-record docs** (`docs/decisions/*`, `docs/plans/*`, `docs/audits/*`, `docs/baselines/*`, CHANGELOG, LESSONS_LEARNED, STANDARDS_DEVIATIONS Resolved section): forward-going edit does NOT apply. New entries are new files / new entries. Edits to existing content are typo-correction or supersession-header marking only (e.g., the legitimate "SUPERSEDED 2026-04-22" header on LL Entry 25).
-- **Mixed-mode** (`docs/IVP.md`): per-IVP entries are historical (frozen on IVP commit), stage-list / next-stage sections are state-of-system. Two trigger modes — planning-entry (first step of stage planning) and closing-entry (after divergence from plan).
+- **Mixed-mode** (`docs/IVP.md`): per-IVP entries are historical (frozen on IVP commit), stage-list / next-stage sections are state-of-system. Two trigger modes â€” planning-entry (first step of stage planning) and closing-entry (after divergence from plan).
 
 **Retroactive amendment rule:** drift caught after the trigger event is legitimate to fix **with explicit user approval**, or as part of the milestone-authorized drift-check audit. Otherwise default is to flag the drift on `AGENT_WHITEBOARD.md` and continue. The approval gate exists because retroactive fixes look identical to "decided to start editing protected files" from a diff perspective.
 
@@ -901,25 +905,25 @@ Files: `.claude/SESSION_CHECKLIST.md`, `CHANGELOG.md`
 
 **`standards/HW_GATE_DISCIPLINE.md` authored + AO Commandments full-sweep audit.** Two related sweeps closing out the long-standing WB items.
 
-**(a) HW gate discipline (new normative doc).** `standards/HW_GATE_DISCIPLINE.md` consolidates two previously-scattered concerns: (1) what a HW gate must *observe* to pass (Rules 1-4 — positive-control signal, 3-boot reseat protocol, commit-message citation, hard-vs-soft classification — addressing the IVP-140 false-positive + Fruit Jam GPS cable episode that motivated the user's 2026-04-17 ask), and (2) how a HW gate stays *unskippable* (Rule 5 — pre-commit hook runs the gate, session-start canary catches prior-session rot, `--no-verify` requires explicit user approval — addressing the `STAGE_P7_15_SHELVED_2026-04-11.md` "claimed but not performed" / LL Entry 36 bench_sim-rot framing). `.claude/SESSION_CHECKLIST.md` Item 9 amended to require commit messages cite the observed control signal per Rule 3 (with exempt form for pure-software changes). Wired into `.claude/CLAUDE.md` auto-load + README.md "Read First" so it's intaken on every session alongside the other standards docs. Unblocks `docs/plans/STAGE_T_T14_DESIGN.md` Q7 convergence which explicitly waited on this doc to land.
+**(a) HW gate discipline (new normative doc).** `standards/HW_GATE_DISCIPLINE.md` consolidates two previously-scattered concerns: (1) what a HW gate must *observe* to pass (Rules 1-4 â€” positive-control signal, 3-boot reseat protocol, commit-message citation, hard-vs-soft classification â€” addressing the IVP-140 false-positive + Fruit Jam GPS cable episode that motivated the user's 2026-04-17 ask), and (2) how a HW gate stays *unskippable* (Rule 5 â€” pre-commit hook runs the gate, session-start canary catches prior-session rot, `--no-verify` requires explicit user approval â€” addressing the `STAGE_P7_15_SHELVED_2026-04-11.md` "claimed but not performed" / LL Entry 36 bench_sim-rot framing). `.claude/SESSION_CHECKLIST.md` Item 9 amended to require commit messages cite the observed control signal per Rule 3 (with exempt form for pure-software changes). Wired into `.claude/CLAUDE.md` auto-load + README.md "Read First" so it's intaken on every session alongside the other standards docs. Unblocks `docs/plans/STAGE_T_T14_DESIGN.md` Q7 convergence which explicitly waited on this doc to land.
 
-**(b) AO Commandments full sweep.** New `docs/audits/AO_COMMANDMENTS_AUDIT_2026-04-27.md`. Audited 9 active AOs (Radio, FlightDirector, HealthMonitor, RfManager, Notify, Logger, Telemetry, LedEngine, RCOS) against all 12 commandments. Zero unaddressed violations. Two documented Commandment IV deviations (blocking `flash_safe_execute` in `ao_radio` config persistence and `ao_rcos` calibration save/erase), both with in-code rationale, both bounded by queue-depth math (32 events × 10 ms tick = 320 ms vs ~100-500 ms worst-case block). LL Entry 35 fix is universal — every `QACTIVE_POST` and `Q_PUBLISH` site uses `static …Evt s_evt;` storage. Three observations not rising to violation: Logger has mixed module-style and event-style API surface (naming clarity), `AO_FlightDirector` calls `AO_Logger_log_event` synchronously (it's a module-function ring-buffer push, not cross-AO synchronous call), RCOS↔FlightDirector interactions follow the documented Commandment V/VII pattern. AO_COMMANDMENTS.md remains advisory; elevation to `standards/` deferred.
+**(b) AO Commandments full sweep.** New `docs/audits/AO_COMMANDMENTS_AUDIT_2026-04-27.md`. Audited 9 active AOs (Radio, FlightDirector, HealthMonitor, RfManager, Notify, Logger, Telemetry, LedEngine, RCOS) against all 12 commandments. Zero unaddressed violations. Two documented Commandment IV deviations (blocking `flash_safe_execute` in `ao_radio` config persistence and `ao_rcos` calibration save/erase), both with in-code rationale, both bounded by queue-depth math (32 events Ã— 10 ms tick = 320 ms vs ~100-500 ms worst-case block). LL Entry 35 fix is universal â€” every `QACTIVE_POST` and `Q_PUBLISH` site uses `static â€¦Evt s_evt;` storage. Three observations not rising to violation: Logger has mixed module-style and event-style API surface (naming clarity), `AO_FlightDirector` calls `AO_Logger_log_event` synchronously (it's a module-function ring-buffer push, not cross-AO synchronous call), RCOSâ†”FlightDirector interactions follow the documented Commandment V/VII pattern. AO_COMMANDMENTS.md remains advisory; elevation to `standards/` deferred.
 
 **(c) Dead-code cleanup (audit-driven).** Deleted `src/active_objects/ao_blinker.cpp/.h` and `src/active_objects/ao_counter.cpp/.h` (4 files, 283 lines). Created 2026-03-27 in `a32e309` as the IVP-76 "trivial 2-AO demo" to validate QF time events + QV dispatch + AO lifecycle on the path to real AOs. They served their proof-of-concept role and were never started after Stage 9 graduated to actual AOs (FlightDirector, HealthMonitor, etc.). CMakeLists.txt source-list entries removed from both the `add_executable(rocketchip ...)` block and the `ROCKETCHIP_SOURCES` `-Wpedantic` scope. Stale `#include "ao_blinker.h"` / `#include "ao_counter.h"` removed from `src/main.cpp`. `docs/AO_ARCHITECTURE.md` "(disabled)" footnote removed. `docs/SCAFFOLDING.md` directory tree updated. `docs/VERIFICATION_OVERVIEW.md` soak-check guidance no longer references `AO_Counter` jitter. `docs/IVP.md` historical IVP-76 record left intact (per protected-file historical-record convention).
 
-Verified: pure-software changes, all 4 firmware targets build clean (vehicle bench 174 ninja targets, vehicle flight 169, station bench 174, station flight 169 — same -2 delta as the source removals), host ctest 788/788 PASS across all six commits in this batch, no HW reseat required.
+Verified: pure-software changes, all 4 firmware targets build clean (vehicle bench 174 ninja targets, vehicle flight 169, station bench 174, station flight 169 â€” same -2 delta as the source removals), host ctest 788/788 PASS across all six commits in this batch, no HW reseat required.
 
 Files: `standards/HW_GATE_DISCIPLINE.md` (new), `docs/audits/AO_COMMANDMENTS_AUDIT_2026-04-27.md` (new), `.claude/CLAUDE.md`, `.claude/SESSION_CHECKLIST.md`, `README.md`, `src/active_objects/ao_blinker.{cpp,h}` (deleted), `src/active_objects/ao_counter.{cpp,h}` (deleted), `src/main.cpp`, `CMakeLists.txt`, `docs/AO_ARCHITECTURE.md`, `docs/SCAFFOLDING.md`, `docs/VERIFICATION_OVERVIEW.md`, `CHANGELOG.md`
 
 ### 2026-04-27-005 | Claude | refactor, documentation
 
-**Test-harness build-tag follow-up to the polarity rename + WB cleanup.** The post-rename firmware emits `dev-<sha>` in the boot banner (vs the old `bench-<sha>`), but `scripts/_rc_test_common.py`'s `_RE_BUILD_TAG` regex still required `(bench|flight)`. Tests passed because the matcher's `Build.UNKNOWN` fallback is permissive, but build-tier classification was silently degraded for every test run since the rename. Fixed: regex now matches `(dev|bench|flight)` (`bench` retained for backward-compat with old transcripts), `Build.BENCH` enum member renamed to `Build.DEV`, `TARGET_*_BENCH` constants kept as aliases for callers (8 scripts depend on the name). Test fixture `VEHICLE_BENCH_BANNER` updated to `dev-...`, host-test assertions updated to `Build.DEV` / `'vehicle-dev'`. 788/788 ctest pass + `scripts/test__rc_test_common.py` direct run shows ALL CHECKS PASS. Whiteboard: cross-check confirmed two more WB rows were stale and erased — Role-aware bench_sim gate (already implemented in `scripts/ci/pre_commit_matrix.py` with separate `TRIGGER_FLIGHT_BENCH` / `TRIGGER_STATION_BENCH` triggers), Station role/board decoupling (already implemented via `include/rocketchip/board.h` `#if defined(ADAFRUIT_FRUIT_JAM)` selector + `board_*.h` per-board headers + auto-pick in CMakeLists.txt). Remaining "Fruit Jam" mentions in `src/` are explanatory comments, not coupling.
+**Test-harness build-tag follow-up to the polarity rename + WB cleanup.** The post-rename firmware emits `dev-<sha>` in the boot banner (vs the old `bench-<sha>`), but `scripts/_rc_test_common.py`'s `_RE_BUILD_TAG` regex still required `(bench|flight)`. Tests passed because the matcher's `Build.UNKNOWN` fallback is permissive, but build-tier classification was silently degraded for every test run since the rename. Fixed: regex now matches `(dev|bench|flight)` (`bench` retained for backward-compat with old transcripts), `Build.BENCH` enum member renamed to `Build.DEV`, `TARGET_*_BENCH` constants kept as aliases for callers (8 scripts depend on the name). Test fixture `VEHICLE_BENCH_BANNER` updated to `dev-...`, host-test assertions updated to `Build.DEV` / `'vehicle-dev'`. 788/788 ctest pass + `scripts/test__rc_test_common.py` direct run shows ALL CHECKS PASS. Whiteboard: cross-check confirmed two more WB rows were stale and erased â€” Role-aware bench_sim gate (already implemented in `scripts/ci/pre_commit_matrix.py` with separate `TRIGGER_FLIGHT_BENCH` / `TRIGGER_STATION_BENCH` triggers), Station role/board decoupling (already implemented via `include/rocketchip/board.h` `#if defined(ADAFRUIT_FRUIT_JAM)` selector + `board_*.h` per-board headers + auto-pick in CMakeLists.txt). Remaining "Fruit Jam" mentions in `src/` are explanatory comments, not coupling.
 
 Files: `scripts/_rc_test_common.py`, `scripts/test__rc_test_common.py`, `AGENT_WHITEBOARD.md`, `CHANGELOG.md`
 
 ### 2026-04-27-003 | Claude | refactor, documentation
 
-**One-time scaffolding cleanup.** Deleted `src/tools/mat_benchmark.cpp` + its CMake target and removed the empty `src/tools/` directory — the IVP-40 24-state-ESKF gate decision is closed and no documentation calls for periodic re-runs (results preserved in `docs/benchmarks/`). Deleted `docs/TOOLCHAIN_VALIDATION.md` (Jan-2026 FreeRTOS SMP + Pico SDK 2.1.0 scaffolding, last touched 2026-02-02 and wrong on every axis since the QP/C bare-metal pivot; current build/debug guidance lives in `DEBUG_PROBE_NOTES.md`, `FLASHING.md`, `BENCH_TEST_PROCEDURE.md`, `BOARD_FIRMWARE_VERIFICATION.md`). Updated CMakeLists.txt parent-gate comment (`ROCKETCHIP_BUILD_DEV_TOOLS` now exposes only the stage archive — no standing dev-tool targets). Removed mat_benchmark and ud_benchmark exclusions from `scripts/run_clang_tidy.sh`. SCAFFOLDING.md, SAD.md, BUILD_SYSTEM_AUDIT.md updated to match. Erased the `Resolved` sections from `AGENT_WHITEBOARD.md` per its IRL-whiteboard rule (CHANGELOG is the source of truth). Audit confirmed `src/dev/` (6 modules, 1084 lines, all properly `BUILD_FOR_FLIGHT`-gated) has no dead code. Verified: 788/788 host ctest pass, vehicle bench builds clean.
+**One-time scaffolding cleanup.** Deleted `src/tools/mat_benchmark.cpp` + its CMake target and removed the empty `src/tools/` directory â€” the IVP-40 24-state-ESKF gate decision is closed and no documentation calls for periodic re-runs (results preserved in `docs/benchmarks/`). Deleted `docs/TOOLCHAIN_VALIDATION.md` (Jan-2026 FreeRTOS SMP + Pico SDK 2.1.0 scaffolding, last touched 2026-02-02 and wrong on every axis since the QP/C bare-metal pivot; current build/debug guidance lives in `DEBUG_PROBE_NOTES.md`, `FLASHING.md`, `BENCH_TEST_PROCEDURE.md`, `BOARD_FIRMWARE_VERIFICATION.md`). Updated CMakeLists.txt parent-gate comment (`ROCKETCHIP_BUILD_DEV_TOOLS` now exposes only the stage archive â€” no standing dev-tool targets). Removed mat_benchmark and ud_benchmark exclusions from `scripts/run_clang_tidy.sh`. SCAFFOLDING.md, SAD.md, BUILD_SYSTEM_AUDIT.md updated to match. Erased the `Resolved` sections from `AGENT_WHITEBOARD.md` per its IRL-whiteboard rule (CHANGELOG is the source of truth). Audit confirmed `src/dev/` (6 modules, 1084 lines, all properly `BUILD_FOR_FLIGHT`-gated) has no dead code. Verified: 788/788 host ctest pass, vehicle bench builds clean.
 
 Files: `src/tools/mat_benchmark.cpp` (deleted), `docs/TOOLCHAIN_VALIDATION.md` (deleted), `CMakeLists.txt`, `docs/SCAFFOLDING.md`, `docs/SAD.md`, `docs/BUILD_SYSTEM_AUDIT.md`, `scripts/run_clang_tidy.sh`, `AGENT_WHITEBOARD.md`, `CHANGELOG.md`
 
@@ -927,21 +931,21 @@ Files: `src/tools/mat_benchmark.cpp` (deleted), `docs/TOOLCHAIN_VALIDATION.md` (
 
 **Polarity rename + first toolchain audit + WB hygiene.** Three independent build-system audit follow-ups closed in one session.
 
-**1. Operator-facing flag rename + source-side mirror.** Renamed CMake flag `BUILD_FOR_FLIGHT` (default OFF = dev) → `NOT_CERTIFIED_FOR_FLIGHT` (default OFF = flight-ready) so the safe state matches the unflagged default. New positive source-side mirror `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1` is defined when the operator flag is ON; all `src/` and `include/` `#ifdef`/`#ifndef` sites use the positive mirror so the source code reads in the affirmative even though the operator flag is negative-polarity. CMake `message(WARNING ...)` fires when the dev flag is set, output binary becomes `rocketchip-dev.uf2` (vs `rocketchip.uf2` for flight-ready), and `kBuildConfig` reports `"dev"` vs `"flight"` so the boot banner carries the bit. CMakePresets.json, BENCH_TEST_PROCEDURE.md, BUILD_SYSTEM_AUDIT.md, CONFIG_TEST_MATRIX.md, FAULT_INJECTION.md, FLASHING.md, BOARD_FIRMWARE_VERIFICATION.md, .claude/SESSION_CHECKLIST.md updated to match. All 4 builds verified clean (vehicle/station × bench/flight); 788/788 host ctest pass; ELF-size delta ~+170KB confirms dev code is genuinely excluded from flight binaries. *Council review (NASA/JPL, ArduPilot Core, Embedded Prof, Cubesat Startup) converged on this expanded scope: pure mechanical rename was the original WB ask; the two-name pattern + WARNING + OUTPUT_NAME + banner-config additions came from the council's defense-in-depth additions.*
+**1. Operator-facing flag rename + source-side mirror.** Renamed CMake flag `BUILD_FOR_FLIGHT` (default OFF = dev) â†’ `NOT_CERTIFIED_FOR_FLIGHT` (default OFF = flight-ready) so the safe state matches the unflagged default. New positive source-side mirror `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1` is defined when the operator flag is ON; all `src/` and `include/` `#ifdef`/`#ifndef` sites use the positive mirror so the source code reads in the affirmative even though the operator flag is negative-polarity. CMake `message(WARNING ...)` fires when the dev flag is set, output binary becomes `rocketchip-dev.uf2` (vs `rocketchip.uf2` for flight-ready), and `kBuildConfig` reports `"dev"` vs `"flight"` so the boot banner carries the bit. CMakePresets.json, BENCH_TEST_PROCEDURE.md, BUILD_SYSTEM_AUDIT.md, CONFIG_TEST_MATRIX.md, FAULT_INJECTION.md, FLASHING.md, BOARD_FIRMWARE_VERIFICATION.md, .claude/SESSION_CHECKLIST.md updated to match. All 4 builds verified clean (vehicle/station Ã— bench/flight); 788/788 host ctest pass; ELF-size delta ~+170KB confirms dev code is genuinely excluded from flight binaries. *Council review (NASA/JPL, ArduPilot Core, Embedded Prof, Cubesat Startup) converged on this expanded scope: pure mechanical rename was the original WB ask; the two-name pattern + WARNING + OUTPUT_NAME + banner-config additions came from the council's defense-in-depth additions.*
 
-**2. Toolchain-version audit (P6 first run).** New `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-04-27.md`. All pinned components within P6 "clean" criterion. No upgrades required: Pico SDK 2.2.0 current, picotool 2.2.0-a4 current, GCC ARM 14.2.Rel1 explicitly stays pinned (15.2.Rel1 available but Pico SDK validated against 13/14, codegen risk per LL Entry 30), OpenOCD 0.12.0+dev pinned (Pi fork uses rolling `rpi-common` branch with no release cadence — chasing tip introduces probe-flake risk), CMake 4.2.1 local vs 3.25 project minimum — both fine. Single residual action item documented: read installed Pico Probe firmware version against debugprobe-v2.3.0 to check for the upstream-#201 "fails to start" regression. Future-watch options surfaced (quarterly cadence, pre-commit drift check, errata-coupling).
+**2. Toolchain-version audit (P6 first run).** New `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-04-27.md`. All pinned components within P6 "clean" criterion. No upgrades required: Pico SDK 2.2.0 current, picotool 2.2.0-a4 current, GCC ARM 14.2.Rel1 explicitly stays pinned (15.2.Rel1 available but Pico SDK validated against 13/14, codegen risk per LL Entry 30), OpenOCD 0.12.0+dev pinned (Pi fork uses rolling `rpi-common` branch with no release cadence â€” chasing tip introduces probe-flake risk), CMake 4.2.1 local vs 3.25 project minimum â€” both fine. Single residual action item documented: read installed Pico Probe firmware version against debugprobe-v2.3.0 to check for the upstream-#201 "fails to start" regression. Future-watch options surfaced (quarterly cadence, pre-commit drift check, errata-coupling).
 
-**3. Tier consolidation rejected.** WB item asked whether `src/dev/*.cpp` could become runtime-gated (flight-state checks) instead of compile-excluded, eliminating the 4-target build matrix. *Rejected after consideration:* the current 2-tier compile-time exclusion gives a physical-layer safety property (`strings rocketchip.elf | grep "Debug Menu"` returns zero) that runtime gating cannot match. A runtime gate is one bug, glitch, command-injection, or memory corruption away from being bypassable; compile-time absence cannot be bypassed. The 4-build matrix cost is real but acceptable; the absence-as-proof property is non-negotiable. Same reasoning that drives the carve-out distinction in CODING_STANDARDS.md (CLI uses runtime lockout, dev tools use compile-time exclusion). The flag-count concern that motivated the WB row was largely dissolved by the 2026-04-23 hierarchical-gate cleanup + this morning's `mat_benchmark` deletion + the rename above — `cmake -B build` now sees 3 surface-level flags with documented purpose.
+**3. Tier consolidation rejected.** WB item asked whether `src/dev/*.cpp` could become runtime-gated (flight-state checks) instead of compile-excluded, eliminating the 4-target build matrix. *Rejected after consideration:* the current 2-tier compile-time exclusion gives a physical-layer safety property (`strings rocketchip.elf | grep "Debug Menu"` returns zero) that runtime gating cannot match. A runtime gate is one bug, glitch, command-injection, or memory corruption away from being bypassable; compile-time absence cannot be bypassed. The 4-build matrix cost is real but acceptable; the absence-as-proof property is non-negotiable. Same reasoning that drives the carve-out distinction in CODING_STANDARDS.md (CLI uses runtime lockout, dev tools use compile-time exclusion). The flag-count concern that motivated the WB row was largely dissolved by the 2026-04-23 hierarchical-gate cleanup + this morning's `mat_benchmark` deletion + the rename above â€” `cmake -B build` now sees 3 surface-level flags with documented purpose.
 
 **4. WB hygiene.** Rewrote `AGENT_WHITEBOARD.md` header with explicit "treat like an IRL whiteboard, not a record of completed things" rule + rationale (stale "done" notes dilute the active-row signal). Erased rows resolved-elsewhere or already-done: RP2350 errata sweep (done 27068cb + 276228a, content fully migrated to standards/RP2350_ERRATA.md), MAIN_DESCENT timeout / SPIN P7 (done f005899 / IVP-121), the polarity rename + toolchain audit + tier consolidation closed by this commit, host-script-hardening "closed" marker (Tiers 1-7 done in -001, .git/hooks/pre-commit removed, core.hooksPath set), Stage T COMPLETE marker (forward-looking follow-up already its own row), Station bench_sim/SPIN landed marker (forward-looking extensions already in Medium section). WB now 108 lines (was ~206), all rows are active deferrals or genuinely pending work.
 
-**5. Date typo fix on prior 2026-04-NN entries.** The four most-recent CHANGELOG entries (`-001`/`-002`/`-003` from prior agents and the `-004` initially drafted in this session) were all dated `2026-04-30` despite being committed `2026-04-28` per `git log`. User-granted exception (the format guide's "trivial typo" carve-out, which normally protects older entries from cross-agent revision): retroactively renumbered `2026-04-30-{001,002,003,004}` → `2026-04-27-{001,002,003,004}` (yesterday before-midnight, the actual authorship date). Internal cross-references updated (e.g., the `-002` body's reference to `-001` follows the new date). Also renamed `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-04-30.md` → `..._2026-04-27.md` and fixed the in-doc title + "Latest upstream pulled" attribution date to match.
+**5. Date typo fix on prior 2026-04-NN entries.** The four most-recent CHANGELOG entries (`-001`/`-002`/`-003` from prior agents and the `-004` initially drafted in this session) were all dated `2026-04-30` despite being committed `2026-04-28` per `git log`. User-granted exception (the format guide's "trivial typo" carve-out, which normally protects older entries from cross-agent revision): retroactively renumbered `2026-04-30-{001,002,003,004}` â†’ `2026-04-27-{001,002,003,004}` (yesterday before-midnight, the actual authorship date). Internal cross-references updated (e.g., the `-002` body's reference to `-001` follows the new date). Also renamed `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-04-30.md` â†’ `..._2026-04-27.md` and fixed the in-doc title + "Latest upstream pulled" attribution date to match.
 
 Files: `CMakeLists.txt`, `CMakePresets.json`, `include/rocketchip/version.h`, `src/active_objects/ao_telemetry.cpp`, `src/cli/rc_os_commands.cpp`, `src/dev/*.cpp`, `src/dev/*.h`, `src/fusion/eskf_runner.{cpp,h}`, `src/main.cpp`, `docs/BOARD_FIRMWARE_VERIFICATION.md`, `docs/BUILD_SYSTEM_AUDIT.md`, `docs/CONFIG_TEST_MATRIX.md`, `docs/FAULT_INJECTION.md`, `docs/FLASHING.md`, `docs/PROJECT_STATUS.md`, `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-04-27.md` (new), `.claude/SESSION_CHECKLIST.md`, `AGENT_WHITEBOARD.md`, `CHANGELOG.md`
 
 ### 2026-04-27-001 | Cursor | tooling, council, documentation
 
-**Host script hardening closure (Tiers 1–7):** `scripts/_rc_test_common.py` gains `find_vehicle_and_station_ports`; Tier 4 Stage T / decode / bench paths use `find_target_port` + `open_classified_port`; `CMakeLists.txt` registers `ctest` targets `scripts_rc_test_common` + `scripts_python_compileall` (`-DBUILD_TESTS=ON`). `.github/workflows/python-scripts-ci.yml` + `scripts/ci/pre_commit_matrix.py`; tracked **`git config core.hooksPath scripts/hooks`** + `scripts/hooks/pre-commit` (prior `.git/hooks/pre-commit` should be removed/renamed to avoid duplication). **`@rc_test(watchdog_s=)`** ceilings on `ack_stress_test`, `soak_test`, `replay_harness`. **Firmware Tier 5:** `src/cli/rc_os.cpp` — main-menu **`p`** runs `cli_print_preflight()` on station (RX). Council review + roadmap: `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`; matrix + plan stubs updated.
+**Host script hardening closure (Tiers 1â€“7):** `scripts/_rc_test_common.py` gains `find_vehicle_and_station_ports`; Tier 4 Stage T / decode / bench paths use `find_target_port` + `open_classified_port`; `CMakeLists.txt` registers `ctest` targets `scripts_rc_test_common` + `scripts_python_compileall` (`-DBUILD_TESTS=ON`). `.github/workflows/python-scripts-ci.yml` + `scripts/ci/pre_commit_matrix.py`; tracked **`git config core.hooksPath scripts/hooks`** + `scripts/hooks/pre-commit` (prior `.git/hooks/pre-commit` should be removed/renamed to avoid duplication). **`@rc_test(watchdog_s=)`** ceilings on `ack_stress_test`, `soak_test`, `replay_harness`. **Firmware Tier 5:** `src/cli/rc_os.cpp` â€” main-menu **`p`** runs `cli_print_preflight()` on station (RX). Council review + roadmap: `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`; matrix + plan stubs updated.
 
 Files: `src/cli/rc_os.cpp`, `test/CMakeLists.txt`, `scripts/**/*.py`, `scripts/ci/pre_commit_matrix.py`, `scripts/hooks/*`, `.github/workflows/python-scripts-ci.yml`, `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`, `docs/plans/HOST_SCRIPT_HARDENING_PLAN.md`, `docs/CONFIG_TEST_MATRIX.md`, `docs/PROJECT_STATUS.md`, `docs/SCAFFOLDING.md`, `AGENT_WHITEBOARD.md`, `.gitignore`, `CHANGELOG.md`
 
@@ -959,21 +963,21 @@ Files: `.claude/SESSION_CHECKLIST.md`, `docs/MULTICORE_RULES.md`, `standards/STA
 
 ### 2026-04-29-002 | Cursor | architecture, refactor, documentation, tooling, hardware
 
-**OPT‑IVP‑01/02/05 backlog — combined changes in `origin/main..f142901` (four commits).**
+**OPTâ€‘IVPâ€‘01/02/05 backlog â€” combined changes in `origin/main..f142901` (four commits).**
 
-`src/safety/fault_protection.{h,cpp}` (MPU guard, MemManage, `Q_onError`), `shared_state` + `main.cpp` / `sensor_core1` / calibration / CLI cleanup, `eskf_runner` fusion-cycle + bench updates, baseline/runbook/multicore/fault docs, `.claude/DEBUG_PROBE_NOTES.md`, SPIN helper + `scripts/start_openocd_pico_sdk.ps1` + dual-core GDB watch (Windows-safe delay); `.gitattributes` / `.gitignore` housekeeping. Ordinary IVP/session batch—not a milestone sign-off.
+`src/safety/fault_protection.{h,cpp}` (MPU guard, MemManage, `Q_onError`), `shared_state` + `main.cpp` / `sensor_core1` / calibration / CLI cleanup, `eskf_runner` fusion-cycle + bench updates, baseline/runbook/multicore/fault docs, `.claude/DEBUG_PROBE_NOTES.md`, SPIN helper + `scripts/start_openocd_pico_sdk.ps1` + dual-core GDB watch (Windows-safe delay); `.gitattributes` / `.gitignore` housekeeping. Ordinary IVP/session batchâ€”not a milestone sign-off.
 
-**Policies / cleanup:** **`CHANGELOG.md` Format** (see above)—don’t refactor past dated sections for substantive fixes; drafts of the active entry stay editable.
+**Policies / cleanup:** **`CHANGELOG.md` Format** (see above)â€”donâ€™t refactor past dated sections for substantive fixes; drafts of the active entry stay editable.
 
-**Revert:** misplaced **Milestone item 19** (Stage O soak wording) struck from **`.claude/SESSION_CHECKLIST.md`** so that file stays **owner‑approved‑edits‑only** per **`PROTECTED_FILES.md`**; same material lives under **`docs/baselines/stage_o_hw_verification_2026-04-28.md`** and **`.claude/DEBUG_PROBE_NOTES.md`**.
+**Revert:** misplaced **Milestone item 19** (Stage O soak wording) struck from **`.claude/SESSION_CHECKLIST.md`** so that file stays **ownerâ€‘approvedâ€‘editsâ€‘only** per **`PROTECTED_FILES.md`**; same material lives under **`docs/baselines/stage_o_hw_verification_2026-04-28.md`** and **`.claude/DEBUG_PROBE_NOTES.md`**.
 
 Files: `.claude/DEBUG_PROBE_NOTES.md`, `.claude/SESSION_CHECKLIST.md`, `.gitattributes`, `.gitignore`, `CHANGELOG.md`, `CMakeLists.txt`, `docs/baselines/stage_o_hw_verification_2026-04-28.md`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, `docs/FAULT_INJECTION.md`, `docs/MULTICORE_RULES.md`, `docs/PROJECT_STATUS.md`, `include/rocketchip/shared_state.h`, `scripts/opt_ivp01_row10_dualcore_watch.gdb`, `scripts/start_openocd_pico_sdk.ps1`, `src/calibration/cal_hooks.cpp`, `src/cli/rc_os_commands.cpp`, `src/core1/sensor_core1.cpp`, `src/core1/sensor_core1.h`, `src/fusion/eskf_runner.cpp`, `src/fusion/eskf_runner.h`, `src/main.cpp`, `src/safety/fault_protection.cpp`, `src/safety/fault_protection.h`, `src/shared_state.cpp`, `standards/STANDARDS_AUDIT.md`, `standards/STANDARDS_AUDIT_2026-04-28.md`, `tools/spin/README.md`, `tools/spin/run_stage_o_ao_spin.sh`
 
 ### 2026-04-29-001 | Cursor | documentation, hardware
 
-**Stage O OPT‑IVP‑01/02/05 plan closed — HW verified.**
+**Stage O OPTâ€‘IVPâ€‘01/02/05 plan closed â€” HW verified.**
 
-Closure recorded in **`docs/baselines/stage_o_hw_verification_2026-04-28.md`**: **`bench_sim` 2/2 COM7** (2026-04-29 ~6.5 s), Row 10 evidence `build/row10_ivp01_watch_2026-04-27.log`, prior SPIN / Tier‑1 soak citations unchanged. **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** passive delay uses **`python -c`** so Windows GDB isn’t blocked on POSIX `sleep`. **`docs/PROJECT_STATUS.md`** Stage O table set to **CLOSED**.
+Closure recorded in **`docs/baselines/stage_o_hw_verification_2026-04-28.md`**: **`bench_sim` 2/2 COM7** (2026-04-29 ~6.5â€¯s), Rowâ€¯10 evidence `build/row10_ivp01_watch_2026-04-27.log`, prior SPIN / Tierâ€‘1 soak citations unchanged. **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** passive delay uses **`python -c`** so Windows GDB isnâ€™t blocked on POSIX `sleep`. **`docs/PROJECT_STATUS.md`** Stageâ€¯O table set to **CLOSED**.
 
 Files: `docs/PROJECT_STATUS.md`, `docs/baselines/stage_o_hw_verification_2026-04-28.md`, `scripts/opt_ivp01_row10_dualcore_watch.gdb`, `CHANGELOG.md`
 
@@ -1013,58 +1017,58 @@ Files: `src/main.cpp`
 
 ### 2026-04-22-004 | Claude Opus 4.7 | tooling, refactor, documentation, council
 
-**Whiteboard triage session — 4 of 6 High-priority items closed.** CMake auto-pick Fruit Jam board when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein station-on-Feather builds); centralized flashing + board-firmware verification into new `docs/FLASHING.md` replacing scattered references across `BENCH_TEST_PROCEDURE.md` / `DEBUG_PROBE_NOTES.md` / deleted memory files; full RP2350 silicon errata sweep producing `standards/RP2350_ERRATA.md` (28 errata, 4 active-attention triaged against our silicon blocks + Adafruit board pulls, 24 not-applicable with reasons); Rescue-DP referenced in FLASHING.md as a secondary recovery option. Four commits: `0a6aae5` (CMake auto-pick), `5685f26` (docs centralization), `27068cb` (errata matrix), `276228a` (E12 re-read + E2 incident tracker), `7902b81` (Rescue-DP note).
+**Whiteboard triage session â€” 4 of 6 High-priority items closed.** CMake auto-pick Fruit Jam board when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein station-on-Feather builds); centralized flashing + board-firmware verification into new `docs/FLASHING.md` replacing scattered references across `BENCH_TEST_PROCEDURE.md` / `DEBUG_PROBE_NOTES.md` / deleted memory files; full RP2350 silicon errata sweep producing `standards/RP2350_ERRATA.md` (28 errata, 4 active-attention triaged against our silicon blocks + Adafruit board pulls, 24 not-applicable with reasons); Rescue-DP referenced in FLASHING.md as a secondary recovery option. Four commits: `0a6aae5` (CMake auto-pick), `5685f26` (docs centralization), `27068cb` (errata matrix), `276228a` (E12 re-read + E2 incident tracker), `7902b81` (Rescue-DP note).
 
-Memory purged of six HW-identity files that had stored a swapped chip-serial ↔ board mapping — root cause of repeated Frankenstein-flash incidents. Repo docs (e.g., `docs/plans/STAGE_T_FIX_PLAN.md:339` cites station serial) are now the authoritative source; memory holds only patterns, not identity. Added memory note `feedback_clarifications_in_docs.md` enforcing "conceptual content lives in docs, code comments point to docs."
+Memory purged of six HW-identity files that had stored a swapped chip-serial â†” board mapping â€” root cause of repeated Frankenstein-flash incidents. Repo docs (e.g., `docs/plans/STAGE_T_FIX_PLAN.md:339` cites station serial) are now the authoritative source; memory holds only patterns, not identity. Added memory note `feedback_clarifications_in_docs.md` enforcing "conceptual content lives in docs, code comments point to docs."
 
-A4 silicon (Feather HSTX post-2026-03-20) fixes E9 and others — captured as a procurement note for future hardware orders.
+A4 silicon (Feather HSTX post-2026-03-20) fixes E9 and others â€” captured as a procurement note for future hardware orders.
 
-R-1 / R-2 E2 trigger paths (`picotool -f` warm reboot, SWD halt mid-`spin_lock_blocking`) have an **Incident log** table in the errata doc for structured recurrence tracking. Online search confirmed no exact-pattern match for our intersection — collect data before filing upstream.
+R-1 / R-2 E2 trigger paths (`picotool -f` warm reboot, SWD halt mid-`spin_lock_blocking`) have an **Incident log** table in the errata doc for structured recurrence tracking. Online search confirmed no exact-pattern match for our intersection â€” collect data before filing upstream.
 
-Files: `CMakeLists.txt`, `docs/FLASHING.md` (new), `docs/BOARD_FIRMWARE_VERIFICATION.md` (new, intermediate — kept per user direction for later cleanup), `docs/BENCH_TEST_PROCEDURE.md` (Frankenstein section → pointer), `standards/RP2350_ERRATA.md` (new), `standards/CODING_STANDARDS.md` (one-line errata pointer), `AGENT_WHITEBOARD.md`.
+Files: `CMakeLists.txt`, `docs/FLASHING.md` (new), `docs/BOARD_FIRMWARE_VERIFICATION.md` (new, intermediate â€” kept per user direction for later cleanup), `docs/BENCH_TEST_PROCEDURE.md` (Frankenstein section â†’ pointer), `standards/RP2350_ERRATA.md` (new), `standards/CODING_STANDARDS.md` (one-line errata pointer), `AGENT_WHITEBOARD.md`.
 
 ---
 
 ### 2026-04-23-001 | Claude Opus 4.7 | refactor, tooling, documentation, audit
 
-**Build-system audit — CMake + toolchain cleanup with `docs/BUILD_SYSTEM_AUDIT.md` as deliverable.**
+**Build-system audit â€” CMake + toolchain cleanup with `docs/BUILD_SYSTEM_AUDIT.md` as deliverable.**
 
 User flagged CMake accretion as overdue after a broken auxiliary target (`ud_benchmark`) went undetected for 2+ weeks. Session scope expanded from "delete dead targets" to full end-to-end audit. Six phases, seven commits (`5bc463b` through `95de0a4` + `d6bccd2` whiteboard).
 
 **Removed (code):**
-- `ud_benchmark` target + `src/benchmark/ud_benchmark.cpp` (946 lines) — Phase-1 gate decision delivered 2026-02-24, results preserved in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, Bierman adopted.
+- `ud_benchmark` target + `src/benchmark/ud_benchmark.cpp` (946 lines) â€” Phase-1 gate decision delivered 2026-02-24, results preserved in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, Bierman adopted.
 - `src/benchmark/` directory (now empty).
 
-**Gated behind new hierarchical flags (not deleted — preserved for replay):**
-- `ROCKETCHIP_BUILD_DEV_TOOLS` (parent, default OFF) — regular dev-tool targets. `mat_benchmark` now lives here.
-- `ROCKETCHIP_STAGE_ARCHIVE` (child of DEV_TOOLS, default OFF) — stage-bounded diagnostic flags: `STAGE_T_LOGGING`, `STAGE_T2_CHEAT`, `STAGE_T3_MAVLINK`. Each flag still opt-in per-flag after both parents are on. Nested structure prevents accidental activation of archived stage flags during regular dev work.
+**Gated behind new hierarchical flags (not deleted â€” preserved for replay):**
+- `ROCKETCHIP_BUILD_DEV_TOOLS` (parent, default OFF) â€” regular dev-tool targets. `mat_benchmark` now lives here.
+- `ROCKETCHIP_STAGE_ARCHIVE` (child of DEV_TOOLS, default OFF) â€” stage-bounded diagnostic flags: `STAGE_T_LOGGING`, `STAGE_T2_CHEAT`, `STAGE_T3_MAVLINK`. Each flag still opt-in per-flag after both parents are on. Nested structure prevents accidental activation of archived stage flags during regular dev work.
 
 **Fixed (build coverage):**
 - 14 of our `.cpp` files had drifted outside `ROCKETCHIP_SOURCES`, missing `-Wpedantic` coverage silently for months (active_objects, dev/diag_stats, fusion/{confidence_gate,innovation_monitor}, notify backends, safety/{pio_watchdog,pio_backup_timer,pyro_edge_logger}). All 14 now in the list.
 - Vendored third-party includes (`lib/mavlink`, `lib/qep`, `lib/ruuvi.dps310.c`, `lib/lwgps`) reclassified from `-I` to `-isystem` (SYSTEM PRIVATE target_include_directories).
 - Pico SDK + TinyUSB interface targets marked `SYSTEM TRUE` so transitive includes don't surface vendor-header pedantic errors in our code.
-- `cmake_minimum_required` 3.13 → 3.25 (3.13 was already fictional — CMakePresets.json required 3.21 to parse; 3.25 enables native SYSTEM target property).
+- `cmake_minimum_required` 3.13 â†’ 3.25 (3.13 was already fictional â€” CMakePresets.json required 3.21 to parse; 3.25 enables native SYSTEM target property).
 
 **Documented (flight_director host/target split):**
-- `rc_flight_director` library (host build) and `add_executable(rocketchip)` (target build) both list the same flight_director source files. Looks like duplication; actually intentional — two `if(BUILD_TESTS)` branches compile those files in different preprocessor contexts (host vs target). Comment block at `rc_flight_director` added to prevent future audits from collapsing the split.
+- `rc_flight_director` library (host build) and `add_executable(rocketchip)` (target build) both list the same flight_director source files. Looks like duplication; actually intentional â€” two `if(BUILD_TESTS)` branches compile those files in different preprocessor contexts (host vs target). Comment block at `rc_flight_director` added to prevent future audits from collapsing the split.
 
 **Removed (narrative comments):**
 - "Source files added as IVP-39/40 / IVP-41+ are implemented" stage-scaffolding comments.
 - "migrated from watchdog_recovery 2026-04-22" note on `test_eskf_disable_brake` (migration history is in git log, not live tree).
 
 **Deliverable:**
-- `docs/BUILD_SYSTEM_AUDIT.md` (296 lines) — structured audit checklist with 7 check categories (P1-A dev-tool gating, P1-B self-flagged dead code, P2 ROCKETCHIP_SOURCES coverage, P3 host/target split, P4 SYSTEM classification, P5 scaffolding comments, P6 toolchain-version check), guardrails list (what NOT to delete — PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL, diag_stats unconditional inclusion, target_link_options --undefined, per-file -O2 on eskf codegen), and append-only incident log.
+- `docs/BUILD_SYSTEM_AUDIT.md` (296 lines) â€” structured audit checklist with 7 check categories (P1-A dev-tool gating, P1-B self-flagged dead code, P2 ROCKETCHIP_SOURCES coverage, P3 host/target split, P4 SYSTEM classification, P5 scaffolding comments, P6 toolchain-version check), guardrails list (what NOT to delete â€” PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL, diag_stats unconditional inclusion, target_link_options --undefined, per-file -O2 on eskf codegen), and append-only incident log.
 - `.claude/SESSION_CHECKLIST.md` item 16 added cross-referencing the new doc at milestone close.
 
-**Side effect (verified benign, documented in audit doc):** Firmware `.text` ~740 bytes smaller across all 4 configs — GCC optimizes SDK code slightly more aggressively under `-isystem` semantics. Our code `.obj` byte-identical to baseline. Runtime verified.
+**Side effect (verified benign, documented in audit doc):** Firmware `.text` ~740 bytes smaller across all 4 configs â€” GCC optimizes SDK code slightly more aggressively under `-isystem` semantics. Our code `.obj` byte-identical to baseline. Runtime verified.
 
 **Verification gate at each phase:** host tests (786/786 PASS), 4 firmware configs clean link, `nm` symbol diff against Phase 0 baseline at `docs/baselines/build_audit_2026-04-23/`. HW boot-clean gate on vehicle: `Board: Adafruit Feather RP2350 HSTX`, `Hardware: 14/14 OK`, preflight `VERDICT: GO`. Vehicle `bench_sim.py`: 2/2 PASS.
 
 Plan file: `.claude/plans/i-just-put-you-glimmering-elephant.md` (retained).
 
 Open items captured in `AGENT_WHITEBOARD.md` Easy section:
-- `BUILD_FOR_FLIGHT` → `NOT_CERTIFIED_FOR_FLIGHT` polarity rename (reads correct against safety default).
-- First run of toolchain-version audit (P6 — Pico SDK, Pico Probe firmware, GCC ARM, OpenOCD, picotool, CMake).
+- `BUILD_FOR_FLIGHT` â†’ `NOT_CERTIFIED_FOR_FLIGHT` polarity rename (reads correct against safety default).
+- First run of toolchain-version audit (P6 â€” Pico SDK, Pico Probe firmware, GCC ARM, OpenOCD, picotool, CMake).
 - Tier consolidation evaluation (whether `src/dev/*.cpp` could be runtime-gated instead of compile-excluded).
 
 Files: `CMakeLists.txt`, `test/CMakeLists.txt`, `test/test_go_nogo.cpp`, deleted `src/benchmark/ud_benchmark.cpp` + directory, new `docs/BUILD_SYSTEM_AUDIT.md` + `docs/baselines/build_audit_2026-04-23/*`, `.claude/SESSION_CHECKLIST.md`, `AGENT_WHITEBOARD.md`.
@@ -1073,17 +1077,17 @@ Files: `CMakeLists.txt`, `test/CMakeLists.txt`, `test/test_go_nogo.cpp`, deleted
 
 ### 2026-04-22-005 | Claude Opus 4.7 | refactor, safety, documentation
 
-**Watchdog recovery machinery removed — dead code after IVP-90, producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots.**
+**Watchdog recovery machinery removed â€” dead code after IVP-90, producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots.**
 
 IVP-90 (2026-03-29) removed the SDK hardware watchdog with intent "no automatic MCU reset, ever, without user command." The recovery machinery that depended on those resets was never cleaned up, so whenever the bootrom set `watchdog_hw->reason` on a warm reboot (picotool `-f`, SWD reset), `check_watchdog_reboot()` returned true and the CLI printed a `[WARN] WATCHDOG REBOOT` line that had no real meaning. Surfaced on the station after a picotool cycle 2026-04-22; council review (NASA/JPL, ArduPilot, Rocketeer) agreed: remove outright, not rename.
 
 **Removed:** `src/watchdog/` directory, scratch-register persistence (`kRecoveryMagic`, `recovery_pack_*/unpack_*/validate_magic`), reboot counter + `kSafeModeRebootThreshold` (safe-mode-on-3-reboots can't fire without reboot detection), `TickFnId` crash-tickfn diagnostics (only-written-never-read), `check_watchdog_reboot()`, `g_watchdogReboot`, `g_recovery` global, `kWatchdogSentinel` scratch write, `g_lastTickFunction`, `launch_abort_acked` field + `watchdog_recovery_ack_launch_abort()` (aspirational CLI ack, never wired), `rc_watchdog` CMake library, `test_watchdog_recovery.cpp`.
 
-**Migrated (live behaviors preserved):** `launch_abort` → file-local static in `flight_director.cpp` with 2-function API (set + read). Level-3 safety posture per new `docs/USER_GUIDE.md` "Safety State Model" section: power-cycle-only clear. **No CLI command to clear, by design** — user veto on keystroke-clear for safety-critical launch abort (mirrors pad abort doctrine: stop, physically inspect, reset). ESKF runaway-restart brake → new `src/fusion/eskf_brake.cpp` (separate file so host tests link without SDK), 3-function API (`eskf_is_disabled / eskf_reenable / eskf_note_divergence`). HealthMonitor reads `eskf_is_disabled()` behind `job::kRoleSamplesCore1` constexpr guard for station builds.
+**Migrated (live behaviors preserved):** `launch_abort` â†’ file-local static in `flight_director.cpp` with 2-function API (set + read). Level-3 safety posture per new `docs/USER_GUIDE.md` "Safety State Model" section: power-cycle-only clear. **No CLI command to clear, by design** â€” user veto on keystroke-clear for safety-critical launch abort (mirrors pad abort doctrine: stop, physically inspect, reset). ESKF runaway-restart brake â†’ new `src/fusion/eskf_brake.cpp` (separate file so host tests link without SDK), 3-function API (`eskf_is_disabled / eskf_reenable / eskf_note_divergence`). HealthMonitor reads `eskf_is_disabled()` behind `job::kRoleSamplesCore1` constexpr guard for station builds.
 
-**User Guide:** added three-level Safety State Model section — flight hold (auto-clears), safe mode (reserved, not implemented), launch abort (physical-intervention-required, power-cycle-only clear). Clarification content lives in docs; code comments cite the doc.
+**User Guide:** added three-level Safety State Model section â€” flight hold (auto-clears), safe mode (reserved, not implemented), launch abort (physical-intervention-required, power-cycle-only clear). Clarification content lives in docs; code comments cite the doc.
 
-**In-commit cleanup:** `test_go_nogo.cpp` had pre-existing rot from Stage T Batch B (commit 3159173) — `AllGoReturnsAllGo` expected tier2_total=4 but "RF Link" added a 5th check. Fixed here rather than deferred: updated `all_go_input()` to populate `rf_anchor_valid`/`rf_link_state`/`rf_lq_pct`, corrected expected counts in 4 tests.
+**In-commit cleanup:** `test_go_nogo.cpp` had pre-existing rot from Stage T Batch B (commit 3159173) â€” `AllGoReturnsAllGo` expected tier2_total=4 but "RF Link" added a 5th check. Fixed here rather than deferred: updated `all_go_input()` to populate `rf_anchor_valid`/`rf_link_state`/`rf_lq_pct`, corrected expected counts in 4 tests.
 
 **Verification:** 786/786 host tests pass (8 new: 3 `LaunchAbortFixture`, 5 `EskfBrakeFixture`). 4 builds clean (vehicle bench, vehicle flight, station bench, station flight). HW boot-clean gate on vehicle via SWD probe: banner shows `Board: Adafruit Feather RP2350 HSTX`, build-hash matches HEAD, `Hardware: 14/14 OK`, no `[WARN] WATCHDOG REBOOT`, no `[WARN] LAUNCH ABORT`, preflight VERDICT GO.
 
@@ -1099,17 +1103,17 @@ Files: `src/watchdog/*` (deleted), `src/fusion/eskf_brake.cpp` (new), `test/test
 
 **Stage 17 restructured from 5-IVP direct-to-flight to 13-IVP tapered buildup.**
 
-User direction: first motor flight must be the **last** step, not the third — the equivalent of high-speed taxi testing and a runway hop before full test flights. Main validation targets: ESKF performance/accuracy, RCOS robustness, telemetry quality, all in progressively harder real-world conditions. Three council rounds (NASA/JPL, ArduPilot, Rocketeer, Cubesat) shaped the plan; final round approved with 6 amendments folded in.
+User direction: first motor flight must be the **last** step, not the third â€” the equivalent of high-speed taxi testing and a runway hop before full test flights. Main validation targets: ESKF performance/accuracy, RCOS robustness, telemetry quality, all in progressively harder real-world conditions. Three council rounds (NASA/JPL, ArduPilot, Rocketeer, Cubesat) shaped the plan; final round approved with 6 amendments folded in.
 
-New IVP list: IVP-135a (log schema extension + Tier 2 diagnostic payload + runtime log rate + Validation profile), IVP-135b (instrument self-test), IVP-136 (static gravity-vector accuracy with $40 angle-gauge fixture — addresses user's unresolved QGC return-to-level observation), IVP-137 (static heading accuracy), IVP-138 (parking-lot walk), IVP-139 (car-top ESKF shakedown), IVP-140 (drop/pendulum/arm-swing), IVP-141 (thermal + vibration), IVP-142 (RF pattern characterization), IVP-143 (bungee/tethered — default skip), IVP-144 (airframe integration), IVP-145 (static ground test at pad), IVP-146 (first motor flight), IVP-147 (exit gate).
+New IVP list: IVP-135a (log schema extension + Tier 2 diagnostic payload + runtime log rate + Validation profile), IVP-135b (instrument self-test), IVP-136 (static gravity-vector accuracy with $40 angle-gauge fixture â€” addresses user's unresolved QGC return-to-level observation), IVP-137 (static heading accuracy), IVP-138 (parking-lot walk), IVP-139 (car-top ESKF shakedown), IVP-140 (drop/pendulum/arm-swing), IVP-141 (thermal + vibration), IVP-142 (RF pattern characterization), IVP-143 (bungee/tethered â€” default skip), IVP-144 (airframe integration), IVP-145 (static ground test at pad), IVP-146 (first motor flight), IVP-147 (exit gate).
 
 Ground rules: three-band PASS/MARGINAL/FAIL acceptance, retrogression-on-FAIL with a 3-cycle architectural-review escape hatch, log-only data capture (telemetry is not pass/fail evidence), expected-to-balloon stage budget.
 
-CCSDS rework unanimously deferred to post-Stage-17 — don't stack an unknown command layer with unknown real-world behavior on the same flight day; STOP-GAP retry is characterized (755 host tests, SPIN 11/11) and field-usable. Cubesat Engineer standing watch: promote CCSDS-first if field data shows STOP-GAP is actively hurting data capture.
+CCSDS rework unanimously deferred to post-Stage-17 â€” don't stack an unknown command layer with unknown real-world behavior on the same flight day; STOP-GAP retry is characterized (755 host tests, SPIN 11/11) and field-usable. Cubesat Engineer standing watch: promote CCSDS-first if field data shows STOP-GAP is actively hurting data capture.
 
 `docs/ADVANCED_SETTINGS.md` gained the wizard opt-in principle block (single `Enable advanced settings? [y/N]` gate with tiered warnings; direct `.cfg` editing preserved for discoverability), two new Research Mode rows (`LOG_DIAGNOSTICS`, `LOG_RATE_HZ`), and a post-Stage-17 placeholder IVP for full advanced-settings flesh-out.
 
-Files: `docs/IVP.md` (Stage 17 section rewritten + status table updated + stage preamble updated), `docs/ADVANCED_SETTINGS.md` (wizard principle + new rows), `docs/plans/STAGE17_TAPERED_BUILDUP.md` (new — plan stored in repo alongside other stage plans). Working copy of plan in `.claude/plans/tapered-buildup-airworthy.md` preserved. No code changes. Execution deferred to future sessions.
+Files: `docs/IVP.md` (Stage 17 section rewritten + status table updated + stage preamble updated), `docs/ADVANCED_SETTINGS.md` (wizard principle + new rows), `docs/plans/STAGE17_TAPERED_BUILDUP.md` (new â€” plan stored in repo alongside other stage plans). Working copy of plan in `.claude/plans/tapered-buildup-airworthy.md` preserved. No code changes. Execution deferred to future sessions.
 
 ---
 
@@ -1119,7 +1123,7 @@ Files: `docs/IVP.md` (Stage 17 section rewritten + status table updated + stage 
 
 IVP-T14c live retry indicator: new `CMD:` row on station dashboard with four display states (idle / `Try N/9` / `ACK Nms` / FAILED) and auto-clear hold windows. IVP-T13 LQ-adaptive retry deferred to post-CCSDS-rework (parametric tuning on top of a STOP-GAP command path is not worth it). ABORT paper-budget addendum added to T14 design doc covering single-shot, retry-fallback, and worst-case round-trips.
 
-N=100 Wilson 95% CI attempted three ways — all instrumentation-bound non-results. Deferred to post-CCSDS-rework where "first-try" becomes meaningful under flow-controlled delivery. Record at `logs/stage_t/t14_wilson_ci_attempts.md`. Scope-bench rigor items (ACK-path timing, LDO rail scope session, RX-window vs Batch A binary) dropped from plan — council-approved beyond what's practical for the current bench setup.
+N=100 Wilson 95% CI attempted three ways â€” all instrumentation-bound non-results. Deferred to post-CCSDS-rework where "first-try" becomes meaningful under flow-controlled delivery. Record at `logs/stage_t/t14_wilson_ci_attempts.md`. Scope-bench rigor items (ACK-path timing, LDO rail scope session, RX-window vs Batch A binary) dropped from plan â€” council-approved beyond what's practical for the current bench setup.
 
 Close-out: PROJECT_STATUS.md + AGENT_WHITEBOARD Stage T block marked COMPLETE; AO_ARCHITECTURE.md table updated (FD prio 9, new AO_RfManager row at prio 7); `docs/IVP.md` Stage M mislabel corrected (the actual Stage M is mag-cal, done long ago; the RF work has always been Stage T) with original framing preserved.
 
@@ -1129,25 +1133,25 @@ Commits: 59b5192, 9f0e04a, 8fdf951, 9426954, f0552a7, 7138fc0, plus this changel
 
 ### 2026-04-21/22-001 | Claude Opus 4.7 | feature, firmware, radio, hardware, council, docs
 
-**Stage T Batch B implementation — complete. Work spanned 2026-04-21 evening → 2026-04-22 afternoon.**
+**Stage T Batch B implementation â€” complete. Work spanned 2026-04-21 evening â†’ 2026-04-22 afternoon.**
 
 *One-time format exception per user request: single entry, two-date header, covering two calendar days since Batch B landed as one continuous push.*
 
 IVP-T14 landed per Round 2 council: station-TX now anchored to vehicle RxDone via `AO_RfManager`, a new AO owning learned-link state (LinkState kAcq/kTentative/kTrack/kTrackDegraded, sliding-window LQ%, anchor filter, deadman, forced-ACQ). Pure state-machine helpers in `src/safety/rf_link_health.h` with 32 host tests; SPIN model with 5 LTL properties (all pass, errors: 0).
 
-IVP-T14a: operator-mashed-command dedupe (newest-wins, ARM excluded per Round 2 #5). IVP-T14b: retry instrumentation always on, surfaced in `q → s` diag dump. IVP-T14d: aggressive retry bumped to 8 × 250 ms for all tracked commands (was 3 × 500 ms); safety-class round-trip under ~2 s worst case.
+IVP-T14a: operator-mashed-command dedupe (newest-wins, ARM excluded per Round 2 #5). IVP-T14b: retry instrumentation always on, surfaced in `q â†’ s` diag dump. IVP-T14d: aggressive retry bumped to 8 Ã— 250 ms for all tracked commands (was 3 Ã— 500 ms); safety-class round-trip under ~2 s worst case.
 
 FlightDirector pre-arm aggregator extended with RF link-health via `AO_RfManager_get_state()` (cooperative-dispatch-only invariant, Commandment V). New "RF Link" Tier-2 warn station; existing "Radio" renamed "Radio HW". Dashboard gains a single-line RF Link row with `[OK]/[--]/[!!]` glance indicator matching pre-arm thresholds.
 
 Vehicle-lost notification wiring (Round 2 #10): `SIG_NOTIFY_VEHICLE_LOST/_FOUND` posted by AO_RfManager on transition edges; AO_Notify latches `NotifyState.vehicle_lost`. Audio backend picks it up automatically when TLV320DAC3100 driver lands.
 
-Dashboard keys: `a` (ARM-confirm) and `D` (DISARM, single-key) accepted in `kAnsi` now, not just `kMenu`. `m`/`M` removed from dashboard. ABORT deliberately not bound from dashboard (NAR High Power Safety Code §6: ballistic post-ignition).
+Dashboard keys: `a` (ARM-confirm) and `D` (DISARM, single-key) accepted in `kAnsi` now, not just `kMenu`. `m`/`M` removed from dashboard. ABORT deliberately not bound from dashboard (NAR High Power Safety Code Â§6: ballistic post-ignition).
 
-*Rationale — CCSDS station beacon parked rather than built:* planned for T14d as 1 Hz uplink heartbeat, endorsed by a blind 3-panelist council. On re-read, the council's reasoning implicitly assumed separate channels we don't have — continuous uplink collides with vehicle's 5 Hz nav on our single shared half-duplex radio. Correct CCSDS / smallsat practice is downlink-inferred liveness + on-demand operator checks. APID reservation parked with a STOP-GAP marker. All Stage T command-path code flagged as stop-gap pending full CCSDS layer (COP-1 still not-pursued, `docs/decisions/COP1_NOT_PURSUED.md`).
+*Rationale â€” CCSDS station beacon parked rather than built:* planned for T14d as 1 Hz uplink heartbeat, endorsed by a blind 3-panelist council. On re-read, the council's reasoning implicitly assumed separate channels we don't have â€” continuous uplink collides with vehicle's 5 Hz nav on our single shared half-duplex radio. Correct CCSDS / smallsat practice is downlink-inferred liveness + on-demand operator checks. APID reservation parked with a STOP-GAP marker. All Stage T command-path code flagged as stop-gap pending full CCSDS layer (COP-1 still not-pursued, `docs/decisions/COP1_NOT_PURSUED.md`).
 
-*Rationale — RP2350-E2 silicon erratum fix:* a trivial diff in `ao_rcos.cpp` deterministically triggered a boot-time HardFault. Research identified **RP2350-E2** (SIO spinlock mirror writes, datasheet p.1373) interacting with the SDK's software-spinlock EXTEXCLALL bit. Reporter-confirmed fix `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` applied, `PICO_PLATFORM`-gated. Affects both RP2350A (Feather) and RP2350B (Fruit Jam) — shared SIO logic. References: pico-sdk #2495, #2706, #1812.
+*Rationale â€” RP2350-E2 silicon erratum fix:* a trivial diff in `ao_rcos.cpp` deterministically triggered a boot-time HardFault. Research identified **RP2350-E2** (SIO spinlock mirror writes, datasheet p.1373) interacting with the SDK's software-spinlock EXTEXCLALL bit. Reporter-confirmed fix `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` applied, `PICO_PLATFORM`-gated. Affects both RP2350A (Feather) and RP2350B (Fruit Jam) â€” shared SIO logic. References: pico-sdk #2495, #2706, #1812.
 
-Also: LL Entry 25 marked SUPERSEDED (picotool-corrupts-I2C diagnosis no longer accurate; fixes in LL Entries 28 + 31); content preserved. Long-standing host test rot fixed (`FlashLayout.SectorCount`, `FlightTable.CapacityEmpty` — 1915 → 1913 after Stage T IVP-T5.5 added radio-config sectors). Host tests 791/791.
+Also: LL Entry 25 marked SUPERSEDED (picotool-corrupts-I2C diagnosis no longer accurate; fixes in LL Entries 28 + 31); content preserved. Long-standing host test rot fixed (`FlashLayout.SectorCount`, `FlightTable.CapacityEmpty` â€” 1915 â†’ 1913 after Stage T IVP-T5.5 added radio-config sectors). Host tests 791/791.
 
 High-priority whiteboard items added: deep RP2350 errata sweep + `docs/hardware/RP2350_ERRATA.md` (E2 slipped through onboarding); remove watchdog reboot in favor of safe-mode; re-evaluate Stage T 95% gate with correct baseline (the 6.7% number may have been operator-burst latency, not link failure).
 
@@ -1161,45 +1165,45 @@ Files: `src/active_objects/{ao_rf_manager,ao_notify,ao_telemetry,ao_radio,ao_rco
 
 ### 2026-04-21-003 | Claude Opus 4.7 | bugfix, firmware, radio, testing
 
-**Stage T Batch B prelim — runtime radio config actually adapts now. Three hardcoded-to-default values fixed.**
+**Stage T Batch B prelim â€” runtime radio config actually adapts now. Three hardcoded-to-default values fixed.**
 
-Discovered during T14 pre-Batch-B RX-window instrumentation: **vehicle at "BW500 10Hz" config was actually TXing at 5 Hz.** Dashboard reported 10 Hz on both halves; station inter-arrival PDF showed 5 Hz (4.44 Hz observed, 1 seq per RX, 0 drops). Root cause: `AO_Telemetry::interval_ms` was hardcoded to 200 ms in `TelemAo_initial` and only updated by the CLI `r` (cycle-rate) key — SET_RADIO_CONFIG's apply path updated the `RadioConfig` struct and the dashboard string but never touched the TX cadence gate. Bug predates Stage T; made every previous test's `nav_rate_hz` change cosmetic. Pre-fix T12 C2 "BW500/10Hz" data was BW500 but ~5 Hz.
+Discovered during T14 pre-Batch-B RX-window instrumentation: **vehicle at "BW500 10Hz" config was actually TXing at 5 Hz.** Dashboard reported 10 Hz on both halves; station inter-arrival PDF showed 5 Hz (4.44 Hz observed, 1 seq per RX, 0 drops). Root cause: `AO_Telemetry::interval_ms` was hardcoded to 200 ms in `TelemAo_initial` and only updated by the CLI `r` (cycle-rate) key â€” SET_RADIO_CONFIG's apply path updated the `RadioConfig` struct and the dashboard string but never touched the TX cadence gate. Bug predates Stage T; made every previous test's `nav_rate_hz` change cosmetic. Pre-fix T12 C2 "BW500/10Hz" data was BW500 but ~5 Hz.
 
 User direction 2026-04-21: "since the configurable radio settings during runtime were fairly new we need to be sure the things that were previously hard coded under assumptions actually adapt to the settings naturally." Audit found 3 offenders; all fixed:
 
 1. **`AO_Telemetry::interval_ms` now scales with `nav_rate_hz`.** New `AO_Telemetry_set_rate()` setter called from `ao_radio_apply_runtime_config()`. Verified on bench: vehicle at idx 3 (BW500/10Hz) TXes at 9.80 Hz; at idx 4 (BW125/2Hz) TXes at 2.10 Hz. Pre-fix was 5.00 Hz regardless.
 
-2. **`rfm95w::kTxTimeoutUs` (150 ms hardcoded) now airtime-scaled.** New `rfm95w_airtime_us()` implements SX1276 datasheet §4.1.1.6 (T_preamble + T_payload). `rfm95w_set_tx_timeout_us()` sets a per-device threshold = `2 × max-payload airtime`. `ao_radio_apply_runtime_config()` pushes the value whenever config changes. SF7/BW500 worst case ≈140 ms timeout; SF12/BW125 worst case scales appropriately.
+2. **`rfm95w::kTxTimeoutUs` (150 ms hardcoded) now airtime-scaled.** New `rfm95w_airtime_us()` implements SX1276 datasheet Â§4.1.1.6 (T_preamble + T_payload). `rfm95w_set_tx_timeout_us()` sets a per-device threshold = `2 Ã— max-payload airtime`. `ao_radio_apply_runtime_config()` pushes the value whenever config changes. SF7/BW500 worst case â‰ˆ140 ms timeout; SF12/BW125 worst case scales appropriately.
 
-3. **`kAckRetryTimeoutMs` (500 ms hardcoded by IVP-T7) now airtime-scaled.** Replaced static constexpr with mutable `s_ack_retry_timeout_ms`. `AO_Telemetry_set_ack_retry_timeout_ms()` setter called from the same apply path; formula is `4 × airtime + 50 ms`, clamped to [200, 1000]. Suits both fast configs (BW500/SF7 ≈ 330 ms) and long-range presets (BW125/SF12 hits the 1 s ceiling).
+3. **`kAckRetryTimeoutMs` (500 ms hardcoded by IVP-T7) now airtime-scaled.** Replaced static constexpr with mutable `s_ack_retry_timeout_ms`. `AO_Telemetry_set_ack_retry_timeout_ms()` setter called from the same apply path; formula is `4 Ã— airtime + 50 ms`, clamped to [200, 1000]. Suits both fast configs (BW500/SF7 â‰ˆ 330 ms) and long-range presets (BW125/SF12 hits the 1 s ceiling).
 
 **Validation boundary also broadened** per user: "the preconfigured data rates are just presets... the user should really be able to change it to anything the radio can do." `radio_config_table.h` now exports two validators:
 - `radio_config_in_whitelist()`: preset-membership check (unchanged). Still used for digit-key debug menu + channel-find scanner + boot seed.
 - `radio_config_sx1276_legal()` (new): broader hardware-legal check for advanced-settings path. `dispatch_set_radio_config` and the flash-storage `validate_entry` now use this.
 
-**Gotcha flagged throughout**: all α-filter / window-width / jitter numbers measured on this prelim are **static bench at room temperature**. Real-rocket thermal swing, vibration, Doppler, antenna motion will shift them. Every numeric value captured here must be re-validated against field data. Explicit marker in design doc; will carry through Round 2 council + Batch B.
+**Gotcha flagged throughout**: all Î±-filter / window-width / jitter numbers measured on this prelim are **static bench at room temperature**. Real-rocket thermal swing, vibration, Doppler, antenna motion will shift them. Every numeric value captured here must be re-validated against field data. Explicit marker in design doc; will carry through Round 2 council + Batch B.
 
-Files: `rfm95w.h/cpp` (tx_timeout_us field + `rfm95w_set_tx_timeout_us()` + `rfm95w_airtime_us()`), `ao_telemetry.h/cpp` (set_rate + set_ack_retry_timeout_ms), `ao_radio.cpp` (calls both setters in apply path; T14 instrumentation: `stage_t_log_tx_start/tx_done`), `radio_config_table.h` (sx1276_legal validator), `radio_config_storage.cpp` (broader validator on flash read). 4-tier + 2-tier-instrumented builds clean. Host tests 757/759 (same pre-existing). Bug captures: `logs/stage_t/t14_rxwindow_C0.log`, `t14_rxwindow_C2.log` — C2 shows the 5 Hz bug pre-fix.
+Files: `rfm95w.h/cpp` (tx_timeout_us field + `rfm95w_set_tx_timeout_us()` + `rfm95w_airtime_us()`), `ao_telemetry.h/cpp` (set_rate + set_ack_retry_timeout_ms), `ao_radio.cpp` (calls both setters in apply path; T14 instrumentation: `stage_t_log_tx_start/tx_done`), `radio_config_table.h` (sx1276_legal validator), `radio_config_storage.cpp` (broader validator on flash read). 4-tier + 2-tier-instrumented builds clean. Host tests 757/759 (same pre-existing). Bug captures: `logs/stage_t/t14_rxwindow_C0.log`, `t14_rxwindow_C2.log` â€” C2 shows the 5 Hz bug pre-fix.
 
 ### 2026-04-21-002 | Claude Opus 4.7 | docs, council
 
-**Stage T Batch B prelim — `docs/decisions/AO_COMMANDMENTS.md` + retroactive scan of existing AOs.**
+**Stage T Batch B prelim â€” `docs/decisions/AO_COMMANDMENTS.md` + retroactive scan of existing AOs.**
 
-Research pass over Samek PSiCC2, state-machine.com (QP framework), Douglass, NASA F´, and NASA cFS produced the conclusion that no external JSF-AV-grade *application-level* AO ruleset exists — Samek gives 3 principles, F´ adopts JPL Power-of-10 (already our standard), state-machine.com's SRS_QP_AO_* specs cover framework internals not application design. Correct deliverable tier is advisory, not normative.
+Research pass over Samek PSiCC2, state-machine.com (QP framework), Douglass, NASA FÂ´, and NASA cFS produced the conclusion that no external JSF-AV-grade *application-level* AO ruleset exists â€” Samek gives 3 principles, FÂ´ adopts JPL Power-of-10 (already our standard), state-machine.com's SRS_QP_AO_* specs cover framework internals not application design. Correct deliverable tier is advisory, not normative.
 
 `AO_COMMANDMENTS.md` codifies 12 rules, each sourced to Samek/QP (with URLs) or to LL Entries 32/35 where external sources are silent. Rules cover data isolation, async messaging, run-to-completion, no-blocking, the `const*` read-only-accessor cooperative-dispatch-only invariant (critical for `AO_RfManager` coming in Batch B), static-event discipline (LL Entry 35), AO boundary / one-responsibility (the rule behind `ok_to_arm()` being in FlightDirector not AO_RfManager), AO promotion criteria, priorities-set-at-boot, boot-time subscriptions, timer-event locality, and AO-decision instrumentation.
 
-Retroactive scan of the 7 existing AOs (AGENT_WHITEBOARD.md): Commandment VI clean (every `QACTIVE_POST` uses `static` events, LL Entry 35 discipline universally applied); Commandment IV has 3 documented deviations (`calibration_save()`, `cli_do_erase_flights()`, `tick_persist_debounce()` when `ROCKETCHIP_RADIO_PERSIST` is defined) — all interactive/infrequent with in-code rationale, none escalated to an IVP. Batch B is not blocked by any pre-existing violation.
+Retroactive scan of the 7 existing AOs (AGENT_WHITEBOARD.md): Commandment VI clean (every `QACTIVE_POST` uses `static` events, LL Entry 35 discipline universally applied); Commandment IV has 3 documented deviations (`calibration_save()`, `cli_do_erase_flights()`, `tick_persist_debounce()` when `ROCKETCHIP_RADIO_PERSIST` is defined) â€” all interactive/infrequent with in-code rationale, none escalated to an IVP. Batch B is not blocked by any pre-existing violation.
 
 Elevation path documented: if the project grows or a Commandment violation is traced to a bug, the file moves to `standards/ACTIVE_OBJECT_RULES.md` and becomes normative.
 
 ### 2026-04-21-001 | Claude Opus 4.7 | feature, firmware, testing, council, docs
 
-**Stage T continuation Batch A — IVP-T11 SX1276 register hygiene + IVP-T12 manual regression sweep.**
+**Stage T continuation Batch A â€” IVP-T11 SX1276 register hygiene + IVP-T12 manual regression sweep.**
 
 Supersedes the prior T5-T10 fix plan. Council review (NASA/JPL, ArduPilot, Cubesat, Rocketeer) concluded retry-timer changes are not the load-bearing fix; architectural RxDone-anchored TX (T14, Batch B) is. Batch A lands driver hygiene only; Batch B (T14 `AO_LinkHealth` state machine) comes next.
 
-**IVP-T11 driver hygiene.** `src/drivers/rfm95w.{h,cpp}` now writes `RegLna = 0x23` (LnaGain=001 G1 max, LnaBoostHf=11 for +3 dB on 915 MHz HF port — SX1276 datasheet §5.5.3) and `RegModemConfig3 = 0x04` (LowDataRateOptimize=0 for SF≤10 at BW≥125, AgcAutoOn=1 adaptive gain — §5.4.3) in `configure_modem()`. Matches ArduPilot AP_Radio default since 2018; long-standing driver omission on our side. New `rfm95w_read_audit()` reads back RegInvertIQ (0x33), RegModemConfig2, RegLna, RegModemConfig3 and snapshots into `RadioAoState::boot_audit` post-init. `cmd_radio_status()` (the `t` CLI key) displays the audit every call so it's verifiable from any post-boot serial session.
+**IVP-T11 driver hygiene.** `src/drivers/rfm95w.{h,cpp}` now writes `RegLna = 0x23` (LnaGain=001 G1 max, LnaBoostHf=11 for +3 dB on 915 MHz HF port â€” SX1276 datasheet Â§5.5.3) and `RegModemConfig3 = 0x04` (LowDataRateOptimize=0 for SFâ‰¤10 at BWâ‰¥125, AgcAutoOn=1 adaptive gain â€” Â§5.4.3) in `configure_modem()`. Matches ArduPilot AP_Radio default since 2018; long-standing driver omission on our side. New `rfm95w_read_audit()` reads back RegInvertIQ (0x33), RegModemConfig2, RegLna, RegModemConfig3 and snapshots into `RadioAoState::boot_audit` post-init. `cmd_radio_status()` (the `t` CLI key) displays the audit every call so it's verifiable from any post-boot serial session.
 
 **IVP-T12 regression sweep.** Manual runbook (`docs/plans/STAGE_T_IVP_T12_RUNBOOK.md`) executed 2026-04-21 with both boards on `bench-1591794`. Four configs covering single-variable changes between rows:
 
@@ -1210,7 +1214,7 @@ Supersedes the prior T5-T10 fix plan. Council review (NASA/JPL, ArduPilot, Cubes
 | C1  | 250 | 10 | 53.3% | 96.7% | BW only |
 | C2  | 500 | 10 | 83.3% | 96.7% | BW only |
 
-Clean attribution: bandwidth dominates. Nav rate +5 Hz at BW125 = +3.4 pp first-try; BW doubling = +30-37 pp. T1's "TX airtime > RX window" diagnosis confirmed. No T7-style link brittleness recurred across any config; the earlier "link won't reform at BW250/500" was a procedural bug — the harness wasn't transitioning the station from kAnsi to kMenu before sending `q<idx>z`. Cross-session variance is large (T6 saw C2 at 100%, T12 at 83.3%); not yet explained. Batch A gate C2 ≥ 95% NOT MET (83.3%), as expected per council — T14's RxDone-anchored TX is the architectural fix, not T11.
+Clean attribution: bandwidth dominates. Nav rate +5 Hz at BW125 = +3.4 pp first-try; BW doubling = +30-37 pp. T1's "TX airtime > RX window" diagnosis confirmed. No T7-style link brittleness recurred across any config; the earlier "link won't reform at BW250/500" was a procedural bug â€” the harness wasn't transitioning the station from kAnsi to kMenu before sending `q<idx>z`. Cross-session variance is large (T6 saw C2 at 100%, T12 at 83.3%); not yet explained. Batch A gate C2 â‰¥ 95% NOT MET (83.3%), as expected per council â€” T14's RxDone-anchored TX is the architectural fix, not T11.
 
 **Supporting work.** `docs/ROCKETCHIP_OS.md` extended with a station UI-modes section (kAnsi / kCsv / kMavlink / kMenu) documenting the 2-key rule (`m` and `x` only accepted in kAnsi), which is the rule behind several debugging dead-ends this session. Council transcript landed at `docs/decisions/STAGE_T_CONTINUATION_COUNCIL.md`. 4-tier builds clean (vehicle bench, vehicle flight, station bench, station flight). Host tests 757/759 (same pre-existing failures; no new failures).
 
@@ -1218,35 +1222,35 @@ Batch A lands to main but does NOT fly until Batch B's 500 m field gate passes (
 
 ### 2026-04-20-001 | Claude Opus 4.7 | feature, architecture, refactor
 
-**Stage T IVP-T5.5 sub 2e/2f/2g — runtime radio config push completes: QUERY echo, APID 0x004 nav-with-config, dashboard row, station auto-revert, WS2812 KITT sweep.**
+**Stage T IVP-T5.5 sub 2e/2f/2g â€” runtime radio config push completes: QUERY echo, APID 0x004 nav-with-config, dashboard row, station auto-revert, WS2812 KITT sweep.**
 
 Closes out the T5.5 feature block that started with the sub 2a-2d apply/revert machinery and sub-persist flash write. All load-bearing pieces of the "station commands vehicle to change LoRa config at runtime" path are now in tree.
 
-**sub 2e — QUERY_RADIO_CONFIG** extends `CommandAckPayload` from 5→10 bytes with cfg echo (bw/nav/sf/cr). Populated only on accepted USER_3 responses, zeroed otherwise. `kCmdAckPacketLen` bumped 17→22. Pattern is flight-heritage (CCSDS CLCW, MAVLink COMMAND_ACK progress, CFDP FIN PDU) — ACK stays the same APID, payload grows with metadata. Station prints `[CMD] vehicle config: BW=.. nav=.. SF=.. CR=..` on matched ACK.
+**sub 2e â€” QUERY_RADIO_CONFIG** extends `CommandAckPayload` from 5â†’10 bytes with cfg echo (bw/nav/sf/cr). Populated only on accepted USER_3 responses, zeroed otherwise. `kCmdAckPacketLen` bumped 17â†’22. Pattern is flight-heritage (CCSDS CLCW, MAVLink COMMAND_ACK progress, CFDP FIN PDU) â€” ACK stays the same APID, payload grows with metadata. Station prints `[CMD] vehicle config: BW=.. nav=.. SF=.. CR=..` on matched ACK.
 
-**sub 2f — APID 0x004 nav-with-config + dashboard + station revert.** New APID `kApidNavWithConfig = 0x004` (vehicle always emits it now; legacy 0x001 decoder path kept for cross-version graceful reject). Payload grows 42→46 B (packet 54→58 B). 4-byte config tail: `[bw_hi bw_lo] [sf<<4|nav] [cr<<4|flags]` with `kCfgFlagJustChanged` bit 3. New `s_config_just_changed` latch — set by commit and revert, consumed once by encoder via `AO_Radio_consume_just_changed()`. Dashboard gets "Radio: ..." row showing both station and vehicle configs with yellow-on-mismatch and cyan-`[CHANGED]` for the single-frame transition marker. Station auto-revert threshold is role-aware: vehicle keeps `max(15, 3×nav_hz)`, station/relay uses `max(6, ceil(1.5×nav_hz))` so the operator sees failure first visually while vehicle is the final fallback. Fixed latent rot in `validate_ccsds_crc` (hardcoded CRC offset 52 → length-aware `len-2`, works for both packet sizes).
+**sub 2f â€” APID 0x004 nav-with-config + dashboard + station revert.** New APID `kApidNavWithConfig = 0x004` (vehicle always emits it now; legacy 0x001 decoder path kept for cross-version graceful reject). Payload grows 42â†’46 B (packet 54â†’58 B). 4-byte config tail: `[bw_hi bw_lo] [sf<<4|nav] [cr<<4|flags]` with `kCfgFlagJustChanged` bit 3. New `s_config_just_changed` latch â€” set by commit and revert, consumed once by encoder via `AO_Radio_consume_just_changed()`. Dashboard gets "Radio: ..." row showing both station and vehicle configs with yellow-on-mismatch and cyan-`[CHANGED]` for the single-frame transition marker. Station auto-revert threshold is role-aware: vehicle keeps `max(15, 3Ã—nav_hz)`, station/relay uses `max(6, ceil(1.5Ã—nav_hz))` so the operator sees failure first visually while vehicle is the final fallback. Fixed latent rot in `validate_ccsds_crc` (hardcoded CRC offset 52 â†’ length-aware `len-2`, works for both packet sizes).
 
-**sub 2g — WS2812 KITT sweep during LOS watchdog.** New `ws2812_set_sweep_bar(color)` — single pixel walks back-and-forth at caller-throttled cadence, handles 1-LED strip + 0-LED edge. `handle_rssi_bar()` dispatches dim-yellow sweep at 20 Hz while `apply_in_progress`, falls back to 2 Hz RSSI bar once watchdog clears.
+**sub 2g â€” WS2812 KITT sweep during LOS watchdog.** New `ws2812_set_sweep_bar(color)` â€” single pixel walks back-and-forth at caller-throttled cadence, handles 1-LED strip + 0-LED edge. `handle_rssi_bar()` dispatches dim-yellow sweep at 20 Hz while `apply_in_progress`, falls back to 2 Hz RSSI bar once watchdog clears.
 
-JSF-AV rule-1 decomposition landed as part of the same commit: `handle_radio_tick` split into 3 tick helpers; `try_handle_cmd_ack` early-returns on non-match with 2 station-side extractions; `try_mavlink_rx` split into `dispatch_set_radio_config` / `dispatch_command` / `stage_cmd_ack` / `handle_parsed_mavlink`. `scripts/bench_sim.py` + `scripts/station_bench_sim.py` taught to distinguish vehicle vs station by banner text (fixes spurious pre-commit gate failures when both boards are plugged in — the Stage T dev pattern).
+JSF-AV rule-1 decomposition landed as part of the same commit: `handle_radio_tick` split into 3 tick helpers; `try_handle_cmd_ack` early-returns on non-match with 2 station-side extractions; `try_mavlink_rx` split into `dispatch_set_radio_config` / `dispatch_command` / `stage_cmd_ack` / `handle_parsed_mavlink`. `scripts/bench_sim.py` + `scripts/station_bench_sim.py` taught to distinguish vehicle vs station by banner text (fixes spurious pre-commit gate failures when both boards are plugged in â€” the Stage T dev pattern).
 
-Live-verified over RF: APID 0x004 round-trip (station Pkts climbing 3265→3269, zero CRC errors after the validate_ccsds_crc fix), dashboard Radio row renders both configs with mismatch highlight, `[CHANGED]` marker appears for exactly 1 frame (50 captured → 1 showed CHANGED) when `s_config_just_changed` flipped on vehicle via GDB, vehicle apply+commit path verified BW125→BW250 via break in `ao_radio_commit_pending_config`. USB-deferred (pending T6/T7 reliable SET delivery): station-side auto-revert triggered end-to-end, WS2812 KITT sweep eyeball confirmation on Fruit Jam. Host tests 757/759 (2 pre-existing unrelated failures). 4 new APID 0x004 round-trip tests.
+Live-verified over RF: APID 0x004 round-trip (station Pkts climbing 3265â†’3269, zero CRC errors after the validate_ccsds_crc fix), dashboard Radio row renders both configs with mismatch highlight, `[CHANGED]` marker appears for exactly 1 frame (50 captured â†’ 1 showed CHANGED) when `s_config_just_changed` flipped on vehicle via GDB, vehicle apply+commit path verified BW125â†’BW250 via break in `ao_radio_commit_pending_config`. USB-deferred (pending T6/T7 reliable SET delivery): station-side auto-revert triggered end-to-end, WS2812 KITT sweep eyeball confirmation on Fruit Jam. Host tests 757/759 (2 pre-existing unrelated failures). 4 new APID 0x004 round-trip tests.
 
-Tracking detail in `logs/stage_t/t5.5_revalidation_list.md`. Phase T continues — T6 (BW sweep via runtime push instead of compile-flag rebuilds) and T7 (retry-timer compression) next.
+Tracking detail in `logs/stage_t/t5.5_revalidation_list.md`. Phase T continues â€” T6 (BW sweep via runtime push instead of compile-flag rebuilds) and T7 (retry-timer compression) next.
 
 ### 2026-04-18-002 | Claude Opus 4.7 | feature, architecture, council, refactor
 
-**Stage L COMPLETE — LED engine + notification polish (AP parity, beacon overlay, pre-arm fail, boot init rainbow, GCS beacon command).**
+**Stage L COMPLETE â€” LED engine + notification polish (AP parity, beacon overlay, pre-arm fail, boot init rainbow, GCS beacon command).**
 
-Seven IVPs + one full-tree JSF-AV sweep. Plan `.claude/plans/shimmering-twirling-thimble.md` council-reviewed before implementation (NASA/JPL, ArduPilot, Rocketeer, Cubesat — unanimous).
+Seven IVPs + one full-tree JSF-AV sweep. Plan `.claude/plans/shimmering-twirling-thimble.md` council-reviewed before implementation (NASA/JPL, ArduPilot, Rocketeer, Cubesat â€” unanimous).
 
-Two new driver modes (`WS2812_MODE_ALTERNATE` for beacon overlays, `WS2812_MODE_DOUBLE_FLASH` for pre-arm fail, AP parity). Five new pattern codes for fault-beacon composition (kFault{Imu,Eskf,Baro,PioWdt,Core1Stall}Beacon). Two orthogonal flags on `NotifyState`: `beacon_manual` forces pure-white 2Hz (CLI `b` key + `MAV_CMD_USER_1` over radio); `beacon_auto` preserves state color via +white alternate (automatic triggers). Both clear on `SIG_PHASE_CHANGE` out of {LANDED, ABORT}. New `PhaseIntent::kPreArmFail` (yellow double-flash, 3s auto-clear via pure helper `include/rocketchip/prearm_fail_ticks.h`). New `PhaseIntent::kInit` (boot rainbow with min-visibility gate essential for warm resets). AP-parity color swaps: ARMED amber→red, cal gyro/level blue-breathe→yellow-blink. Station/vehicle LED role divergence preserved and documented (station RSSI bar vs vehicle flight-state display, LL Entry 32).
+Two new driver modes (`WS2812_MODE_ALTERNATE` for beacon overlays, `WS2812_MODE_DOUBLE_FLASH` for pre-arm fail, AP parity). Five new pattern codes for fault-beacon composition (kFault{Imu,Eskf,Baro,PioWdt,Core1Stall}Beacon). Two orthogonal flags on `NotifyState`: `beacon_manual` forces pure-white 2Hz (CLI `b` key + `MAV_CMD_USER_1` over radio); `beacon_auto` preserves state color via +white alternate (automatic triggers). Both clear on `SIG_PHASE_CHANGE` out of {LANDED, ABORT}. New `PhaseIntent::kPreArmFail` (yellow double-flash, 3s auto-clear via pure helper `include/rocketchip/prearm_fail_ticks.h`). New `PhaseIntent::kInit` (boot rainbow with min-visibility gate essential for warm resets). AP-parity color swaps: ARMED amberâ†’red, cal gyro/level blue-breatheâ†’yellow-blink. Station/vehicle LED role divergence preserved and documented (station RSSI bar vs vehicle flight-state display, LL Entry 32).
 
-Full-tree clang-tidy sweep (LL Entry 36 discipline) surfaced 5 latent JSF-AV rule-1 function-size violations — decomposed `flight_director_evaluate_guards`, `AO_Logger_populate_fused_state`, `handle_rx_packet`, `core1_sensor_loop`, `guard_evaluator_tick`. Added `src/dev/**` to pre-commit hook whitelist alongside `src/cli/**`. `SESSION_CHECKLIST.md` item 17 added to run full-tree sweep at milestone close so the next accumulation gets caught on the way in, not after it's compounded.
+Full-tree clang-tidy sweep (LL Entry 36 discipline) surfaced 5 latent JSF-AV rule-1 function-size violations â€” decomposed `flight_director_evaluate_guards`, `AO_Logger_populate_fused_state`, `handle_rx_packet`, `core1_sensor_loop`, `guard_evaluator_tick`. Added `src/dev/**` to pre-commit hook whitelist alongside `src/cli/**`. `SESSION_CHECKLIST.md` item 17 added to run full-tree sweep at milestone close so the next accumulation gets caught on the way in, not after it's compounded.
 
-755/755 host tests (up from 724; 31 new — 9 prearm-helper, 14 beacon overlay, 5 pre-arm resolver, 3 boot-init). 4 builds clean, SPIN FD 7/7 errors=0, bench_sim 2/2 + 3/3 (station requires `--port COM9`; auto-detect script limitation tracked in whiteboard), vehicle 5-min soak PASS (1.04M IMU reads, 1 transient I2C error, 0 baro errors, MCU 36.5 °C stable).
+755/755 host tests (up from 724; 31 new â€” 9 prearm-helper, 14 beacon overlay, 5 pre-arm resolver, 3 boot-init). 4 builds clean, SPIN FD 7/7 errors=0, bench_sim 2/2 + 3/3 (station requires `--port COM9`; auto-detect script limitation tracked in whiteboard), vehicle 5-min soak PASS (1.04M IMU reads, 1 transient I2C error, 0 baro errors, MCU 36.5 Â°C stable).
 
-Station→vehicle end-to-end beacon roundtrip not verified: vehicle-side resolver chain proven via GDB `set var beacon_manual=true` → pure-white 2Hz confirmed, but live radio test showed vehicle `rx_count=0` from station TX attempts. Consistent with the pre-existing RadioScheduler TX-window sync issue (IVP-132a.5 quantified 6.7% first-try ACK rate in Stage 16B). Tracked as new **Stage M** — "RadioScheduler TX-Window Synchronization" — with proposed "listen-before-talk" fix requiring plan + council review.
+Stationâ†’vehicle end-to-end beacon roundtrip not verified: vehicle-side resolver chain proven via GDB `set var beacon_manual=true` â†’ pure-white 2Hz confirmed, but live radio test showed vehicle `rx_count=0` from station TX attempts. Consistent with the pre-existing RadioScheduler TX-window sync issue (IVP-132a.5 quantified 6.7% first-try ACK rate in Stage 16B). Tracked as new **Stage M** â€” "RadioScheduler TX-Window Synchronization" â€” with proposed "listen-before-talk" fix requiring plan + council review.
 
 Documentation: `docs/AO_ARCHITECTURE.md` LED section + SIG_BEACON_MANUAL row; `docs/SCAFFOLDING.md` module rows for ws2812_status + ao_notify; `docs/decisions/NOTIFY_CONTRACT.md` full Stage-L extensions section (composition table, AP-parity table, signal catalog); `docs/IVP.md` new Stage L + Stage M stub sections.
 
@@ -1256,7 +1260,7 @@ Commits: `1d231b1` (IVP-L1), `a9f538a`+`9fe8061`+`58575e8` (sweep), `7a26beb` (I
 
 ### 2026-04-18-001 | Claude Opus 4.7 | feature, architecture, council
 
-**Stage 16C COMPLETE — station runtime decoupling + MCU die-temp + station HealthMonitor parity + board scaffolding.**
+**Stage 16C COMPLETE â€” station runtime decoupling + MCU die-temp + station HealthMonitor parity + board scaffolding.**
 
 IVP-142b-3 refactored `health_monitor_critical_fault()` with per-subsystem 5-tick persistence counters + phase gate. Primary-byte faults count as critical for auto-action only after 500 ms consecutive fault AND phase != IDLE; prevents false auto-DISARM from transient noise (dust in baro vent, transient I2C NACK). Threshold-bound critical byte bits (MCU over-temp) propagate regardless of phase. 6 new host tests. Council-reviewed (NASA/JPL + Professor + ArduPilot + Rocketeer).
 
@@ -1279,11 +1283,11 @@ Files: `src/safety/health_monitor.{h,cpp}`, `src/main.cpp`, `src/cli/rc_os_comma
 **Stage 16C Fruit Jam PA1010D GPS I2C detection restored.**
 
 - Fixed regression on adafruit_fruit_jam: PA1010D (0x10) never ACK'd on STEMMA QT I2C0 (GPIO 20/21) while DAC (0x18) was also silent.
-- Root cause: original STEMMA QT cable had broken SDA/SCL (power/GND intact → GPS power LED solid, masking fault).
+- Root cause: original STEMMA QT cable had broken SDA/SCL (power/GND intact â†’ GPS power LED solid, masking fault).
 - Added `kPeripheralResetPin = 22` + `board_release_peripheral_reset()` in `include/rocketchip/board_fruit_jam.h` (releases shared DAC/ESP32-C6 RESET active-low).
-- `gps_pa1010d_init()` moved ultra-early into `init_early_hw()` (`src/main.cpp`) with blind PMTK314/PMTK220 sequence, 20 ms settle, aggressive 8× retry probe loop, and static PMTK write-result buffer (shown in `b` Hardware Status).
-- Reverted Stage 16C IVP-140 scaffolding commit (`26b83d4`) — gate claim was false-positive (station I2C broken at time of that commit, issue not surfaced). Stage 16C restart to follow with more robust HW-gate verification.
-- Verified: `[PASS] GPS init (I2C at 0x10, 500 µs settling delay)`, PMTK writes return full byte counts `[51,18,51]`, `window_hit:1`, NMEA streaming, stable alongside DAC. i2c scan still skips 0x10 per LL Entry 20.
+- `gps_pa1010d_init()` moved ultra-early into `init_early_hw()` (`src/main.cpp`) with blind PMTK314/PMTK220 sequence, 20 ms settle, aggressive 8Ã— retry probe loop, and static PMTK write-result buffer (shown in `b` Hardware Status).
+- Reverted Stage 16C IVP-140 scaffolding commit (`26b83d4`) â€” gate claim was false-positive (station I2C broken at time of that commit, issue not surfaced). Stage 16C restart to follow with more robust HW-gate verification.
+- Verified: `[PASS] GPS init (I2C at 0x10, 500 Âµs settling delay)`, PMTK writes return full byte counts `[51,18,51]`, `window_hit:1`, NMEA streaming, stable alongside DAC. i2c scan still skips 0x10 per LL Entry 20.
 
 (`include/rocketchip/board_fruit_jam.h`, `include/rocketchip/board_feather_rp2350.h`, `src/drivers/gps_pa1010d.cpp`, `src/drivers/gps_pa1010d.h`, `src/cli/rc_os_commands.cpp`, `src/main.cpp`, `CMakeLists.txt`, `src/station/station_idle_tick.{h,cpp}` deleted)
 
@@ -1303,20 +1307,20 @@ per-AO ring-index activity proxy. Frankenstein-build guidance added to
 `docs/BENCH_TEST_PROCEDURE.md`.
 
 **Process lessons committed to memory:** (1) verify council test premises
-against current firmware architecture before implementing — IVP-132a.4a
+against current firmware architecture before implementing â€” IVP-132a.4a
 DIO0 IRQ test premise didn't match our polling radio driver and was
 removed after implementation; (2) "absence of signal is not proof of
-health" — a test that watches derivative metrics (queue watermarks)
+health" â€” a test that watches derivative metrics (queue watermarks)
 without verifying the peripheral is actually engaged can claim PASS on a
 non-functional binary.
 
 **Known gap flagged:** IVP-132a.5 ACK stress characterized the
-RadioScheduler-sync issue — 6.7% first-try ACK rate because station TX
+RadioScheduler-sync issue â€” 6.7% first-try ACK rate because station TX
 isn't aligned with vehicle RX windows. Fix scheduled for Stage 16C.
 
-**Deferred:** Stage 16C (station rework — runtime decoupling, board
+**Deferred:** Stage 16C (station rework â€” runtime decoupling, board
 decoupling, RadioScheduler sync, MCU die temp sensor), Stage 17 (field
-testing — airframe + launch window dependent), real-world accuracy tests
+testing â€” airframe + launch window dependent), real-world accuracy tests
 (dedicated plan TBD). All recorded in `AGENT_WHITEBOARD.md` and
 `docs/IVP.md`.
 
@@ -1324,7 +1328,7 @@ testing — airframe + launch window dependent), real-world accuracy tests
 
 ### 2026-04-15-002 | Claude Code CLI | testing, safety, tooling
 
-**Stage 16B bench testing (IVP-129, 130, 131).** GDB fault injection harness with 7 hook functions (`src/dev/fault_inject.{h,cpp}`), procedure guide (`docs/FAULT_INJECTION.md`), 5 GDB scripts. PIO backup timer shakedown — all 5 scenarios HW verified (Core 0 stall proven independent of PIO timers, PIO SM halt gap documented for Gemini tier). Pyro edge logger in flight binary (`src/safety/pyro_edge_logger.{h,cpp}`). Sensor replay harness — 5 Big Daddy F15-6 profiles (nominal, early burnout, IMU fault, baro dropout, GPS dropout) all reach kLanded via full FD state sequence. Real NAR thrust curve from ThrustCurve.org. Council reviewed (NASA/JPL, Rocketeer, Space Camp Counselor, Professor, ArduPilot).
+**Stage 16B bench testing (IVP-129, 130, 131).** GDB fault injection harness with 7 hook functions (`src/dev/fault_inject.{h,cpp}`), procedure guide (`docs/FAULT_INJECTION.md`), 5 GDB scripts. PIO backup timer shakedown â€” all 5 scenarios HW verified (Core 0 stall proven independent of PIO timers, PIO SM halt gap documented for Gemini tier). Pyro edge logger in flight binary (`src/safety/pyro_edge_logger.{h,cpp}`). Sensor replay harness â€” 5 Big Daddy F15-6 profiles (nominal, early burnout, IMU fault, baro dropout, GPS dropout) all reach kLanded via full FD state sequence. Real NAR thrust curve from ThrustCurve.org. Council reviewed (NASA/JPL, Rocketeer, Space Camp Counselor, Professor, ArduPilot).
 
 ---
 
@@ -1336,13 +1340,13 @@ testing — airframe + launch window dependent), real-world accuracy tests
 
 ### 2026-04-12-003 | Claude Code CLI | documentation, architecture
 
-**Stage 15 complete (IVP-122–124) + Stage 16A pre-bench (IVP-127–130).** Station radio hardening and documentation refresh.
+**Stage 15 complete (IVP-122â€“124) + Stage 16A pre-bench (IVP-127â€“130).** Station radio hardening and documentation refresh.
 
-**Stage 15 (IVP-122–124):** Half-duplex ACK protocol (CCSDS APID 0x003 CommandAckPayload, station ARM confirm UX: `a` → type ARM → Enter, `X`-DISARM with ACK tracking, 3 retries × 3s). Distance-to-rocket (haversine + bearing, freshness check). Station help refresh. Radio command delivery is unreliable due to RX window timing — RadioScheduler sync IVP needed. 709/709 host tests.
+**Stage 15 (IVP-122â€“124):** Half-duplex ACK protocol (CCSDS APID 0x003 CommandAckPayload, station ARM confirm UX: `a` â†’ type ARM â†’ Enter, `X`-DISARM with ACK tracking, 3 retries Ã— 3s). Distance-to-rocket (haversine + bearing, freshness check). Station help refresh. Radio command delivery is unreliable due to RX window timing â€” RadioScheduler sync IVP needed. 709/709 host tests.
 
-**Stage 16A pre-bench (IVP-127–130):** AO architecture audit — removed dead Core1 vitality fields from AO_Notify (IVP-117 leftovers never wired), documented 2-layer model in AO_ARCHITECTURE.md. TBD placeholder purge — filled memory budget (flash 152KB, SRAM 134KB/520KB), power estimates from datasheets, diagnostics packet candidates. Runtime Behavior Map complete rewrite for QV architecture (superloop→8 AOs, idle bridge, event flow, health escalation, multi-channel landing, station CLI). User Guide quick-reference card (LED states, ARM/DISARM, troubleshooting). IVP-125/126 (SAD/SCAFFOLDING superloop purge) deferred to post-bench per council sequencing.
+**Stage 16A pre-bench (IVP-127â€“130):** AO architecture audit â€” removed dead Core1 vitality fields from AO_Notify (IVP-117 leftovers never wired), documented 2-layer model in AO_ARCHITECTURE.md. TBD placeholder purge â€” filled memory budget (flash 152KB, SRAM 134KB/520KB), power estimates from datasheets, diagnostics packet candidates. Runtime Behavior Map complete rewrite for QV architecture (superloopâ†’8 AOs, idle bridge, event flow, health escalation, multi-channel landing, station CLI). User Guide quick-reference card (LED states, ARM/DISARM, troubleshooting). IVP-125/126 (SAD/SCAFFOLDING superloop purge) deferred to post-bench per council sequencing.
 
-**5 Graphviz architecture diagrams** in `docs/audits/cla_rbm/dot/`: boot sequence (updated for QF_run), AO event flow (new — all 8 AOs + signals + seqlock + idle bridge), Flight Director HSM (new — 9-state machine with descent superstate + P7 multi-channel landing), cross-core comms (updated for HealthMonitor/LedEngine vitality reads), error recovery (updated with health escalation + radio ACK + landing paths). References added to AO_ARCHITECTURE.md and RUNTIME_BEHAVIOR_MAP.md.
+**5 Graphviz architecture diagrams** in `docs/audits/cla_rbm/dot/`: boot sequence (updated for QF_run), AO event flow (new â€” all 8 AOs + signals + seqlock + idle bridge), Flight Director HSM (new â€” 9-state machine with descent superstate + P7 multi-channel landing), cross-core comms (updated for HealthMonitor/LedEngine vitality reads), error recovery (updated with health escalation + radio ACK + landing paths). References added to AO_ARCHITECTURE.md and RUNTIME_BEHAVIOR_MAP.md.
 
 ---
 
@@ -1350,15 +1354,15 @@ testing — airframe + launch window dependent), real-world accuracy tests
 
 **Stage P7 complete: MAIN_DESCENT Liveness Fix (IVP-119 through IVP-121).** Out-of-sequence safety pass closing SPIN property P7 (flight-completes liveness), which had been known-failing since Stage 9.
 
-**IVP-120: Baro-stationary guard.** New `guard_baro_stationary()` fires `SIG_LANDING` when raw baro altitude rate stays below 0.3 m/s for 5 seconds. ESKF-independent — reads `baro_alt_rate_mps` computed from raw DPS310 pressure delta via hydrostatic approximation in `AO_Logger_populate_fused_state()`. Three new MissionProfile fields: `baro_landing_rate_threshold_mps`, `baro_landing_sustain_ms`, `descent_max_duration_ms`. 8 new guard tests, 694/694 total. HW verified: GDB `baro_alt_rate_mps = -0.208 m/s` stationary (DPS310 noise floor). bench_sim 2/2 PASS.
+**IVP-120: Baro-stationary guard.** New `guard_baro_stationary()` fires `SIG_LANDING` when raw baro altitude rate stays below 0.3 m/s for 5 seconds. ESKF-independent â€” reads `baro_alt_rate_mps` computed from raw DPS310 pressure delta via hydrostatic approximation in `AO_Logger_populate_fused_state()`. Three new MissionProfile fields: `baro_landing_rate_threshold_mps`, `baro_landing_sustain_ms`, `descent_max_duration_ms`. 8 new guard tests, 694/694 total. HW verified: GDB `baro_alt_rate_mps = -0.208 m/s` stationary (DPS310 noise floor). bench_sim 2/2 PASS.
 
-**IVP-121: Multi-channel landing detection + SPIN P7 resolved.** Two new paths in `flight_director_evaluate_guards()`: (1) ESKF-fault + baro-stationary conjunction — ESKF must be confirmed dead AND raw baro must agree we're stationary. Conjunction, not disjunction. (2) Last-resort backstop — `descent_max_duration_ms` elapsed, all physical channels silent, fires `SIG_BEACON_ACTIVE` for recovery. Beacon callback (`beacon_cb`) wired through `ao_flight_director.cpp` using static `QEvt` (LL Entry 35 safe).
+**IVP-121: Multi-channel landing detection + SPIN P7 resolved.** Two new paths in `flight_director_evaluate_guards()`: (1) ESKF-fault + baro-stationary conjunction â€” ESKF must be confirmed dead AND raw baro must agree we're stationary. Conjunction, not disjunction. (2) Last-resort backstop â€” `descent_max_duration_ms` elapsed, all physical channels silent, fires `SIG_BEACON_ACTIVE` for recovery. Beacon callback (`beacon_cb`) wired through `ao_flight_director.cpp` using static `QEvt` (LL Entry 35 safe).
 
 **SPIN model rework: Discrete-Time Promela (Tripakis & Courcoubetis, 1996).** Bounded tick counters added to ALL flight phases (BOOST, COAST, DROGUE_DESCENT, MAIN_DESCENT) modeling physical inevitability: motors burn out (finite propellant), PIO timers fire (hardware countdown), backstops expire (wall-clock). When counter >= limit, exit transition is forced with no skip option. This is the accepted pattern for timed liveness in SPIN, consistent with NASA JPL DS1 flight software verification (Gluck & Holzmann, 2001). **All 8 SPIN properties pass (0 errors) including P7 liveness.** SPIN README updated with DT-Promela references, P7 documentation, and Cygwin gcc DLL dependency note.
 
 5 new host tests for MAIN_DESCENT paths (conjunction, backstop, conjunction-alone-stays, backstop-before-timeout, baro-stationary-nominal). 699/699 total. HW verified: bench_sim 2/2 PASS.
 
-**SPIN abort-pyro model inaccuracy discovered.** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event — the profile default is physically correct. Flagged on whiteboard for future model update.
+**SPIN abort-pyro model inaccuracy discovered.** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event â€” the profile default is physically correct. Flagged on whiteboard for future model update.
 
 ---
 
@@ -1370,13 +1374,13 @@ testing — airframe + launch window dependent), real-world accuracy tests
 
 **IVP-119 (Stage P7):** `FusedState::baro_vvel` renamed to `vert_vel_eskf` (was actually `g_eskf.v.z`, not a raw baro derivative). New `baro_pressure_pa` field added for ESKF-independent baro sensing (foundation for IVP-120 `guard_baro_stationary`). Mechanical rename across 12 files. `guard_baro_peak()` parameter renamed; no body/logic change. Wire format `TelemetryState::baro_vvel_cms` deliberately preserved. HW verified: bench_sim 2/2 PASS, GDB confirmed `baro_pressure_pa` = 100398 Pa (live DPS310).
 
-**SPIN model inaccuracy discovered:** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event — the profile default is physically correct. SPIN model + code comment update tracked on whiteboard for IVP-120/121.
+**SPIN model inaccuracy discovered:** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event â€” the profile default is physically correct. SPIN model + code comment update tracked on whiteboard for IVP-120/121.
 
 ---
 
 ### 2026-04-10-003 | Claude Code CLI | documentation
 
-**Stage 15/16/17 reorganization in IVP.md.** Split old Stage 15 "Pre-Flight Polish" into two stages after scope re-evaluation: new Stage 15 "Pre-Flight Radio + Station" (MAIN_DESCENT P7 timeout fix, half-duplex ACK + ARM confirmation UX, distance-to-rocket finish, station help/whiteboard cleanup) runs before the polish pass. Old Stage 15 becomes Stage 16 "Pre-Flight Polish" with three phases: 16A Documentation & Cleanup, 16B Bench Testing, 16C Field Testing. Old Stage 16 "Field Tuning & Validation" renumbered to Stage 17. Audio output (I2S DAC, ~10-12 IVPs) and battery ADC monitoring explicitly deferred — audio is ground-station only, battery ADC pending custom hardware. Removed "(was Stage X)" suffixes throughout. Updated three Stage 10 cross-references from "Stage 15 (Field Tuning)" to "Stage 17". No IVP numbers assigned yet per reorg-only scope.
+**Stage 15/16/17 reorganization in IVP.md.** Split old Stage 15 "Pre-Flight Polish" into two stages after scope re-evaluation: new Stage 15 "Pre-Flight Radio + Station" (MAIN_DESCENT P7 timeout fix, half-duplex ACK + ARM confirmation UX, distance-to-rocket finish, station help/whiteboard cleanup) runs before the polish pass. Old Stage 15 becomes Stage 16 "Pre-Flight Polish" with three phases: 16A Documentation & Cleanup, 16B Bench Testing, 16C Field Testing. Old Stage 16 "Field Tuning & Validation" renumbered to Stage 17. Audio output (I2S DAC, ~10-12 IVPs) and battery ADC monitoring explicitly deferred â€” audio is ground-station only, battery ADC pending custom hardware. Removed "(was Stage X)" suffixes throughout. Updated three Stage 10 cross-references from "Stage 15 (Field Tuning)" to "Stage 17". No IVP numbers assigned yet per reorg-only scope.
 
 ---
 
@@ -1384,11 +1388,11 @@ testing — airframe + launch window dependent), real-world accuracy tests
 
 **Stage 14: Notification Engine complete (IVP-113 through IVP-118).** New AO_Notify intent layer sits between state producers and display consumers. Subsystems report typed intents; AO_Notify's priority resolver produces a single LED pattern posted to AO_LedEngine. Rewires 5 direct LED callers through the intent API. Also fixes a Stage 13 gap by moving Core 1 vitality check from AO_LedEngine to AO_HealthMonitor.
 
-Architecture: `include/rocketchip/notify_intents.h` (per-category typed enums — Phase, Cal, Radio, Sensor, Fault — for compile-time category enforcement), `src/active_objects/ao_notify.{h,cpp}` (33Hz AO, priority 5, queue depth 16), `src/notify/notify_backend_led.cpp` (pure-function priority resolver, no vtable per JSF AV Rule 170), `src/notify/notify_backend_audio.cpp` (I2S DAC stub for future Fruit Jam audio stage), `docs/decisions/NOTIFY_CONTRACT.md` (decision doc + IVP-118 verification amendment). Priority reshuffle: all AOs shifted +1 to insert Notify at 5 (Radio=8, FD=7, HealthMon=6, Notify=5, Logger=4, Telem=3, LedEngine=2, RCOS=1). LedEngine simplified from 6-layer compositor to 3 layers (Fault/Notify/Idle) — pure display driver. SIG_BEACON_ACTIVE (slot 17) added for FD ABORT timeout beacon one-shot. SIG_HEALTH_STATUS now carries kHealthCore1Ok secondary bit.
+Architecture: `include/rocketchip/notify_intents.h` (per-category typed enums â€” Phase, Cal, Radio, Sensor, Fault â€” for compile-time category enforcement), `src/active_objects/ao_notify.{h,cpp}` (33Hz AO, priority 5, queue depth 16), `src/notify/notify_backend_led.cpp` (pure-function priority resolver, no vtable per JSF AV Rule 170), `src/notify/notify_backend_audio.cpp` (I2S DAC stub for future Fruit Jam audio stage), `docs/decisions/NOTIFY_CONTRACT.md` (decision doc + IVP-118 verification amendment). Priority reshuffle: all AOs shifted +1 to insert Notify at 5 (Radio=8, FD=7, HealthMon=6, Notify=5, Logger=4, Telem=3, LedEngine=2, RCOS=1). LedEngine simplified from 6-layer compositor to 3 layers (Fault/Notify/Idle) â€” pure display driver. SIG_BEACON_ACTIVE (slot 17) added for FD ABORT timeout beacon one-shot. SIG_HEALTH_STATUS now carries kHealthCore1Ok secondary bit.
 
-Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer) with 4 amendments (A1-A4) + 2 plan-review additions (P1-P2). 669 host tests (30 new in `test/test_notify.cpp`). HW verified via GDB memory inspection: subscriber bitmaps match plan, Core 1 alive, resolver output visible in LedEngine layers. SPIN model unchanged (11/11 passing) — AO_Notify cannot cause flight-safety failures. User-approved one-time exception to append IVP-118 verification record to NOTIFY_CONTRACT.md.
+Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer) with 4 amendments (A1-A4) + 2 plan-review additions (P1-P2). 669 host tests (30 new in `test/test_notify.cpp`). HW verified via GDB memory inspection: subscriber bitmaps match plan, Core 1 alive, resolver output visible in LedEngine layers. SPIN model unchanged (11/11 passing) â€” AO_Notify cannot cause flight-safety failures. User-approved one-time exception to append IVP-118 verification record to NOTIFY_CONTRACT.md.
 
-**Latent bug found and fixed (LL Entry 35):** `AO_LedEngine_post_pattern()` had been using stack-local `QEvt` subclasses passed to `QACTIVE_POST` since Stage 7 (IVP-77). QP stores the pointer, NOT a copy — when the caller returned, the stack frame was reclaimed and subsequent calls overwrote the event memory before QV could dispatch it. Worked for months by luck; IVP-117's added stack usage in AO_Notify's tick handler finally exposed it as a `qf_dyn` id=750 assertion. Fixed by using static event storage in both `AO_LedEngine_post_pattern()` and new `AO_Notify_post_cal_intent()`. Audited existing posts — HealthMonitor, FD phase/pyro/beacon, and Radio RX all already use static. LedEngine was the odd one out. Documented in LESSONS_LEARNED Entry 35, feedback memory, code comments.
+**Latent bug found and fixed (LL Entry 35):** `AO_LedEngine_post_pattern()` had been using stack-local `QEvt` subclasses passed to `QACTIVE_POST` since Stage 7 (IVP-77). QP stores the pointer, NOT a copy â€” when the caller returned, the stack frame was reclaimed and subsequent calls overwrote the event memory before QV could dispatch it. Worked for months by luck; IVP-117's added stack usage in AO_Notify's tick handler finally exposed it as a `qf_dyn` id=750 assertion. Fixed by using static event storage in both `AO_LedEngine_post_pattern()` and new `AO_Notify_post_cal_intent()`. Audited existing posts â€” HealthMonitor, FD phase/pyro/beacon, and Radio RX all already use static. LedEngine was the odd one out. Documented in LESSONS_LEARNED Entry 35, feedback memory, code comments.
 
 (include/rocketchip/{notify_intents,notify_backend,ao_signals}.h, src/active_objects/{ao_notify,ao_led_engine,ao_flight_director,ao_rcos,ao_health_monitor}.{h,cpp}, src/notify/*, src/safety/health_monitor.{h,cpp}, src/main.cpp, test/test_notify.cpp, test/CMakeLists.txt, CMakeLists.txt, docs/decisions/NOTIFY_CONTRACT.md, docs/AO_ARCHITECTURE.md, docs/IVP.md, .claude/LESSONS_LEARNED.md, AGENT_WHITEBOARD.md)
 
@@ -1398,7 +1402,7 @@ Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer) with 4 amendments (
 
 **Configuration Wizard prototype (Phase A).** Python-based terminal wizard that generates mission profile .cfg files from human-understandable questions. Council-reviewed (5 personas, unanimous GO).
 
-Architecture: `scripts/config_wizard/` — core logic (taxonomy, derivation, validation, emitter) separated from UI (terminal, future GUI API). Wizard generates .cfg files that feed into existing `generate_profile.py` pipeline.
+Architecture: `scripts/config_wizard/` â€” core logic (taxonomy, derivation, validation, emitter) separated from UI (terminal, future GUI API). Wizard generates .cfg files that feed into existing `generate_profile.py` pipeline.
 
 Features: 6 vehicle categories + custom (rocket/balloon/ground/aircraft/station/passive), sub-vehicle types, recovery types + methods, peripherals by bus (FeatherWing/I2C/GPIO), motor impulse-to-threshold derivation, certification checks (NAR/TRA L1-L3, HAM) with inline advisories, YOLO mode to bypass gates, back navigation, profile naming, auto code generation. 22 wizard tests + 648 host tests passing.
 
@@ -1410,11 +1414,11 @@ Features: 6 vehicle categories + custom (rocket/balloon/ground/aircraft/station/
 
 **Launch procedure audit: ABORT rework + baro critical fault.** Compared FD state machine against NASA/SpaceX/NAR launch procedures. Three safety fixes:
 
-1. **ABORT is now a sink state** — no transition to LANDED. Pad abort (never launched): timeout → IDLE. In-flight abort: beacon activates after timeout, stays in ABORT. Landing moment determined in post-processing. Fixes bug where a pad-aborted rocket could enter LANDED (clearing fault latches, signaling "mission complete").
+1. **ABORT is now a sink state** â€” no transition to LANDED. Pad abort (never launched): timeout â†’ IDLE. In-flight abort: beacon activates after timeout, stays in ABORT. Landing moment determined in post-processing. Fixes bug where a pad-aborted rocket could enter LANDED (clearing fault latches, signaling "mission complete").
 
-2. **Baro added to critical fault check** — `health_monitor_critical_fault()` now includes baro. A baro fault while ARMED triggers auto-DISARM + safe mode, same as IMU/ESKF. Without baro: no altitude-gated main deploy, ESKF vertical drift.
+2. **Baro added to critical fault check** â€” `health_monitor_critical_fault()` now includes baro. A baro fault while ARMED triggers auto-DISARM + safe mode, same as IMU/ESKF. Without baro: no altitude-gated main deploy, ESKF vertical drift.
 
-3. **SPIN P9: `p_no_landed_without_launch`** — new property verifying LANDED requires prior launch. `has_launched` variable tracks ARMED→BOOST. 7/7 safety properties pass. P7 liveness is a known pre-existing failure (MAIN_DESCENT needs timeout fallback — tracked on whiteboard).
+3. **SPIN P9: `p_no_landed_without_launch`** â€” new property verifying LANDED requires prior launch. `has_launched` variable tracks ARMEDâ†’BOOST. 7/7 safety properties pass. P7 liveness is a known pre-existing failure (MAIN_DESCENT needs timeout fallback â€” tracked on whiteboard).
 
 648 host tests (was 647: +1 new in-flight abort test, 1 renamed). Device build clean.
 
@@ -1424,21 +1428,21 @@ Features: 6 vehicle categories + custom (rocket/balloon/ground/aircraft/station/
 
 ### 2026-04-09-002 | Claude Code CLI | feature, architecture, council
 
-**Stage 13: Health Monitor complete (IVP-104–112).** New standalone AO_HealthMonitor with 2-bit per-subsystem encoding (absent/fault/degraded/healthy), sliding window degraded detection, fault latch. SIG_HEALTH_STATUS wired to LED/Logger/Telemetry (was orphaned). LED engine: 6 fault patterns with max() priority compositor. Telemetry health byte expanded to 4x2-bit, MAVLink SYS_STATUS fixed (was all-or-nothing). CLI restructured: debug sub-menu (`q`), preflight Go/No-Go (`p`). Vehicle output mode fix (kAnsi default was eating CLI input). Version bump v0.3.0, RC_OS v0.5.0.
+**Stage 13: Health Monitor complete (IVP-104â€“112).** New standalone AO_HealthMonitor with 2-bit per-subsystem encoding (absent/fault/degraded/healthy), sliding window degraded detection, fault latch. SIG_HEALTH_STATUS wired to LED/Logger/Telemetry (was orphaned). LED engine: 6 fault patterns with max() priority compositor. Telemetry health byte expanded to 4x2-bit, MAVLink SYS_STATUS fixed (was all-or-nothing). CLI restructured: debug sub-menu (`q`), preflight Go/No-Go (`p`). Vehicle output mode fix (kAnsi default was eating CLI input). Version bump v0.3.0, RC_OS v0.5.0.
 
-Health-gated safety: auto-DISARM + safe mode on critical sensor fault while ARMED. Pre-launch fault latch in IDLE (persists until manual clear or reboot — loose wire safety). Council-reviewed (5 personas, unanimous). SPIN 11/11 properties (3 new health: ARM guard, fault latch, auto-DISARM). 647 host tests. HW verified: Qwiic unplug fault propagation confirmed (IMU FAULT → red blink → NO-GO → recovery on reconnect).
+Health-gated safety: auto-DISARM + safe mode on critical sensor fault while ARMED. Pre-launch fault latch in IDLE (persists until manual clear or reboot â€” loose wire safety). Council-reviewed (5 personas, unanimous). SPIN 11/11 properties (3 new health: ARM guard, fault latch, auto-DISARM). 647 host tests. HW verified: Qwiic unplug fault propagation confirmed (IMU FAULT â†’ red blink â†’ NO-GO â†’ recovery on reconnect).
 
 ---
 
 ### 2026-04-09-001 | Claude Code CLI | documentation, refactor
 
-**Whiteboard cleanup + stage restructuring.** Full audit of all tracking documents — no orphaned items. Deleted `ivp62-wip` branch (fully superseded, content ported to main). Cleared whiteboard resolved section (14 DONE items, all recorded in canonical docs). Fixed stale references across 8 files: AO_ARCHITECTURE (SIG_HEALTH_STATUS marked orphaned — zero subscribers despite doc claiming two), IVP.md (IVP-62/64/65 marked complete, Stage 13 inserted as Health Monitor), RADIO_TELEMETRY_STATUS (IVP-62 updated to complete), profiles/README (boot-load → future with lockouts). Restructured stages: 13=Health Monitor, 14=Pre-Flight Polish (14A/14B/14C), 15=Field Tuning. Far-future items moved to PROJECT_STATUS. Council review (5 personas, unanimous) with 24 amendments attached to plan file.
+**Whiteboard cleanup + stage restructuring.** Full audit of all tracking documents â€” no orphaned items. Deleted `ivp62-wip` branch (fully superseded, content ported to main). Cleared whiteboard resolved section (14 DONE items, all recorded in canonical docs). Fixed stale references across 8 files: AO_ARCHITECTURE (SIG_HEALTH_STATUS marked orphaned â€” zero subscribers despite doc claiming two), IVP.md (IVP-62/64/65 marked complete, Stage 13 inserted as Health Monitor), RADIO_TELEMETRY_STATUS (IVP-62 updated to complete), profiles/README (boot-load â†’ future with lockouts). Restructured stages: 13=Health Monitor, 14=Pre-Flight Polish (14A/14B/14C), 15=Field Tuning. Far-future items moved to PROJECT_STATUS. Council review (5 personas, unanimous) with 24 amendments attached to plan file.
 
 ---
 
 ### 2026-04-08-001 | Claude Code CLI | bugfix, feature
 
-**IVP-62d: QGC direct USB connection fixed.** Root cause: QGC sends binary MAVLink frames containing arbitrary byte values — bytes like 0x4C ('L') triggered CLI flash erase command, blocking for >1s and crashing the AO scheduler (queue overflow). Fix: CLI lockout on first 0xFD byte detection (ESC exits). Supporting fixes: CDC TX buffer 64→1024B, CRLF translation disabled for binary MAVLink, stdout timeout 500ms→10ms, direct tud_cdc_write bypassing stdio for MAVLink output, COMM_0 parser for USB input. QGC connects <10s, HSI responsive, recovers from occasional jitter. Remaining USB jitter deferred to Stage 13 polish.
+**IVP-62d: QGC direct USB connection fixed.** Root cause: QGC sends binary MAVLink frames containing arbitrary byte values â€” bytes like 0x4C ('L') triggered CLI flash erase command, blocking for >1s and crashing the AO scheduler (queue overflow). Fix: CLI lockout on first 0xFD byte detection (ESC exits). Supporting fixes: CDC TX buffer 64â†’1024B, CRLF translation disabled for binary MAVLink, stdout timeout 500msâ†’10ms, direct tud_cdc_write bypassing stdio for MAVLink output, COMM_0 parser for USB input. QGC connects <10s, HSI responsive, recovers from occasional jitter. Remaining USB jitter deferred to Stage 13 polish.
 
 ---
 
@@ -1446,7 +1450,7 @@ Health-gated safety: auto-DISARM + safe mode on critical sensor fault while ARME
 
 **Stage 7 Take 2: Complete deferred radio/telemetry IVPs.** Council-reviewed (NASA, ArduPilot, Professor, Cubesat).
 
-IVP-62a: GCS connection state machine — heartbeat-only until QGC detected, 5s timeout. IVP-62b: MAVLink RX parser ported from ivp62-wip branch (14 tests, 624 total). USB + LoRa input paths with separate parser channels (COMM_1/COMM_2). IVP-62c: Station→vehicle ARM command over LoRa — full path verified on hardware (FD IDLE→ARMED). MAVLink COMMAND_LONG parsed, dispatched via Flight Director. Fixed: vehicle RX after TX, CCSDS/MAVLink packet discrimination, RadioScheduler rx_continuous_ restore. IVP-62d: QGC direct USB deferred to Stage 13 — causes QGC freeze (USB CDC transport issue). IVP-64: RadioConfig SF/BW/CR wired to RFM95W driver. IVP-65: Native MAVLink TX via protocol selection. Stage 13 items added: half-duplex ACK, CCSDS SDLS auth, QGC USB CDC investigation.
+IVP-62a: GCS connection state machine â€” heartbeat-only until QGC detected, 5s timeout. IVP-62b: MAVLink RX parser ported from ivp62-wip branch (14 tests, 624 total). USB + LoRa input paths with separate parser channels (COMM_1/COMM_2). IVP-62c: Stationâ†’vehicle ARM command over LoRa â€” full path verified on hardware (FD IDLEâ†’ARMED). MAVLink COMMAND_LONG parsed, dispatched via Flight Director. Fixed: vehicle RX after TX, CCSDS/MAVLink packet discrimination, RadioScheduler rx_continuous_ restore. IVP-62d: QGC direct USB deferred to Stage 13 â€” causes QGC freeze (USB CDC transport issue). IVP-64: RadioConfig SF/BW/CR wired to RFM95W driver. IVP-65: Native MAVLink TX via protocol selection. Stage 13 items added: half-duplex ACK, CCSDS SDLS auth, QGC USB CDC investigation.
 
 ---
 
@@ -1454,9 +1458,9 @@ IVP-62a: GCS connection state machine — heartbeat-only until QGC detected, 5s 
 
 **Stage 3D: 3-Axis Magnetometer Model (IVP-99 through IVP-102).** Council-reviewed (JPL, ArduPilot, Cubesat, Rocketeer, unanimous).
 
-IVP-99: `update_mag_3axis()` — 6 sequential scalar updates (3 earth_mag + 3 body_mag_bias), same pattern as GPS position. Magnitude pre-gate ±25%, per-axis 5σ gate. `kRMag3dPerAxis = 0.36` µT² (AK09916 datasheet). IVP-100: Auto-enable when mag calibrated + WMM field available (GPS 3D fix or stored or profile default). IVP-101: WMM info in sensor status ('s' key) with source tracking (GPS/stored/default), 12 new host tests (610/610 total). IVP-102: WMM position persisted in cal storage v4, auto-upgrades from stored/default to GPS on first fix. IVP-103 (station GPS push) deferred — needs radio command path.
+IVP-99: `update_mag_3axis()` â€” 6 sequential scalar updates (3 earth_mag + 3 body_mag_bias), same pattern as GPS position. Magnitude pre-gate Â±25%, per-axis 5Ïƒ gate. `kRMag3dPerAxis = 0.36` ÂµTÂ² (AK09916 datasheet). IVP-100: Auto-enable when mag calibrated + WMM field available (GPS 3D fix or stored or profile default). IVP-101: WMM info in sensor status ('s' key) with source tracking (GPS/stored/default), 12 new host tests (610/610 total). IVP-102: WMM position persisted in cal storage v4, auto-upgrades from stored/default to GPS on first fix. IVP-103 (station GPS push) deferred â€” needs radio command path.
 
-Boot banner slimmed from 45→12 lines. Advanced settings tracking doc created. WMM2025 tables generated from NOAA via BGS API.
+Boot banner slimmed from 45â†’12 lines. Advanced settings tracking doc created. WMM2025 tables generated from NOAA via BGS API.
 
 ---
 
@@ -1470,7 +1474,7 @@ Boot banner slimmed from 45→12 lines. Advanced settings tracking doc created. 
 
 **Post-Stage 13 side items.** 6 commits. Council review (4 personas, unanimous with 5 amendments).
 
-AO signal audit: wired SIG_PHASE_CHANGE (FD→Logger with exact timestamp), SIG_RADIO_STATUS (AO_Radio→LedEngine with change detection), added SIG_PYRO_FIRED (channel + source, primary + PIO paths). Removed 3 dead signals (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) with enum stability. AO_ARCHITECTURE.md updated to match reality.
+AO signal audit: wired SIG_PHASE_CHANGE (FDâ†’Logger with exact timestamp), SIG_RADIO_STATUS (AO_Radioâ†’LedEngine with change detection), added SIG_PYRO_FIRED (channel + source, primary + PIO paths). Removed 3 dead signals (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) with enum stability. AO_ARCHITECTURE.md updated to match reality.
 
 Flash layout portability: new `flash_layout.h` derives all flash addresses from `PICO_FLASH_SIZE_BYTES`. Enables Tiny2350 (4MB) and other boards. Compile-time static_assert validates no overlap.
 
@@ -1502,7 +1506,7 @@ ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). He
 
 **Stage 12B: ANSI Terminal Dashboard + AO_RCOS extraction.** Two commits. Two council reviews (both unanimous).
 
-**ANSI Dashboard:** Firmware-rendered live dashboard over USB serial. Color-coded telemetry (flight state, RSSI bar, signal age). Cursor-home + clear-to-EOL rendering (no flicker). ANSI-by-default, `m` cycles modes (ANSI→CSV→MAVLink), `x` enters CLI menu. No companion app needed. HW verified on Fruit Jam + Feather TX.
+**ANSI Dashboard:** Firmware-rendered live dashboard over USB serial. Color-coded telemetry (flight state, RSSI bar, signal age). Cursor-home + clear-to-EOL rendering (no flicker). ANSI-by-default, `m` cycles modes (ANSIâ†’CSVâ†’MAVLink), `x` enters CLI menu. No companion app needed. HW verified on Fruit Jam + Feather TX.
 
 **AO_RCOS:** Extracted CLI output mode management and ANSI rendering from qv_idle_bridge into dedicated Active Object (20Hz). StationOutputMode enum in shared header (council A3). Cal bridge pattern for blocking wizards (council A2). rc_os_update() stays in idle bridge. 598/598 SPIN tests pass.
 
@@ -1512,7 +1516,7 @@ ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). He
 
 ### 2026-03-31-001 | Claude Code CLI | feature, architecture, council
 
-**Stage 12A COMPLETE: Radio Module + Fruit Jam GCS (IVP-92–98).** Seven IVPs. Three council reviews (radio universality, RadioScheduler, final plan — all unanimous). HW verified on 3 boards: Vehicle TX (Feather RP2350), Station RX (Fruit Jam), Relay (Feather RP2350).
+**Stage 12A COMPLETE: Radio Module + Fruit Jam GCS (IVP-92â€“98).** Seven IVPs. Three council reviews (radio universality, RadioScheduler, final plan â€” all unanimous). HW verified on 3 boards: Vehicle TX (Feather RP2350), Station RX (Fruit Jam), Relay (Feather RP2350).
 
 **IVP-92:** Non-blocking TX split (`send_start`/`send_poll`). Runtime config setters for SF, BW, CR.
 **IVP-93:** AO_Radio extraction with RadioScheduler half-duplex state machine (100Hz, protocol-agnostic).
@@ -1525,9 +1529,9 @@ ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). He
 **Bugs found during HW verification:**
 - RP2350B I2C pad isolation: GPIO pads start isolated on RP2350B, breaks bus recovery (LL Entry 35 candidate)
 - QP/C static event pattern: stack-allocated events crash on refCtr assert
-- PIO contention: AO_LedEngine + RSSI bar on same PIO SM → queue overflow. Fix: disable LedEngine in station mode.
+- PIO contention: AO_LedEngine + RSSI bar on same PIO SM â†’ queue overflow. Fix: disable LedEngine in station mode.
 
-**HW test results:** TX→RX 296+ pkts, 0 CRC errors, continuous seq. Relay confirmed via duplicate seq at different RSSI. RSSI bar gradient working. GPS detected on FJ after I2C fix.
+**HW test results:** TXâ†’RX 296+ pkts, 0 CRC errors, continuous seq. Relay confirmed via duplicate seq at different RSSI. RSSI bar gradient working. GPS detected on FJ after I2C fix.
 
 ---
 
@@ -1539,7 +1543,7 @@ ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). He
 
 ### 2026-03-29-002 | Claude Code CLI | feature, architecture, council
 
-**Stage 11 COMPLETE: PIO Safety Architecture (IVP-87–91).** Five IVPs. Two council reviews (watchdog architecture + plan review, 5 panelists each). SPIN model updated — 6/6 safety properties pass. 598/598 host tests, 65s HW soak clean.
+**Stage 11 COMPLETE: PIO Safety Architecture (IVP-87â€“91).** Five IVPs. Two council reviews (watchdog architecture + plan review, 5 panelists each). SPIN model updated â€” 6/6 safety properties pass. 598/598 host tests, 65s HW soak clean.
 
 **IVP-87 (Baseline Benchmark):** Recorded pre-change performance numbers for regression comparison.
 
@@ -1547,19 +1551,19 @@ ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). He
 
 **IVP-89 (PIO Backup Deployment Timers):** Independent PIO-driven drogue + main backup timers. HW verified via GPIO read. LL Entry 34: baro fan turbulence during bench testing.
 
-**IVP-90 (SDK Watchdog Removal):** SDK `watchdog_enable()` removed — PIO is sole health monitor. No auto MCU reset; phase-dependent degrade instead.
+**IVP-90 (SDK Watchdog Removal):** SDK `watchdog_enable()` removed â€” PIO is sole health monitor. No auto MCU reset; phase-dependent degrade instead.
 
 **IVP-91 (Post-Change Benchmark):** No regression: +2.5% predict time, +1.8KB text. Within acceptable margins.
 
 Persistent pyro-fired flags added to FlightState. Watchdog safety architecture decision doc + research sources archived (`docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md`).
 
-**IVP renumbering:** Stage 12: Ground Station (IVP-92–97). Stage 13: Pre-Flight Polish (IVP-98–102). Stage 14: Field Tuning & Validation (IVP-103+).
+**IVP renumbering:** Stage 12: Ground Station (IVP-92â€“97). Stage 13: Pre-Flight Polish (IVP-98â€“102). Stage 14: Field Tuning & Validation (IVP-103+).
 
 (`src/pio/pio_heartbeat.cpp`, `src/pio/pio_backup_timer.cpp`, `src/main.cpp`, `src/flight_director/flight_state.h`, `tools/spin/rocketchip_ao.pml`, `CMakeLists.txt`)
 
 ### 2026-03-29-001 | Claude Code CLI | feature, architecture, council
 
-**Stage 10 COMPLETE: Adaptive Estimation & Safety (IVP-83–85).** Three IVPs, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
+**Stage 10 COMPLETE: Adaptive Estimation & Safety (IVP-83â€“85).** Three IVPs, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
 
 **IVP-83 (Phase-Scheduled Q/R + Innovation Monitor):** Per-phase Q scaling and R values sourced from Mission Profile `.cfg`. Additive Q delta applied post-codegen FPFT. Per-channel sliding-window NIS tracker with 10x cap. NIS push-after-gate fix: gated (rejected) readings were corrupting innovation monitor windows. 28 new tests.
 
@@ -1575,7 +1579,7 @@ Persistent pyro-fired flags added to FlightState. Watchdog safety architecture d
 
 ### 2026-03-27-002 | Claude Code CLI | architecture, council
 
-**IVP-82a/82b: SPIN Formal Verification (Stage 9 completion).** SPIN 6.5.2 + MinGW GCC + Cygwin toolchain installed. Two Promela models: FD-only (73 states) and full AO topology (107,818 states). 8 properties verified exhaustively in 37ms each — 5 safety (pyro-never-in-IDLE, drogue-before-main, requires-ARMED, drogue-once, main-once) + 3 mission-critical (event delivery to Logger/Telem/LED). Council-reviewed (4 panelists, 5 amendments). Key optimization: `atomic{}` blocks simulate QV run-to-completion, channel depth [1] (safety depends on ordering not buffering). Verification overview doc added (`docs/VERIFICATION_OVERVIEW.md`) unifying all 5 verification layers.
+**IVP-82a/82b: SPIN Formal Verification (Stage 9 completion).** SPIN 6.5.2 + MinGW GCC + Cygwin toolchain installed. Two Promela models: FD-only (73 states) and full AO topology (107,818 states). 8 properties verified exhaustively in 37ms each â€” 5 safety (pyro-never-in-IDLE, drogue-before-main, requires-ARMED, drogue-once, main-once) + 3 mission-critical (event delivery to Logger/Telem/LED). Council-reviewed (4 panelists, 5 amendments). Key optimization: `atomic{}` blocks simulate QV run-to-completion, channel depth [1] (safety depends on ordering not buffering). Verification overview doc added (`docs/VERIFICATION_OVERVIEW.md`) unifying all 5 verification layers.
 
 (`tools/spin/rocketchip_fd.pml`, `tools/spin/rocketchip_ao.pml`, `tools/spin/README.md`, `docs/VERIFICATION_OVERVIEW.md`)
 
@@ -1585,23 +1589,23 @@ Persistent pyro-fired flags added to FlightState. Watchdog safety architecture d
 
 **IVP-76 (BSP):** QF_run() replaces while(true). 100Hz tick timer, system-wide RcSignal catalog (`ao_signals.h`), pub-sub infrastructure. QS tracing deferred (source not vendored, no spare UART). Git tag `pre-qv-main`.
 
-**IVP-77 (LED Engine):** AO_LedEngine owns NeoPixel pattern state. ws2812 calls from Core 0 (33Hz tick). Static event race fixed (Council C5 — stack-local instead of static).
+**IVP-77 (LED Engine):** AO_LedEngine owns NeoPixel pattern state. ws2812 calls from Core 0 (33Hz tick). Static event race fixed (Council C5 â€” stack-local instead of static).
 
 **IVP-78 (Flight Director):** 100Hz time event wraps flight_director_tick(). Queue depth 32 to handle LoRa TX blocking (LL Entry 32).
 
 **IVP-79 (Logger):** 50Hz time event wraps logging_tick(). Queue depth 32.
 
-**IVP-80 (Telemetry):** 10Hz time event wraps telemetry_radio_tick() + mavlink_direct_tick(). Queue depth 32. Blocking rfm95w_send() (50-150ms LoRa airtime) inside AO handler is the root cause of queue overflow — pragmatic fix via depth 32, architectural fix (non-blocking driver) deferred.
+**IVP-80 (Telemetry):** 10Hz time event wraps telemetry_radio_tick() + mavlink_direct_tick(). Queue depth 32. Blocking rfm95w_send() (50-150ms LoRa airtime) inside AO handler is the root cause of queue overflow â€” pragmatic fix via depth 32, architectural fix (non-blocking driver) deferred.
 
 **IVP-81 (Superloop removal):** QV_onIdle reduced to watchdog (permanent, Council A2), ESKF (seqlock bridge), CLI (polled). sleep_ms(1) for USB CDC yield.
 
-**Blocking driver lesson (LL Entry 32):** Cooperative schedulers amplify blocking. `rfm95w_send()` was invisible in the superloop but caused `qf_actq id=130` assertion under QV — timer ISR posts events to all AO queues during the block. Incremental AO addition isolated AO_FlightDirector (100Hz = fastest queue fill) as the first victim. Queue depth 32 handles 320ms worst-case. Non-blocking driver (`send_start`/`send_poll`) is the proper long-term fix.
+**Blocking driver lesson (LL Entry 32):** Cooperative schedulers amplify blocking. `rfm95w_send()` was invisible in the superloop but caused `qf_actq id=130` assertion under QV â€” timer ISR posts events to all AO queues during the block. Incremental AO addition isolated AO_FlightDirector (100Hz = fastest queue fill) as the first victim. Queue depth 32 handles 320ms worst-case. Non-blocking driver (`send_start`/`send_poll`) is the proper long-term fix.
 
-*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture isolates deterministic sensor sampling on Core 1, diminishing the primary RTOS advantage. QV gives decoupled modules, typed events, and priority scheduling without per-task stacks, mutexes, or context-switch overhead.*
+*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS â€” the dual-core architecture isolates deterministic sensor sampling on Core 1, diminishing the primary RTOS advantage. QV gives decoupled modules, typed events, and priority scheduling without per-task stacks, mutexes, or context-switch overhead.*
 
 552/552 host tests. 60s HW soak: 288K IMU reads, 2 errors (boot-only), ESKF healthy, AO_Counter avg=100ms.
 
-*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture already isolates deterministic sensor sampling on Core 1, diminishing the primary advantage of a preemptive RTOS. QV provides decoupled modules, typed events, and priority-based scheduling without per-task stacks, mutexes, or context-switch overhead. Worst-case AO dispatch latency (~850µs from eskf_tick) is well within the 10ms budget at 100Hz.*
+*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS â€” the dual-core architecture already isolates deterministic sensor sampling on Core 1, diminishing the primary advantage of a preemptive RTOS. QV provides decoupled modules, typed events, and priority-based scheduling without per-task stacks, mutexes, or context-switch overhead. Worst-case AO dispatch latency (~850Âµs from eskf_tick) is well within the 10ms budget at 100Hz.*
 
 (`lib/qep/qp_config.h`, `lib/qep/bsp_qv.c`, `src/main.cpp`, `src/flight_director/flight_director.h`, `CMakeLists.txt`)
 (**New:** `include/rocketchip/ao_signals.h`, `src/active_objects/ao_blinker.cpp`, `src/active_objects/ao_counter.cpp`)
@@ -1614,7 +1618,7 @@ Persistent pyro-fired flags added to FlightState. Watchdog safety architecture d
 
 ### 2026-03-26-004 | Claude Code CLI | documentation
 
-**IVP restructure: Stage 9 expanded 5→7 IVPs.** Split Logger+Telemetry IVP into separate AOs (IVP-79, IVP-80). Added SPIN formal verification (IVP-82). Clarified stack-allocated events in IVP-76, noted LED consolidation in IVP-77, noted audit printf deferral in IVP-78. Stages 10-12 renumbered (IVP-83–97). Total: 97 IVPs across 12 stages.
+**IVP restructure: Stage 9 expanded 5â†’7 IVPs.** Split Logger+Telemetry IVP into separate AOs (IVP-79, IVP-80). Added SPIN formal verification (IVP-82). Clarified stack-allocated events in IVP-76, noted LED consolidation in IVP-77, noted audit printf deferral in IVP-78. Stages 10-12 renumbered (IVP-83â€“97). Total: 97 IVPs across 12 stages.
 
 (`docs/IVP.md`)
 
@@ -1629,21 +1633,21 @@ Persistent pyro-fired flags added to FlightState. Watchdog safety architecture d
 - `psram_configure_qmi` decomposed (timing calc extracted to stay under 60-line threshold)
 - Audit script: excluded auto-generated + benchmark files from PRODUCTION_FILES
 
-**Deferred:** Flight Director diagnostic `printf` calls (10 hits) — deferred to Stage 9 IVP-78 (AO migration, diagnostic output moves to event-based logging).
+**Deferred:** Flight Director diagnostic `printf` calls (10 hits) â€” deferred to Stage 9 IVP-78 (AO migration, diagnostic output moves to event-based logging).
 
 **Accepted:** 2 CCN>20 CLI menu handlers (Ground code), QEP C-style casts (framework), ~40 snake_case parameter names (matches project convention).
 
-**Whiteboard:** Added deferred note — flash layout should derive from `PICO_FLASH_SIZE_BYTES` instead of hardcoding 8MB. Currently non-portable to boards with different flash sizes (e.g., Pimoroni Tiny2350, 4MB). Side project, not blocking.
+**Whiteboard:** Added deferred note â€” flash layout should derive from `PICO_FLASH_SIZE_BYTES` instead of hardcoding 8MB. Currently non-portable to boards with different flash sizes (e.g., Pimoroni Tiny2350, 4MB). Side project, not blocking.
 
-Session wrap-up: updated `docs/PROJECT_STATUS.md` (Stage 8 complete → Stage 9 next), `docs/SCAFFOLDING.md` (added profiles/, flight_director/, logging/, telemetry/, watchdog/, lib/qep/, new scripts), `.claude/SESSION_CHECKLIST.md` (fixed PROJECT_STATUS.md path reference).
+Session wrap-up: updated `docs/PROJECT_STATUS.md` (Stage 8 complete â†’ Stage 9 next), `docs/SCAFFOLDING.md` (added profiles/, flight_director/, logging/, telemetry/, watchdog/, lib/qep/, new scripts), `.claude/SESSION_CHECKLIST.md` (fixed PROJECT_STATUS.md path reference).
 
 (`standards/STANDARDS_AUDIT_2026-03-26.md`, `docs/PROJECT_STATUS.md`, `docs/SCAFFOLDING.md`, `.claude/SESSION_CHECKLIST.md`, 20 source files)
 
 ### 2026-03-26-002B | Claude Code CLI | tooling, audit, standards
 
-**Implemented and validated Grok's tiered audit blocks.** Adapted for Windows/Git Bash (lizard via `python -m` fallback, portable grep patterns, `set -e` safe exit handling). Dropped magic-numbers grep (869 false positives — unusable at grep level, clang-tidy's relaxed check + manual review is more effective). Changed Tier 3/4 from hard `exit 1` to warnings on first run to allow full triage. Tier 4 scoped to `src/drivers/` only (flight_director files have design-level prior art in docs, not per-file).
+**Implemented and validated Grok's tiered audit blocks.** Adapted for Windows/Git Bash (lizard via `python -m` fallback, portable grep patterns, `set -e` safe exit handling). Dropped magic-numbers grep (869 false positives â€” unusable at grep level, clang-tidy's relaxed check + manual review is more effective). Changed Tier 3/4 from hard `exit 1` to warnings on first run to allow full triage. Tier 4 scoped to `src/drivers/` only (flight_director files have design-level prior art in docs, not per-file).
 
-First-run results: Tier 2 found 2 CCN>20 (CLI menu switches, Ground code — accepted). Tier 3 found 25 stdio hits (14 in Ground-only `i2c_bus_scan`, 11 in flight_director diagnostic logging on Core 0 CLI thread — no flight-safety risk). Tier 4 found 8 driver files missing Prior Art blocks.
+First-run results: Tier 2 found 2 CCN>20 (CLI menu switches, Ground code â€” accepted). Tier 3 found 25 stdio hits (14 in Ground-only `i2c_bus_scan`, 11 in flight_director diagnostic logging on Core 0 CLI thread â€” no flight-safety risk). Tier 4 found 8 driver files missing Prior Art blocks.
 
 (`scripts/run_clang_tidy.sh`)
 
@@ -1663,15 +1667,15 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-26-001 | Claude Code CLI | feature, architecture, council, tooling
 
-**Stage 8 Flight Director — IVP-72 through IVP-75 complete. Stage 8 done.**
+**Stage 8 Flight Director â€” IVP-72 through IVP-75 complete. Stage 8 done.**
 
 **IVP-72:** Action Executor. `ActionType` enum (SET_LED, MARK_EVENT, REPORT_STATE, FIRE_PYRO, SET_BEACON), constexpr action arrays per phase in `flight_actions.h`, callbacks wired into QEP state handlers. NeoPixel colors per flight state (ARMED=amber, BOOST=red, COAST=yellow, DESCENT=red blink, LANDED=green blink, ABORT=red fast blink). Pyro intent logging via callbacks. Council Amendment #2 (pyro negative tests) enforced. NeoPixel override switch extracted to `neo_apply_override()`. 32 tests, 529/529 total.
 
-**IVP-73:** Bench Flight Simulation. Python pyserial script (`scripts/bench_flight_sim.py`) automates Flight Director HW gate — 9 test cases (happy path, 4 abort paths, 3 rejection cases). Data-driven `TestCase` architecture (council A3), prompt-sync serial (A1), rejection tests first (A2). 9/9 PASS in 10s. Council-reviewed.
+**IVP-73:** Bench Flight Simulation. Python pyserial script (`scripts/bench_flight_sim.py`) automates Flight Director HW gate â€” 9 test cases (happy path, 4 abort paths, 3 rejection cases). Data-driven `TestCase` architecture (council A3), prompt-sync serial (A1), rejection tests first (A2). 9/9 PASS in 10s. Council-reviewed.
 
 **IVP-74:** Mission Profile Configuration. User-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`) with ArduPilot `.param`-inspired `NAME VALUE` format. Python generator (`scripts/generate_profile.py`) produces C++ header with `static_assert` validation (council A3) and source hash traceability (A2). Field guide README with safe ranges (A4). Profile name shown in boot banner, system status, and FD status. HAB profile swap HW-verified (lower launch threshold caused behavioral change). Compile-time only; boot-load deferred to Stage 11. Council-reviewed (unanimous). 23 tests, 552/552 total.
 
-**IVP-75:** Active Object Migration Planning. QP/C 8.1.3 QF framework (10 source files) and QV cooperative scheduler vendored. BSP shim with `QF_onStartup()`, `QV_onIdle()` (WFI), port header with QEQueue/QMPool/QV includes. Compile gate passes — QF+QV links alongside existing superloop with no runtime behavior change. Preliminary migration doc in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` (needs full plan + council review before Stage 9 implementation).
+**IVP-75:** Active Object Migration Planning. QP/C 8.1.3 QF framework (10 source files) and QV cooperative scheduler vendored. BSP shim with `QF_onStartup()`, `QV_onIdle()` (WFI), port header with QEQueue/QMPool/QV includes. Compile gate passes â€” QF+QV links alongside existing superloop with no runtime behavior change. Preliminary migration doc in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` (needs full plan + council review before Stage 9 implementation).
 
 (`src/flight_director/`, `src/main.cpp`, `src/cli/rc_os.cpp`, `lib/qep/`, `profiles/`, `scripts/`, `test/`, `docs/flight_director/`)
 
@@ -1679,13 +1683,13 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-25-002 | Claude Code CLI | feature, architecture, council
 
-**Stage 8 Flight Director — IVP-69 through IVP-71 complete.** Continued same session after IVP-66–68 changelog entry.
+**Stage 8 Flight Director â€” IVP-69 through IVP-71 complete.** Continued same session after IVP-66â€“68 changelog entry.
 
-**IVP-69:** Go/No-Go pre-arm checks + command handler. NASA-style readiness poll: Tier 1 (6 platform stations: IMU, Baro, ESKF, Flash, Safety, Watchdog — all must GO) + Tier 2 (4 profile stations: GPS, Mag, Radio, Battery — warn only). CLI ARM/DISARM/ABORT/RESET routed through command handler with phase validation. Sensor event keys bypass for bench testing. 32 tests, 444/444 total.
+**IVP-69:** Go/No-Go pre-arm checks + command handler. NASA-style readiness poll: Tier 1 (6 platform stations: IMU, Baro, ESKF, Flash, Safety, Watchdog â€” all must GO) + Tier 2 (4 profile stations: GPS, Mag, Radio, Battery â€” warn only). CLI ARM/DISARM/ABORT/RESET routed through command handler with phase validation. Sensor event keys bypass for bench testing. 32 tests, 444/444 total.
 
-**IVP-70:** Guard functions + evaluator. 6 guard functions (launch accel, burnout accel, apogee velocity, baro peak, main deploy altitude, stationary) with sustain timers and phase-validity bitmasks. All thresholds from MissionProfile. Wired into main.cpp at 100Hz via seqlock snapshot. Hand shake triggered automatic ARMED→BOOST. 31 tests, 475/475 total.
+**IVP-70:** Guard functions + evaluator. 6 guard functions (launch accel, burnout accel, apogee velocity, baro peak, main deploy altitude, stationary) with sustain timers and phase-validity bitmasks. All thresholds from MissionProfile. Wired into main.cpp at 100Hz via seqlock snapshot. Hand shake triggered automatic ARMEDâ†’BOOST. 31 tests, 475/475 total.
 
-**IVP-71:** Guard combinators + three-layer safety architecture. Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer — unanimous APPROVE, 6 amendments). Industry research: timer backups standard at every level (NASA primary for sounding rockets), velocity lockout universal. Three layers: (1) lockout gates (velocity 80 m/s + 3s min-time), (2) sensor combinators (AND for apogee: velocity + baro must agree), (3) timer backup (gated by lockouts). ESKF-unhealthy bypasses velocity lockout for timer only (Council A2). Managed/unmanaged guard split via constexpr array (Council A4). Per-profile `emergency_deploy_anytime` for HAB. MissionProfile expanded with lockout, backup, combinator fields. 22 combinator tests, 497/497 total.
+**IVP-71:** Guard combinators + three-layer safety architecture. Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer â€” unanimous APPROVE, 6 amendments). Industry research: timer backups standard at every level (NASA primary for sounding rockets), velocity lockout universal. Three layers: (1) lockout gates (velocity 80 m/s + 3s min-time), (2) sensor combinators (AND for apogee: velocity + baro must agree), (3) timer backup (gated by lockouts). ESKF-unhealthy bypasses velocity lockout for timer only (Council A2). Managed/unmanaged guard split via constexpr array (Council A4). Per-profile `emergency_deploy_anytime` for HAB. MissionProfile expanded with lockout, backup, combinator fields. 22 combinator tests, 497/497 total.
 
 (`src/flight_director/`, `src/main.cpp`, `src/cli/rc_os.{cpp,h}`, `include/rocketchip/config.h`, `test/test_go_nogo.cpp`, `test/test_guards.cpp`, `test/test_guard_combinator.cpp`)
 
@@ -1693,13 +1697,13 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-25-001 | Claude Code CLI | feature, architecture
 
-**Stage 8 Flight Director — IVP-66 through IVP-68 complete.** ~10 day gap between sessions (machine powered off and relocated). HW gate re-verified from clean boot — all sensors init OK, 60s soak 0 new errors, ESKF stable. No regressions from the gap.
+**Stage 8 Flight Director â€” IVP-66 through IVP-68 complete.** ~10 day gap between sessions (machine powered off and relocated). HW gate re-verified from clean boot â€” all sensors init OK, 60s soak 0 new errors, ESKF stable. No regressions from the gap.
 
-**IVP-66:** Watchdog recovery policy — `WatchdogRecoveryState` struct with boot state preservation, `TickFnId` enum for identifying which tick function was running when watchdog fired, flight phase saved across reboot.
+**IVP-66:** Watchdog recovery policy â€” `WatchdogRecoveryState` struct with boot state preservation, `TickFnId` enum for identifying which tick function was running when watchdog fired, flight phase saved across reboot.
 
-**IVP-67:** QP/C 8.1.3 QEP vendored (646 lines portable C99 dispatch engine). STARS/QM/SPIN toolchain evaluation documented in `docs/flight_director/TOOLCHAIN_EVALUATION.md` — STARS not adopted (commercial), QM deferred (statechart too small), SPIN deferred to Stage 9 AOs. 12 QEP smoke tests passing.
+**IVP-67:** QP/C 8.1.3 QEP vendored (646 lines portable C99 dispatch engine). STARS/QM/SPIN toolchain evaluation documented in `docs/flight_director/TOOLCHAIN_EVALUATION.md` â€” STARS not adopted (commercial), QM deferred (statechart too small), SPIN deferred to Stage 9 AOs. 12 QEP smoke tests passing.
 
-**IVP-68:** Flight Director QHsm skeleton — 9 state handlers (idle, armed, boost, coast, descent superstate, drogue_descent, main_descent, landed, abort). Source-specific ABORT per Council Amendment #1 (armed=no pyro, boost/coast=drogue intent, descent=ignored). MissionProfile struct with `kDefaultRocketProfile` (guard thresholds, sustain times, timeouts). `mission.h` renamed to `job.h` ("job"=device role, "MissionProfile"=flight config). CLI `RC_OS_MENU_FLIGHT` sub-menu with bench signal injection, grouped main menu layout, `[main]`/`[cal]`/`[flight]` context prompts. Fixed prompt spam on unrecognized keys and double prompt at boot. 29 FD tests, 412/412 total. HW gate: all 9 phases reachable, all 4 abort paths correct, coast timeout verified.
+**IVP-68:** Flight Director QHsm skeleton â€” 9 state handlers (idle, armed, boost, coast, descent superstate, drogue_descent, main_descent, landed, abort). Source-specific ABORT per Council Amendment #1 (armed=no pyro, boost/coast=drogue intent, descent=ignored). MissionProfile struct with `kDefaultRocketProfile` (guard thresholds, sustain times, timeouts). `mission.h` renamed to `job.h` ("job"=device role, "MissionProfile"=flight config). CLI `RC_OS_MENU_FLIGHT` sub-menu with bench signal injection, grouped main menu layout, `[main]`/`[cal]`/`[flight]` context prompts. Fixed prompt spam on unrecognized keys and double prompt at boot. 29 FD tests, 412/412 total. HW gate: all 9 phases reachable, all 4 abort paths correct, coast timeout verified.
 
 (`src/flight_director/`, `include/rocketchip/job*.h`, `src/main.cpp`, `src/cli/rc_os.{cpp,h}`, `src/watchdog/watchdog_recovery.h`, `test/test_flight_director.cpp`, `docs/ROCKETCHIP_OS.md`)
 
@@ -1707,38 +1711,38 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-14-002 | Claude Code CLI | hardware, council
 
-**DPS310 baro: independent P/T config, 8x OS, R correction.** Council-reviewed DPS310 measurement rate and oversampling selection. Key findings: (1) previous 16x OS / 32 SPS config ran at 88% duty cycle in CONT_BOTH mode (P+T interleaved, sharing measurement budget); (2) 64 SPS attempts failed HW verification at both 8x and 4x OS — DPS310 enforces MaxRate limits stricter than measurement-time math suggests; (3) P and T channels can be configured independently. New config: pressure at 8x OS / 32 SPS, temperature at 1x OS / 2 Hz (compensation only). Duty cycle drops from 88% to 48% with better noise match. Updated `kSigmaBaro` from 0.029m (matched 16x OS) to 0.033m (matches actual 8x OS) in ESKF and BaroKF — the R value was previously too tight for the hardware config. HW verified: 60s soak, 2029 baro reads, 0 errors, bNIS=0.01. (`src/drivers/baro_dps310.{h,cpp}`, `src/fusion/eskf.{h,cpp}`, `src/fusion/baro_kf.h`, `src/main.cpp`, `docs/hardware/HARDWARE.md`)
+**DPS310 baro: independent P/T config, 8x OS, R correction.** Council-reviewed DPS310 measurement rate and oversampling selection. Key findings: (1) previous 16x OS / 32 SPS config ran at 88% duty cycle in CONT_BOTH mode (P+T interleaved, sharing measurement budget); (2) 64 SPS attempts failed HW verification at both 8x and 4x OS â€” DPS310 enforces MaxRate limits stricter than measurement-time math suggests; (3) P and T channels can be configured independently. New config: pressure at 8x OS / 32 SPS, temperature at 1x OS / 2 Hz (compensation only). Duty cycle drops from 88% to 48% with better noise match. Updated `kSigmaBaro` from 0.029m (matched 16x OS) to 0.033m (matches actual 8x OS) in ESKF and BaroKF â€” the R value was previously too tight for the hardware config. HW verified: 60s soak, 2029 baro reads, 0 errors, bNIS=0.01. (`src/drivers/baro_dps310.{h,cpp}`, `src/fusion/eskf.{h,cpp}`, `src/fusion/baro_kf.h`, `src/main.cpp`, `docs/hardware/HARDWARE.md`)
 
 ---
 
 ### 2026-03-14-001 | Claude Code CLI | architecture, council, documentation
 
-**Stage 8 restructure: UML statecharts + QEP adoption.** Integrated three council-reviewed documents (formalism research, council decisions, QP/C application guide) into `docs/flight_director/` and `docs/decisions/flight_director/`. Deprecated old `FLIGHT_DIRECTOR_DESIGN.md` and `RESEARCH.md`. Restructured IVP Stage 8 from 5 to 10 steps (IVP-66–75) reflecting council decisions: UML statecharts as formalism, QEP dispatch engine, STARS toolchain gate, apogee reclassified as event, transition-gated pyro safety architecture. Added new Stage 9: Active Object Architecture (IVP-76–80) for QF+QV migration. Renumbered Stages 10–12, total 95 IVP steps across 12 stages. (`docs/IVP.md`, `docs/flight_director/`, `docs/decisions/flight_director/`)
+**Stage 8 restructure: UML statecharts + QEP adoption.** Integrated three council-reviewed documents (formalism research, council decisions, QP/C application guide) into `docs/flight_director/` and `docs/decisions/flight_director/`. Deprecated old `FLIGHT_DIRECTOR_DESIGN.md` and `RESEARCH.md`. Restructured IVP Stage 8 from 5 to 10 steps (IVP-66â€“75) reflecting council decisions: UML statecharts as formalism, QEP dispatch engine, STARS toolchain gate, apogee reclassified as event, transition-gated pyro safety architecture. Added new Stage 9: Active Object Architecture (IVP-76â€“80) for QF+QV migration. Renumbered Stages 10â€“12, total 95 IVP steps across 12 stages. (`docs/IVP.md`, `docs/flight_director/`, `docs/decisions/flight_director/`)
 
 ---
 
 ### 2026-03-08-002 | Claude Code CLI | documentation, tooling
 
-**CLA + RBM pre-Stage 8 audit.** Computational Load Analysis from 270s HW soak (zero firmware changes — serial CLI data collection only). Runtime Behavior Map covering boot sequence, Core 0/Core 1 dispatch, CLI state machine, NeoPixel priority, error recovery (6 gaps documented). Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Repeatable via `scripts/cla_collect.py`, `scripts/rbm_check.py`, `scripts/render_dot.sh`. Cross-reference added to `HARDWARE_BUDGETS.md`. (`docs/audits/cla_rbm/`, `scripts/`)
+**CLA + RBM pre-Stage 8 audit.** Computational Load Analysis from 270s HW soak (zero firmware changes â€” serial CLI data collection only). Runtime Behavior Map covering boot sequence, Core 0/Core 1 dispatch, CLI state machine, NeoPixel priority, error recovery (6 gaps documented). Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Repeatable via `scripts/cla_collect.py`, `scripts/rbm_check.py`, `scripts/render_dot.sh`. Cross-reference added to `HARDWARE_BUDGETS.md`. (`docs/audits/cla_rbm/`, `scripts/`)
 
 ---
 
 ### 2026-03-08-001 | Claude Code CLI | feature, bugfix
 
-**Stage 7 Radio & Telemetry — IVP-58 through IVP-61 complete. IVP-62 deferred.** End-to-end telemetry pipeline verified: CCSDS encoding over LoRa (vehicle→station), MAVLink re-encoding on station, QGC High Latency mode connected via Fruit Jam bridge with live attitude data.
+**Stage 7 Radio & Telemetry â€” IVP-58 through IVP-61 complete. IVP-62 deferred.** End-to-end telemetry pipeline verified: CCSDS encoding over LoRa (vehicleâ†’station), MAVLink re-encoding on station, QGC High Latency mode connected via Fruit Jam bridge with live attitude data.
 
-**IVP-58:** CCSDS space packet encoder — 42-byte PCM nav frames with CRC-16, 6-byte CCSDS primary header, MET timestamps.
-**IVP-59:** Telemetry service — replaces test TX with production pipeline. SX1276 DIO0 mapping fix.
+**IVP-58:** CCSDS space packet encoder â€” 42-byte PCM nav frames with CRC-16, 6-byte CCSDS primary header, MET timestamps.
+**IVP-59:** Telemetry service â€” replaces test TX with production pipeline. SX1276 DIO0 mapping fix.
 **IVP-60:** Station RX mode + CCSDS decode + Mission Profile infrastructure. Compile-time vehicle/station behavioral selection via `mission.h`. 5-min soak: 607 pkts, 0 CRC err, 98.7% delivery.
-**IVP-61:** MAVLink v2 encoder using official c_library_v2 (header-only submodule). Station re-encodes CCSDS→MAVLink for QGC. Vehicle direct USB output at 10Hz. QGC High Latency mode verified on both paths.
+**IVP-61:** MAVLink v2 encoder using official c_library_v2 (header-only submodule). Station re-encodes CCSDSâ†’MAVLink for QGC. Vehicle direct USB output at 10Hz. QGC High Latency mode verified on both paths.
 
-**IVP-62 (bidirectional MAVLink commands) deferred.** Full implementation complete (mavlink_rx handler, 14 host tests, command dispatch for params/capabilities/arm/mode/missions) but QGC direct USB connection unstable — "Communication Lost" after initial connect due to USB CDC buffer timing. Work preserved on `ivp62-wip` branch. Main reverted to IVP-61 where FJ bridge path is confirmed working.
+**IVP-62 (bidirectional MAVLink commands) deferred.** Full implementation complete (mavlink_rx handler, 14 host tests, command dispatch for params/capabilities/arm/mode/missions) but QGC direct USB connection unstable â€” "Communication Lost" after initial connect due to USB CDC buffer timing. Work preserved on `ivp62-wip` branch. Main reverted to IVP-61 where FJ bridge path is confirmed working.
 
-**QGC connection status:** Works via Fruit Jam LoRa bridge (COM9, High Latency mode). Direct USB (COM7) deferred — protocol is correct (verified via pymavlink/Python) but QGC's 3.5s heartbeat timeout + USB CDC buffering behavior causes disconnects.
+**QGC connection status:** Works via Fruit Jam LoRa bridge (COM9, High Latency mode). Direct USB (COM7) deferred â€” protocol is correct (verified via pymavlink/Python) but QGC's 3.5s heartbeat timeout + USB CDC buffering behavior causes disconnects.
 
 ### 2026-03-07-001 | Claude Code CLI | feature, architecture
 
-**Stage J: Fruit Jam HAL — Board abstraction + parity verification complete.** Compile-time board support package (BSP) via `board::` namespace constants so the same `main.cpp` builds and runs on both Feather RP2350 HSTX (#6130) and Fruit Jam (#6200). Zero runtime overhead — all `constexpr` pin constants resolved at compile time.
+**Stage J: Fruit Jam HAL â€” Board abstraction + parity verification complete.** Compile-time board support package (BSP) via `board::` namespace constants so the same `main.cpp` builds and runs on both Feather RP2350 HSTX (#6130) and Fruit Jam (#6200). Zero runtime overhead â€” all `constexpr` pin constants resolved at compile time.
 
 **New files:** `board.h` (selector), `board_feather_rp2350.h`, `board_fruit_jam.h`, `BOARD_COMPARISON.md`. **Modified:** i2c_bus, spi_bus, ws2812, rfm95w, gps_uart, config.h, main.cpp, rc_os.cpp, both CMakeLists.txt. **Deleted:** `gs_spi.cpp`, `radio_rx.cpp` (replaced by board-abstracted main.cpp).
 
@@ -1750,19 +1754,19 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-04-003 | Claude Code CLI | feature, bugfix
 
-**Stage 6 Data Logging — IVP-54a/54b completed. Full USB download pipeline HW verified.** IVP-54a: CLI flight list (`f`) and binary download (`d`) commands. Sector-aware frame streaming skips flash padding. CRLF translation disabled during binary output (`stdio_set_translate_crlf`). End-to-end CRC-32 in RCEND footer. IVP-54b: Python decoder script (`scripts/decode_flight_log.py`) — serial download, offline decode, CSV output, auto-detect port, interactive mode (no-args lists flights and prompts for selection).
+**Stage 6 Data Logging â€” IVP-54a/54b completed. Full USB download pipeline HW verified.** IVP-54a: CLI flight list (`f`) and binary download (`d`) commands. Sector-aware frame streaming skips flash padding. CRLF translation disabled during binary output (`stdio_set_translate_crlf`). End-to-end CRC-32 in RCEND footer. IVP-54b: Python decoder script (`scripts/decode_flight_log.py`) â€” serial download, offline decode, CSV output, auto-detect port, interactive mode (no-args lists flights and prompts for selection).
 
 **HW verified:** 3733 frames downloaded, 0 corrupt, transport CRC-32 OK. CSV output with plausible sensor values, monotonic timestamps.
 
-**Bugs fixed:** (1) Python struct format `TELEM_FORMAT` was 44 bytes — missing `temperature_c` field, should be 45. (2) Pico SDK `stdio_usb` CRLF translation converted `0x0A` bytes in binary data to `0x0D 0x0A`, corrupting frame alignment. Fixed with `stdio_set_translate_crlf(&stdio_usb, false)` around binary write. (3) Download streamed contiguous bytes including sector padding (26B of 0xFF per 4KB sector). Fixed with sector-aware frame-by-frame streaming. (4) Unicode box-drawing chars in flight table header caused Windows console codec errors. Fixed with ASCII dashes.
+**Bugs fixed:** (1) Python struct format `TELEM_FORMAT` was 44 bytes â€” missing `temperature_c` field, should be 45. (2) Pico SDK `stdio_usb` CRLF translation converted `0x0A` bytes in binary data to `0x0D 0x0A`, corrupting frame alignment. Fixed with `stdio_set_translate_crlf(&stdio_usb, false)` around binary write. (3) Download streamed contiguous bytes including sector padding (26B of 0xFF per 4KB sector). Fixed with sector-aware frame-by-frame streaming. (4) Unicode box-drawing chars in flight table header caused Windows console codec errors. Fixed with ASCII dashes.
 
 **UX improvements:** Erase moved from `E` to `x` (too close to `e`/ESKF live). Erase confirmation changed from single `Y` keypress to typing "yes" + Enter. Flush accepts both `l` and `L`. Flight list/download accept both cases. Interactive mode: running script with no args lists flights and prompts for selection.
 
 ### 2026-03-04-002 | Claude Code CLI | feature, bugfix
 
-**Stage 6 Data Logging — IVP-52c, IVP-53b completed. Full flash storage pipeline HW verified.** IVP-52c (decimation + main loop integration + SRAM fallback) and IVP-53b (flash flush + watchdog + CLI capacity) verified on hardware. Flush: 5,807 frames → 78 sectors → Flight #1, second flush 5,018 frames → Flight #2. Power cycle persistence: 2 flights survived reboot (7.7% used). Erase: 'E'+'Y' confirmation clears table and used sectors. Boot banner shows flash capacity. CLI help shows L/E commands.
+**Stage 6 Data Logging â€” IVP-52c, IVP-53b completed. Full flash storage pipeline HW verified.** IVP-52c (decimation + main loop integration + SRAM fallback) and IVP-53b (flash flush + watchdog + CLI capacity) verified on hardware. Flush: 5,807 frames â†’ 78 sectors â†’ Flight #1, second flush 5,018 frames â†’ Flight #2. Power cycle persistence: 2 flights survived reboot (7.7% used). Erase: 'E'+'Y' confirmation clears table and used sectors. Boot banner shows flash capacity. CLI help shows L/E commands.
 
-**Bugs fixed:** (1) `case 'E':` in `rc_os.cpp` shadowed the erase command — both `'e'` and `'E'` mapped to ESKF live mode, preventing the unhandled-key callback from reaching `cmd_erase_all_flights()` in main.cpp. Fixed: only `'e'` triggers ESKF live. (2) `flight_log_erase_all()` erased all 1912 flight log sectors regardless of usage — at ~30ms/sector = 57 seconds, causing USB timeout and device crash. Fixed: only erases used sectors (based on `next_free_sector`). (3) GDB `monitor reset run` doesn't reliably resume both cores on dual-core RP2350 — Core 1 appears stuck at bootrom. Fixed: use `monitor resume` instead. Updated DEBUG_PROBE_NOTES.md.
+**Bugs fixed:** (1) `case 'E':` in `rc_os.cpp` shadowed the erase command â€” both `'e'` and `'E'` mapped to ESKF live mode, preventing the unhandled-key callback from reaching `cmd_erase_all_flights()` in main.cpp. Fixed: only `'e'` triggers ESKF live. (2) `flight_log_erase_all()` erased all 1912 flight log sectors regardless of usage â€” at ~30ms/sector = 57 seconds, causing USB timeout and device crash. Fixed: only erases used sectors (based on `next_free_sector`). (3) GDB `monitor reset run` doesn't reliably resume both cores on dual-core RP2350 â€” Core 1 appears stuck at bootrom. Fixed: use `monitor resume` instead. Updated DEBUG_PROBE_NOTES.md.
 
 **Observed:** DPS310 baro read count freezes after ~800 reads (error count keeps climbing). Baro data valid for initial reads but sensor appears to stop continuous measurement mode. Pre-existing issue, not caused by IVP-53b changes. Needs recovery mechanism (future IVP).
 
@@ -1772,7 +1776,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-04-001 | Claude Code CLI | feature
 
-**Stage 6 Data Logging — IVP-52b, IVP-53a, IVP-52a completed.** Sub-steps executed out of plan order (plan: 52b→53a→52a→52c→53b→54a→54b) to front-load host-testable work before hardware-dependent steps. IVP-52b (ring buffer, host-testable) and IVP-53a (CRC-32 + flight table, host-testable) completed first with 299/299 host tests. IVP-52a (PSRAM init + self-test) completed next — 8MB APS6404L detected via QMI direct-mode SPI ID read, QPI mode configured, self-test passes at 3 addresses, council req. #2 flash-safe hard gate passes (write→flash_safe_execute erase→readback verify). PSRAM init runs before Core 1 launch (QMI manipulation unsafe while Core 1 executes from flash); flash-safe test deferred to after Core 1 calls multicore_lockout_victim_init(). Flight table sector count corrected from plan estimate 1912 to actual 1916 ((0x7FC000-0x080000)/4096). 60s HW soak: 88,896 IMU reads, 2 startup errors, ESKF stable.
+**Stage 6 Data Logging â€” IVP-52b, IVP-53a, IVP-52a completed.** Sub-steps executed out of plan order (plan: 52bâ†’53aâ†’52aâ†’52câ†’53bâ†’54aâ†’54b) to front-load host-testable work before hardware-dependent steps. IVP-52b (ring buffer, host-testable) and IVP-53a (CRC-32 + flight table, host-testable) completed first with 299/299 host tests. IVP-52a (PSRAM init + self-test) completed next â€” 8MB APS6404L detected via QMI direct-mode SPI ID read, QPI mode configured, self-test passes at 3 addresses, council req. #2 flash-safe hard gate passes (writeâ†’flash_safe_execute eraseâ†’readback verify). PSRAM init runs before Core 1 launch (QMI manipulation unsafe while Core 1 executes from flash); flash-safe test deferred to after Core 1 calls multicore_lockout_victim_init(). Flight table sector count corrected from plan estimate 1912 to actual 1916 ((0x7FC000-0x080000)/4096). 60s HW soak: 88,896 IMU reads, 2 startup errors, ESKF stable.
 
 (`src/logging/psram_init.h`, `src/logging/psram_init.cpp`, `src/logging/ring_buffer.h`, `src/logging/ring_buffer.cpp`, `src/logging/flight_table.h`, `src/logging/flight_table.cpp`, `src/logging/crc32.h`, `test/test_ring_buffer.cpp`, `test/test_flight_table.cpp`, `CMakeLists.txt`, `test/CMakeLists.txt`, `src/main.cpp`)
 
@@ -1780,7 +1784,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-03-03-001 | Claude Code CLI | architecture, documentation
 
-**IVP resequencing — Data Logging pulled forward to Stage 6.** Two council reviews (telemetry protocol selection + data logging architecture) established that the telemetry encoder depends on data structures defined by the logging architecture. Data Logging moved from Stage 9 to Stage 6 (IVP-49–56), Radio & Telemetry becomes Stage 7 (IVP-57–65), new Ground Station Stage 10 (IVP-75–80) added. All IVP numbers from 49 onward renumbered. Total IVP count: 72→85. Logging format changed from MAVLink .bin to PCM fixed frames. Telemetry encoder now uses CCSDS/MAVLink strategy pattern selected by Mission Profile. Three-struct data model defined: FusedState (float32 ESKF-internal), TelemetryState (fixed-point wire-ready), SensorSnapshot (raw pre-calibration).
+**IVP resequencing â€” Data Logging pulled forward to Stage 6.** Two council reviews (telemetry protocol selection + data logging architecture) established that the telemetry encoder depends on data structures defined by the logging architecture. Data Logging moved from Stage 9 to Stage 6 (IVP-49â€“56), Radio & Telemetry becomes Stage 7 (IVP-57â€“65), new Ground Station Stage 10 (IVP-75â€“80) added. All IVP numbers from 49 onward renumbered. Total IVP count: 72â†’85. Logging format changed from MAVLink .bin to PCM fixed frames. Telemetry encoder now uses CCSDS/MAVLink strategy pattern selected by Mission Profile. Three-struct data model defined: FusedState (float32 ESKF-internal), TelemetryState (fixed-point wire-ready), SensorSnapshot (raw pre-calibration).
 
 (`docs/IVP.md`, `docs/SAD.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/mahony_ahrs.h`, `test/test_eskf_mag_update.cpp`, `CMakeLists.txt`, `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/mission_profiles/MISSION_PROFILES.md`, `docs/DYNAMIC_VALIDATION.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/hardware/GEMINI_CARRIER_BOARD.md`)
 
@@ -1788,7 +1792,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-25-001 | Claude Code CLI | feature, hardware
 
-**Ground station LoRa RX bridge — Fruit Jam + RFM95W breakout, end-to-end link verified.** Standalone Pico SDK build for Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072) wired via jumper cables on SPI1. Receives LoRa packets and prints to USB serial with RSSI/SNR per packet and 30-second link quality summaries (min/avg/max RSSI+SNR, packet count, CRC errors). 5 onboard NeoPixels show RSSI bar graph (red→green gradient, 0-5 bars based on signal strength, 2-second timeout to off). Button 3 (GPIO5) toggles NeoPixels on/off. `gs_spi.cpp` provides the same `spi_bus_*()` API as the flight `spi_bus.cpp` but targets SPI1 (GPIO 28/30/31), allowing `rfm95w.cpp` to compile unchanged for both builds. Temporary 1 Hz test TX heartbeat added to flight firmware for link verification. TX power reduced to +5 dBm for bench testing. HW verified: RSSI -54 to -58 dBm, SNR 8-10 dB, <1% CRC errors at desk range. RP2350B PIO gpiobase=16 required for GPIO32 NeoPixels (SDK issue #2030).
+**Ground station LoRa RX bridge â€” Fruit Jam + RFM95W breakout, end-to-end link verified.** Standalone Pico SDK build for Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072) wired via jumper cables on SPI1. Receives LoRa packets and prints to USB serial with RSSI/SNR per packet and 30-second link quality summaries (min/avg/max RSSI+SNR, packet count, CRC errors). 5 onboard NeoPixels show RSSI bar graph (redâ†’green gradient, 0-5 bars based on signal strength, 2-second timeout to off). Button 3 (GPIO5) toggles NeoPixels on/off. `gs_spi.cpp` provides the same `spi_bus_*()` API as the flight `spi_bus.cpp` but targets SPI1 (GPIO 28/30/31), allowing `rfm95w.cpp` to compile unchanged for both builds. Temporary 1 Hz test TX heartbeat added to flight firmware for link verification. TX power reduced to +5 dBm for bench testing. HW verified: RSSI -54 to -58 dBm, SNR 8-10 dB, <1% CRC errors at desk range. RP2350B PIO gpiobase=16 required for GPIO32 NeoPixels (SDK issue #2030).
 
 (`ground_station/radio_rx.cpp`, `ground_station/gs_spi.cpp`, `ground_station/CMakeLists.txt`, `src/main.cpp`, `src/drivers/rfm95w.cpp`, `ground_station/lora_rx_simple/lora_rx_simple.ino`)
 
@@ -1796,25 +1800,25 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-24-004 | Claude Code CLI | hardware, documentation
 
-**Hardware inventory update from Adafruit order.** Added new components to HARDWARE.md: ADXL375 high-G accelerometer and LoRa FeatherWings (×2) moved to on-hand inventory, Ground Station section expanded with Fruit Jam (#6200), HyperPixel 4.0" display, Cyberdeck HAT/Bonnet, LoRa Radio Bonnet with OLED, and Pi Zero 2W. Teensy 3.x Feather Adapter and Pico-to-Pi HAT X Converter added to accessories. ADXL375 datasheet (Analog Devices Rev. B) downloaded to `docs/hardware/datasheets/` and added to VENDOR_GUIDELINES.md inventory. SRAM audit closure, SCAFFOLDING.md fix, and 10 datasheets from prior session folded in per whiteboard note.
+**Hardware inventory update from Adafruit order.** Added new components to HARDWARE.md: ADXL375 high-G accelerometer and LoRa FeatherWings (Ã—2) moved to on-hand inventory, Ground Station section expanded with Fruit Jam (#6200), HyperPixel 4.0" display, Cyberdeck HAT/Bonnet, LoRa Radio Bonnet with OLED, and Pi Zero 2W. Teensy 3.x Feather Adapter and Pico-to-Pi HAT X Converter added to accessories. ADXL375 datasheet (Analog Devices Rev. B) downloaded to `docs/hardware/datasheets/` and added to VENDOR_GUIDELINES.md inventory. SRAM audit closure, SCAFFOLDING.md fix, and 10 datasheets from prior session folded in per whiteboard note.
 
 ---
 
 ### 2026-02-24-003 | Claude Code CLI | feature, architecture
 
-**Bierman measurement update adoption + SRAM DCP benchmark.** Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance (43% faster per epoch: 486µs vs 851µs). Compile-time switch via `ESKF_USE_BIERMAN=1` (target only; host tests keep Joseph path unchanged). P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`) handles lazy factorize/reconstruct around codegen predict. SRAM DCP micro-benchmark confirmed DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash), not XIP cache. Alpha precision canary: f32 relErr=1.37e-08 vs f64 reference — DCP Phase 2 deferred (not blocking). 207/207 host tests (199 original + 8 new Bierman). Target build clean.
+**Bierman measurement update adoption + SRAM DCP benchmark.** Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance (43% faster per epoch: 486Âµs vs 851Âµs). Compile-time switch via `ESKF_USE_BIERMAN=1` (target only; host tests keep Joseph path unchanged). P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`) handles lazy factorize/reconstruct around codegen predict. SRAM DCP micro-benchmark confirmed DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash), not XIP cache. Alpha precision canary: f32 relErr=1.37e-08 vs f64 reference â€” DCP Phase 2 deferred (not blocking). 207/207 host tests (199 original + 8 new Bierman). Target build clean.
 
 **Net change summary:**
 
 | Metric | Before | After | Delta |
 |--------|--------|-------|-------|
-| Measurement epoch | 851 µs | 486 µs | **-43%** (365 µs saved) |
-| Scalar update (per) | 81 µs (Joseph) | 43 µs (Bierman) | **-47%** |
-| CPU headroom @ 200Hz | 3,149 µs free | 3,514 µs free | **+365 µs WFI/cycle** |
+| Measurement epoch | 851 Âµs | 486 Âµs | **-43%** (365 Âµs saved) |
+| Scalar update (per) | 81 Âµs (Joseph) | 43 Âµs (Bierman) | **-47%** |
+| CPU headroom @ 200Hz | 3,149 Âµs free | 3,514 Âµs free | **+365 Âµs WFI/cycle** |
 | text (flash) | 137,732 B | 139,100 B | +1,368 B (+1.0%) |
 | BSS (SRAM) | 88,268 B | 90,960 B | +2,692 B (+3.0%) |
 | Host tests | 199 | 207 | +8 (Bierman suite) |
-| f32 alpha precision | — | relErr 1.37e-08 | No f64 DCP needed |
+| f32 alpha precision | â€” | relErr 1.37e-08 | No f64 DCP needed |
 | P stability | Symmetric, positive | Symmetric, positive | No regression (1000-cycle stress test) |
 | Joseph form | Active | Retained behind `#ifdef` | Zero-risk A/B switch |
 
@@ -1824,7 +1828,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-24-002 | Claude Code CLI | documentation
 
-**MMAE pivot documentation + IVP restructuring.** Updated project documentation to reflect ESKF research findings: MMAE/IMM replaced by phase-scheduled Q/R (IVP-54, Stage 7). Stage 5 marked complete (IVP-39–48). New Stage 6: Flight Director (IVP-49–53). New Stage 7: Adaptive Estimation & Safety (IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72, total 72). Audited and fixed stale IVP references across 8 docs + 3 source files (comment-only: IVP-52→IVP-50 in eskf.h, main.cpp, mahony_ahrs.h). Added superseded banner to PHASE5_ESKF_PLAN.md.
+**MMAE pivot documentation + IVP restructuring.** Updated project documentation to reflect ESKF research findings: MMAE/IMM replaced by phase-scheduled Q/R (IVP-54, Stage 7). Stage 5 marked complete (IVP-39â€“48). New Stage 6: Flight Director (IVP-49â€“53). New Stage 7: Adaptive Estimation & Safety (IVP-54â€“57). Downstream stages renumbered 8â€“10 (IVP-58â€“72, total 72). Audited and fixed stale IVP references across 8 docs + 3 source files (comment-only: IVP-52â†’IVP-50 in eskf.h, main.cpp, mahony_ahrs.h). Added superseded banner to PHASE5_ESKF_PLAN.md.
 
 (`docs/IVP.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `docs/SAD.md`, `docs/SCAFFOLDING.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/DYNAMIC_VALIDATION.md`, `src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/mahony_ahrs.h`)
 
@@ -1832,7 +1836,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-24-001 | Claude Code CLI | architecture
 
-**UD factorization + DCP float64 benchmark.** Implemented and ran 5-test benchmark suite comparing UD (Thornton WMGS + Bierman) vs current codegen FPFT + Joseph architecture. Phase 1 gate **PASS**: P is rock-stable at 100K steps with codegen — no negative diagonals, zero asymmetry, condition number bounded. UD not needed for numerical stability. DCP float64 is 7.8× slower than f32 FPU per MAC. Thornton f32 predict is 29.6× slower than codegen (1,420µs vs 48µs). Bierman scalar update is 2× faster than Joseph (43µs vs 81µs). Fixed Thornton D-array in-place corruption bug (algorithm requires old D values during WMGS sweep — added snapshot). Fixed NaN detection in `ud_all_positive()`.
+**UD factorization + DCP float64 benchmark.** Implemented and ran 5-test benchmark suite comparing UD (Thornton WMGS + Bierman) vs current codegen FPFT + Joseph architecture. Phase 1 gate **PASS**: P is rock-stable at 100K steps with codegen â€” no negative diagonals, zero asymmetry, condition number bounded. UD not needed for numerical stability. DCP float64 is 7.8Ã— slower than f32 FPU per MAC. Thornton f32 predict is 29.6Ã— slower than codegen (1,420Âµs vs 48Âµs). Bierman scalar update is 2Ã— faster than Joseph (43Âµs vs 81Âµs). Fixed Thornton D-array in-place corruption bug (algorithm requires old D values during WMGS sweep â€” added snapshot). Fixed NaN detection in `ud_all_positive()`.
 
 (`src/fusion/ud_factor.h`, `src/fusion/ud_factor.cpp`, `src/benchmark/ud_benchmark.cpp`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, `CMakeLists.txt`, `src/fusion/eskf.h`)
 
@@ -1840,7 +1844,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-23-002 | Claude Code CLI | documentation
 
-**Dynamic validation methods document.** Created `docs/DYNAMIC_VALIDATION.md` — six repeatable physical test methods for verifying ESKF accuracy beyond host-side unit tests and stationary soaks: Allan variance (Q tuning validation), turntable rotation test, pendulum test, elevator test (baro fusion), data logging + replay infrastructure, and vehicle GPS-vs-INS comparison. Includes truth references, pass/fail criteria, and Python Allan variance implementation.
+**Dynamic validation methods document.** Created `docs/DYNAMIC_VALIDATION.md` â€” six repeatable physical test methods for verifying ESKF accuracy beyond host-side unit tests and stationary soaks: Allan variance (Q tuning validation), turntable rotation test, pendulum test, elevator test (baro fusion), data logging + replay infrastructure, and vehicle GPS-vs-INS comparison. Includes truth references, pass/fail criteria, and Python Allan variance implementation.
 
 (`docs/DYNAMIC_VALIDATION.md`)
 
@@ -1848,7 +1852,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-23-001 | Claude Code CLI | architecture
 
-**Dense FPFT + SRAM feasibility benchmark.** Tested dense O(N³) F*P*F^T at 24 states with SRAM placement (`.time_critical` section) to evaluate eliminating codegen maintenance. Result: **NOT VIABLE** — 1,747µs avg vs codegen 111µs (15.7× slower, 34.9% CPU at 200Hz). SRAM eliminated XIP cache thrashing (device runs, tight min/max) but O(24³)=13,824 MACs is the fundamental bottleneck. Codegen stays. SRAM audit of remaining hot-path functions found all <640 bytes — no further `.time_critical` placements needed. No code changes on main.
+**Dense FPFT + SRAM feasibility benchmark.** Tested dense O(NÂ³) F*P*F^T at 24 states with SRAM placement (`.time_critical` section) to evaluate eliminating codegen maintenance. Result: **NOT VIABLE** â€” 1,747Âµs avg vs codegen 111Âµs (15.7Ã— slower, 34.9% CPU at 200Hz). SRAM eliminated XIP cache thrashing (device runs, tight min/max) but O(24Â³)=13,824 MACs is the fundamental bottleneck. Codegen stays. SRAM audit of remaining hot-path functions found all <640 bytes â€” no further `.time_critical` placements needed. No code changes on main.
 
 ---
 
@@ -1862,7 +1866,7 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 ### 2026-02-22-001 | Claude Code CLI | refactor
 
-**Post-Stage 5 code audit cleanup.** Updated stale build tag (`ivp45-4` → `stage5-complete`), fixed outdated "not yet implemented" comment for 6-pos accel cal in `calibration_manager.h`, clarified baro_kf rejection comment. Deleted 6 untracked `.uf2` files (old debug probe firmware + test binary) from repo root. Full codebase audit found no debugging artifacts, commented-out code, or dead code — codebase is clean.
+**Post-Stage 5 code audit cleanup.** Updated stale build tag (`ivp45-4` â†’ `stage5-complete`), fixed outdated "not yet implemented" comment for 6-pos accel cal in `calibration_manager.h`, clarified baro_kf rejection comment. Deleted 6 untracked `.uf2` files (old debug probe firmware + test binary) from repo root. Full codebase audit found no debugging artifacts, commented-out code, or dead code â€” codebase is clean.
 
 ---
 
@@ -1870,11 +1874,11 @@ Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systemati
 
 **24-State ESKF Expansion with Runtime Inhibit Flags**
 
-Expanded error-state vector from 15 to 24 states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). ArduPilot EKF3-pattern runtime inhibit flags (`inhibit_mag_states_`, `inhibit_wind_states_`, `inhibit_baro_bias_`) — all inhibited by default, P zeroed for inhibited blocks. When inhibited, codegen propagates all 24 states (identity F for new states, near-zero cost) but `clamp_covariance()` zeros inhibited P blocks. `set_inhibit_*()` methods handle enable/disable with proper P initialization and cross-covariance zeroing.
+Expanded error-state vector from 15 to 24 states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). ArduPilot EKF3-pattern runtime inhibit flags (`inhibit_mag_states_`, `inhibit_wind_states_`, `inhibit_baro_bias_`) â€” all inhibited by default, P zeroed for inhibited blocks. When inhibited, codegen propagates all 24 states (identity F for new states, near-zero cost) but `clamp_covariance()` zeros inhibited P blocks. `set_inhibit_*()` methods handle enable/disable with proper P initialization and cross-covariance zeroing.
 
-Codegen regenerated for 24 states via `generate_fpft.py` (N=24). Benchmark: **111µs avg, 101µs min, 156µs max** (was 59µs at 15-state). Critical runtime fix: O(N²) rank-1 Joseph form replaced O(N³) dense triple product in `scalar_kalman_update()` — device was unresponsive with dense 24×24 matrix multiplies at measurement update rates. Sparse `reset()` exploits G=I structure except 3×3 attitude block (~450 MACs vs ~27,648 dense). `healthy()` made inhibit-aware (skips P diagonal check for inhibited indices).
+Codegen regenerated for 24 states via `generate_fpft.py` (N=24). Benchmark: **111Âµs avg, 101Âµs min, 156Âµs max** (was 59Âµs at 15-state). Critical runtime fix: O(NÂ²) rank-1 Joseph form replaced O(NÂ³) dense triple product in `scalar_kalman_update()` â€” device was unresponsive with dense 24Ã—24 matrix multiplies at measurement update rates. Sparse `reset()` exploits G=I structure except 3Ã—3 attitude block (~450 MACs vs ~27,648 dense). `healthy()` made inhibit-aware (skips P diagonal check for inhibited indices).
 
-Baro update subtracts `baro_bias_` when enabled. Mag states (15-20) are **unobservable** with current yaw-only H — require 3-axis mag model (Titan tier). 5 new inhibit tests, Mat15→Mat24 across all test files. All 5 replay reference CSVs regenerated. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display when states enabled. 199/199 host tests pass. HW verified: 0 sensor errors.
+Baro update subtracts `baro_bias_` when enabled. Mag states (15-20) are **unobservable** with current yaw-only H â€” require 3-axis mag model (Titan tier). 5 new inhibit tests, Mat15â†’Mat24 across all test files. All 5 replay reference CSVs regenerated. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display when states enabled. 199/199 host tests pass. HW verified: 0 sensor errors.
 
 (`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/fusion/eskf_state.h`, `src/fusion/eskf_codegen.cpp`, `src/fusion/eskf_codegen.h`, `scripts/generate_fpft.py`, `src/math/mat.h`, `src/main.cpp`, `test/test_eskf_propagation.cpp`, `test/test_eskf_update.cpp`, `test/test_eskf_mag_update.cpp`, `test/test_eskf_zupt.cpp`, `test/test_mat.cpp`, `test/data/reference/*.csv`)
 
@@ -1882,9 +1886,9 @@ Baro update subtracts `baro_bias_` when enabled. Mag states (15-20) are **unobse
 
 ### 2026-02-21-002 | Claude Code CLI | feature, architecture
 
-**IVP-47: Codegen FPFT — 9.1× speedup, predict() at 59µs (was 538µs)**
+**IVP-47: Codegen FPFT â€” 9.1Ã— speedup, predict() at 59Âµs (was 538Âµs)**
 
-SymPy codegen script (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T + Q_d covariance propagation. 199 CSE intermediates, 120 upper-triangle outputs, Q_d constants baked in. Read-after-write hazard fixed by snapshotting all 120 P inputs to locals before computation. Running from SRAM (`.time_critical` section) — XIP cache (2KB) thrashes on 10KB function from flash (398µs), SRAM eliminates cache entirely (59µs). Three-layer verification: SymPy self-test (2.6e-18 vs NumPy), Test 8 CodegenVsDenseFPFT (100 steps, 1e-4), Test 15 CodegenSingleStep (1e-6). `static_assert` guards sync codegen constants with eskf.h. 194/194 host tests pass. Binary: 239,616 bytes (+21KB codegen, +10KB .data from SRAM placement). Benchmark: 59µs avg, 50µs min, 113µs max (17,883 calls), 0 sensor errors. Standards deviation CG-1 logged for auto-generated function exceeding 200 L-SLOC.
+SymPy codegen script (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T + Q_d covariance propagation. 199 CSE intermediates, 120 upper-triangle outputs, Q_d constants baked in. Read-after-write hazard fixed by snapshotting all 120 P inputs to locals before computation. Running from SRAM (`.time_critical` section) â€” XIP cache (2KB) thrashes on 10KB function from flash (398Âµs), SRAM eliminates cache entirely (59Âµs). Three-layer verification: SymPy self-test (2.6e-18 vs NumPy), Test 8 CodegenVsDenseFPFT (100 steps, 1e-4), Test 15 CodegenSingleStep (1e-6). `static_assert` guards sync codegen constants with eskf.h. 194/194 host tests pass. Binary: 239,616 bytes (+21KB codegen, +10KB .data from SRAM placement). Benchmark: 59Âµs avg, 50Âµs min, 113Âµs max (17,883 calls), 0 sensor errors. Standards deviation CG-1 logged for auto-generated function exceeding 200 L-SLOC.
 
 (`scripts/generate_fpft.py`, `src/fusion/eskf_codegen.cpp`, `src/fusion/eskf_codegen.h`, `src/fusion/eskf.cpp`, `CMakeLists.txt`, `test/test_eskf_propagation.cpp`, `test/data/reference/*.csv`, `standards/STANDARDS_DEVIATIONS.md`)
 
@@ -1892,13 +1896,13 @@ SymPy codegen script (`scripts/generate_fpft.py`) generates flat scalar C++ for 
 
 ### 2026-02-21-001 | Claude Code CLI | feature, architecture
 
-**IVP-47: Block-sparse FPFT experiment — reverted to dense after benchmark**
+**IVP-47: Block-sparse FPFT experiment â€” reverted to dense after benchmark**
 
-Implemented and verified block-sparse FPFT covariance propagation exploiting F_x block structure (15 of 25 blocks are zero). Algebraically correct: 193/193 host tests pass, 1e-6 single-step tolerance vs dense reference. However, on-target benchmark showed block-sparse was **31% slower** than dense (712µs avg vs 542µs avg). Root cause: ~30+ `block3()` Mat3 copies per step, poor cache locality jumping around 15×15 P matrix, and dense inner loops autovectorize better on Cortex-M33. Theoretical 10× FMA reduction doesn't offset memory access overhead.
+Implemented and verified block-sparse FPFT covariance propagation exploiting F_x block structure (15 of 25 blocks are zero). Algebraically correct: 193/193 host tests pass, 1e-6 single-step tolerance vs dense reference. However, on-target benchmark showed block-sparse was **31% slower** than dense (712Âµs avg vs 542Âµs avg). Root cause: ~30+ `block3()` Mat3 copies per step, poor cache locality jumping around 15Ã—15 P matrix, and dense inner loops autovectorize better on Cortex-M33. Theoretical 10Ã— FMA reduction doesn't offset memory access overhead.
 
-**Outcome:** Reverted predict() to dense. Retained `block3()`/`set_block3()`/`add_block3()` helpers in mat.h (useful for measurement updates). Retained PSymmetry test. predict() at 538µs avg confirmed on target (matches pre-experiment baseline). **Codegen (SymPy/SymForce element-wise scalar expansion) is the correct optimization path** — scheduled for 24-state wind estimation expansion, where dense becomes O(24³×3) ≈ 41K FMA vs codegen O(N²).
+**Outcome:** Reverted predict() to dense. Retained `block3()`/`set_block3()`/`add_block3()` helpers in mat.h (useful for measurement updates). Retained PSymmetry test. predict() at 538Âµs avg confirmed on target (matches pre-experiment baseline). **Codegen (SymPy/SymForce element-wise scalar expansion) is the correct optimization path** â€” scheduled for 24-state wind estimation expansion, where dense becomes O(24Â³Ã—3) â‰ˆ 41K FMA vs codegen O(NÂ²).
 
-*Block-sparse and codegen are fundamentally different approaches. ArduPilot/PX4 use codegen (SymPy/SymForce), not block-sparse. Codegen emits flat scalar C++ with CSE — zero function calls, zero copies, zero temporaries at runtime.*
+*Block-sparse and codegen are fundamentally different approaches. ArduPilot/PX4 use codegen (SymPy/SymForce), not block-sparse. Codegen emits flat scalar C++ with CSE â€” zero function calls, zero copies, zero temporaries at runtime.*
 
 (`src/fusion/eskf.cpp`, `src/math/mat.h`, `test/test_eskf_propagation.cpp`, `test/data/reference/*.csv`)
 
@@ -1906,9 +1910,9 @@ Implemented and verified block-sparse FPFT covariance propagation exploiting F_x
 
 ### 2026-02-20-005 | Claude Code CLI | feature
 
-**IVP-47: ESKF health tuning — mag heading fix + diagnostics**
+**IVP-47: ESKF health tuning â€” mag heading fix + diagnostics**
 
-Fixed mNIS=124.99 death spiral (mag heading completely non-functional). Three-part fix: (1) tilt-conditional R inflation at 30-60° with hard reject above 60° (ArduPilot `fuseEulerYaw` pattern), (2) public `reset_mag_heading()` API for state machine use (IVP-52), (3) mag gate widened to 300σ matching ArduPilot EKF3 (interference detection handles bad data, not the gate). Added per-sensor accept/reject counters for baro, mag, GPS pos/vel, ZUPT. Q constants reviewed — all correct per ICM-20948 datasheet. CLI `s` command shows gate counters + P velocity/bias diagonals. CLI `e` command shows mag accept ratio + ZUPT NIS. 192/192 host tests pass. HW verified: 65s soak, mNIS 0.00–0.52 (was 124.99), bNIS 0–4, zero sensor errors.
+Fixed mNIS=124.99 death spiral (mag heading completely non-functional). Three-part fix: (1) tilt-conditional R inflation at 30-60Â° with hard reject above 60Â° (ArduPilot `fuseEulerYaw` pattern), (2) public `reset_mag_heading()` API for state machine use (IVP-52), (3) mag gate widened to 300Ïƒ matching ArduPilot EKF3 (interference detection handles bad data, not the gate). Added per-sensor accept/reject counters for baro, mag, GPS pos/vel, ZUPT. Q constants reviewed â€” all correct per ICM-20948 datasheet. CLI `s` command shows gate counters + P velocity/bias diagonals. CLI `e` command shows mag accept ratio + ZUPT NIS. 192/192 host tests pass. HW verified: 65s soak, mNIS 0.00â€“0.52 (was 124.99), bNIS 0â€“4, zero sensor errors.
 
 (`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/main.cpp`, `test/test_eskf_mag_update.cpp`)
 
@@ -1926,7 +1930,7 @@ Added `.git/hooks/pre-commit` that runs `readability-function-size` and `readabi
 
 **P5c: decompose 24 function-size/CC warnings to zero**
 
-Per plan: `.claude/plans/quirky-squishing-clarke.md`. Four batches executed in council-mandated order (lowest risk first): Batch 3 `rc_os.cpp` (wizard + mag cal extraction), Batch 4 `calibration_manager.cpp` (LM solver dedup via function pointers), Batch 2 `main.cpp` (eskf_tick + sensor print decomposition), Batch 1 `eskf.cpp` (Joseph-form deduplication into `scalar_kalman_update()`). Additional borderline findings caught in final audit: `core1_read_imu`, `core1_read_gps`, `core1_sensor_loop`, `eskf_tick_gps`, `lm_solve` — all decomposed. Binary: text=114,144 (-2,248 from P5b baseline), BSS=96,524 (-11,408, from consolidating 5 sets of static Mat15 into 1). Full clang-tidy audit: 0 function-size/CC findings in production code. HW verified: 60s soak, 86K IMU reads, 0 errors, ESKF stable (qnorm=1.000000, vel<0.03 m/s).
+Per plan: `.claude/plans/quirky-squishing-clarke.md`. Four batches executed in council-mandated order (lowest risk first): Batch 3 `rc_os.cpp` (wizard + mag cal extraction), Batch 4 `calibration_manager.cpp` (LM solver dedup via function pointers), Batch 2 `main.cpp` (eskf_tick + sensor print decomposition), Batch 1 `eskf.cpp` (Joseph-form deduplication into `scalar_kalman_update()`). Additional borderline findings caught in final audit: `core1_read_imu`, `core1_read_gps`, `core1_sensor_loop`, `eskf_tick_gps`, `lm_solve` â€” all decomposed. Binary: text=114,144 (-2,248 from P5b baseline), BSS=96,524 (-11,408, from consolidating 5 sets of static Mat15 into 1). Full clang-tidy audit: 0 function-size/CC findings in production code. HW verified: 60s soak, 86K IMU reads, 0 errors, ESKF stable (qnorm=1.000000, vel<0.03 m/s).
 
 (`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/main.cpp`, `src/calibration/calibration_manager.cpp`, `src/cli/rc_os.cpp`)
 
@@ -1946,7 +1950,7 @@ Cross-document review and reconciliation ahead of full clang-tidy audit. Major u
 
 **GPS upgraded to 57600 baud + 10Hz update rate**
 
-`gps_uart_init()` now negotiates the MT3339 from factory-default 9600 baud to 57600 baud via PMTK251, then sets 10Hz update rate via PMTK220. Cold-start safe: always detects presence at 9600 then negotiates. 9600 baud saturates at ~4.8 NMEA bursts/sec and cannot sustain 10Hz; 57600 gives 2.8× headroom. ESKF GPS measurement updates (`update_gps_position()` / `update_gps_velocity()`) automatically benefit — they fire on each new `gps_read_count` increment with no further code changes needed.
+`gps_uart_init()` now negotiates the MT3339 from factory-default 9600 baud to 57600 baud via PMTK251, then sets 10Hz update rate via PMTK220. Cold-start safe: always detects presence at 9600 then negotiates. 9600 baud saturates at ~4.8 NMEA bursts/sec and cannot sustain 10Hz; 57600 gives 2.8Ã— headroom. ESKF GPS measurement updates (`update_gps_position()` / `update_gps_velocity()`) automatically benefit â€” they fire on each new `gps_read_count` increment with no further code changes needed.
 
 HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0. (`src/drivers/gps_uart.cpp`, `src/drivers/gps_uart.h`)
 
@@ -1956,13 +1960,13 @@ HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0. (`src/drivers/gps_uart.cpp`,
 
 **ESKF velocity divergence: root-cause fix for silent ICM-20948 zero-output fault**
 
-Fixed catastrophic ESKF divergence (`vel=1688 m/s`, `bNIS=23,000,000`) caused by ICM-20948 entering sleep/reset state mid-session. The device ACKs I2C reads in sleep mode and returns all-zero output registers — invisible to the existing consecutive-fail counter which only triggers on NACKs. With raw accel ≈ (0,0,0), the ESKF propagated a constant +9.8 m/s² specific force in NED-Z, accumulating 1688 m/s after ~3 min. ZUPT and ESKF init guards both failed because `|A|=0.285 m/s²` (calibration offset residual) is nowhere near 9.8 m/s².
+Fixed catastrophic ESKF divergence (`vel=1688 m/s`, `bNIS=23,000,000`) caused by ICM-20948 entering sleep/reset state mid-session. The device ACKs I2C reads in sleep mode and returns all-zero output registers â€” invisible to the existing consecutive-fail counter which only triggers on NACKs. With raw accel â‰ˆ (0,0,0), the ESKF propagated a constant +9.8 m/sÂ² specific force in NED-Z, accumulating 1688 m/s after ~3 min. ZUPT and ESKF init guards both failed because `|A|=0.285 m/sÂ²` (calibration offset residual) is nowhere near 9.8 m/sÂ².
 
-Three-part fix: (1) `core1_read_imu()` now validates raw accel magnitude against `kAccelMinHealthyMag = 3.0f` m/s² (gravity floor at 72° tilt: 9.8×cos(72°)) after every successful I2C read, routing zero-output reads to the consecutive-fail path so bus-recover and device-reinit fire. (2) `healthy()` in `eskf.cpp` now checks `v.norm() >= kMaxHealthyVelocity (500 m/s)` as a velocity-divergence sentinel — above max hobby rocket burnout, below any slow divergence trajectory. (3) `eskf_tick()` reset-on-unhealthy path already correct (verified, no change needed).
+Three-part fix: (1) `core1_read_imu()` now validates raw accel magnitude against `kAccelMinHealthyMag = 3.0f` m/sÂ² (gravity floor at 72Â° tilt: 9.8Ã—cos(72Â°)) after every successful I2C read, routing zero-output reads to the consecutive-fail path so bus-recover and device-reinit fire. (2) `healthy()` in `eskf.cpp` now checks `v.norm() >= kMaxHealthyVelocity (500 m/s)` as a velocity-divergence sentinel â€” above max hobby rocket burnout, below any slow divergence trajectory. (3) `eskf_tick()` reset-on-unhealthy path already correct (verified, no change needed).
 
 HW verified: 60s indoor soak, max bNIS=3.81, max vel=0.077 m/s, 0 IMU errors. 187/187 host tests pass.
 
-*Root cause established by backward math: stored cal `off=[0.0235, 0.1632, -0.2364]` implies raw_x≈0, raw_y≈0, raw_z≈0 — physically impossible from any real sensor orientation. The calibration was correct; the sensor was in sleep state.*
+*Root cause established by backward math: stored cal `off=[0.0235, 0.1632, -0.2364]` implies raw_xâ‰ˆ0, raw_yâ‰ˆ0, raw_zâ‰ˆ0 â€” physically impossible from any real sensor orientation. The calibration was correct; the sensor was in sleep state.*
 
 (`src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/drivers/gps_uart.cpp`)
 
@@ -1972,9 +1976,9 @@ HW verified: 60s indoor soak, max bNIS=3.81, max vel=0.077 m/s, 0 IMU errors. 18
 
 **IVP-46 Step 9 fix: interrupt-driven UART GPS + ESKF init NeoPixel**
 
-Fixed UART FIFO overflow that caused Step 9 outdoor validation failure — GPS GGA/RMC sentences lost due to 32-byte hardware FIFO filling between 10Hz polls. Added interrupt-driven 512-byte SPSC ring buffer (ISR on Core 0, consumer on Core 1). Also added fast red NeoPixel blink during ESKF stationary init as "hold still" cue.
+Fixed UART FIFO overflow that caused Step 9 outdoor validation failure â€” GPS GGA/RMC sentences lost due to 32-byte hardware FIFO filling between 10Hz polls. Added interrupt-driven 512-byte SPSC ring buffer (ISR on Core 0, consumer on Core 1). Also added fast red NeoPixel blink during ESKF stationary init as "hold still" cue.
 
-Outdoor verified: Fix=3 Sats=12 HDOP=0.90, GPS feeding ESKF (G=Y). 60s soak: bNIS 0.00–2.13, zero UNHEALTHY, rxOvf=0.
+Outdoor verified: Fix=3 Sats=12 HDOP=0.90, GPS feeding ESKF (G=Y). 60s soak: bNIS 0.00â€“2.13, zero UNHEALTHY, rxOvf=0.
 
 (`src/drivers/gps_uart.cpp`, `src/drivers/gps_uart.h`, `src/main.cpp`, `AGENT_WHITEBOARD.md`)
 
@@ -1991,10 +1995,10 @@ ESKF GPS position + velocity measurement updates (IVP-46). 8 individually HW-ver
 4. HDOP/VDOP in shared sensor data + CLI display
 5. Transport detection (UART-first, I2C fallback) + function pointer dispatch + hold-on-valid pattern
 6. Best-fix diagnostic capture with atomic cross-core visibility
-7. ESKF GPS wiring in `eskf_tick()` — origin establishment, geodetic-to-NED, position/velocity updates, 10km origin re-centering
+7. ESKF GPS wiring in `eskf_tick()` â€” origin establishment, geodetic-to-NED, position/velocity updates, 10km origin re-centering
 8. SENSOR_ARCHITECTURE doc + soak script + CHANGELOG
 
-**Critical fix:** `set_origin()` now resets P[3..8] diagonal to GPS-derived uncertainty and zeros all cross-covariance terms. Without this, stale correlations from pre-origin predict cycles corrupted baro Kalman gain → bNIS explosion.
+**Critical fix:** `set_origin()` now resets P[3..8] diagonal to GPS-derived uncertainty and zeros all cross-covariance terms. Without this, stale correlations from pre-origin predict cycles corrupted baro Kalman gain â†’ bNIS explosion.
 
 Host tests: 173/173 pass. 5-minute indoor soak: bNIS max=4.09, 0 UNHEALTHY, ZUPT 100% active.
 
@@ -2004,9 +2008,9 @@ Host tests: 173/173 pass. 5-minute indoor soak: bNIS max=4.09, 0 UNHEALTHY, ZUPT
 
 ### 2026-02-18-001 | Claude Code CLI | documentation
 
-**Session handoff: Stage 4 GPS reboot deferred — bNIS regression unresolved**
+**Session handoff: Stage 4 GPS reboot deferred â€” bNIS regression unresolved**
 
-Attempted Stage 4 GPS reboot (protocol-agnostic/UART-first approach per plan `purrfect-pondering-hopcroft.md`). Commits A/B/C built clean and passed 172/172 host tests, but HW validation revealed ESKF bNIS explosion (~125K→589K after ~12 baro updates, stationary). Root cause not diagnosed — may predate Stage 4. All Stage 4 commits reverted; repo returned to `17c4111`. Next session must diagnose bNIS regression before resuming Stage 4. See AGENT_WHITEBOARD.md for full handoff notes.
+Attempted Stage 4 GPS reboot (protocol-agnostic/UART-first approach per plan `purrfect-pondering-hopcroft.md`). Commits A/B/C built clean and passed 172/172 host tests, but HW validation revealed ESKF bNIS explosion (~125Kâ†’589K after ~12 baro updates, stationary). Root cause not diagnosed â€” may predate Stage 4. All Stage 4 commits reverted; repo returned to `17c4111`. Next session must diagnose bNIS regression before resuming Stage 4. See AGENT_WHITEBOARD.md for full handoff notes.
 
 (`AGENT_WHITEBOARD.md`)
 
@@ -2016,7 +2020,7 @@ Attempted Stage 4 GPS reboot (protocol-agnostic/UART-first approach per plan `pu
 
 **Flight Director & Mission Profile: naming, docs, cross-reference sync**
 
-Established council-decided naming convention: **Flight Director** (runtime engine) and **Mission Profile** (configuration data), replacing the umbrella term "Mission Engine." Created `docs/flight_director/` with comprehensive design spec (`FLIGHT_DIRECTOR_DESIGN.md`, all details PRELIMINARY) and moved research doc there (`RESEARCH.md`, historical — unchanged). Created `docs/mission_profiles/` with stub (`MISSION_PROFILES.md`, to be fleshed out in future session). Updated 32 cross-references across 11 files to use correct terminology. Historical research doc preserved with original naming.
+Established council-decided naming convention: **Flight Director** (runtime engine) and **Mission Profile** (configuration data), replacing the umbrella term "Mission Engine." Created `docs/flight_director/` with comprehensive design spec (`FLIGHT_DIRECTOR_DESIGN.md`, all details PRELIMINARY) and moved research doc there (`RESEARCH.md`, historical â€” unchanged). Created `docs/mission_profiles/` with stub (`MISSION_PROFILES.md`, to be fleshed out in future session). Updated 32 cross-references across 11 files to use correct terminology. Historical research doc preserved with original naming.
 
 (`docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/flight_director/RESEARCH.md`, `docs/mission_profiles/MISSION_PROFILES.md`, `docs/SAD.md`, `docs/IVP.md`, `docs/SCAFFOLDING.md`, `standards/CODING_STANDARDS.md`, `docs/decisions/SENSOR_FUSION_TIERS.md`, `docs/decisions/TITAN_BOARD_ANALYSIS.md`, `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/PROJECT_OVERVIEW.md`, `tools/state_to_dot.py`)
 
@@ -2026,7 +2030,7 @@ Established council-decided naming convention: **Flight Director** (runtime engi
 
 **Modular GPS refactor: transport-neutral types + UART backend**
 
-Refactored GPS subsystem into transport-neutral data types + transport-specific backends, establishing the pattern for migrating all base sensors off I2C (IMU→SPI, baro→SPI in future). Created `gps.h` with shared `gps_data_t`, `gps_fix_t`, `gps_transport_t` (zero transport dependencies). Updated `gps_pa1010d.h/cpp` to use shared types. Created UART GPS backend (`gps_uart.h/cpp`) for Adafruit Ultimate GPS FeatherWing (#3133) on GPIO0/1 (9600 baud NMEA, lwGPS parser, 2-second presence detection timeout). Added function pointer dispatch in main.cpp — auto-detects UART first (production), falls back to I2C (Qwiic dev). Boot banner and CLI status display show transport type. Created `docs/SENSOR_ARCHITECTURE.md` documenting the modular sensor pattern.
+Refactored GPS subsystem into transport-neutral data types + transport-specific backends, establishing the pattern for migrating all base sensors off I2C (IMUâ†’SPI, baroâ†’SPI in future). Created `gps.h` with shared `gps_data_t`, `gps_fix_t`, `gps_transport_t` (zero transport dependencies). Updated `gps_pa1010d.h/cpp` to use shared types. Created UART GPS backend (`gps_uart.h/cpp`) for Adafruit Ultimate GPS FeatherWing (#3133) on GPIO0/1 (9600 baud NMEA, lwGPS parser, 2-second presence detection timeout). Added function pointer dispatch in main.cpp â€” auto-detects UART first (production), falls back to I2C (Qwiic dev). Boot banner and CLI status display show transport type. Created `docs/SENSOR_ARCHITECTURE.md` documenting the modular sensor pattern.
 
 Host tests: 172/172 pass. Target build: 0 errors, 0 warnings. Binary: 216,576 bytes UF2. HW verification deferred to UART GPS wiring.
 
@@ -2038,7 +2042,7 @@ Host tests: 172/172 pass. Target build: 0 errors, 0 warnings. Binary: 216,576 by
 
 **IVP-46: GPS position & velocity measurement update for ESKF**
 
-Added GPS position (3 sequential scalar updates) and velocity (2 sequential scalar updates, N/E only) measurement updates to the ESKF. Flat-earth NED frame with double-precision geodetic origin, moving-origin mechanism for HAB-range flights (>10km), HDOP-scaled position noise (σ=3.5m base, MT3333 CEP50), innovation gating (5σ), per-axis NIS tracking.
+Added GPS position (3 sequential scalar updates) and velocity (2 sequential scalar updates, N/E only) measurement updates to the ESKF. Flat-earth NED frame with double-precision geodetic origin, moving-origin mechanism for HAB-range flights (>10km), HDOP-scaled position noise (Ïƒ=3.5m base, MT3333 CEP50), innovation gating (5Ïƒ), per-axis NIS tracking.
 
 New files: `test/test_eskf_gps_update.cpp` (17 tests: origin management, geodetic conversion, position/velocity updates, gating, convergence, full pipeline), `scripts/eskf_gps_soak.py` (indoor/outdoor/walk modes). Added HDOP/VDOP to seqlock struct, named state index constants (`kIdxPosN` etc.) to `eskf_state.h`, GPS constants + NED origin state + 5 methods to ESKF. Wired into `eskf_tick()` between mag update and ZUPT. Updated `s` and `e` CLI displays with position, GPS NIS, and origin flag.
 
@@ -2054,7 +2058,7 @@ Host tests: 172/172 pass (155 existing + 17 new). Target build: 0 errors, 0 warn
 
 **Pre-IVP-46 cleanup: remove standalone BaroKF from firmware, wire WMM declination, doc sweep**
 
-Removed standalone BaroKF from main firmware — superseded by ESKF `update_baro()` (IVP-43). Removed `fusion_tick()`, BaroKF globals, KF display line from `print_seqlock_sensors`, CMakeLists target build entry. Host tests + mat_benchmark retain baro_kf for unit testing and benchmarking.
+Removed standalone BaroKF from main firmware â€” superseded by ESKF `update_baro()` (IVP-43). Removed `fusion_tick()`, BaroKF globals, KF display line from `print_seqlock_sensors`, CMakeLists target build entry. Host tests + mat_benchmark retain baro_kf for unit testing and benchmarking.
 
 Wired WMM declination into mag heading update: uses `wmm_get_declination(lat, lon)` when GPS has valid fix (fix_type >= 2), falls back to 0 (magnetic heading) without GPS. Removed unused `g_loopCounter`. Updated stale GPS comment in `i2c_bus.cpp`.
 
@@ -2070,13 +2074,13 @@ Host tests: 155/155 pass. Target build: 0 errors, 0 warnings. Binary: 207,360 by
 
 **IVP-44 + IVP-44b: ESKF magnetometer heading update + zero-velocity (ZUPT)**
 
-Implemented mag heading measurement update (IVP-44): tilt-compensated heading via zero-yaw rotation (ArduPilot fuseEulerYaw approach), wrap_pi innovation, two-tier interference detection (25% inflates R 10x, 50% hard rejects, council), declination_rad parameter for WMM true heading. 16 new host tests. Mag-based initial yaw at ESKF init prevents gate rejection when heading far from 0°.
+Implemented mag heading measurement update (IVP-44): tilt-compensated heading via zero-yaw rotation (ArduPilot fuseEulerYaw approach), wrap_pi innovation, two-tier interference detection (25% inflates R 10x, 50% hard rejects, council), declination_rad parameter for WMM true heading. 16 new host tests. Mag-based initial yaw at ESKF init prevents gate rejection when heading far from 0Â°.
 
 Added ZUPT pseudo-measurement (IVP-44b): prevents horizontal velocity divergence in GPS-denied operation (previously ~48 m/s in 30s, now <0.03 m/s for 60s+). Stationarity detection from accel/gyro, three sequential scalar velocity updates with Joseph form, kSigmaZupt=0.5 matching ArduPilot EKF3. 13 new host tests.
 
-Target integration: sensor_to_ned INTERIM Z-negate helpers (ICM-20948 Z-up → NED Z-down), mag update at ~10Hz via seqlock, ZUPT at 200Hz, live display shows yaw/mNIS/ZUPT flag. Watchdog sentinel refinement (scratch[0] custom sentinel replaces broken SDK functions). Synthetic data + replay harness updated with mag columns.
+Target integration: sensor_to_ned INTERIM Z-negate helpers (ICM-20948 Z-up â†’ NED Z-down), mag update at ~10Hz via seqlock, ZUPT at 200Hz, live display shows yaw/mNIS/ZUPT flag. Watchdog sentinel refinement (scratch[0] custom sentinel replaces broken SDK functions). Synthetic data + replay harness updated with mag columns.
 
-Host tests: 135/135 (29 new). Binary: 202,752 bytes UF2. HW verified: 60s stationary, vh<0.03, Z=Y, mNIS<1, yaw drift <1°, 0 IMU errors.
+Host tests: 135/135 (29 new). Binary: 202,752 bytes UF2. HW verified: 60s stationary, vh<0.03, Z=Y, mNIS<1, yaw drift <1Â°, 0 IMU errors.
 
 (`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/main.cpp`, `test/test_eskf_mag_update.cpp`, `test/test_eskf_zupt.cpp`, `test/CMakeLists.txt`, `test/scripts/generate_synthetic.py`, `test/replay/replay_harness.cpp`, `test/test_replay_regression.cpp`, `test/data/*.csv`)
 
@@ -2086,7 +2090,7 @@ Host tests: 135/135 (29 new). Binary: 202,752 bytes UF2. HW verified: 60s statio
 
 **IVP-43: ESKF barometric altitude measurement update + 6-param accel cal fix**
 
-Implemented ESKF baro measurement update (IVP-43): scalar update with Joseph form P update (inline statics for stack safety), 3σ innovation gating, NIS diagnostic, `isfinite`/S guards per council conditions. Added live ESKF mode ('e' key for 1Hz compact status: alt, velocity, Patt, bNIS). 11 new host tests (106/106 total pass). Fixed 6-pos accel cal: reduced Gauss-Newton solver from 9 to 6 parameters — 6 axis-aligned positions provide only 6 constraints, offdiag sits in Jacobian null space. Board rotation matrix added to status output. HW verified: |A|=9.770, bNIS stable, 0 I2C errors.
+Implemented ESKF baro measurement update (IVP-43): scalar update with Joseph form P update (inline statics for stack safety), 3Ïƒ innovation gating, NIS diagnostic, `isfinite`/S guards per council conditions. Added live ESKF mode ('e' key for 1Hz compact status: alt, velocity, Patt, bNIS). 11 new host tests (106/106 total pass). Fixed 6-pos accel cal: reduced Gauss-Newton solver from 9 to 6 parameters â€” 6 axis-aligned positions provide only 6 constraints, offdiag sits in Jacobian null space. Board rotation matrix added to status output. HW verified: |A|=9.770, bNIS stable, 0 I2C errors.
 
 (`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `src/calibration/calibration_manager.cpp`, `test/test_eskf_update.cpp`, `test/CMakeLists.txt`)
 
@@ -2096,7 +2100,7 @@ Implemented ESKF baro measurement update (IVP-43): scalar update with Joseph for
 
 **Fix calibration data flow: 6-pos accel zeros, mag cal zeros, wizard persistence**
 
-Three bugs fixed during HW calibration testing: (1) 6-pos accel cal returned zeros after ~200 reads — `read_accel_for_cal()` used 6-byte read that doesn't clear ICM-20948 data-ready flag, switched to 14-byte `icm20948_read()`. (2) Mag cal fed zero samples — `icm20948_read()` mag divider skipped 9/10 calls without setting `mag_valid=false`, uninitialized stack value bypassed staleness gate, added else clause. (3) Wizard gyro/level results lost after Core 1 resume — wizard stored in RAM but never called `calibration_save()`, Core 1 reload from flash overwrote them, now saves to flash after each step. HW verified: mag cal 300 samples, 90% coverage, RMS 0.927 uT.
+Three bugs fixed during HW calibration testing: (1) 6-pos accel cal returned zeros after ~200 reads â€” `read_accel_for_cal()` used 6-byte read that doesn't clear ICM-20948 data-ready flag, switched to 14-byte `icm20948_read()`. (2) Mag cal fed zero samples â€” `icm20948_read()` mag divider skipped 9/10 calls without setting `mag_valid=false`, uninitialized stack value bypassed staleness gate, added else clause. (3) Wizard gyro/level results lost after Core 1 resume â€” wizard stored in RAM but never called `calibration_save()`, Core 1 reload from flash overwrote them, now saves to flash after each step. HW verified: mag cal 300 samples, 90% coverage, RMS 0.927 uT.
 
 (`src/main.cpp`, `src/drivers/icm20948.cpp`, `src/cli/rc_os.cpp`)
 
@@ -2106,7 +2110,7 @@ Three bugs fixed during HW calibration testing: (1) 6-pos accel cal returned zer
 
 **Watchdog FMEA analysis, IVP-51 Watchdog Recovery Policy, reboot detection bugfix**
 
-Fixed `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses RP2350-specific `rom_get_last_boot_type()` for correct POR discrimination.
+Fixed `watchdog_enable_caused_reboot()` â†’ `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses RP2350-specific `rom_get_last_boot_type()` for correct POR discrimination.
 
 Added IVP-51 (Watchdog Recovery Policy) as first step of Stage 6, prerequisite to state machine. Covers: scratch register persistence for reboot diagnostics, reboot counting with safe-mode lockout, ESKF failure backoff, recovery boot path, ground-side launch abort on any WDT reset. All downstream IVP numbers shifted +1 (Stage 7: IVP-57-61, Stage 8: IVP-62-66, Stage 9: IVP-67-71). Updated Gemini carrier board doc with cross-board watchdog handoff and per-board status LEDs. Updated SAD Section 14.
 
@@ -2150,7 +2154,7 @@ NeoPixel now shows mode color during ENTER wait (before user presses ENTER, not 
 
 **Phase M.5: Unified calibration wizard with NeoPixel feedback**
 
-Implemented full 5-step calibration wizard (gyro, level, baro, 6-pos accel, compass) accessible from CLI `c` → `w`. Each step waits for ENTER to start, 'x' to skip/cancel. NeoPixel shows calibration state via cross-core atomic override (blue breathe = IMU sampling, cyan = baro, yellow = accel positioning, rainbow = mag rotation, green = success, red = failure). Moved async calibration sensor feeds from Core 0 to Core 1 to eliminate I2C bus contention — Core 0 no longer touches I2C during gyro/level/baro calibrations. Extracted `mag_cal_inner()` for reuse between standalone command and wizard. Fixed watchdog crash in blocking prompts (polling loop with `watchdog_update()` instead of 30s `getchar_timeout_us()`). Fixed auto-progress bug from stale USB input buffer bytes (double-drain with 100ms gap). Fixed mag cal collecting only 1 sample: seqlock now carries raw mag data (`mag_raw_x/y/z`) alongside calibrated — ellipsoid solver needs uncorrected data. Struct grew 128→140 bytes. HW verified: wizard-6, gyro/level/baro/6-pos accel all pass.
+Implemented full 5-step calibration wizard (gyro, level, baro, 6-pos accel, compass) accessible from CLI `c` â†’ `w`. Each step waits for ENTER to start, 'x' to skip/cancel. NeoPixel shows calibration state via cross-core atomic override (blue breathe = IMU sampling, cyan = baro, yellow = accel positioning, rainbow = mag rotation, green = success, red = failure). Moved async calibration sensor feeds from Core 0 to Core 1 to eliminate I2C bus contention â€” Core 0 no longer touches I2C during gyro/level/baro calibrations. Extracted `mag_cal_inner()` for reuse between standalone command and wizard. Fixed watchdog crash in blocking prompts (polling loop with `watchdog_update()` instead of 30s `getchar_timeout_us()`). Fixed auto-progress bug from stale USB input buffer bytes (double-drain with 100ms gap). Fixed mag cal collecting only 1 sample: seqlock now carries raw mag data (`mag_raw_x/y/z`) alongside calibrated â€” ellipsoid solver needs uncorrected data. Struct grew 128â†’140 bytes. HW verified: wizard-6, gyro/level/baro/6-pos accel all pass.
 
 (`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`)
 
@@ -2160,7 +2164,7 @@ Implemented full 5-step calibration wizard (gyro, level, baro, 6-pos accel, comp
 
 **Phase M complete: Core 1 live mag apply + heading display (IVP-38)**
 
-Applied mag calibration on Core 1 via `calibration_apply_mag_with()`, matching existing accel/gyro pattern. Sensor status (`s`) now shows calibrated magnitude `|M|` and tilt-uncorrected heading (0-360 deg). Both seqlock display and pre-sensor-phase direct-read paths updated. HW verified: 0 IMU errors, `|M|` ~60 µT stable, heading tracks smoothly. Phase M (IVP-34 through IVP-38) is now complete — all 4 commits merged.
+Applied mag calibration on Core 1 via `calibration_apply_mag_with()`, matching existing accel/gyro pattern. Sensor status (`s`) now shows calibrated magnitude `|M|` and tilt-uncorrected heading (0-360 deg). Both seqlock display and pre-sensor-phase direct-read paths updated. HW verified: 0 IMU errors, `|M|` ~60 ÂµT stable, heading tracks smoothly. Phase M (IVP-34 through IVP-38) is now complete â€” all 4 commits merged.
 
 (`src/main.cpp`)
 
@@ -2168,9 +2172,9 @@ Applied mag calibration on Core 1 via `calibration_apply_mag_with()`, matching e
 
 ### 2026-02-10-003 | Claude Code CLI | feature
 
-**Non-blocking USB init — firmware runs without terminal**
+**Non-blocking USB init â€” firmware runs without terminal**
 
-Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner and HW status deferred to first terminal connection via `rc_os_print_boot_status` callback. Core 1 sensor phase and watchdog start immediately with no USB dependency. Qwiic chain order documented: GPS must be first (closest to board) — at end of chain, probe detection is intermittent. Soak verified: 536K IMU reads, 0 errors (6 min, all 3 sensors).
+Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner and HW status deferred to first terminal connection via `rc_os_print_boot_status` callback. Core 1 sensor phase and watchdog start immediately with no USB dependency. Qwiic chain order documented: GPS must be first (closest to board) â€” at end of chain, probe detection is intermittent. Soak verified: 536K IMU reads, 0 errors (6 min, all 3 sensors).
 
 (`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `docs/hardware/HARDWARE.md`)
 
@@ -2190,7 +2194,7 @@ Expanded SAD Section 13 (Extensibility) from placeholder to full architecture fo
 
 **Fix i2c_bus_recover() peripheral corruption + probe-first detection**
 
-Fixed critical bug: `i2c_bus_recover()` corrupted the DW_apb_i2c peripheral by switching GPIO functions (SIO↔I2C) while the peripheral was enabled. Now properly deinits before GPIO switch and reinits after (LL Entry 28). Added probe-first peripheral detection in `init_sensors()` — only inits drivers for devices physically present on the bus. GPS drain no longer triggers recovery for absent devices. Recovery improved with SCL-stuck-low check and per-pulse SDA early exit (Linux kernel pattern). New soak test script with early-fail detection and SWD reset support. Soak verified: 386K IMU reads, 0 errors.
+Fixed critical bug: `i2c_bus_recover()` corrupted the DW_apb_i2c peripheral by switching GPIO functions (SIOâ†”I2C) while the peripheral was enabled. Now properly deinits before GPIO switch and reinits after (LL Entry 28). Added probe-first peripheral detection in `init_sensors()` â€” only inits drivers for devices physically present on the bus. GPS drain no longer triggers recovery for absent devices. Recovery improved with SCL-stuck-low check and per-pulse SDA early exit (Linux kernel pattern). New soak test script with early-fail detection and SWD reset support. Soak verified: 386K IMU reads, 0 errors.
 
 (`src/drivers/i2c_bus.cpp`, `src/main.cpp`, `scripts/i2c_soak_test.py`)
 
@@ -2198,9 +2202,9 @@ Fixed critical bug: `i2c_bus_recover()` corrupted the DW_apb_i2c peripheral by s
 
 ### 2026-02-09-008 | Claude Code CLI | bugfix
 
-**Revert non-blocking USB init (6de6245) — soak failures across 4 build variants**
+**Revert non-blocking USB init (6de6245) â€” soak failures across 4 build variants**
 
-Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Deep research confirmed Pico SDK has no I2C bus recovery function (custom recovery is correct per I2C spec NXP UM10204 Section 3.1.16). Attempted 4 build variants (prod-13 through prod-16) with robust bus recovery (retry loop, 100µs GPIO settling delay, `i2c_deinit()` before bit-bang) and non-blocking USB. All failed soak testing at 40-90 seconds with cascading I2C errors (IMU first, then baro/GPS). Phase M stash@{0} (CLI mag cal) preserved. **[CORRECTION 2026-02-09]:** The "codegen sensitivity" attribution was wrong — all testing used picotool rapid flash cycles, which corrupt the I2C bus (LL Entry 25). Disproved by three soak tests via debug probe with i2c_bus.cpp modifications, all 0 errors (LL Entry 27). Non-blocking USB should be retested via probe.
+Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Deep research confirmed Pico SDK has no I2C bus recovery function (custom recovery is correct per I2C spec NXP UM10204 Section 3.1.16). Attempted 4 build variants (prod-13 through prod-16) with robust bus recovery (retry loop, 100Âµs GPIO settling delay, `i2c_deinit()` before bit-bang) and non-blocking USB. All failed soak testing at 40-90 seconds with cascading I2C errors (IMU first, then baro/GPS). Phase M stash@{0} (CLI mag cal) preserved. **[CORRECTION 2026-02-09]:** The "codegen sensitivity" attribution was wrong â€” all testing used picotool rapid flash cycles, which corrupt the I2C bus (LL Entry 25). Disproved by three soak tests via debug probe with i2c_bus.cpp modifications, all 0 errors (LL Entry 27). Non-blocking USB should be retested via probe.
 
 (`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `AGENT_WHITEBOARD.md`)
 
@@ -2210,7 +2214,7 @@ Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Dee
 
 **IVP plan expansion: Phase M magnetometer calibration + Stage 5 sensor fusion flesh-out**
 
-Added Phase M (IVP-34 through IVP-38) — 5 magnetometer calibration IVPs with full ArduPilot CompassCalibrator parity (sphere-coverage, two-step Levenberg-Marquardt, ellipsoid fit). Renumbered all downstream IVPs +5 (Stage 5: IVP-39-50, Stage 6: IVP-51-56, Stage 7: IVP-57-61, Stage 8: IVP-62-66, Stage 9: IVP-67-71). Fleshed out all 10 Stage 5 IVPs with full implementation specs: Vec3/Quaternion library, matrix operations, 1D baro KF, ESKF propagation (Sola 2017), baro/mag/GPS measurement updates, Mahony AHRS, MMAE bank manager, confidence gate. Updated cross-references in AGENT_WHITEBOARD.md, PROJECT_STATUS.md, VENDOR_GUIDELINES.md.
+Added Phase M (IVP-34 through IVP-38) â€” 5 magnetometer calibration IVPs with full ArduPilot CompassCalibrator parity (sphere-coverage, two-step Levenberg-Marquardt, ellipsoid fit). Renumbered all downstream IVPs +5 (Stage 5: IVP-39-50, Stage 6: IVP-51-56, Stage 7: IVP-57-61, Stage 8: IVP-62-66, Stage 9: IVP-67-71). Fleshed out all 10 Stage 5 IVPs with full implementation specs: Vec3/Quaternion library, matrix operations, 1D baro KF, ESKF propagation (Sola 2017), baro/mag/GPS measurement updates, Mahony AHRS, MMAE bank manager, confidence gate. Updated cross-references in AGENT_WHITEBOARD.md, PROJECT_STATUS.md, VENDOR_GUIDELINES.md.
 
 (`docs/IVP.md`, `AGENT_WHITEBOARD.md`, `docs/PROJECT_STATUS.md`, `standards/VENDOR_GUIDELINES.md`)
 
@@ -2220,7 +2224,7 @@ Added Phase M (IVP-34 through IVP-38) — 5 magnetometer calibration IVPs with f
 
 **Strip IVP test code from production codebase**
 
-Removed all Stage 1-4 IVP test code from `main.cpp` after hardware verification: 3,623→1,073 lines (**2,550 lines removed, 70% reduction**). 33 functions, ~80 state variables, ~70 constants deleted including 4KB jitter timestamp array. Binary **198,144→155,648 bytes (42,496 bytes saved, 21.4% smaller)**. Replaced `g_ivp25Active` with production `g_sensorPhaseActive` (plain bool). Unconditional watchdog enable (council critical fix). Renamed `hw_validate_stage1()` to `print_hw_status()`. Resolved 2 standards deviations: RC-1 (recursion), BM-6 (unbounded test loop). Updated IO-1 printf count (428→212). Changed main.cpp classification from "IVP Test (mixed)" to "Ground (mixed)". Deleted 4 IVP files (2 test scripts, 2 log files). All IVP code preserved in git history.
+Removed all Stage 1-4 IVP test code from `main.cpp` after hardware verification: 3,623â†’1,073 lines (**2,550 lines removed, 70% reduction**). 33 functions, ~80 state variables, ~70 constants deleted including 4KB jitter timestamp array. Binary **198,144â†’155,648 bytes (42,496 bytes saved, 21.4% smaller)**. Replaced `g_ivp25Active` with production `g_sensorPhaseActive` (plain bool). Unconditional watchdog enable (council critical fix). Renamed `hw_validate_stage1()` to `print_hw_status()`. Resolved 2 standards deviations: RC-1 (recursion), BM-6 (unbounded test loop). Updated IO-1 printf count (428â†’212). Changed main.cpp classification from "IVP Test (mixed)" to "Ground (mixed)". Deleted 4 IVP files (2 test scripts, 2 log files). All IVP code preserved in git history.
 
 (`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `standards/STANDARDS_DEVIATIONS.md`, `standards/CODING_STANDARDS.md`, `standards/AUDIT_REMEDIATION.md`, `AGENT_WHITEBOARD.md`)
 
@@ -2230,7 +2234,7 @@ Removed all Stage 1-4 IVP test code from `main.cpp` after hardware verification:
 
 **Clang-tidy P5b-f: identifier naming, bool conversions, init vars, function decomposition**
 
-Completed remaining clang-tidy remediation for all production code. P5b: 162 identifier renames to camelCase. P5c: 41 implicit bool conversions made explicit. P5d: 51 uninitialized variables initialized at declaration. P5e: 9 production functions decomposed under 60-line JSF AV limit. P5f: JSF AV Rule 213 math parentheses check disabled (LL Entry 26). Binary 198,656 bytes (+512 from function call overhead). HW verified: 0 errors across all sensors. All production code now fully remediated — only IVP test code remains deferred.
+Completed remaining clang-tidy remediation for all production code. P5b: 162 identifier renames to camelCase. P5c: 41 implicit bool conversions made explicit. P5d: 51 uninitialized variables initialized at declaration. P5e: 9 production functions decomposed under 60-line JSF AV limit. P5f: JSF AV Rule 213 math parentheses check disabled (LL Entry 26). Binary 198,656 bytes (+512 from function call overhead). HW verified: 0 errors across all sensors. All production code now fully remediated â€” only IVP test code remains deferred.
 
 (18 files across src/, standards/, docs/, .claude/)
 
@@ -2238,9 +2242,9 @@ Completed remaining clang-tidy remediation for all production code. P5b: 162 ide
 
 ### 2026-02-09-004 | Claude Code CLI | refactor
 
-**Clang-tidy audit remediation — 5 phases, 911 findings resolved**
+**Clang-tidy audit remediation â€” 5 phases, 911 findings resolved**
 
-P1: Safety-critical fixes (widening multiplication overflow, narrowing conversions, missing default clause) — HW verified 0 errors/117K reads. P2: 354 auto-fixable cosmetic warnings (uppercase suffixes, void args, nullptr, bool literals, using). P3: 275 magic numbers extracted to named constexpr (production code); IVP test code NOLINT'd. P4: 170 missing braces added per JSF AV Rule 59. P5: ~80 C-style casts converted to static_cast/reinterpret_cast per JSF AV Rule 185. Binary size unchanged throughout (198,144 bytes). Remaining ~370 cosmetic findings (naming, parens, implicit bool, uninit vars) documented as deferred in `standards/AUDIT_REMEDIATION.md`.
+P1: Safety-critical fixes (widening multiplication overflow, narrowing conversions, missing default clause) â€” HW verified 0 errors/117K reads. P2: 354 auto-fixable cosmetic warnings (uppercase suffixes, void args, nullptr, bool literals, using). P3: 275 magic numbers extracted to named constexpr (production code); IVP test code NOLINT'd. P4: 170 missing braces added per JSF AV Rule 59. P5: ~80 C-style casts converted to static_cast/reinterpret_cast per JSF AV Rule 185. Binary size unchanged throughout (198,144 bytes). Remaining ~370 cosmetic findings (naming, parens, implicit bool, uninit vars) documented as deferred in `standards/AUDIT_REMEDIATION.md`.
 
 (all 10 source files, `standards/AUDIT_REMEDIATION.md`)
 
@@ -2248,7 +2252,7 @@ P1: Safety-critical fixes (widening multiplication overflow, narrowing conversio
 
 ### 2026-02-09-003 | Claude Code CLI | tooling
 
-**Comprehensive clang-tidy standards audit — 127 checks mapped to JSF AV / P10 / JPL C**
+**Comprehensive clang-tidy standards audit â€” 127 checks mapped to JSF AV / P10 / JPL C**
 
 Rewrote `.clang-tidy` from 78-line function-size-only config to 376-line comprehensive standards audit config covering bugprone (34), cert (14), cppcoreguidelines (11), google (6), hicpp (3), misc (11), modernize (11), performance (11), readability (26), and clang-analyzer checks. Ran full audit across all 10 source files: 1,251 warnings in our code. Key finding: `misc-no-recursion` caught a recursive call chain that the manual audit missed (P10-1 was marked PASS). 5 safety-critical findings documented. Results in `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md`.
 
@@ -2258,9 +2262,9 @@ Rewrote `.clang-tidy` from 78-line function-size-only config to 376-line compreh
 
 ### 2026-02-09-002 | Claude Code CLI | refactor
 
-**Decompose main() and core1_entry() — P10-4 function length compliance**
+**Decompose main() and core1_entry() â€” P10-4 function length compliance**
 
-Extracted `main()` (992→65 lines) into `init_hardware()`, `print_boot_status()`, `init_application()`, and 15 tick-function dispatchers per council-approved plan. Extracted `core1_entry()` (367→15 lines) into `core1_test_dispatcher()`, `core1_spinlock_soak()`, `core1_sensor_loop()`. Added `g_lastTickFunction` watchdog tracking (council recommendation). Binary size unchanged (198,144 bytes). Hardware-verified: all behavior identical.
+Extracted `main()` (992â†’65 lines) into `init_hardware()`, `print_boot_status()`, `init_application()`, and 15 tick-function dispatchers per council-approved plan. Extracted `core1_entry()` (367â†’15 lines) into `core1_test_dispatcher()`, `core1_spinlock_soak()`, `core1_sensor_loop()`. Added `g_lastTickFunction` watchdog tracking (council recommendation). Binary size unchanged (198,144 bytes). Hardware-verified: all behavior identical.
 
 (`src/main.cpp`)
 
@@ -2268,9 +2272,9 @@ Extracted `main()` (992→65 lines) into `init_hardware()`, `print_boot_status()
 
 ### 2026-02-09-001 | Claude Code CLI | documentation
 
-**Trim tracking documents — collapse completed sections**
+**Trim tracking documents â€” collapse completed sections**
 
-Cleaned up PROJECT_STATUS.md (completed stages → summary table), AGENT_WHITEBOARD.md (erased resolved flags, compacted deferred items into bullet list), AUDIT_REMEDIATION.md (line-by-line fix tables → summary). Net -365 lines. No information lost — per-IVP detail remains in IVP.md, audit detail in STANDARDS_AUDIT_2026-02-07.md.
+Cleaned up PROJECT_STATUS.md (completed stages â†’ summary table), AGENT_WHITEBOARD.md (erased resolved flags, compacted deferred items into bullet list), AUDIT_REMEDIATION.md (line-by-line fix tables â†’ summary). Net -365 lines. No information lost â€” per-IVP detail remains in IVP.md, audit detail in STANDARDS_AUDIT_2026-02-07.md.
 
 (`docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `standards/AUDIT_REMEDIATION.md`)
 
@@ -2280,7 +2284,7 @@ Cleaned up PROJECT_STATUS.md (completed stages → summary table), AGENT_WHITEBO
 
 **IVP-32/33: GPS outdoor validation + CLI integration (Phase 4 complete)**
 
-GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` command format polished to match IVP-33 gate wording (`GPS: no fix (N sats)`). BSS layout regression investigated — `alignas(64)` + flag grouping caused new errors. Minimal-change build (`ivp32-33-1`) passes with 68K+ reads, 0 errors. **[CORRECTION 2026-02-09]:** "BSS layout regression" was actually picotool bus corruption from rapid flash cycles (LL Entry 25/27). Disproved — see LL Entry 27.
+GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` command format polished to match IVP-33 gate wording (`GPS: no fix (N sats)`). BSS layout regression investigated â€” `alignas(64)` + flag grouping caused new errors. Minimal-change build (`ivp32-33-1`) passes with 68K+ reads, 0 errors. **[CORRECTION 2026-02-09]:** "BSS layout regression" was actually picotool bus corruption from rapid flash cycles (LL Entry 25/27). Disproved â€” see LL Entry 27.
 
 (`src/main.cpp`)
 
@@ -2290,9 +2294,9 @@ GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` comman
 
 **IVP-31: PA1010D GPS integration on Core 1 with I2C contention fix**
 
-GPS reads at 10Hz on Core 1 via seqlock. Full NMEA parsing (lwGPS), GGA+RMC+GSA sentence filter, Adafruit-style 0x0A padding filter, cold-boot bus recovery. I2C contention (8.4% IMU error rate at gps-10) resolved with 500us post-read settling delay — controlled isolation tests (gps-12a/b/c) proved delay alone is sufficient at 10Hz. Auto-detection: delay only active when I2C GPS at 0x10 is detected; UART GPS skips it. `kCore1ConsecFailMax` lowered from 50 to 10 for GPS-induced burst detection.
+GPS reads at 10Hz on Core 1 via seqlock. Full NMEA parsing (lwGPS), GGA+RMC+GSA sentence filter, Adafruit-style 0x0A padding filter, cold-boot bus recovery. I2C contention (8.4% IMU error rate at gps-10) resolved with 500us post-read settling delay â€” controlled isolation tests (gps-12a/b/c) proved delay alone is sufficient at 10Hz. Auto-detection: delay only active when I2C GPS at 0x10 is detected; UART GPS skips it. `kCore1ConsecFailMax` lowered from 50 to 10 for GPS-induced burst detection.
 
-*Rationale: 500us delay vs 5Hz rate reduction — delay preserves 10Hz GPS data with only 0.5% CPU overhead. Isolation testing documented in LL Entry 24. ArduPilot never shares GPS with high-rate sensors on I2C; production migrates to UART FeatherWing (Adafruit 3133).*
+*Rationale: 500us delay vs 5Hz rate reduction â€” delay preserves 10Hz GPS data with only 0.5% CPU overhead. Isolation testing documented in LL Entry 24. ArduPilot never shares GPS with high-rate sensors on I2C; production migrates to UART FeatherWing (Adafruit 3133).*
 
 (`src/main.cpp`, `src/drivers/gps_pa1010d.cpp`, `src/drivers/gps_pa1010d.h`, `.claude/LESSONS_LEARNED.md`)
 
@@ -2302,7 +2306,7 @@ GPS reads at 10Hz on Core 1 via seqlock. Full NMEA parsing (lwGPS), GGA+RMC+GSA 
 
 **Titan doc: H7 board candidates section**
 
-Added Section 13 to `TITAN_BOARD_ANALYSIS.md` — STM32H7 board landscape research. No maker H7 boards exist in Feather/Thing Plus form factor. Recommended Matek H743-Wing V3 flight controller for Titan Path A prototyping (ArduPilot-validated, dual IMU, DPS310, CAN, 13 PWM, ~$55-65).
+Added Section 13 to `TITAN_BOARD_ANALYSIS.md` â€” STM32H7 board landscape research. No maker H7 boards exist in Feather/Thing Plus form factor. Recommended Matek H743-Wing V3 flight controller for Titan Path A prototyping (ArduPilot-validated, dual IMU, DPS310, CAN, 13 PWM, ~$55-65).
 
 (`docs/decisions/TITAN_BOARD_ANALYSIS.md`)
 
@@ -2310,9 +2314,9 @@ Added Section 13 to `TITAN_BOARD_ANALYSIS.md` — STM32H7 board landscape resear
 
 ### 2026-02-08-003 | Claude Code CLI | refactor
 
-**C++20 conversion: .c→.cpp rename + #define→constexpr (PP-1 resolved)**
+**C++20 conversion: .câ†’.cpp rename + #defineâ†’constexpr (PP-1 resolved)**
 
-Two-commit migration of all 9 C source files to C++20. Commit 1: renamed files via `git mv`, fixed C99 compound literals, added `extern "C"` wrap for ruuvi DPS310 library, removed internal `extern "C"` guards from headers, fixed `const` cast in GPS driver. Commit 2: converted 90+ `#define` macros to `constexpr` across all drivers/calibration/CLI — ICM-20948 registers organized into bank-scoped namespaces, calibration/storage constants use `k` prefix. Resolved PP-1 deviation (JSF 29/30/31). Binary size delta: -1404 bytes (97988 vs 99392 baseline). Third-party libs (ruuvi, lwGPS) remain C.
+Two-commit migration of all 9 C source files to C++20. Commit 1: renamed files via `git mv`, fixed C99 compound literals, added `extern "C"` wrap for ruuvi DPS310 library, removed internal `extern "C"` guards from headers, fixed `const` cast in GPS driver. Commit 2: converted 90+ `#define` macros to `constexpr` across all drivers/calibration/CLI â€” ICM-20948 registers organized into bank-scoped namespaces, calibration/storage constants use `k` prefix. Resolved PP-1 deviation (JSF 29/30/31). Binary size delta: -1404 bytes (97988 vs 99392 baseline). Third-party libs (ruuvi, lwGPS) remain C.
 
 (`src/**/*.cpp`, `src/**/*.h`, `include/rocketchip/config.h`, `CMakeLists.txt`, `standards/STANDARDS_DEVIATIONS.md`)
 
@@ -2320,9 +2324,9 @@ Two-commit migration of all 9 C source files to C++20. Commit 1: renamed files v
 
 ### 2026-02-08-002 | Claude Code CLI | refactor, documentation
 
-**Standards audit remediation — Tier 4: RC_ASSERT, goto elimination, deviation docs**
+**Standards audit remediation â€” Tier 4: RC_ASSERT, goto elimination, deviation docs**
 
-Completed Phase D of the audit remediation plan. D1: Added `RC_ASSERT()` macro to `config.h` (debug = printf + watchdog spin, release = no-op). D2: Eliminated all 6 `goto` statements in `cmd_accel_6pos_cal()` by extracting body into `cmd_accel_6pos_cal_inner()` helper — wrapper guarantees I2C master pre/post hook execution. D4: Documented bare-metal loop deviations (BM-1 through BM-6), stdio usage (IO-1/IO-2), and preprocessor defines (PP-1) in `STANDARDS_DEVIATIONS.md`. Updated audit dashboard: 220 PASS / 25 PARTIAL/FAIL (90% compliance, up from 82%).
+Completed Phase D of the audit remediation plan. D1: Added `RC_ASSERT()` macro to `config.h` (debug = printf + watchdog spin, release = no-op). D2: Eliminated all 6 `goto` statements in `cmd_accel_6pos_cal()` by extracting body into `cmd_accel_6pos_cal_inner()` helper â€” wrapper guarantees I2C master pre/post hook execution. D4: Documented bare-metal loop deviations (BM-1 through BM-6), stdio usage (IO-1/IO-2), and preprocessor defines (PP-1) in `STANDARDS_DEVIATIONS.md`. Updated audit dashboard: 220 PASS / 25 PARTIAL/FAIL (90% compliance, up from 82%).
 
 (`include/rocketchip/config.h`, `src/cli/rc_os.c`, `standards/STANDARDS_DEVIATIONS.md`, `standards/AUDIT_REMEDIATION.md`, `standards/STANDARDS_AUDIT_2026-02-07.md`)
 
@@ -2332,7 +2336,7 @@ Completed Phase D of the audit remediation plan. D1: Added `RC_ASSERT()` macro t
 
 **F' (F Prime) comprehensive evaluation for Titan**
 
-Expanded the F' addendum in `TITAN_BOARD_ANALYSIS.md` from a brief note into a full 14-section evaluation. Covers: F' architecture and component model, coding standards alignment with JSF AV (near-complete overlap), platform support matrix (RP2350 HSTX is officially supported via fprime-arduino), the critical multicore limitation (Zephyr has no Cortex-M SMP — F' multicore only works on Linux via pthreads), Pi Zero 2 W vs STM32H7 hardware comparison, a hybrid architecture proposal (Pi Zero 2 W running F'/Linux as mission CPU + RP2350 as real-time safety CPU), MAVLink incompatibility (F' uses its own protocol), F' flight heritage (Ingenuity, ASTERIA, RapidScat), and a "cherry-pick" alternative for adopting F' patterns without the framework.
+Expanded the F' addendum in `TITAN_BOARD_ANALYSIS.md` from a brief note into a full 14-section evaluation. Covers: F' architecture and component model, coding standards alignment with JSF AV (near-complete overlap), platform support matrix (RP2350 HSTX is officially supported via fprime-arduino), the critical multicore limitation (Zephyr has no Cortex-M SMP â€” F' multicore only works on Linux via pthreads), Pi Zero 2 W vs STM32H7 hardware comparison, a hybrid architecture proposal (Pi Zero 2 W running F'/Linux as mission CPU + RP2350 as real-time safety CPU), MAVLink incompatibility (F' uses its own protocol), F' flight heritage (Ingenuity, ASTERIA, RapidScat), and a "cherry-pick" alternative for adopting F' patterns without the framework.
 
 (`docs/decisions/TITAN_BOARD_ANALYSIS.md`)
 
@@ -2342,7 +2346,7 @@ Expanded the F' addendum in `TITAN_BOARD_ANALYSIS.md` from a brief note into a f
 
 **New standard: Vendor & OEM Guidelines**
 
-Created `standards/VENDOR_GUIDELINES.md` — centralized reference for vendor-specific constraints, datasheet-sourced values, and OEM recommendations. Consolidates knowledge previously scattered across LL entries, driver comments, IVP notes, and whiteboard flags. Covers ICM-20948 (bank-switching, I2C master race), DPS310 (config, noise spec gaps), PA1010D (255-byte full-buffer reads per vendor app note, bus interference behavior, PMTK commands), RP2350 (errata E2, USB/flash ordering, memory constraints), and Feather board pin assignments. Includes datasheet inventory with gap analysis — DPS310 and PA1010D datasheets are missing locally.
+Created `standards/VENDOR_GUIDELINES.md` â€” centralized reference for vendor-specific constraints, datasheet-sourced values, and OEM recommendations. Consolidates knowledge previously scattered across LL entries, driver comments, IVP notes, and whiteboard flags. Covers ICM-20948 (bank-switching, I2C master race), DPS310 (config, noise spec gaps), PA1010D (255-byte full-buffer reads per vendor app note, bus interference behavior, PMTK commands), RP2350 (errata E2, USB/flash ordering, memory constraints), and Feather board pin assignments. Includes datasheet inventory with gap analysis â€” DPS310 and PA1010D datasheets are missing locally.
 
 (`standards/VENDOR_GUIDELINES.md`)
 
@@ -2350,21 +2354,21 @@ Created `standards/VENDOR_GUIDELINES.md` — centralized reference for vendor-sp
 
 ### 2026-02-06-003 | Claude Code CLI | architecture, documentation
 
-**Stage 4 GPS IVP revision — restructured for dual-core architecture**
+**Stage 4 GPS IVP revision â€” restructured for dual-core architecture**
 
-Rewrote IVP-31 through IVP-34 (now IVP-31 through IVP-33) after Stage 3 established that Core 1 owns the I2C bus exclusively. Original IVPs assumed GPS could run on Core 0 — this causes bus collisions (LL Entry 20). Key changes: GPS init before Core 1 launch, GPS reads on Core 1 sensor loop (full 255-byte reads at 10Hz per vendor recommendation), seqlock for Core 0 access, old IVP-33 (Core 1 migration) merged into IVP-31 (it's now a prerequisite, not a follow-on). Updated `gps_pa1010d.c` with full-buffer reads and PMTK314 sentence filter. Renumbered IVP-35+ down by 1 to close the gap (now IVP-34 through IVP-71). Reverted partial IVP-31 implementation from main.cpp.
+Rewrote IVP-31 through IVP-34 (now IVP-31 through IVP-33) after Stage 3 established that Core 1 owns the I2C bus exclusively. Original IVPs assumed GPS could run on Core 0 â€” this causes bus collisions (LL Entry 20). Key changes: GPS init before Core 1 launch, GPS reads on Core 1 sensor loop (full 255-byte reads at 10Hz per vendor recommendation), seqlock for Core 0 access, old IVP-33 (Core 1 migration) merged into IVP-31 (it's now a prerequisite, not a follow-on). Updated `gps_pa1010d.c` with full-buffer reads and PMTK314 sentence filter. Renumbered IVP-35+ down by 1 to close the gap (now IVP-34 through IVP-71). Reverted partial IVP-31 implementation from main.cpp.
 
 (`docs/IVP.md`, `src/drivers/gps_pa1010d.c`, `src/main.cpp`)
 
-*Rationale: The original Stage 4 IVPs were written before Stage 3's dual-core work revealed that I2C bus access is single-core only (no mutual exclusion in Pico SDK). Attempting Core 0 GPS reads with Core 1 running IMU/baro caused ICM-20948 init failures. Council review confirmed GPS on Core 1 is the only correct approach. The 32-byte read size was an Arduino Wire.h software limitation — vendor app notes and Pico SDK examples both use full 255-byte reads.*
+*Rationale: The original Stage 4 IVPs were written before Stage 3's dual-core work revealed that I2C bus access is single-core only (no mutual exclusion in Pico SDK). Attempting Core 0 GPS reads with Core 1 running IMU/baro caused ICM-20948 init failures. Council review confirmed GPS on Core 1 is the only correct approach. The 32-byte read size was an Arduino Wire.h software limitation â€” vendor app notes and Pico SDK examples both use full 255-byte reads.*
 
 ---
 
 ### 2026-02-06-002 | Claude Code CLI | architecture, council, documentation
 
-**Stage 3 prep: Seqlock cross-core design — research, council review, IVP corrections**
+**Stage 3 prep: Seqlock cross-core design â€” research, council review, IVP corrections**
 
-Created `docs/decisions/SEQLOCK_DESIGN.md` — council-reviewed decision document for cross-core data sharing via seqlock. Four parallel research agents investigated struct layout, prior art (ArduPilot/Betaflight/PX4), RP2350 memory model, and notification mechanisms. Council (3 personas) unanimously approved with 7 required modifications (all incorporated): bounded retry loop, `core1_loop_count`, `mag_read_count`, `_Static_assert` guards, DMB rationale comments, `_Atomic bool cal_reload_pending` signaling. Corrected RP2350 errata reference from E17 to E2 across IVP and whiteboard. Audited SAD Section 4.3 seqlock code — found 5 issues (missing DMB barriers, unnecessary double-buffer, wrong errata ID, nonexistent types, missing timestamps). Updated `AGENT_WHITEBOARD.md` with Stage 3 session plan and research findings.
+Created `docs/decisions/SEQLOCK_DESIGN.md` â€” council-reviewed decision document for cross-core data sharing via seqlock. Four parallel research agents investigated struct layout, prior art (ArduPilot/Betaflight/PX4), RP2350 memory model, and notification mechanisms. Council (3 personas) unanimously approved with 7 required modifications (all incorporated): bounded retry loop, `core1_loop_count`, `mag_read_count`, `_Static_assert` guards, DMB rationale comments, `_Atomic bool cal_reload_pending` signaling. Corrected RP2350 errata reference from E17 to E2 across IVP and whiteboard. Audited SAD Section 4.3 seqlock code â€” found 5 issues (missing DMB barriers, unnecessary double-buffer, wrong errata ID, nonexistent types, missing timestamps). Updated `AGENT_WHITEBOARD.md` with Stage 3 session plan and research findings.
 
 (`docs/decisions/SEQLOCK_DESIGN.md`, `docs/IVP.md`, `AGENT_WHITEBOARD.md`)
 
@@ -2372,9 +2376,9 @@ Created `docs/decisions/SEQLOCK_DESIGN.md` — council-reviewed decision documen
 
 ### 2026-02-06-001 | Claude Code CLI | feature, bugfix
 
-**IVP-15/16/17/18: Calibration suite + CLI integration — Minimum Viable Demo milestone**
+**IVP-15/16/17/18: Calibration suite + CLI integration â€” Minimum Viable Demo milestone**
 
-Fixed ICM-20948 returning all zeros after ~150 rapid accel reads during 6-position calibration. Root cause: internal I2C master (for AK09916 mag) races with external reads on shared bank-select register (0x7F). Added `icm20948_set_i2c_master_enable()` API and pre/post calibration hooks to disable I2C master during sampling. Removed motion check and orientation pre-check (ArduPilot doesn't use either — Gauss-Newton solver handles bad data). Reordered positions to QGroundControl standard. Added `i2c_bus_reset()` after flash saves. Version bumped to 0.1.1. HW-verified: 3/3 consecutive runs pass across USB replug cycles.
+Fixed ICM-20948 returning all zeros after ~150 rapid accel reads during 6-position calibration. Root cause: internal I2C master (for AK09916 mag) races with external reads on shared bank-select register (0x7F). Added `icm20948_set_i2c_master_enable()` API and pre/post calibration hooks to disable I2C master during sampling. Removed motion check and orientation pre-check (ArduPilot doesn't use either â€” Gauss-Newton solver handles bad data). Reordered positions to QGroundControl standard. Added `i2c_bus_reset()` after flash saves. Version bumped to 0.1.1. HW-verified: 3/3 consecutive runs pass across USB replug cycles.
 
 (`src/drivers/icm20948.c/h`, `src/calibration/calibration_manager.c`, `src/cli/rc_os.c/h`, `src/main.cpp`, `scripts/accel_cal_6pos.py`, `include/rocketchip/config.h`)
 
@@ -2384,7 +2388,7 @@ Fixed ICM-20948 returning all zeros after ~150 rapid accel reads during 6-positi
 
 **IVP-14: Calibration storage (flash persistence)**
 
-Re-enabled calibration system (`calibration_data`, `calibration_manager`, `calibration_storage`) in CMakeLists.txt with `hardware_flash` and `pico_flash` libs. Added storage init before USB (per LL Entry 4/12), manager init after sensors. IVP-14 self-test verifies all 4 gates: load/defaults, save/readback match, power cycle persistence, 10 consecutive saves (wear leveling). Added `kSkipVerifiedGates` flag to skip IVP-10/12/13 at boot — set false to re-run. All gates pass across power cycles.
+Re-enabled calibration system (`calibration_data`, `calibration_manager`, `calibration_storage`) in CMakeLists.txt with `hardware_flash` and `pico_flash` libs. Added storage init before USB (per LL Entry 4/12), manager init after sensors. IVP-14 self-test verifies all 4 gates: load/defaults, save/readback match, power cycle persistence, 10 consecutive saves (wear leveling). Added `kSkipVerifiedGates` flag to skip IVP-10/12/13 at boot â€” set false to re-run. All gates pass across power cycles.
 
 (`CMakeLists.txt`, `src/main.cpp`)
 
@@ -2394,7 +2398,7 @@ Re-enabled calibration system (`calibration_data`, `calibration_manager`, `calib
 
 **IVP-13a: I2C bus recovery under fault**
 
-Implemented I2C bus recovery for sensor disconnect/reconnect scenarios. Recovery fires after 50 consecutive errors (~333ms), performs bus reset (deinit + 9-clock bit-bang + STOP + reinit). IMU self-recovers from reads; baro gets lazy reinit after 100 consecutive failures when IMU confirms bus is healthy. Hardware-verified: Qwiic cable disconnect during 100Hz/50Hz polling — no hang, both sensors resume at full rate after reconnect, error counter visible in status output. All 4 IVP-13a gates pass.
+Implemented I2C bus recovery for sensor disconnect/reconnect scenarios. Recovery fires after 50 consecutive errors (~333ms), performs bus reset (deinit + 9-clock bit-bang + STOP + reinit). IMU self-recovers from reads; baro gets lazy reinit after 100 consecutive failures when IMU confirms bus is healthy. Hardware-verified: Qwiic cable disconnect during 100Hz/50Hz polling â€” no hang, both sensors resume at full rate after reconnect, error counter visible in status output. All 4 IVP-13a gates pass.
 
 (`src/main.cpp`)
 
@@ -2404,7 +2408,7 @@ Implemented I2C bus recovery for sensor disconnect/reconnect scenarios. Recovery
 
 **IVP-09 through IVP-13: IMU, barometer, and multi-sensor polling**
 
-Re-enabled ICM-20948 and DPS310 drivers incrementally with verification at each gate. IMU: fixed 6 magnetometer init issues, added 3-attempt retry, set ±4g/±500dps. DPS310: ruuvi library with 8Hz/8x oversampling continuous mode. IVP-10 validation (50 IMU samples, magnitude-based gate checks), IVP-12 validation (100 baro samples, pressure/noise/stuck-value gates), IVP-13 multi-sensor polling (IMU 100Hz, baro 50Hz, 60s, zero I2C errors). Measured I2C timing: IMU avg 774us, baro avg 251us. All gates pass across reboot cycles.
+Re-enabled ICM-20948 and DPS310 drivers incrementally with verification at each gate. IMU: fixed 6 magnetometer init issues, added 3-attempt retry, set Â±4g/Â±500dps. DPS310: ruuvi library with 8Hz/8x oversampling continuous mode. IVP-10 validation (50 IMU samples, magnitude-based gate checks), IVP-12 validation (100 baro samples, pressure/noise/stuck-value gates), IVP-13 multi-sensor polling (IMU 100Hz, baro 50Hz, 60s, zero I2C errors). Measured I2C timing: IMU avg 774us, baro avg 251us. All gates pass across reboot cycles.
 
 (`CMakeLists.txt`, `src/main.cpp`, `src/drivers/icm20948.c`, `docs/PROJECT_STATUS.md`)
 
@@ -2414,7 +2418,7 @@ Re-enabled ICM-20948 and DPS310 drivers incrementally with verification at each 
 
 **Reset to clean Stage 1 baseline, fix I2C bus recovery**
 
-Stripped all Stage 2 code from build (drivers, calibration, CLI) to resolve I2C bus reliability issues. Root cause: two compounding issues — (1) no bus recovery on boot after picotool `--force` reboots left sensors mid-transaction with SDA held low, (2) Stage 2 init code (IMU bank switching, mag I2C master, flash ops) was corrupting bus state. Added `i2c_bus_recover()` call before `i2c_init()` in `i2c_bus_init()`. Restored 400kHz (100kHz was a red herring). All 3 devices (0x69, 0x77, 0x10) now detected reliably. Stage 2 source files remain on disk for incremental re-enablement.
+Stripped all Stage 2 code from build (drivers, calibration, CLI) to resolve I2C bus reliability issues. Root cause: two compounding issues â€” (1) no bus recovery on boot after picotool `--force` reboots left sensors mid-transaction with SDA held low, (2) Stage 2 init code (IMU bank switching, mag I2C master, flash ops) was corrupting bus state. Added `i2c_bus_recover()` call before `i2c_init()` in `i2c_bus_init()`. Restored 400kHz (100kHz was a red herring). All 3 devices (0x69, 0x77, 0x10) now detected reliably. Stage 2 source files remain on disk for incremental re-enablement.
 
 (`CMakeLists.txt`, `src/main.cpp`, `src/drivers/i2c_bus.c`, `src/drivers/i2c_bus.h`, `AGENT_WHITEBOARD.md`)
 
@@ -2424,7 +2428,7 @@ Stripped all Stage 2 code from build (drivers, calibration, CLI) to resolve I2C 
 
 **Telstar Booster Pack, docs/hardware/ reorganization, Gemini ELRS section**
 
-Created `docs/hardware/` subdirectory and moved hardware design documents into it (`HARDWARE.md`, `GEMINI_CARRIER_BOARD.md`, `STATUS_INDICATORS.md`) using `git mv` to preserve history. Created `docs/hardware/TELSTAR_BOOSTER_PACK.md` — Telstar Booster Pack design document covering ELRS RC link, CRSF protocol, FPV video transmitter, standalone product potential, FAA Remote ID module support, and updated Booster Pack lineup. Added Section 8.4 (Dedicated ELRS Communications Core) to Gemini doc. Updated all cross-references across repo (README, SAD, SCAFFOLDING, PROJECT_OVERVIEW, HARDWARE, ICDs, SpaceWire-Lite).
+Created `docs/hardware/` subdirectory and moved hardware design documents into it (`HARDWARE.md`, `GEMINI_CARRIER_BOARD.md`, `STATUS_INDICATORS.md`) using `git mv` to preserve history. Created `docs/hardware/TELSTAR_BOOSTER_PACK.md` â€” Telstar Booster Pack design document covering ELRS RC link, CRSF protocol, FPV video transmitter, standalone product potential, FAA Remote ID module support, and updated Booster Pack lineup. Added Section 8.4 (Dedicated ELRS Communications Core) to Gemini doc. Updated all cross-references across repo (README, SAD, SCAFFOLDING, PROJECT_OVERVIEW, HARDWARE, ICDs, SpaceWire-Lite).
 
 ---
 
@@ -2444,7 +2448,7 @@ Cross-referenced current I2C code against working `AP_FreeRTOS` branch. Code is 
 
 Implemented bare-metal RC_OS CLI with calibration integration (IVP-15, IVP-16, IVP-18). CLI provides single-key command interface with calibration menu, sensor status, and I2C rescan capability. Sensor availability checks prevent calibration commands when sensors not initialized. Non-blocking calibration progress monitoring with dots and OK/FAIL output.
 
-**Status:** Calibration logic complete but blocked on I2C issue — see AGENT_WHITEBOARD.md for details.
+**Status:** Calibration logic complete but blocked on I2C issue â€” see AGENT_WHITEBOARD.md for details.
 
 ---
 
@@ -2474,7 +2478,7 @@ Added Section 8.2 (Dual-IMU Fusion and EKF Lane Switching) to `docs/GEMINI_CARRI
 
 **Integration and Verification Plan (IVP) + SAD Updates**
 
-Created `docs/IVP.md` — 64-step development roadmap across 9 stages with pass/fail verification gates. Council review (4 personas) produced 12 findings, all implemented: `⚠️ VALIDATE` convention for numerical values, RP2350 inter-core primitives section (spinlocks, FIFO, doorbells as IVP-21 through IVP-23), GPS as Stage 4 before fusion, I2C bus recovery, MPU details, milestone markers.
+Created `docs/IVP.md` â€” 64-step development roadmap across 9 stages with pass/fail verification gates. Council review (4 personas) produced 12 findings, all implemented: `âš ï¸ VALIDATE` convention for numerical values, RP2350 inter-core primitives section (spinlocks, FIFO, doorbells as IVP-21 through IVP-23), GPS as Stage 4 before fusion, I2C bus recovery, MPU details, milestone markers.
 
 SAD.md updates: per-sensor validity flags, seqlock implementation replacing TODO, inter-core primitives table, PIO allocation table, AMP architecture corrections, Section 14 numbering fix. SCAFFOLDING.md and PROJECT_STATUS.md updated with PIO_ALLOCATION.md placeholders.
 
@@ -2482,22 +2486,22 @@ SAD.md updates: per-sensor validity flags, seqlock implementation replacing TODO
 
 ### 2026-02-03-004 | Claude Code CLI | documentation, architecture
 
-Added PIO hardware watchdog design concepts document (`docs/PIO/PIO_WATCHDOG.md`). Covers heartbeat watchdog, dual-core cross-check, and pyro channel lockout using PIO state machines as CPU-independent safety monitors. Concept stage — not committed to IVP.
+Added PIO hardware watchdog design concepts document (`docs/PIO/PIO_WATCHDOG.md`). Covers heartbeat watchdog, dual-core cross-check, and pyro channel lockout using PIO state machines as CPU-independent safety monitors. Concept stage â€” not committed to IVP.
 
 ---
 
 ### 2026-02-03-003 | Claude Code CLI | documentation, refactor
 
-**Bare-Metal Pivot — Documentation Cleanup (continued)**
+**Bare-Metal Pivot â€” Documentation Cleanup (continued)**
 
 Systematic cleanup of FreeRTOS/ArduPilot references across all documentation.
 
-- LESSONS_LEARNED.md — archived 8 FreeRTOS-specific entries (7-10, 14, 17-19), minor rewording on entries 3, 4, 12, 15
-- DEBUG_OUTPUT.md — replaced deferred logging with direct printf macros, renamed per-task to per-module, updated build config table
-- CODING_STANDARDS.md — removed RTOS tier table, ArduPilot Library Integration, Dependency Bypassing Policy, HAL Adaptation Policy sections; demoted ArduPilot from "check first" to "useful reference" in Prior Art Research; removed archived LL entry references
-- PROJECT_OVERVIEW.md — replaced "RTOS" with "deterministic control loops" in Titan tier, "FreeRTOS" with "Bare-metal Pico SDK" in Technical Foundation
-- PROJECT_STATUS.md — added ChibiOS upstream note, added full ArduPilot integration as back burner goal
-- ROCKETCHIP_OS.md — replaced FreeRTOS Task Model with bare-metal Execution Model, updated source files table, replaced platform-specific FreeRTOS issues with USB CDC concerns, removed priority-based references
+- LESSONS_LEARNED.md â€” archived 8 FreeRTOS-specific entries (7-10, 14, 17-19), minor rewording on entries 3, 4, 12, 15
+- DEBUG_OUTPUT.md â€” replaced deferred logging with direct printf macros, renamed per-task to per-module, updated build config table
+- CODING_STANDARDS.md â€” removed RTOS tier table, ArduPilot Library Integration, Dependency Bypassing Policy, HAL Adaptation Policy sections; demoted ArduPilot from "check first" to "useful reference" in Prior Art Research; removed archived LL entry references
+- PROJECT_OVERVIEW.md â€” replaced "RTOS" with "deterministic control loops" in Titan tier, "FreeRTOS" with "Bare-metal Pico SDK" in Technical Foundation
+- PROJECT_STATUS.md â€” added ChibiOS upstream note, added full ArduPilot integration as back burner goal
+- ROCKETCHIP_OS.md â€” replaced FreeRTOS Task Model with bare-metal Execution Model, updated source files table, replaced platform-specific FreeRTOS issues with USB CDC concerns, removed priority-based references
 - Deleted GETTING_STARTED.md (thoroughly outdated, not needed until development matures)
 
 ---
@@ -2511,21 +2515,21 @@ Removed all FreeRTOS dependencies, pivoting to bare-metal Pico SDK with polling 
 **Deleted:**
 - FreeRTOS-Kernel submodule, FreeRTOSConfig.h, FreeRTOS_Kernel_import.cmake
 - docs/FreeRTOS/TASK_PRIORITIES.md
-- src/main.cpp, src/tasks/sensor_task.c/h, src/debug/debug_stream.c/h (RTOS glue — will be rewritten)
+- src/main.cpp, src/tasks/sensor_task.c/h, src/debug/debug_stream.c/h (RTOS glue â€” will be rewritten)
 
 **Edited:**
-- CMakeLists.txt — removed FreeRTOS imports, heap link, commented out deleted sources
-- config.h — replaced task priorities/stacks with polling timing constants, simplified debug macros to direct printf
-- CODING_STANDARDS.md — replaced FreeRTOS platform constraints with bare-metal rules
-- SAD.md, PROJECT_STATUS.md, SCAFFOLDING.md, MULTICORE_RULES.md — updated for bare-metal architecture
-- DEBUG_PROBE_NOTES.md, SESSION_CHECKLIST.md — minor RTOS reference removal
-- ws2812_status.h — comment update
+- CMakeLists.txt â€” removed FreeRTOS imports, heap link, commented out deleted sources
+- config.h â€” replaced task priorities/stacks with polling timing constants, simplified debug macros to direct printf
+- CODING_STANDARDS.md â€” replaced FreeRTOS platform constraints with bare-metal rules
+- SAD.md, PROJECT_STATUS.md, SCAFFOLDING.md, MULTICORE_RULES.md â€” updated for bare-metal architecture
+- DEBUG_PROBE_NOTES.md, SESSION_CHECKLIST.md â€” minor RTOS reference removal
+- ws2812_status.h â€” comment update
 
 **Deferred for later evaluation (>40% rewrite needed):**
-- DEBUG_OUTPUT.md — deferred logging architecture references deleted code
-- LESSONS_LEARNED.md — ~50% of entries are FreeRTOS-specific
+- DEBUG_OUTPUT.md â€” deferred logging architecture references deleted code
+- LESSONS_LEARNED.md â€” ~50% of entries are FreeRTOS-specific
 
-**Preserved unchanged:** src/calibration/*, src/drivers/* (sensor drivers, calibration, LED — no RTOS dependency)
+**Preserved unchanged:** src/calibration/*, src/drivers/* (sensor drivers, calibration, LED â€” no RTOS dependency)
 
 ---
 
@@ -2602,7 +2606,7 @@ Changed sensor fusion approach from ArduPilot EKF3 extraction to custom Error-St
 
 - Added `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md` - full rationale and design
 - Added `docs/ESKF/FUSION_ARCHITECTURE.md` - reference document
-- Updated SAD.md §5.4 (fusion), §10 (Phase 4), key decisions table, open questions
+- Updated SAD.md Â§5.4 (fusion), Â§10 (Phase 4), key decisions table, open questions
 - Updated SCAFFOLDING.md FusionTask descriptions
 - AP_HAL_RP2350 still used for calibration/math/storage - NOT for fusion
 - Added `.claude/PROTECTED_FILES.md` - files requiring explicit permission to edit

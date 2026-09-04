@@ -20,6 +20,7 @@
 #include "flight_director/flight_state.h"
 #include <string.h>
 #include <stdint.h>
+#include <cstdint>
 #include <math.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -262,34 +263,64 @@ static int format_rate_row(char* out, size_t n) {
         (unsigned long)c.station_tx_n);
 }
 
+// CRC-good RX Hz tenths — same formula as radio_rate_counters dump_hz_field.
+static void format_rx_hz_token(char* out, size_t n, uint8_t desired_hz) {
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t window_ms = 0;
+#endif
+    if (window_ms < 1000U) {
+        rc::rc_snprintf(out, n, "RX --/%u Hz",
+                        static_cast<unsigned>(desired_hz));
+        return;
+    }
+    const uint32_t window_s = window_ms / 1000U;
+    const uint32_t hz10 = static_cast<uint32_t>(
+        (static_cast<uint64_t>(g_radioRateCounters.rx_crc_ok_n) * 10U) /
+        window_s);
+    rc::rc_snprintf(out, n, "RX %lu.%lu/%u Hz",
+                    (unsigned long)(hz10 / 10U),
+                    (unsigned long)(hz10 % 10U),
+                    static_cast<unsigned>(desired_hz));
+}
+
 // IVP-T14: RF Link glance indicator — green/yellow/red block that matches
 // the FD pre-arm threshold (kTrack + LQ>=65 = green, kTrackDegraded OR
 // LQ<65 in any tracking state = yellow, kAcq/kTentative/no RX = red).
 // Returns pair (color, row text) via out parameters.
-static void format_rf_link_row(char* out, size_t n, const char*& colour) {
+static void format_rf_link_row(char* out, size_t n, const char*& colour,
+                               const DisplayFields& d) {
+    // Denom is CFG nav_rate_hz; vehicle echo is the TM command rate.
+    uint8_t desired = d.stn_nav;
+    if (d.veh_cfg_known && d.veh_nav != 0) {
+        desired = d.veh_nav;
+    }
+    char rxhz[24];
+    format_rx_hz_token(rxhz, sizeof(rxhz), desired);
+
     const rc::RfManagerState* rf = rc::AO_RfManager_get_state();
     if (rf == nullptr || !rf->anchor_valid) {
         colour = kRed;
-        rc::rc_snprintf(out, n, "RF Link: NO RX YET                 [  ]");
+        rc::rc_snprintf(out, n, "RF Link: NO RX YET %s [!!]", rxhz);
         return;
     }
     const uint8_t lq  = rf->lq_pct;
     const int     st  = static_cast<int>(rf->state);
     const char*   st_name = rc::link_state_name(rf->state);
+    const char* tag = "[!!]";
     // kTrack=2, kTrackDegraded=3
     if (st == 2 && lq >= 65U) {
         colour = kGreen;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [OK]",
-                        st_name, static_cast<unsigned>(lq));
+        tag = "[OK]";
     } else if (st == 2 || st == 3) {
         colour = kYellow;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [--]",
-                        st_name, static_cast<unsigned>(lq));
+        tag = "[--]";
     } else {
         colour = kRed;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [!!]",
-                        st_name, static_cast<unsigned>(lq));
     }
+    rc::rc_snprintf(out, n, "RF Link: %s LQ %u%% %s %s",
+                    st_name, static_cast<unsigned>(lq), rxhz, tag);
 }
 
 // IVP-T14c: short command name for dashboard row. Stable across retries.
@@ -383,9 +414,9 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     else if (d.cfg_mismatch)     { radio_clr = kYellow; }
 
     // IVP-T14: RF Link row with glance indicator (pre-arm parity).
-    char rflink_row[80];
+    char rflink_row[96];
     const char* rflink_clr = kReset;
-    format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr);
+    format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr, d);
 
     // IVP-T14c: CMD row — pending/ACK/FAIL status with auto-clear.
     char cmd_row[80];
