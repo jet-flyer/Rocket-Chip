@@ -9,12 +9,10 @@ $repo = Split-Path -Parent $PSScriptRoot
 $sdk = Join-Path $env:USERPROFILE '.pico-sdk/openocd/0.12.0+dev'
 $exe = Join-Path $sdk 'openocd.exe'
 $scr = Join-Path $sdk 'scripts'
-$psi = [System.Diagnostics.ProcessStartInfo]::new()
-$psi.FileName = $exe
-$psi.Arguments = "-s `"$scr`" -s `"$repo`" -f openocd_cmsis_dap.cfg"
-$psi.UseShellExecute = $false
-$psi.CreateNoWindow = $true
-$proc = [System.Diagnostics.Process]::Start($psi)
+# Detach via ShellExecute. UseShellExecute=false + inherited stdin dies
+# with EOF when this `powershell -File` process exits — netstat showed
+# LISTENING then Python got WinError 10061 (desk 2026-09-03).
+$proc = Start-Process -FilePath $exe -ArgumentList "-s `"$scr`" -s `"$repo`" -f openocd_cmsis_dap.cfg" -WorkingDirectory $repo -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds 4
 if ($proc.HasExited) {
     Write-Host "OpenOCD exited $($proc.ExitCode)."

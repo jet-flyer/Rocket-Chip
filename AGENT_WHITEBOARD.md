@@ -17,6 +17,39 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Next after Pass A/B soak (OPEN) (2026-09-03)
+
+Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Default boot still **125/5/2 SF7**. Tree restored seq-nav. **Chips still have B5 500/10 expedited** until reflashed.
+
+Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to true time (3D / oMCT). Prefer MET + GPS on both ends; oMCT not wired.
+
+**Next to address (fresh sitting, not this wrap):**
+
+1. Commanded 10 Hz vs ~5 Hz delivered (TX-busy / half-duplex / COP-P window).
+2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
+3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
+4. FSK (below).
+5. Hail.
+6. Adaptive TX power.
+
+Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET table; retire BW125 from desk SNR. Jam flash: `picotool load <uf2> -f --bus/--address` tracking `BEC71` only. Dirty keep: BOOTSEL helpers + `station_phy_scan` untracked — do not `git clean`.
+
+**SET vs lock (parked):** hop-on-send reverted. SET CLI can fire while FOP `V(S)` stays 0. Pass A cells were reflash, not SET.
+
+---
+
+## Station LED: COP-P lock vs RSSI (WANTED) (2026-09-03)
+
+Owner: RSSI LEDs can be yellow/green (LoRa heard) while COP-P is **waiting peer PLCW**. Desk 2026-09-03: after Jam reset, RX climbing CRC=0 / yellow LEDs, no lock until vehicle USB replug. Wanted: keep current RSSI colour, **0.5 Hz on/off blink when not locked**. Not a soak step. Not a license to implement this sitting.
+
+---
+
+## FSK mode (WANTED) (2026-09-02)
+
+Owner-wanted after LoRa Pass A. SX1276 FSK (packet and/or continuous bitstream — IVP-63 / ADVANCED_SETTINGS placeholder). Not tonight's LoRa SF/BW matrix. Not hail. Not a license to mint SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot.
+
+---
+
 ## Pre-commit vehicle bench_sim on station-only firmware (OPEN) (2026-08-27)
 
 Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station-job diffs still demand COM5. HEALTH-ring reclassify is no longer the reason (Core1 vitality + `passive_dump_needs_help`). Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs). Related: *bench_sim hook vs canary* row.
@@ -35,13 +68,6 @@ Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untw
 
 ---
 
-## Vehicle RFM95 `RegVersion=0xFF` (WATCH) (2026-09-02)
-
-Parked. I2C sitting did not touch `rfm95w` / `spi_bus` / Feather radio pins / committed `ao_radio`. Same driver as months of working air. Live CLI `d` this bench: `RegVersion=0xFF` (expect `0x12`), AO_Radio `kIdle`, `tx=0`. Not an I2C-land regression in git. Watch on the next radio sitting; do not debug as STEMMA.
-
-**LoRa vs QT:** not expected to couple into the I2C daisy-chain (separate SPI0 vs I2C1 STEMMA). Do not FPV-twist the QT 4-core for RF (LL 47). If a future TX soak shows `I=` dying, that is a new claim — not assumed.
-
----
 
 
 ## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)
@@ -73,11 +99,13 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ---
 
-## Starcom (OPEN) (2026-08-28)
+## Starcom (OPEN) (2026-09-02)
 
-Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `0.19.0-dev`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP). Prep worktree `Rocket-Chip-sc-dev` / `grok/sc-dev` is closed.
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `starcom-v0.2.25`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP).
 
-**Still RC:** barebones vehicle+station ON soak before more SDU fields. Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). **Still Starcom library:** IVP 0–25, tag `starcom-v0.2.25` (`0.2.N` / N = increment). FPGA PHY/decode held until board verification. Consumer guide: `starcom/docs/USER_GUIDE.md`.
+**Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). One tree. Not a `Rocket-Chip-*` folder. `docs/starcom-sad-draft` and `grok/starcom-ivp23` are leftovers to drop after this sitting's port.
+
+**Still RC:** two-board ON soak — station COP-P cmd SDU (ARM) after vehicle nav has given RfManager an anchor. Do not drain COP-P when the station TX window is 0 (Radio would drop the PLTU and FOP-P would never resend: synch_timeout=0). Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). FPGA PHY/decode held. Consumer guide: `starcom/docs/USER_GUIDE.md`.
 
 ---
 

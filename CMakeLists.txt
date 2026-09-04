@@ -745,8 +745,6 @@ else()
     # flight binary. T=0 preconditions + diag_stats_dump (read-only,
     # always available) + fault_force_* (test-mode-gated at entry).
     target_link_options(rocketchip PRIVATE
-        "LINKER:--wrap=watchdog_reboot"
-        "LINKER:--wrap=rom_reset_usb_boot_extra"
         -Wl,--undefined=diag_stats_t0_preconditions
         -Wl,--undefined=diag_stats_dump
         -Wl,--undefined=rfm95w_read_version

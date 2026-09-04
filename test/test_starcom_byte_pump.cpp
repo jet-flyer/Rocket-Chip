@@ -192,4 +192,46 @@ TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
                     .has_value());
 }
 
+// Air order after vehicle nav is already flowing: station hears a PLTU,
+// then one command AD is enough for take_sdu (no extra control round).
+TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> nav{};
+    const auto nn = pump_pack_nav_packet(nav, telem);
+    ASSERT_TRUE(nn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(nav.data(), *nn), false)
+                    .has_value());
+
+    std::array<std::byte, 255> wire{};
+    const auto v0 = pump_bytes_to_send(vehicle, wire);
+    ASSERT_TRUE(v0.has_value());
+    ASSERT_GT(*v0, 0u);
+    pump_receive_bytes(station, std::span<const std::byte>(wire.data(), *v0));
+    const auto s_plcw = pump_bytes_to_send(station, wire);
+    ASSERT_TRUE(s_plcw.has_value());
+    ASSERT_GT(*s_plcw, 0u);
+    pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s_plcw));
+
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    station, std::span<const std::byte>(cmd.data(), *cn), false)
+                    .has_value());
+    const auto s_cmd = pump_bytes_to_send(station, wire);
+    ASSERT_TRUE(s_cmd.has_value());
+    ASSERT_GT(*s_cmd, 0u);
+    pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s_cmd));
+    std::array<std::byte, 64> sdu{};
+    const auto tn = pump_take_sdu(vehicle, sdu);
+    ASSERT_TRUE(tn.has_value());
+    ASSERT_EQ(*tn, *cn);
+}
+
 #endif  // ROCKETCHIP_USE_STARCOM

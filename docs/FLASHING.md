@@ -53,7 +53,14 @@ the old recipe and it is wrong on this hardware.
 
 ---
 
-## Iterative flash (debug probe) — default
+## Two flash paths
+
+- **USB `picotool load -f`:** running CDC → vendor BOOTSEL → write → app. Station (Fruit Jam, no SWD) and any board the probe is not on. This is the year-old USB path. Do **not** wrap `rom_reset_usb_boot_extra` / `watchdog_reboot` in I2C quiesce — that broke `-f` (2026-09-03; last-known-good `6c6b0a3`).
+- **Probe halt-write:** vehicle Feather + STEMMA, so MCU-only SYSRESETREQ does not land mid-byte on a live 3V3 bus. `scripts/flash_elf_halt_write.py`. Not the Jam USB recipe.
+
+---
+
+## Iterative flash (debug probe) — vehicle / STEMMA
 
 Probe must be on the board you are flashing (typical: vehicle Feather).
 
@@ -141,21 +148,32 @@ first.
 ## Picotool — station / no-SWD board
 
 Use when the probe is on the other board (typical: Feather has SWD,
-Fruit Jam does not). `--ser` is mandatory if more than one RP2350 is
-plugged in.
+Fruit Jam does not). Identify the board by **chip serial** in PnP/pyusb
+first (Jam `BEC71B8EDC6AEBD1` COM7, vehicle `02FBDDB8E1CA1281` COM5).
+Never load a station UF2 onto the Feather.
+
+Flag order: **filename, then `-f`, then device-selection**. `--bus` /
+`--address` before the filename is “unexpected option.” After `-f`,
+`--ser` can miss Jam picoboot (unread/garbage iSerial). Map serial →
+bus/address, then:
 
 ```bash
-picotool load -f --ser <chip-serial> <path-to-rocketchip.uf2>
+picotool load <path-to-rocketchip.uf2> -f --bus <bus> --address <addr>
 ```
+
+Success is a load bar to 100% and “rebooted to start the application”
+(or verify OK). `exit -7` with no load bar is a failed write — stop;
+do not pile on `reboot -f` / WinUSB / COM7 open.
 
 `-f` talks to a **running** CDC device, issues a USB vendor reboot,
 writes, returns to the app. That is a **warm MCU reset**. STEMMA 3V3
-stays up. Firmware must bring the bus up without a cable pull.
+stays up. Firmware must bring the bus up without a cable pull. CLI `k`
+is the I2C-safe MCU restart (ABORT-then-STOP then watchdog), not the
+USB SETUP callback.
 
 Do **not** use `picotool reboot -f` or `reboot -a -f` for extra counted
-boots (2026-08-20: CDC gone until a physical USB replug). Extra MCU
-restarts on an idle bus: CLI `k` (ABORT-then-STOP then watchdog). Slave
-POR: VBUS cycle. Close any serial monitor if picotool cannot find the
+boots (2026-08-20: CDC gone until a physical USB replug). Slave POR:
+VBUS cycle. Close any serial monitor if picotool cannot find the
 device.
 
 `picotool info` without `-f` reads without rebooting.

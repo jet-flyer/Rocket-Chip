@@ -391,6 +391,29 @@ def passive_dump_needs_help(banner: Banner) -> bool:
 # Port probing
 # ============================================================================
 
+def open_cdc_hold_dtr(port_name: str, baud: int = 115200,
+                      timeout: float = 0.1) -> serial.Serial:
+    """Open TinyUSB CDC without the pyserial DTR-high pulse.
+
+    FLASHING.md rule 5: default Serial() USB-resets Core 0 into bootrom
+    so post-open re-classify sees unknown firmware. DTR low at open, then
+    SETDTR so tud_cdc_connected() is true.
+    """
+    ser = serial.Serial()
+    ser.port = port_name
+    ser.baudrate = baud
+    ser.timeout = timeout
+    ser.write_timeout = 1.0
+    ser.dsrdtr = False
+    ser.rtscts = False
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+    ser.dtr = True
+    time.sleep(0.5)
+    return ser
+
+
 def peek_banner(port_name: str,
                 peek_timeout: float = 2.0,
                 open_timeout: float = 3.0,
@@ -422,8 +445,7 @@ def peek_banner(port_name: str,
 
         def _go() -> None:
             try:
-                s = serial.Serial(port_name, 115200, timeout=0.3,
-                                  write_timeout=0.5)
+                s = open_cdc_hold_dtr(port_name, baud=115200, timeout=0.3)
                 time.sleep(0.5)
                 data = s.read(8000)
                 text_so_far = data.decode('utf-8', errors='replace')
@@ -433,6 +455,7 @@ def peek_banner(port_name: str,
                     time.sleep(peek_timeout)
                     text_so_far += s.read(8000).decode('utf-8',
                                                        errors='replace')
+                s.dtr = False
                 s.close()
                 result[0] = text_so_far
             except (serial.SerialException, OSError, PermissionError):
@@ -688,7 +711,7 @@ def open_classified_port(port_name: str,
 
         def _try_open() -> None:
             try:
-                p = serial.Serial(port_name, baud, timeout=timeout)
+                p = open_cdc_hold_dtr(port_name, baud=baud, timeout=timeout)
                 time.sleep(1.0)
                 p.read(10000)
                 time.sleep(0.3)
@@ -733,6 +756,13 @@ def open_classified_port(port_name: str,
             time.sleep(1.0)
             data += ser.read(16000)
         banner = classify_banner(data.decode('utf-8', errors='replace'))
+        # pyserial DTR-pulse USB-resets; STEMMA/GPS boot is several seconds
+        # of I2C/radio lines before "Profile: Rocket". Long dump ≠ classified.
+        deadline = time.time() + 12.0
+        while not target.matches(banner) and time.time() < deadline:
+            time.sleep(1.0)
+            data += ser.read(16000)
+            banner = classify_banner(data.decode('utf-8', errors='replace'))
         if not target.matches(banner):
             sys.stderr.write(
                 f'ERROR: post-open re-classify on {port_name} found '
@@ -763,6 +793,7 @@ def open_classified_port(port_name: str,
         yield ser
     finally:
         try:
+            ser.dtr = False
             ser.close()
         except (serial.SerialException, OSError):
             pass

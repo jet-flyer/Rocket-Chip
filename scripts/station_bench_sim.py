@@ -210,9 +210,10 @@ def test_boot_and_main_menu(port, state, verbose=False):
 def test_hardware_status(port, state, verbose=False):
     """Verify Hardware Status shows [N/A] for uninstalled sensors (IVP-142c).
 
-    Path: from [main] → 'q' (debug menu, dev-only) → 'b' (HW status print).
+    Path: from [main] → 'q' (debug menu) → 'b' (HW status print).
     Returns to main with Esc (NOT 'x' — 'x' from main is Erase-Flights).
     """
+    goto_main_from_anywhere(port)
     send_and_read(port, 'q', 1.5)            # → [debug]
     out = send_and_read(port, 'b', 4.0)      # cli_print_hw_status
     send_and_read(port, ESC, 1.0)            # → back to [main]

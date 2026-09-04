@@ -34,6 +34,11 @@ uint8_t AO_Telemetry_cycle_rate();
 // 5 Hz default). Only affects vehicle role — station has no TX cadence.
 void AO_Telemetry_set_rate(uint8_t rate_hz);
 
+// After SX1276 apply: COP-P FOP/FARM counters are for the old PHY.
+// coppInit in place (byte_pump). Both roles. Desk 2026-09-03: SET changed
+// vehicle CFG but lock died (hear ≠ PLCW).
+void AO_Telemetry_on_radio_phy_applied();
+
 // Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
 // Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for
 // SF7/BW125 collision regime). Now AO_Radio computes it from current

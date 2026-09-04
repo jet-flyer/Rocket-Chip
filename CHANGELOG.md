@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-03-002 | Grok 4.6 (Build CLI) | hardware, documentation
+
+**Desk Pass A/B soak scored; default still 125/5/2.** Keepers already on `grok/sc-dev` (`6dcea56`: wrap-free USB `-f`, 2 dBm table, TX hold). A/B matrix, U.FL confound, B4 expedited vs A4 squeeze, and next work: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. SET hop still parked. Expedited nav not left in tree. Procedure stays `starcom/docs/integration/TWO_BOARD_SOAK.md`. Verified: CFG-confirmed soaks, COP-P lock / positive-control PASS on scored cells (see report).
+
 ### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
 
 **Starcom consumer Pass A pre-soak is in `starcom/CHANGELOG.md` `2026-09-03-001`, not here.** No Rocket-Chip STEMMA/I2C land this sitting. Resume: `starcom_dev/logs/soak/2026-09-03_HANDOFF.md`. Verified: docs split only; no RC firmware in this commit.

@@ -1,0 +1,1175 @@
+﻿starcom clang-tidy  scope=core  -p C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\build  --config-file C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\.clang-tidy
+---- src\ccsds\clcw.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:13:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   13 |   w.status = static_cast<std::uint8_t>((b0 >> 2) & 0x07u);
+      |                                                    ^   ~
+      |                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:13:52: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:14:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   14 |   w.cop_in_effect = static_cast<std::uint8_t>(b0 & 0x03u);
+      |                                                    ^   ~
+      |                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:15:50: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   15 |   w.vcid = static_cast<std::uint8_t>((b1 >> 2) & 0x3Fu);
+      |                                                  ^   ~
+      |                                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:15:50: warning: 0x3Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:16:29: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   16 |   w.no_rf_available = (b2 & 0x80u) != 0;
+      |                             ^   ~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:17:25: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   17 |   w.no_bit_lock = (b2 & 0x40u) != 0;
+      |                         ^   ~
+      |                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:18:21: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   18 |   w.lockout = (b2 & 0x20u) != 0;
+      |                     ^   ~
+      |                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:19:18: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   19 |   w.wait = (b2 & 0x10u) != 0;
+      |                  ^   ~
+      |                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:20:24: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   20 |   w.retransmit = (b2 & 0x08u) != 0;
+      |                        ^   ~
+      |                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:21:60: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   21 |   w.farm_b_counter = static_cast<std::uint8_t>((b2 >> 1) & 0x03u);
+      |                                                            ^   ~
+      |                                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:31:66: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   31 |   const unsigned status = static_cast<unsigned>(fields.status) & 0x07u;
+      |                                                                  ^   ~
+      |                                                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:32:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   32 |   const unsigned cop = static_cast<unsigned>(fields.cop_in_effect) & 0x03u;
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:33:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   33 |   const unsigned vcid = static_cast<unsigned>(fields.vcid) & 0x3Fu;
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:34:72: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   34 |   const unsigned farm = static_cast<unsigned>(fields.farm_b_counter) & 0x03u;
+      |                                                                        ^   ~
+      |                                                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:38:48: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   38 |   out[2] = std::byte((fields.no_rf_available ? 0x80u : 0u) |
+      |                                                ^   ~
+      |                                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:38:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   38 |   out[2] = std::byte((fields.no_rf_available ? 0x80u : 0u) |
+      |                                                        ^~
+      |                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:39:44: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   39 |                      (fields.no_bit_lock ? 0x40u : 0u) |
+      |                                            ^   ~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:39:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   39 |                      (fields.no_bit_lock ? 0x40u : 0u) |
+      |                                                    ^~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:40:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   40 |                      (fields.lockout ? 0x20u : 0u) | (fields.wait ? 0x10u : 0u) |
+      |                                        ^   ~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:40:48: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   40 |                      (fields.lockout ? 0x20u : 0u) | (fields.wait ? 0x10u : 0u) |
+      |                                                ^~
+      |                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:40:69: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   40 |                      (fields.lockout ? 0x20u : 0u) | (fields.wait ? 0x10u : 0u) |
+      |                                                                     ^   ~
+      |                                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:40:77: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   40 |                      (fields.lockout ? 0x20u : 0u) | (fields.wait ? 0x10u : 0u) |
+      |                                                                             ^~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:41:43: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   41 |                      (fields.retransmit ? 0x08u : 0u) | (farm << 1));
+      |                                           ^   ~
+      |                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\clcw.cpp:41:51: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   41 |                      (fields.retransmit ? 0x08u : 0u) | (farm << 1));
+      |                                                   ^~
+      |                                                    U
+14505 warnings generated.
+---- src\ccsds\conv.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:10:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   10 | constexpr unsigned kG1 = 0b1111001u;
+      |                          ^        ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:11:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   11 | constexpr unsigned kG2 = 0b1011011u;
+      |                          ^        ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:15:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   15 |   const unsigned v = ((in_bit & 1u) << 6) | (enc.mem & 0x3Fu);
+      |                                 ^~
+      |                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:15:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   15 |   const unsigned v = ((in_bit & 1u) << 6) | (enc.mem & 0x3Fu);
+      |                                                        ^   ~
+      |                                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:16:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   16 |   c1 = std::popcount(v & kG1) & 1u;
+      |                                 ^~
+      |                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:17:34: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   17 |   c2 = (std::popcount(v & kG2) & 1u) ^ 1u;  // G2 symbol inversion
+      |                                  ^~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:17:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   17 |   c2 = (std::popcount(v & kG2) & 1u) ^ 1u;  // G2 symbol inversion
+      |                                        ^~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:26:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   26 |   const std::size_t need = in.size() * 2u;
+      |                                        ^~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:35:18: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   35 |     for (int i = 7; i >= 0; --i) {
+      |                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\conv.cpp:38:38: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   38 |       encode_bit(enc, (value >> i) & 1u, c1, c2);
+      |                                      ^~
+      |                                       U
+14552 warnings generated.
+---- src\ccsds\cop1.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:11:46: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   11 |   return static_cast<std::uint8_t>(f.mib.w / 2u);
+      |                                              ^~
+      |                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:86:17: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   86 |   if (f.mib.w < 2u) {
+      |                 ^~
+      |                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:89:17: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   89 |   if (f.mib.w > 254u) {
+      |                 ^  ~
+      |                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:89:17: warning: 254u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:90:15: warning: 254 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   90 |     f.mib.w = 254;
+      |               ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:92:18: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   92 |   if ((f.mib.w % 2u) != 0) {
+      |                  ^~
+      |                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:101:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  101 |       f.v_r = static_cast<std::uint8_t>(f.v_r + 1u);
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:121:15: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  121 |   if (dpos >= 1u && pw > 1u && dpos <= static_cast<std::uint8_t>(pw - 1u)) {
+      |               ^~
+      |                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:121:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  121 |   if (dpos >= 1u && pw > 1u && dpos <= static_cast<std::uint8_t>(pw - 1u)) {
+      |                          ^~
+      |                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:121:71: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  121 |   if (dpos >= 1u && pw > 1u && dpos <= static_cast<std::uint8_t>(pw - 1u)) {
+      |                                                                       ^~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:127:15: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  127 |   if (dneg >= 1u && dneg <= nw) {
+      |               ^~
+      |                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:137:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  137 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                    ^~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:137:74: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  137 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                          ^   ~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:143:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  143 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                    ^~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:143:74: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  143 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                          ^   ~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:152:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  152 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                    ^~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:152:74: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  152 |   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+      |                                                                          ^   ~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:177:45: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  177 |   w.vcid = static_cast<std::uint8_t>(vcid & 0x3Fu);
+      |                                             ^   ~
+      |                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:177:45: warning: 0x3Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:181:67: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  181 |   w.farm_b_counter = static_cast<std::uint8_t>(f.farm_b_counter & 0x03u);
+      |                                                                   ^   ~
+      |                                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:189:18: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  189 |   if (f.mib.k == 0u) {
+      |                  ^~
+      |                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:192:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  192 |   if (f.mib.transmission_limit == 0u) {
+      |                                   ^~
+      |                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:282:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  282 |     f.v_s = static_cast<std::uint8_t>(f.v_s + 1u);
+      |                                               ^~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:292:6: warning: function 'fop_1_on_clcw' has cognitive complexity of 41 (threshold 25) [readability-function-cognitive-complexity]
+  292 | void fop_1_on_clcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept {
+      |      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:292:6: warning: function 'fop_1_on_clcw' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:292:6: note: 93 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:356:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  356 |     if (f.mib.transmission_limit <= 1u) {
+      |                                     ^~
+      |                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:504:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  504 |   for (std::uint8_t i = 0; i + 1u < e.rx_n; ++i) {
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:505:28: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  505 |     e.rx_q[i] = e.rx_q[i + 1u];
+      |                            ^~
+      |                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:506:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  506 |     e.rx_len[i] = e.rx_len[i + 1u];
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:545:77: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  545 |     const std::uint8_t ns = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+      |                                                                             ^   ~
+      |                                                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:560:21: warning: function 'cop1_bytes_to_send' exceeds recommended size/complexity thresholds [readability-function-size]
+  560 | Result<std::size_t> cop1_bytes_to_send(Cop1Endpoint& e,
+      |                     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:560:21: note: 77 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:608:34: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  608 |     for (std::uint8_t i = 0; i + 1u < e.ad_n; ++i) {
+      |                                  ^~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:609:30: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  609 |       e.ad_q[i] = e.ad_q[i + 1u];
+      |                              ^~
+      |                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\cop1.cpp:610:34: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  610 |       e.ad_len[i] = e.ad_len[i + 1u];
+      |                                  ^~
+      |                                   U
+18226 warnings generated.
+---- src\ccsds\copp.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:79:64: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   79 |         static_cast<std::uint8_t>((f.expedited_frame_counter + 1u) & 0x07u);
+      |                                                                ^~
+      |                                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:79:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   79 |         static_cast<std::uint8_t>((f.expedited_frame_counter + 1u) & 0x07u);
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:79:70: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:84:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   84 |     f.v_r = static_cast<std::uint8_t>(f.v_r + 1u);
+      |                                               ^~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:113:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  113 |   if (f.mib.transmission_window > 127u) {
+      |                                   ^  ~
+      |                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:113:35: warning: 127u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:114:33: warning: 127 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  114 |     f.mib.transmission_window = 127;
+      |                                 ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:116:36: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  116 |   if (f.mib.transmission_window == 0u) {
+      |                                    ^~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:140:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  140 |     f.ve_s = static_cast<std::uint8_t>(f.ve_s + 1u);
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:145:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  145 |     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:153:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  153 |     f.v_s = static_cast<std::uint8_t>(f.v_s + 1u);
+      |                                               ^~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:154:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  154 |     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:160:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  160 |     f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:262:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  262 |   for (std::uint8_t i = 0; i + 1u < e.rx_n; ++i) {
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:263:28: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  263 |     e.rx_q[i] = e.rx_q[i + 1u];
+      |                            ^~
+      |                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:264:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  264 |     e.rx_len[i] = e.rx_len[i + 1u];
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:319:6: warning: function 'copp_receive_bytes' has cognitive complexity of 26 (threshold 25) [readability-function-cognitive-complexity]
+  319 | void copp_receive_bytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept {
+      |      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:319:6: warning: function 'copp_receive_bytes' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:319:6: note: 64 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:341:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  341 |     const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:385:21: warning: function 'copp_encode_uslp' can be made static or moved into an anonymous namespace to enforce internal linkage [misc-use-internal-linkage]
+  385 | Result<std::size_t> copp_encode_uslp(CoppEndpoint& e, std::span<std::byte> out,
+      |                     ^
+      | static 
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:407:21: warning: function 'copp_bytes_to_send' has cognitive complexity of 27 (threshold 25) [readability-function-cognitive-complexity]
+  407 | Result<std::size_t> copp_bytes_to_send(CoppEndpoint& e,
+      |                     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:407:21: warning: function 'copp_bytes_to_send' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:407:21: note: 81 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:466:36: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  466 |       for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
+      |                                    ^~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:467:34: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  467 |         e.seq_q[i] = e.seq_q[i + 1u];
+      |                                  ^~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:468:38: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  468 |         e.seq_len[i] = e.seq_len[i + 1u];
+      |                                      ^~
+      |                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\copp.cpp:469:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  469 |         e.seq_user_defined[i] = e.seq_user_defined[i + 1u];
+      |                                                        ^~
+      |                                                         U
+18188 warnings generated.
+---- src\ccsds\crc32.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:7:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+    7 | constexpr std::uint32_t kPoly = 0x00A00805u;
+      |                                 ^         ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:17:18: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   17 |     for (int i = 7; i >= 0; --i) {
+      |                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:18:43: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   18 |       const unsigned bit = (value >> i) & 1u;
+      |                                           ^~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:19:42: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   19 |       const unsigned msb = (crc >> 31) & 1u;
+      |                                          ^~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:21:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   21 |       if ((msb ^ bit) != 0u) {
+      |                          ^~
+      |                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:31:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   31 |   constexpr std::uint16_t kPoly16 = 0x1021u;
+      |                                     ^     ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:32:23: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   32 |   std::uint16_t crc = 0xFFFFu;
+      |                       ^     ~
+      |                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:32:23: warning: 0xFFFFu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:35:18: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   35 |     for (int i = 7; i >= 0; --i) {
+      |                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:36:43: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   36 |       const unsigned bit = (value >> i) & 1u;
+      |                                           ^~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:37:42: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   37 |       const unsigned msb = (crc >> 15) & 1u;
+      |                                          ^~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\crc32.cpp:39:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   39 |       if ((msb ^ bit) != 0u) {
+      |                          ^~
+      |                           U
+7858 warnings generated.
+---- src\ccsds\ldpc.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:127:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  127 |   return (static_cast<unsigned>(oct[i / 8]) >> (7u - (i % 8u))) & 1u;
+      |                                                 ^~
+      |                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:127:49: warning: 7u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:127:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  127 |   return (static_cast<unsigned>(oct[i / 8]) >> (7u - (i % 8u))) & 1u;
+      |                                                           ^~
+      |                                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:127:67: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  127 |   return (static_cast<unsigned>(oct[i / 8]) >> (7u - (i % 8u))) & 1u;
+      |                                                                   ^~
+      |                                                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:132:46: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  132 |       oct[i / 8] ^ static_cast<std::uint8_t>(1u << (7u - (i % 8u))));
+      |                                              ^~
+      |                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:132:53: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  132 |       oct[i / 8] ^ static_cast<std::uint8_t>(1u << (7u - (i % 8u))));
+      |                                                     ^~
+      |                                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:132:53: warning: 7u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:132:63: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  132 |       oct[i / 8] ^ static_cast<std::uint8_t>(1u << (7u - (i % 8u))));
+      |                                                               ^~
+      |                                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:138:25: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  138 |     if (bit_at(u, i) == 0u) {
+      |                         ^~
+      |                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:142:50: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  142 |       const std::size_t src = (j - i) & (kCirc - 1u);
+      |                                                  ^~
+      |                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:143:29: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  143 |       if (bit_at(r, src) != 0u) {
+      |                             ^~
+      |                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:157:18: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  157 |     for (int b = 7; b >= 0; --b) {
+      |                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:158:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  158 |       const unsigned out = r & 1u;
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:159:67: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  159 |       const unsigned fb = std::popcount(static_cast<unsigned>(r & 0x5Fu)) & 1u;
+      |                                                                   ^   ~
+      |                                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:159:77: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  159 |       const unsigned fb = std::popcount(static_cast<unsigned>(r & 0x5Fu)) & 1u;
+      |                                                                             ^~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\ldpc.cpp:160:55: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  160 |       r = static_cast<std::uint8_t>((r >> 1) | (fb << 7));
+      |                                                       ^
+14600 warnings generated.
+---- src\ccsds\mac.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:40:6: warning: function 'apply_state' exceeds recommended size/complexity thresholds [readability-function-size]
+   40 | void apply_state(MacSession& m, MacState s) noexcept {
+      |      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:40:6: note: 156 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:81:14: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   81 |       m.ss = 5;
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:101:14: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  101 |       m.ss = 6;
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:131:14: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  131 |       m.ss = 5;
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:156:14: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  156 |       m.ss = 7;
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:161:14: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  161 |       m.ss = 6;
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:370:11: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  370 |     m.y = 5;
+      |           ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:378:42: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  378 |   if (m.state == MacState::s40 && m.x == 5) {  // E25
+      |                                          ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:415:11: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  415 |     m.x = 5;
+      |           ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:420:42: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  420 |   if (m.state == MacState::s54 && m.x == 5) {  // E56
+      |                                          ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:434:13: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  434 |       m.x = 5;
+      |             ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:453:13: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  453 |       m.x = 5;
+      |             ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:547:6: warning: function 'mac_tick' has cognitive complexity of 52 (threshold 25) [readability-function-cognitive-complexity]
+  547 | void mac_tick(MacSession& m, Tick now) noexcept {
+      |      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:547:6: warning: function 'mac_tick' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:547:6: note: 220 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:608:7: warning: do not use 'else' after 'return' [readability-else-after-return]
+  608 |     } else if (m.duplex == MacDuplex::half && m.state == MacState::s60) {  // E85
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  609 |       apply_state(m, MacState::s2);
+      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  610 |       m.transmit_on = false;
+      |       ~~~~~~~~~~~~~~~~~~~~~~
+  611 |       return;
+      |       ~~~~~~~
+  612 |     }
+      |     ~
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:678:25: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  678 |       } else if (m.y == 5) {  // E20
+      |                         ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:780:5: warning: switch has 2 consecutive identical branches [bugprone-branch-clone]
+  780 |     case MacState::s1:
+      |     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:796:12: note: last of these clones ends here
+  796 |       break;
+      |            ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:811:41: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  811 |   if (m.ss == 2 || m.ss == 4 || m.ss == 7) {
+      |                                         ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:814:41: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  814 |   if (m.ss == 0 || m.ss == 3 || m.ss == 6) {
+      |                                         ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:853:13: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  853 |   if ((b1 & 0x07u) != kSetVrDirectiveType || (b1 & 0xF8u) != 0) {
+      |             ^   ~
+      |                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:853:13: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:853:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  853 |   if ((b1 & 0x07u) != kSetVrDirectiveType || (b1 & 0xF8u) != 0) {
+      |                                                    ^   ~
+      |                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\mac.cpp:853:52: warning: 0xF8u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+14529 warnings generated.
+---- src\ccsds\plcw.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:11:24: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   11 |   w.retransmit = (hi & 0x20u) != 0;
+      |                        ^   ~
+      |                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:12:55: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   12 |   w.pcid = Pcid{static_cast<std::uint8_t>((hi >> 4) & 0x01u)};
+      |                                                       ^   ~
+      |                                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:13:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   13 |   w.expedited_counter = static_cast<std::uint8_t>(hi & 0x07u);
+      |                                                        ^   ~
+      |                                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:13:56: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:23:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   23 |   const unsigned pcid = static_cast<unsigned>(fields.pcid) & 0x01u;
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:24:74: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   24 |   const unsigned exp = static_cast<unsigned>(fields.expedited_counter) & 0x07u;
+      |                                                                          ^   ~
+      |                                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:26:22: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   26 |   out[0] = std::byte(0x80u | (fields.retransmit ? 0x20u : 0u) | (pcid << 4) | exp);
+      |                      ^   ~
+      |                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:26:51: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   26 |   out[0] = std::byte(0x80u | (fields.retransmit ? 0x20u : 0u) | (pcid << 4) | exp);
+      |                                                   ^   ~
+      |                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\plcw.cpp:26:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   26 |   out[0] = std::byte(0x80u | (fields.retransmit ? 0x20u : 0u) | (pcid << 4) | exp);
+      |                                                           ^~
+      |                                                            U
+14476 warnings generated.
+---- src\ccsds\pltu.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:12:55: warning: 24 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   12 |   return (std::to_integer<std::uint32_t>(bytes[0]) << 24) |
+      |                                                       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:19:33: warning: 24 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   19 |   dest[0] = std::byte((value >> 24) & 0xFFu);
+      |                                 ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:19:39: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   19 |   dest[0] = std::byte((value >> 24) & 0xFFu);
+      |                                       ^   ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:20:39: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   20 |   dest[1] = std::byte((value >> 16) & 0xFFu);
+      |                                       ^   ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:21:38: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   21 |   dest[2] = std::byte((value >> 8) & 0xFFu);
+      |                                      ^   ~
+      |                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:22:31: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   22 |   dest[3] = std::byte(value & 0xFFu);
+      |                               ^   ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:26:21: warning: function 'encoded_pltu_size' has cognitive complexity of 33 (threshold 25) [readability-function-cognitive-complexity]
+   26 | Result<std::size_t> encoded_pltu_size(std::span<const std::byte> octets,
+      |                     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:26:21: warning: function 'encoded_pltu_size' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:26:21: note: 66 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:43:16: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   43 |   if (tfvn2 == 0b10u) {
+      |                ^   ~
+      |                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:49:48: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   49 |         ((std::to_integer<unsigned>(rest[2]) & 0x07u) << 8) |
+      |                                                ^   ~
+      |                                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:51:54: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   51 |     frame_len = static_cast<std::size_t>(length_c) + 1u;
+      |                                                      ^~
+      |                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:55:23: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   55 |   } else if (tfvn2 == 0b11u) {
+      |                       ^   ~
+      |                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:57:18: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   57 |     if (tfvn4 != 0b1100u) {
+      |                  ^     ~
+      |                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:57:18: warning: 0b1100u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:64:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   64 |     if ((std::to_integer<unsigned>(rest[3]) & 0x01u) != 0) {
+      |                                               ^   ~
+      |                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:68:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   68 |       if (uslp_truncated_len < 6u || uslp_truncated_len > 32u) {
+      |                                ^~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:68:32: warning: 6u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:68:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   68 |       if (uslp_truncated_len < 6u || uslp_truncated_len > 32u) {
+      |                                                           ^ ~
+      |                                                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:73:25: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   73 |       if (rest.size() < 6) {
+      |                         ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:78:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   78 |       frame_len = static_cast<std::size_t>(length_c) + 1u;
+      |                                                        ^~
+      |                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:97:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   97 |   const std::size_t max_keep = n < (kPltuAsmSize - 1u) ? n : (kPltuAsmSize - 1u);
+      |                                                    ^~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:97:78: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   97 |   const std::size_t max_keep = n < (kPltuAsmSize - 1u) ? n : (kPltuAsmSize - 1u);
+      |                                                                              ^~
+      |                                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:191:15: warning: function 'repeat_seq' can be made static or moved into an anonymous namespace to enforce internal linkage [misc-use-internal-linkage]
+  191 | std::uint64_t repeat_seq(PltuView const& view) noexcept {
+      |               ^
+      | static 
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\pltu.cpp:252:22: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  252 |   q.head = (q.head + 1u) % q.slots.size();
+      |                      ^~
+      |                       U
+18225 warnings generated.
+---- src\ccsds\space_packet.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:12:14: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   12 |   if ((b0 >> 5) != 0u) {
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:12:20: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   12 |   if ((b0 >> 5) != 0u) {
+      |                    ^~
+      |                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:17:69: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   17 |   const std::size_t data_len = static_cast<std::size_t>(length_c) + 1u;
+      |                                                                     ^~
+      |                                                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:24:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   24 |   view.fields.telecommand = (b0 & 0x10u) != 0;
+      |                                   ^   ~
+      |                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:25:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   25 |   view.fields.secondary_header = (b0 & 0x08u) != 0;
+      |                                        ^   ~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:27:14: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   27 |       ((b0 & 0x07u) << 8) | std::to_integer<unsigned>(packet[1]);
+      |              ^   ~
+      |                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:30:60: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   30 |   view.fields.seq_flags = static_cast<std::uint8_t>((b2 >> 6) & 0x03u);
+      |                                                            ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:30:65: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   30 |   view.fields.seq_flags = static_cast<std::uint8_t>((b2 >> 6) & 0x03u);
+      |                                                                 ^   ~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:32:14: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   32 |       ((b2 & 0x3Fu) << 8) | std::to_integer<unsigned>(packet[3]));
+      |              ^   ~
+      |                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:32:14: warning: 0x3Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:40:7: warning: the 'empty' method should be used to check for emptiness instead of 'size' [readability-container-size-empty]
+   40 |   if (data.size() < 1 || data.size() > kSpacePacketDataMax) {
+      |       ^~~~~~~~~~~~~~~
+      |       data.empty()
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\span:567:31: note: method 'span'::empty() defined here
+  567 |     _NODISCARD constexpr bool empty() const noexcept {
+      |                               ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:47:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   47 |   const unsigned apid = static_cast<unsigned>(fields.apid) & 0x7FFu;
+      |                                                              ^    ~
+      |                                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:48:66: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   48 |   const unsigned seq = static_cast<unsigned>(fields.seq_count) & 0x3FFFu;
+      |                                                                  ^     ~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:49:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   49 |   const unsigned flags = static_cast<unsigned>(fields.seq_flags) & 0x03u;
+      |                                                                    ^   ~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:50:58: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   50 |   const unsigned c = static_cast<unsigned>(data.size() - 1u);
+      |                                                          ^~
+      |                                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:52:44: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   52 |   out[0] = std::byte((fields.telecommand ? 0x10u : 0u) |
+      |                                            ^   ~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:52:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   52 |   out[0] = std::byte((fields.telecommand ? 0x10u : 0u) |
+      |                                                    ^~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:53:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   53 |                      (fields.secondary_header ? 0x08u : 0u) |
+      |                                                 ^   ~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:53:57: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   53 |                      (fields.secondary_header ? 0x08u : 0u) |
+      |                                                         ^~
+      |                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:54:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   54 |                      ((apid >> 8) & 0x07u));
+      |                                     ^   ~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:54:37: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:55:29: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   55 |   out[1] = std::byte(apid & 0xFFu);
+      |                             ^   ~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:56:32: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   56 |   out[2] = std::byte((flags << 6) | ((seq >> 8) & 0x3Fu));
+      |                                ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:56:51: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   56 |   out[2] = std::byte((flags << 6) | ((seq >> 8) & 0x3Fu));
+      |                                                   ^   ~
+      |                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:56:51: warning: 0x3Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:57:28: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   57 |   out[3] = std::byte(seq & 0xFFu);
+      |                            ^   ~
+      |                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:58:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   58 |   out[4] = std::byte((c >> 8) & 0xFFu);
+      |                                 ^   ~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:59:7: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   59 |   out[5] = std::byte(c & 0xFFu);
+      |       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\space_packet.cpp:59:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   59 |   out[5] = std::byte(c & 0xFFu);
+      |                          ^   ~
+      |                              U
+18120 warnings generated.
+---- src\ccsds\uslp.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:11:18: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   11 |   return rule <= 0b010u;
+      |                  ^    ~
+      |                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:19:43: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   19 |   return construction_has_pointer(rule) ? 3u : 1u;
+      |                                           ^~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:19:48: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   19 |   return construction_has_pointer(rule) ? 3u : 1u;
+      |                                                ^~
+      |                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:24:24: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   24 |     const auto shift = 8u * (dest.size() - 1u - i);
+      |                        ^~
+      |                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:24:44: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   24 |     const auto shift = 8u * (dest.size() - 1u - i);
+      |                                            ^~
+      |                                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:25:65: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   25 |     dest[i] = std::byte(static_cast<unsigned>(value >> shift) & 0xFFu);
+      |                                                                 ^   ~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:38:38: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   38 |   dest[0] = std::byte((value >> 8) & 0xFFu);
+      |                                      ^   ~
+      |                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:39:31: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   39 |   dest[1] = std::byte(value & 0xFFu);
+      |                               ^   ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:46:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   46 |   const unsigned scid = ((b0 & 0x0Fu) << 12) |
+      |                                ^   ~
+      |                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:49:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   49 |   view.fields.destination = (b2 & 0x08u) != 0;
+      |                                   ^   ~
+      |                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:50:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   50 |   const unsigned vcid = ((b2 & 0x07u) << 3) | (b3 >> 5);
+      |                                ^   ~
+      |                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:52:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   52 |   view.fields.map_id = MapId{static_cast<std::uint8_t>((b3 >> 1) & 0x0Fu)};
+      |                                                                    ^   ~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:52:68: warning: 0x0Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:57:18: warning: function 'decode_uslp' has cognitive complexity of 30 (threshold 25) [readability-function-cognitive-complexity]
+   57 | Result<UslpView> decode_uslp(std::span<const std::byte> frame,
+      |                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:57:18: warning: function 'decode_uslp' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:57:18: note: 114 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:66:69: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   66 |   const bool truncated_hdr = (std::to_integer<unsigned>(frame[3]) & 0x01u) != 0;
+      |                                                                     ^   ~
+      |                                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:88:72: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   88 |     view.fields.tfdz_construction = static_cast<std::uint8_t>(tfdf0 >> 5);
+      |                                                                        ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:89:58: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   89 |     view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1Fu);
+      |                                                          ^   ~
+      |                                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:89:58: warning: 0x1Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:95:22: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   95 |   if (frame.size() < 6) {
+      |                      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:100:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  100 |   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
+      |                                                                      ^~
+      |                                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:114:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  114 |   view.fields.expedited = (b6 & 0x80u) != 0;
+      |                                 ^   ~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:115:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  115 |   view.fields.protocol_control = (b6 & 0x40u) != 0;
+      |                                        ^   ~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:116:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  116 |   view.fields.ocf_present = (b6 & 0x08u) != 0;
+      |                                   ^   ~
+      |                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:117:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  117 |   view.fields.vcf_count_len = static_cast<std::uint8_t>(b6 & 0x07u);
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:117:62: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:146:70: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  146 |   view.fields.tfdz_construction = static_cast<std::uint8_t>(tfdf0 >> 5);
+      |                                                                      ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:147:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  147 |   view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1Fu);
+      |                                                        ^   ~
+      |                                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:147:56: warning: 0x1Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:174:21: warning: function 'encode_uslp' has cognitive complexity of 35 (threshold 25) [readability-function-cognitive-complexity]
+  174 | Result<std::size_t> encode_uslp(std::span<std::byte> out, UslpFields const& fields,
+      |                     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:174:21: warning: function 'encode_uslp' exceeds recommended size/complexity thresholds [readability-function-size]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:174:21: note: 101 lines including whitespace and comments (threshold 60)
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:200:64: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  200 |     const unsigned vcid = static_cast<unsigned>(fields.vcid) & 0x3Fu;
+      |                                                                ^   ~
+      |                                                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:201:65: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  201 |     const unsigned map = static_cast<unsigned>(fields.map_id) & 0x0Fu;
+      |                                                                 ^   ~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:202:53: warning: 12 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  202 |     out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0Fu));
+      |                                                     ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:202:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  202 |     out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0Fu));
+      |                                                           ^   ~
+      |                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:202:59: warning: 0x0Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:203:38: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  203 |     out[1] = std::byte((scid >> 4) & 0xFFu);
+      |                                      ^   ~
+      |                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:204:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  204 |     out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                                 ^   ~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:204:33: warning: 0x0Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:204:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  204 |     out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:204:78: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  204 |     out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                                                                              ^~
+      |                                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:205:39: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  205 |                        ((vcid >> 3) & 0x07u));
+      |                                       ^   ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:205:39: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:206:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  206 |     out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1) | 0x01u);
+      |                                 ^   ~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:206:33: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:206:43: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  206 |     out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1) | 0x01u);
+      |                                           ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:206:61: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  206 |     out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1) | 0x01u);
+      |                                                             ^   ~
+      |                                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:207:74: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  207 |     out[4] = std::byte((static_cast<unsigned>(kUslpConstructionNoSeg) << 5) |
+      |                                                                          ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:208:39: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  208 |                        (fields.upid & 0x1Fu));
+      |                                       ^   ~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:208:39: warning: 0x1Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:209:55: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  209 |     std::copy(tfdz.begin(), tfdz.end(), out.begin() + 5);
+      |                                                       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:214:17: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  214 |   if (vcf_len > 7u) {
+      |                 ^~
+      |                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:214:17: warning: 7u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:215:15: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  215 |     vcf_len = 7;
+      |               ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:217:82: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  217 |   const std::uint8_t rule = static_cast<std::uint8_t>(fields.tfdz_construction & 0x07u);
+      |                                                                                  ^   ~
+      |                                                                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:239:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  239 |   const unsigned vcid = static_cast<unsigned>(fields.vcid) & 0x3Fu;
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:240:63: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  240 |   const unsigned map = static_cast<unsigned>(fields.map_id) & 0x0Fu;
+      |                                                               ^   ~
+      |                                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:241:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  241 |   const unsigned c = static_cast<unsigned>(frame_len - 1u);
+      |                                                        ^~
+      |                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:243:51: warning: 12 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  243 |   out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0Fu));
+      |                                                   ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:243:57: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  243 |   out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0Fu));
+      |                                                         ^   ~
+      |                                                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:243:57: warning: 0x0Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:244:36: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  244 |   out[1] = std::byte((scid >> 4) & 0xFFu);
+      |                                    ^   ~
+      |                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:245:31: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  245 |   out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                               ^   ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:245:31: warning: 0x0Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:245:68: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  245 |   out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                                                                    ^   ~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:245:76: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  245 |   out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
+      |                                                                            ^~
+      |                                                                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:246:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  246 |                      ((vcid >> 3) & 0x07u));
+      |                                     ^   ~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:246:37: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:247:31: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  247 |   out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1));  // truncated flag = 0
+      |                               ^   ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:247:31: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:247:41: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  247 |   out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1));  // truncated flag = 0
+      |                                         ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:248:33: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  248 |   out[4] = std::byte((c >> 8) & 0xFFu);
+      |                                 ^   ~
+      |                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:249:7: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  249 |   out[5] = std::byte(c & 0xFFu);
+      |       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:249:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  249 |   out[5] = std::byte(c & 0xFFu);
+      |                          ^   ~
+      |                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:250:7: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  250 |   out[6] = std::byte((fields.expedited ? 0x80u : 0u) |
+      |       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:250:42: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  250 |   out[6] = std::byte((fields.expedited ? 0x80u : 0u) |
+      |                                          ^   ~
+      |                                              U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:250:50: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  250 |   out[6] = std::byte((fields.expedited ? 0x80u : 0u) |
+      |                                                  ^~
+      |                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:251:49: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  251 |                      (fields.protocol_control ? 0x40u : 0u) |
+      |                                                 ^   ~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:251:57: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  251 |                      (fields.protocol_control ? 0x40u : 0u) |
+      |                                                         ^~
+      |                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:252:34: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  252 |                      (want_ocf ? 0x08u : 0u) | (vcf_len & 0x07u));
+      |                                  ^   ~
+      |                                      U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:252:42: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  252 |                      (want_ocf ? 0x08u : 0u) | (vcf_len & 0x07u));
+      |                                          ^~
+      |                                           U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:252:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  252 |                      (want_ocf ? 0x08u : 0u) | (vcf_len & 0x07u));
+      |                                                           ^   ~
+      |                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:252:59: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:261:55: warning: 5 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+  261 |   tfdf[0] = std::byte((static_cast<unsigned>(rule) << 5) | (fields.upid & 0x1Fu));
+      |                                                       ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:261:75: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  261 |   tfdf[0] = std::byte((static_cast<unsigned>(rule) << 5) | (fields.upid & 0x1Fu));
+      |                                                                           ^   ~
+      |                                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:261:75: warning: 0x1Fu is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:263:54: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  263 |     tfdf[1] = std::byte((fields.tfdz_pointer >> 8) & 0xFFu);
+      |                                                      ^   ~
+      |                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\uslp.cpp:264:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+  264 |     tfdf[2] = std::byte(fields.tfdz_pointer & 0xFFu);
+      |                                               ^   ~
+      |                                                   U
+18242 warnings generated.
+---- src\ccsds\v3.cpp ----
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:12:14: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   12 |   if ((b0 >> 6) != kTfvnV3) {
+      |              ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:16:47: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   16 |       ((std::to_integer<unsigned>(frame[2]) & 0x07u) << 8) |
+      |                                               ^   ~
+      |                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:18:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   18 |   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
+      |                                                                      ^~
+      |                                                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:27:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   27 |   view.fields.qos_expedited = (b0 & 0x20u) != 0;
+      |                                     ^   ~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:28:31: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   28 |   view.fields.p_frame = (b0 & 0x10u) != 0;
+      |                               ^   ~
+      |                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:29:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   29 |   view.fields.dfc_id = static_cast<std::uint8_t>((b0 >> 2) & 0x03u);
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:30:32: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   30 |   const unsigned scid = ((b0 & 0x03u) << 8) | std::to_integer<unsigned>(frame[1]);
+      |                                ^   ~
+      |                                    U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:33:60: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   33 |   view.fields.pcid = Pcid{static_cast<std::uint8_t>((b2 >> 7) & 0x01u)};
+      |                                                            ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:33:65: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   33 |   view.fields.pcid = Pcid{static_cast<std::uint8_t>((b2 >> 7) & 0x01u)};
+      |                                                                 ^   ~
+      |                                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:34:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   34 |   view.fields.port_id = PortId{static_cast<std::uint8_t>((b2 >> 4) & 0x07u)};
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:34:70: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:35:35: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   35 |   view.fields.destination = (b2 & 0x08u) != 0;
+      |                                   ^   ~
+      |                                       U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:50:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   50 |   const unsigned scid = static_cast<unsigned>(fields.scid) & 0x3FFu;
+      |                                                              ^    ~
+      |                                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:51:56: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   51 |   const unsigned c = static_cast<unsigned>(frame_len - 1u);
+      |                                                        ^~
+      |                                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:52:57: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   52 |   unsigned dfc = static_cast<unsigned>(fields.dfc_id) & 0x03u;
+      |                                                         ^   ~
+      |                                                             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:53:62: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   53 |   const unsigned pcid = static_cast<unsigned>(fields.pcid) & 0x01u;
+      |                                                              ^   ~
+      |                                                                  U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:54:59: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   54 |   unsigned port = static_cast<unsigned>(fields.port_id) & 0x07u;
+      |                                                           ^   ~
+      |                                                               U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:54:59: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:57:12: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   57 |     port = 0u;          // 3.2.2.8.2
+      |            ^~
+      |             U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:60:34: warning: 6 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   60 |   out[0] = std::byte((kTfvnV3 << 6) | (fields.qos_expedited ? 0x20u : 0u) |
+      |                                  ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:60:63: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   60 |   out[0] = std::byte((kTfvnV3 << 6) | (fields.qos_expedited ? 0x20u : 0u) |
+      |                                                               ^   ~
+      |                                                                   U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:60:71: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   60 |   out[0] = std::byte((kTfvnV3 << 6) | (fields.qos_expedited ? 0x20u : 0u) |
+      |                                                                       ^~
+      |                                                                        U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:61:40: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   61 |                      (fields.p_frame ? 0x10u : 0u) | (dfc << 2) |
+      |                                        ^   ~
+      |                                            U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:61:48: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   61 |                      (fields.p_frame ? 0x10u : 0u) | (dfc << 2) |
+      |                                                ^~
+      |                                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:62:37: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   62 |                      ((scid >> 8) & 0x03u));
+      |                                     ^   ~
+      |                                         U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:63:29: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   63 |   out[1] = std::byte(scid & 0xFFu);
+      |                             ^   ~
+      |                                 U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:64:31: warning: 7 is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+   64 |   out[2] = std::byte((pcid << 7) | (port << 4) |
+      |                               ^
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:65:44: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   65 |                      (fields.destination ? 0x08u : 0u) | ((c >> 8) & 0x07u));
+      |                                            ^   ~
+      |                                                U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:65:52: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   65 |                      (fields.destination ? 0x08u : 0u) | ((c >> 8) & 0x07u));
+      |                                                    ^~
+      |                                                     U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:65:70: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   65 |                      (fields.destination ? 0x08u : 0u) | ((c >> 8) & 0x07u));
+      |                                                                      ^   ~
+      |                                                                          U
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:65:70: warning: 0x07u is a magic number; consider replacing it with a named constant [readability-magic-numbers]
+C:\Users\pow-w\Documents\Rocket-Chip-starcom-ivp23\starcom\src\ccsds\v3.cpp:66:26: warning: integer literal has suffix 'u', which is not uppercase [hicpp-uppercase-literal-suffix,readability-uppercase-literal-suffix]
+   66 |   out[3] = std::byte(c & 0xFFu);
+      |                          ^   ~
+      |                              U
+18159 warnings generated.

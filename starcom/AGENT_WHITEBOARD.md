@@ -8,6 +8,8 @@ Phase / next increment: [`STATUS.md`](STATUS.md). Sequence: [`docs/IVP.md`](docs
 
 Consumer how-to: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
 
+Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
+
 ---
 
 ## Radio settings OTA (WANTED) (2026-08-31)

@@ -26,12 +26,12 @@ static TelemetryState make_telem() {
     return t;
 }
 
-TEST(NavSdu, PackRoundTripPrefix) {
+TEST(NavSdu, PackRoundTripFullTelemetryState) {
     const TelemetryState in = make_telem();
     uint8_t buf[kNavSduUserBytes] = {};
     ASSERT_EQ(pack_nav_sdu_user(buf, sizeof(buf), in), kNavSduUserBytes);
-    EXPECT_EQ(buf[40], 0);
-    EXPECT_EQ(buf[41], 0);
+    EXPECT_EQ(sizeof(TelemetryState), 45u);
+    EXPECT_EQ(kNavSduUserBytes, 45);
 
     TelemetryState out{};
     out.met_ms = 99;
@@ -40,8 +40,9 @@ TEST(NavSdu, PackRoundTripPrefix) {
     EXPECT_EQ(out.q_w, in.q_w);
     EXPECT_EQ(out.lat_1e7, in.lat_1e7);
     EXPECT_EQ(out.battery_mv, in.battery_mv);
-    EXPECT_EQ(out.met_ms, 99);
-    EXPECT_EQ(out.flags, 0x7F);
+    EXPECT_EQ(out.met_ms, in.met_ms);
+    EXPECT_EQ(out.flags, in.flags);
+    EXPECT_EQ(out.flags, kFlagsZuptActive);
 }
 
 TEST(NavSdu, PackRejectsShortBuffer) {
