@@ -14,7 +14,7 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ## LoRa Hail (OPEN) (2026-09-02)
 
-**Starcom** Prox-1 §6 / Best-effort hail on RFM95/915 — not a 211.1 PICS tick. Wire `MacSession`; do not reimplement §6. **FPV-style find/sweep (18 SF×BW cells, goggle dual-use) is RC** — repo-root `AGENT_WHITEBOARD.md`, not this file. Stash `wip phy-scan leds docs` had both in one row; they are split now. Not this sitting.
+**Starcom** Prox-1 §6 / Best-effort hail on RFM95/915 — not a 211.1 PICS tick. Wire `MacSession`; do not reimplement §6. **Coupled with RC FPV-style scan/find** (repo-root `AGENT_WHITEBOARD.md`): same first-impl slot, **FPV scan won**. Hail is not cancelled. Stash `wip phy-scan leds docs` had both in one row. Not this sitting.
 
 ---
 

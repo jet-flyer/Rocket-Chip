@@ -29,9 +29,8 @@ Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to
 2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
 3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
 4. FSK (below).
-5. **FPV-style scan / find** (below) — 18 SF×BW cells, goggle dual-use. Not hail.
-6. Hail (Starcom Prox-1 §6 — different from channel-find).
-7. Adaptive TX power.
+5. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
+6. Adaptive TX power.
 
 Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET table; retire BW125 from desk SNR. Jam flash: `picotool load <uf2> -f --bus/--address` tracking `BEC71` only. Dirty keep: BOOTSEL helpers + `station_phy_scan` untracked — do not `git clean`.
 
@@ -41,7 +40,9 @@ Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET
 
 ## FPV-style scan / find (WANTED) (2026-09-02, restated 2026-09-03)
 
-Stashed as `wip phy-scan leds docs` under **Starcom** “LoRa Hail” — that was the wrong board. **This is RC.** Hail (Prox-1 §6 / LoRa Hail) stays on `starcom/AGENT_WHITEBOARD.md`.
+**Coupled with LoRa Hail** (Prox-1 §6 / Best-effort hail — `starcom/AGENT_WHITEBOARD.md`). Same first-impl slot: station has to acquire a vehicle that is already on some PHY. **Either/or for first implementation; FPV scan won.** Hail is not cancelled — it stays the book/MAC path after find, or if scan is not enough.
+
+Stashed as `wip phy-scan leds docs` with both in one Starcom row — split: **scan/find is RC (this board)**; hail write-up is Starcom.
 
 **Find axis = SF×BW at 915.0 / sync `0x12`.** Firmware-legal **6 SF × 3 BW = 18** cells (not hundreds; do not add US915 64-freq hop). CR/power/nav are not find axes. 18 is FPV-goggle sized (Fatshark ~40 ch).
 
