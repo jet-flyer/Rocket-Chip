@@ -282,7 +282,11 @@ def main():
     print(f'Using {port_name} ({meta.short_summary()})')
 
     try:
-        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY) as ser:
+        # find_target_port already classified. A second CDC open with the
+        # default DTR pulse USB-resets into bootrom (FLASHING rule 5) so
+        # post-open re-classify reads unknown. Desk 2026-09-03.
+        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY,
+                                  post_open_re_classify=False) as ser:
             return _bench_sim_run_inner(ser, port_name, meta, args)
     except RuntimeError as e:
         print(f'ERROR: Cannot open {port_name}: {e}')

@@ -115,12 +115,10 @@ static void cmd_radio_config_cycle() {
         static_cast<float>(target.sf),
         static_cast<float>(target.cr),
         static_cast<float>(target.power_dbm));
+    // Station hops on ACK (station_on_set_radio_ack). Hop-on-send + COP-P
+    // reinit raced the SET still in FOP: desk 2026-09-03 station went
+    // 125/10, vehicle stayed 125/5, lock died.
     rc::rc_log("[CMD] SET_RADIO_CONFIG sent, waiting for ACK...\n");
-    // Station's own radio switch happens in ao_telemetry.cpp's ACK-match
-    // path when ACK-accepted arrives for this command. No LOS watchdog yet
-    // (sub 2d adds symmetric revert on vehicle side; a station-side LOS
-    // watchdog with auto-revert is wired in sub 2e/2f alongside the
-    // dashboard status banner).
 }
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
@@ -1359,6 +1357,13 @@ static void cmd_radio_status() {
                static_cast<unsigned>(rs->tx_consec_fail),
                static_cast<int>(rs->scheduler.phase));
     }
+
+    rc::rc_log("CFG: BW=%u SF=%u CR=%u nav=%uHz pwr=%udBm\n",
+           static_cast<unsigned>(rs->runtime_config.bandwidth_khz),
+           static_cast<unsigned>(rs->runtime_config.spreading_factor),
+           static_cast<unsigned>(rs->runtime_config.coding_rate),
+           static_cast<unsigned>(rs->runtime_config.nav_rate_hz),
+           static_cast<unsigned>(rs->runtime_config.power_dbm));
 
     // IVP-T11 boot-register audit. Printed on every `t` so the Batch A
     // gate ("RegInvertIQ=0x27, CRC on, LNA=0x23, CFG3=0x04") is always

@@ -13,22 +13,11 @@ Owner going to bed. Dual-board picotool targeting was already solved in an earli
 
 | Role | Board | USB | Live image | Radio |
 |------|-------|-----|------------|--------|
-| Vehicle | Feather | COM5 `02FBDDB8E1CA1281` (was **unplugged** for station flash) | `flight-4819102` | CFG **BW=125 SF=7 CR=5 nav=5Hz pwr=2dBm**, RegVersion `0x12`, Hardware 13/13 |
-| Station | Fruit Jam | COM7 `BEC71B8EDC6AEBD1` | **`flight-2f7096d`** | SET table **pwr=20**. Last good banner after operator reset. COP-P waits PLCW until vehicle USB is back |
+| Vehicle | Feather | COM5 `02FBDDB8E1CA1281` | `flight-a88ed79` wrap-free, 2 dBm | last scored CFG **BW=125/5/2**; A3 needs a **reflash** to 250/5/2 |
+| Station | Fruit Jam | COM7 `BEC71B8EDC6AEBD1` | `flight-a88ed79` wrap-free, 2 dBm table | USB `-f --bus/--address` after mapping serial. Never station UF2 onto `02FB` |
 | Probe | CMSIS-DAP | COM4 `E663AC91D3487137` PID 000C | — | On Feather. Do not OpenOCD during soak |
 
-**The Fruit Jam still needs the 2 dBm station image.** Desk SET at +20 is not allowed. A3–A5 are blocked until the banner is `flight-4819102` and SET prints `pwr=2`.
-
-UF2 waiting (built, **not on the chip**):
-
-`C:\Users\pow-w\Documents\starcom_dev\build_station_flight\rocketchip.uf2`  
-(`flight-4819102`, Fruit Jam, table 2 dBm; disk mtime 2026-09-02 21:09)
-
-Uncommitted overlay that UF2 was built from (do **not** `git clean`):
-
-- `include/rocketchip/radio_config_table.h` — all six SET rows `power_dbm = 2` (HEAD is 20)
-- `src/flight_director/mission_profile_data.h` — `kDefaultRocketRadioConfig.power_dbm = 2` (HEAD is 20)
-- `src/cli/rc_os_commands.cpp` — CLI `t` prints `CFG: BW=… pwr=…dBm`
+A3–A5 blocked on **real PHY**, not on 2 dBm image. SET does not hop cells on this desk (`V(S)` stays 0). Reflash `kDefaultRocketRadioConfig` per cell.
 
 ---
 
@@ -48,32 +37,29 @@ Pass B (expedited nav) is after Pass A.
 
 ---
 
-## Why SET did not change PHY
+## SET vs lock (desk 2026-09-03) — do not hop cells with SET
 
-1. Live Jam `flight-2f7096d` CLI `r` sends table **pwr=20**.
-2. Vehicle dispatcher `dispatch_set_radio_config` (`ao_telemetry.cpp`): ground + SX1276-legal + **±6 dB vs current**. 20 vs 2 → **kDenied** if the cmd arrives.
-3. Station hops its own radio **only on ACK-accepted** (`station_on_set_radio_ack`).
-4. SF7/BW125/5 Hz seq-nav+PLCW is already TX-busy, so many cmds get **no ACK at all** (leftover), which is not the same as denied.
-5. Hear ≠ lock ≠ command accept. RSSI bar = last LoRa FIFO RSSI. COP-P lock = valid peer PLCW. ARM leftover is the soak command probe; SET ACK is how we know PHY moved.
+Vehicle does **not** “just fail to re-lock after changing over.”
 
-`g_cycleIdx` advances on every station `r` even without ACK.
+| Attempt | Station | Vehicle | Lock |
+|---------|---------|---------|------|
+| First SET idx 1 (old image) | stayed 125/5 | **did** apply 125/5 → 125/10 | died (station hops only on ACK) |
+| Hop-on-send firmware | **did** apply 125/10 + COP-P reinit | **stayed** 125/5 | died (split brain). Reverted. |
+| After revert, `x` then `r` | SET log idx 1, **V(S) stays 0** | no `[CMD] SET accepted`, CFG 125/5/2 | **survives** (LQ ~80–90% after TX hold) |
+
+Root: command AD never airs (`V(S)=0`). Dashboard eats `r` until `x` (kMenu). Radio was dropping 12/14 B ACK/PLCW while 63 B nav occupied TX.
+
+**Pass A cell PHY = flash `kDefaultRocketRadioConfig`, not SET.** Score A3 only if vehicle `CFG: BW=250 … nav=5Hz pwr=2dBm`.
 
 ---
 
-## How to complete Pass A (next sitting)
+## How to complete Pass A
 
-1. **Flash the Jam** with the 2 dBm UF2. Owner rule: **unplug the board you are not flashing** (Feather out, Jam only), flash, then plug both back in for soak. Dual-plug `picotool -f --ser` on this Jam was not working this sitting; dual-board targeting is parked for later.
-2. Prove flash: COM7 banner **`flight-4819102`**, SET log **pwr=2**. `rc=0` with no load/verify text and no COM drop is **not** a write.
-3. Plug Feather back. Wait COP-P **lock**, RX climbing, CRC 0, vehicle CFG still 125/5/2.
-4. **A3 hop (do not soak until CFG says BW=250):**
-   - On busy 5 Hz air, station `r` **four** times (idx 1–4). Expect no ACK; both stay 125/5.
-   - Vehicle `r` until **2 Hz** leftover.
-   - One more station `r` → idx 5 = **BW250 / 5 Hz / 2 dBm**.
-   - Score A3 only if vehicle `CFG: BW=250` and station Radio row matches. Then 2 min + ARM.
-5. BW250 has leftover: SET on to **A4** idx 2 (250/10) and **A5** idx 3 (500/10). Skip A6. A7/A8 layout B.
-6. Capture: `python scripts/soak_two_board.py --cell A3 --tag bw250_5hz_clsA --duration 120`
-
-Do not desk-SET to +20. Do not kill Python during COM7 `CreateFile`. Do not `pnputil /restart-device`. Do not OpenOCD during soak. Do not extra `picotool reboot -f` / `info -f` as counted boots. USB unplug is FLASHING recovery, not a soak step.
+1. Keep 2 dBm table + wrap-free USB `-f`. Jam: `picotool load <uf2> -f --bus/--address` after mapping `BEC71`. Never station UF2 onto Feather `02FB`.
+2. **A3:** set default to BW250 / 5 Hz / 2 dBm, rebuild vehicle + station, probe-flash Feather, USB `-f` Jam. Confirm CFG then:
+   `python scripts/soak_two_board.py --cell A3 --tag bw250_5hz_clsA --duration 120 --bw 250 --nav-hz 5`
+3. **A4/A5:** same reflash with 250/10/2 and 500/10/2. Skip A6. A7/A8 layout B.
+4. Do not OpenOCD during soak. Do not desk-SET +20. Do not score BW125 as A3.
 
 CDC open: DTR low at open, then SETDTR, `dsrdtr=False` (`soak_two_board.py` `open_cdc`).
 

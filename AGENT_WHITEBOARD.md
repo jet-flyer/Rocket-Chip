@@ -21,15 +21,17 @@
 
 Owner to bed. **Plan file:** `starcom/docs/integration/PASS_A_HANDOFF_2026-09-03.md` (copy also in `logs/soak/`, gitignored). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Starcom log: `starcom/CHANGELOG.md` `2026-09-03-001`. Root RC log is a pointer only.
 
-**In progress:** two-board ON soak Pass A. A1 PASS (lock + 2 dBm; ARM leftover FAIL). A2 FAIL as expected. A3–A5 not a different PHY.
+**In progress:** two-board ON soak Pass A. A1 PASS (lock + 2 dBm; ARM leftover FAIL). A2 FAIL as expected. A3–A5 were invalid while station stayed BW125/`pwr=20`.
 
-**Blocked:** Fruit Jam still `flight-2f7096d` / SET `pwr=20`. Vehicle is 2 dBm. SET ±6 dB gate + TX-busy leftover. Need `build_station_flight/rocketchip.uf2` (`flight-4819102`, 2 dBm table) actually on the Jam (banner must say `4819102`). Dual-board picotool targeting: owner said this was solved months ago — **later, do not reinvent.** Flash with the **other board unplugged**, then plug both in for soak.
+**Jam USB flash:** wrap of `rom_reset_usb_boot_extra` was the `-f` break (last-known-good `6c6b0a3` still `-f`’d). Wrap removed. Station image is wrap-free + 2 dBm table. Target Jam `BEC71` COM7 only — never station UF2 onto Feather `02FB`. `picotool load <uf2> -f --bus/--address` after mapping serial.
 
-**Dirty tree (keep):** `radio_config_table.h` + `kDefaultRocketRadioConfig` 2 dBm; CLI `t` CFG line. UF2 was built from that. Do not `git clean`.
+**Dirty tree (keep):** `radio_config_table.h` + `kDefaultRocketRadioConfig` 2 dBm; CLI `t` CFG line. Do not `git clean`.
 
-**Do not:** picotool `-f` while COM7 CreateFile is hung; kill that Python; `pnputil /restart-device`; desk SET +20; score a 125 kHz log as A3.
+**Do not:** desk SET +20; score a 125 kHz log as A3; 1200-baud poke; kill a hung COM7 `CreateFile`.
 
-Next: flash Jam → lock → idx-5 SET to BW250/5/2 dBm → real A3, then A4/A5. Skip A6. A7/A8 layout B.
+**SET vs lock (parked):** Vehicle does **not** “just fail to re-lock after changing over.” Hop-on-send made station 125/10 while vehicle stayed 125/5 (reverted). After that, SET CLI log fires but station FOP **V(S) stays 0** — command AD never airs. Dashboard eats `r`. Pass A cells are **reflashed** as `kDefaultRocketRadioConfig`, not SET. Do not score A3 on BW125.
+
+Next: A3 via flash BW250/5/2 both boards, confirm CFG, then `soak_two_board.py --cell A3 --bw 250 --nav-hz 5`. Then A4/A5 same way. Skip A6. A7/A8 layout B.
 
 ---
 
@@ -42,14 +44,6 @@ Owner: RSSI LEDs can be yellow/green (LoRa heard) while COP-P is **waiting peer 
 ## FSK mode (WANTED) (2026-09-02)
 
 Owner-wanted after LoRa Pass A. SX1276 FSK (packet and/or continuous bitstream — IVP-63 / ADVANCED_SETTINGS placeholder). Not tonight's LoRa SF/BW matrix. Not hail. Not a license to mint SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot.
-
----
-
-## Fruit Jam `picotool -f` wedges CDC (OPEN) (2026-09-02)
-
-**Do not `picotool -f` / `reboot -f` / `info -f` / WinUSB `RESET_REQUEST_BOOTSEL` on the Jam.** `docs/FLASHING.md` already: `reboot -f` → CDC gone until USB replug (2026-08-20). On this Fruit Jam it is worse: picotool tracks **empty serial** (`Tracking device serial number  for reboot`), sends vendor BOOTSEL, then cannot re-find the device. `load -f` therefore becomes a failed `reboot -f` — no BOOTSEL volume, COM7 may still enumerate, usbser wedged until VBUS cycle. Feather reset-interface serial is `02FB` and works; Jam’s does not. Also do not kill a Python `CreateFile` on COM7 and do not `pnputil /restart-device` the composite.
-
-2026-09-03: live banner still `flight-2f7096d`. `load -f --ser BEC71` rc -7. `load -f` / `reboot -f -u` asked reboot; chip stayed CDC or wedged usbser (`CreateFile` timeout 121 / ERROR_GEN_FAILURE). Treat rc=0 with no load/verify + no COM drop as a failed write. Do not kill a hung COM7 open. Owner: unplug the board you are not flashing. Dual-board targeting later. UF2: `build_station_flight/rocketchip.uf2`. Soak resume: `logs/soak/2026-09-03_HANDOFF.md`.
 
 ---
 

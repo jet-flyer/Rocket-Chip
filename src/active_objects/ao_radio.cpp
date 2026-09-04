@@ -171,12 +171,32 @@ static inline void stage_t_log_tx_start(uint8_t) {}
 static inline void stage_t_log_tx_done(TxPollResult) {}
 #endif
 
+static uint8_t g_heldTx[sizeof(rc::RadioTxEvt::buf)];
+static uint8_t g_heldTxLen = 0;
+
+static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
+    if (len == 0 || !s.initialized) { return false; }
+    if (rfm95w_send_start(&s.radio, buf, len)) {
+        s.scheduler.on_tx_start(now_ms());
+        stage_t_log_tx_start(len);
+        return true;
+    }
+    return false;
+}
+
 static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     RadioAoState& s = me->state;
 
-    // TX-busy: drop and log [C3-A2]
+    // One-deep hold: desk 2026-09-03 dropped 12/14 B ACK/PLCW while nav
+    // occupied the radio, so SET never completed. Drop only if already
+    // holding.
     if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
-        DBG_PRINT("RADIO: TX busy, dropping packet (%u bytes)", tx_evt->len);
+        if (g_heldTxLen == 0 && tx_evt->len > 0) {
+            memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
+            g_heldTxLen = tx_evt->len;
+        } else {
+            DBG_PRINT("RADIO: TX busy, dropping packet (%u bytes)", tx_evt->len);
+        }
         return;
     }
 
@@ -194,17 +214,19 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     if constexpr (job::kRadioModeRx) {
         uint32_t window = rc::AO_RfManager_next_tx_window_us(now_us_rf());
         if (window == 0) {
-            DBG_PRINT("RADIO: station TX held — RfManager window=0 "
-                      "(link ACQ or stale anchor), dropping %u bytes",
-                      tx_evt->len);
+            if (g_heldTxLen == 0 && tx_evt->len > 0) {
+                memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
+                g_heldTxLen = tx_evt->len;
+            } else {
+                DBG_PRINT("RADIO: station TX held — RfManager window=0 "
+                          "(link ACQ or stale anchor), dropping %u bytes",
+                          tx_evt->len);
+            }
             return;
         }
     }
 
-    if (rfm95w_send_start(&s.radio, tx_evt->buf, tx_evt->len)) {
-        s.scheduler.on_tx_start(now_ms());
-        stage_t_log_tx_start(tx_evt->len);
-    }
+    (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
 }
 
 static void handle_tx_poll(RadioAo* me) {
@@ -230,6 +252,13 @@ static void handle_tx_poll(RadioAo* me) {
         // inside a TX-completion handler.
         if (s.apply_in_progress) {
             s.tx_since_apply++;
+        }
+        if (g_heldTxLen > 0) {
+            const uint8_t n = g_heldTxLen;
+            g_heldTxLen = 0;
+            if (radio_start_tx(s, g_heldTx, n)) {
+                return;
+            }
         }
         // Enter RX mode between TX slots to receive commands from station
         rfm95w_start_rx(&s.radio);
@@ -342,9 +371,18 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
     s.tx_since_apply = 0;
     s.apply_in_progress = true;
 
+    const bool phy_changed =
+        (s.runtime_config.bandwidth_khz != g_pendingRadioConfig.bandwidth_khz) ||
+        (s.runtime_config.spreading_factor != g_pendingRadioConfig.spreading_factor) ||
+        (s.runtime_config.coding_rate != g_pendingRadioConfig.coding_rate);
     s.runtime_config = g_pendingRadioConfig;
     ao_radio_apply_runtime_config(s);
     g_configJustChanged = true;   // sub 2f: latch for next nav packet
+    // Nav-rate / power-only is not a LoRa PHY change. COP-P reinit there
+    // dropped lock while SET was still in FOP (desk 2026-09-03).
+    if (phy_changed) {
+        AO_Telemetry_on_radio_phy_applied();
+    }
     DBG_PRINT("RADIO: config applied — BW=%u nav=%u SF=%u CR=%u pwr=%u",
               static_cast<unsigned>(s.runtime_config.bandwidth_khz),
               static_cast<unsigned>(s.runtime_config.nav_rate_hz),
@@ -725,6 +763,19 @@ static void handle_radio_tick(RadioAo* me) {
     }
     if (s.scheduler.rx_active()) {
         handle_rx_poll(me);
+    }
+
+    if (g_heldTxLen > 0 &&
+        s.scheduler.phase != rc::RadioPhase::kTxActive) {
+        bool window_ok = true;
+        if constexpr (job::kRadioModeRx) {
+            window_ok = rc::AO_RfManager_next_tx_window_us(now_us_rf()) != 0;
+        }
+        if (window_ok) {
+            const uint8_t n = g_heldTxLen;
+            g_heldTxLen = 0;
+            (void)radio_start_tx(s, g_heldTx, n);
+        }
     }
 
     tick_apply_backstop(s);

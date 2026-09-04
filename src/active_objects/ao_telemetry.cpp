@@ -201,6 +201,13 @@ static void starcom_drain_to_radio() {
 
 static void send_pending_ack_if_any() {
     if (!g_pendingAckValid) return;
+    // Do not drop the ACK just because nav is on the air. Clearing the
+    // latch here then posting SIG_RADIO_TX lets handle_tx_event discard
+    // it (TX busy); vehicle still applies on the next nav TxDone and
+    // station never hops. Hold the latch and retry next tick.
+    if (AO_Radio_get_state()->scheduler.phase == rc::RadioPhase::kTxActive) {
+        return;
+    }
     g_pendingAckValid = false;
 
 #ifdef ROCKETCHIP_USE_STARCOM
@@ -294,16 +301,24 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     uint8_t  new_pwr = static_cast<uint8_t> (lroundf(cmd.param5));
 
     if (!AO_FlightDirector_is_ground_state()) {
+        rc::rc_log("[CMD] SET denied — not ground state\n");
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     // Presets are debug-menu defaults; advanced path accepts SX1276-legal.
     if (!rc::radio_config_sx1276_legal(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
+        rc::rc_log("[CMD] SET denied — illegal BW=%u nav=%u SF=%u CR=%u pwr=%u\n",
+                   static_cast<unsigned>(new_bw),
+                   static_cast<unsigned>(new_nav),
+                   static_cast<unsigned>(new_sf),
+                   static_cast<unsigned>(new_cr),
+                   static_cast<unsigned>(new_pwr));
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
     int pwr_delta = static_cast<int>(new_pwr) - static_cast<int>(cur->power_dbm);
     if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
     if (pwr_delta > 6) {
+        rc::rc_log("[CMD] SET denied — power delta %d dB\n", pwr_delta);
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
 
@@ -314,6 +329,12 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     new_cfg.bandwidth_khz    = new_bw;
     new_cfg.coding_rate      = new_cr;
     AO_Radio_set_pending_config(new_cfg);
+    rc::rc_log("[CMD] SET accepted BW=%u nav=%u SF=%u CR=%u pwr=%u\n",
+               static_cast<unsigned>(new_bw),
+               static_cast<unsigned>(new_nav),
+               static_cast<unsigned>(new_sf),
+               static_cast<unsigned>(new_cr),
+               static_cast<unsigned>(new_pwr));
     return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
 }
 
@@ -947,6 +968,13 @@ uint8_t AO_Telemetry_cycle_rate() {
 }
 
 // SET_RADIO_CONFIG → vehicle TX interval. Rate policy is radio_config_table.
+void AO_Telemetry_on_radio_phy_applied() {
+#ifdef ROCKETCHIP_USE_STARCOM
+    rc::starcom_adapt::pump_init_for_this_job(g_pump);
+    rc::rc_log("[SC] COP-P reinit after radio PHY apply\n");
+#endif
+}
+
 void AO_Telemetry_set_rate(uint8_t rate_hz) {
     if (rate_hz == 0) { rate_hz = 5; }
     if (rate_hz > 50) { rate_hz = 50; }  // sanity: 50 Hz ~ 20ms period
@@ -1083,8 +1111,11 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
         const auto n = rc::starcom_adapt::pump_pack_cmd_packet(
             pkt, command, seq, p1, p2, p3, p4, p5);
         if (n.has_value() && *n > 0) {
-            (void)rc::starcom_adapt::pump_submit_sdu(
+            const auto sub = rc::starcom_adapt::pump_submit_sdu(
                 g_pump, std::span<const std::byte>(pkt, *n), false);
+            if (!sub.has_value()) {
+                rc::rc_log("[CMD] COP-P submit failed\n");
+            }
             starcom_drain_to_radio();
         }
     }
@@ -1186,8 +1217,25 @@ static void resend_pending_cmd() {
 void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
 #ifndef ROCKETCHIP_HOST_TEST
 #ifdef ROCKETCHIP_USE_STARCOM
-    (void)now_ms;
-    return;  // COP-P owns resend; homemade ACK retry stays OFF-image only
+    // COP-P owns on-wire resend. Still drop the CLI latch if no ACK
+    // (8 × 250 ms seed — same give-up window as homemade retry).
+    // Desk 2026-09-03: pending stuck after SET; later `r` never logged.
+    if (g_pendingCmd.pending) {
+        const uint32_t elapsed = now_ms - g_pendingCmd.sent_ms;
+        constexpr uint32_t kPendingGiveUpMs =
+            static_cast<uint32_t>(kAckMaxRetries) * 250U;
+        if (elapsed >= kPendingGiveUpMs) {
+            g_lastCmdResult.valid  = true;
+            g_lastCmdResult.ok     = false;
+            g_lastCmdResult.cmd_id = g_pendingCmd.cmd_id;
+            g_lastCmdResult.rtt_ms = 0;
+            g_lastCmdResult.at_ms  = now_ms;
+            g_pendingCmd.pending = false;
+            rc::rc_log("[CMD] pending cleared (no ACK in %u ms)\n",
+                       static_cast<unsigned>(kPendingGiveUpMs));
+        }
+    }
+    return;
 #endif
     if (!g_pendingCmd.pending) return;
 

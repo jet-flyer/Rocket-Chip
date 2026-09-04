@@ -135,18 +135,26 @@ static void init_sensors() {
     // IMU + baro first, GPS last (bypass mag at 0x0C before PMTK 0x10).
     sleep_ms(kSensorSettleMs);
 
-    g_imuInitAttempted = true;
-    g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
-
-    g_baroInitAttempted = true;
-    g_baroInitialized.store(baro_dps310_init(kBaroDps310AddrDefault),
-                            std::memory_order_release);
-    if (g_baroInitialized.load(std::memory_order_acquire)) {
-        g_baroContinuous = baro_dps310_start_continuous();
+    // IVP-142c: InitAttempted only when the chip ACKs. ADDR_NACK is
+    // not installed → [N/A], not [FAIL]. Fruit Jam has no IMU/baro
+    // (station_bench_sim test 2). Same probe rule as init_gps().
+    if (i2c_master_probe(kIcm20948AddrDefault, kI2cMasterDefaultTimeoutUs)) {
+        g_imuInitAttempted = true;
+        g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
-    // GPS I2C is after USB (init_hardware). Fruit Jam: talk to PA1010D
-    // once CDC is up. Blocking PMTK/hunt here delayed stdio_init_all and
-    // left Core 0 in USBCTRL_IRQ after probe flash (GPS-only, no IMU).
+
+    if (i2c_master_probe(kBaroDps310AddrDefault, kI2cMasterDefaultTimeoutUs)) {
+        g_baroInitAttempted = true;
+        g_baroInitialized.store(baro_dps310_init(kBaroDps310AddrDefault),
+                                std::memory_order_release);
+        if (g_baroInitialized.load(std::memory_order_acquire)) {
+            g_baroContinuous = baro_dps310_start_continuous();
+        }
+    }
+
+    if (!g_gpsInitialized.load(std::memory_order_acquire)) {
+        init_gps();
+    }
 }
 
 // Initialize USB CDC without blocking. Terminal connection is handled
@@ -242,8 +250,8 @@ static void init_hardware() {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
     }
 
-    // I2C bus init (before USB per LL Entry 4/12), then IMU/baro.
-    // GPS I2C is after USB so PA1010D stretch cannot block stdio_init.
+    // I2C bus init (before USB per LL Entry 4/12), then IMU/baro/GPS.
+    // GPS last on the bus (bypass mag at 0x0C before PMTK 0x10).
     {
         const rc::BootSignals& boot = rc::anomalous_boot_signals();
         rc::rc_log("[I2C] POR=%d nonPOR=%d reset=0x%08lx\n",
@@ -260,12 +268,6 @@ static void init_hardware() {
     // Core 1 has called multicore_lockout_victim_init().
 
     init_peripherals();
-    // PA1010D stretch/PMTK after USB so CDC IRQs are live first (Fruit Jam
-    // idle-bridge pattern). Same slave still powered across MCU-only flash.
-    if (g_i2cInitialized &&
-        !g_gpsInitialized.load(std::memory_order_acquire)) {
-        init_gps();
-    }
 }
 
 // ============================================================================
