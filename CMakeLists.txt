@@ -406,6 +406,7 @@ else()
         #   src/dev/replay_inject.{cpp,h}
         #   src/dev/station_replay.{cpp,h}
         src/diag/diag_stats.cpp
+        src/diag/radio_rate_counters.cpp  # R-32 R0: increment-only rate counters
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -586,6 +587,7 @@ else()
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
         src/diag/diag_stats.cpp                     # R-25-exec step 4
+        src/diag/radio_rate_counters.cpp            # R-32 R0: increment-only rate counters
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp

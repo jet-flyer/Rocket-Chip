@@ -46,6 +46,7 @@
 #endif
 
 #include "rocketchip/rc_log.h"
+#include "diag/radio_rate_counters.h"
 #include <string.h>
 #include <span>
 
@@ -170,6 +171,7 @@ static void starcom_post_pltu(std::span<const std::byte> octets) {
     memcpy(g_txEvtSc.buf, octets.data(), octets.size());
     g_txEvtSc.len = static_cast<uint8_t>(octets.size());
     QACTIVE_POST(AO_Radio, &g_txEvtSc.super, AO_Telemetry);
+    radio_rate_inc_pltu_post();
 }
 
 static void starcom_drain_to_radio() {
@@ -232,6 +234,7 @@ static void send_pending_ack_if_any() {
     memcpy(g_ackTxEvt.buf, ack_buf, ack_len);
     g_ackTxEvt.len = ack_len;
     QACTIVE_POST(AO_Radio, &g_ackTxEvt.super, AO_Telemetry);
+    radio_rate_inc_pltu_post();
 #endif
 }
 
@@ -244,6 +247,7 @@ static void encode_and_send(TelemAo* me) {
     uint32_t t = now_ms();
     if (t - me->last_tx_ms < me->interval_ms) { return; }
     me->last_tx_ms = t;
+    radio_rate_inc_nav_submit();
 
 #ifdef ROCKETCHIP_USE_STARCOM
     if (rc::kDefaultRocketRadioConfig.protocol != rc::EncoderType::kMavlink) {
@@ -288,6 +292,7 @@ static void encode_and_send(TelemAo* me) {
     g_txEvt.len = static_cast<uint8_t>(result.len);
 
     QACTIVE_POST(AO_Radio, &g_txEvt.super, me);
+    radio_rate_inc_pltu_post();
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
@@ -716,6 +721,20 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     return false;
 }
 
+static void note_starcom_pltu_crc(std::span<const std::byte> octets) {
+    if constexpr (!job::kRadioModeRx) {
+        return;
+    }
+    const auto pltu = starcom::ccsds::decodePltu(octets);
+    if (pltu) {
+        radio_rate_inc_rx_crc_ok();
+        return;
+    }
+    if (pltu.error() == starcom::ccsds::Error::bad_crc) {
+        radio_rate_inc_rx_crc_fail();
+    }
+}
+
 static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     std::byte in[256];
     const uint8_t n = rx_evt->len;
@@ -725,6 +744,7 @@ static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     for (uint8_t i = 0; i < n; ++i) {
         in[i] = std::byte{rx_evt->buf[i]};
     }
+    note_starcom_pltu_crc(std::span<const std::byte>(in, n));
     rc::starcom_adapt::pump_receive_bytes(
         g_pump, std::span<const std::byte>(in, n));
     starcom_drain_to_radio();

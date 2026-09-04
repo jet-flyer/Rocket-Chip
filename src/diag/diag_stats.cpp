@@ -58,6 +58,7 @@ void diag_stats_t0_preconditions() {
 // -------------------------------------------------------------------
 
 #include "diag/diag_stats.h"
+#include "diag/radio_rate_counters.h"
 #include "drivers/mcu_temp.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_flight_director.h"
@@ -240,6 +241,7 @@ void diag_stats_dump() {
     dump_msp();
     dump_ao_queues();
     dump_radio();
+    radio_rate_counters_dump();
 #ifdef ROCKETCHIP_JOB_STATION
     dump_station_section();
     dump_cmd_retry_stats();

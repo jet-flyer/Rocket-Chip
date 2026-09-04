@@ -26,6 +26,7 @@
 #include "drivers/spi_bus.h"
 #include "drivers/ws2812_status.h"
 #include "crc16_ccitt.h"
+#include "diag/radio_rate_counters.h"
 #include <string.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -179,6 +180,10 @@ static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (rfm95w_send_start(&s.radio, buf, len)) {
         s.scheduler.on_tx_start(now_ms());
         stage_t_log_tx_start(len);
+        radio_rate_inc_tx_start();
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_station_tx();
+        }
         return true;
     }
     return false;
@@ -195,6 +200,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
             memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
             g_heldTxLen = tx_evt->len;
         } else {
+            radio_rate_inc_tx_busy_drop();
             DBG_PRINT("RADIO: TX busy, dropping packet (%u bytes)", tx_evt->len);
         }
         return;
@@ -218,6 +224,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
                 memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
                 g_heldTxLen = tx_evt->len;
             } else {
+                radio_rate_inc_tx_busy_drop();
                 DBG_PRINT("RADIO: station TX held — RfManager window=0 "
                           "(link ACQ or stale anchor), dropping %u bytes",
                           tx_evt->len);
@@ -239,6 +246,7 @@ static void handle_tx_poll(RadioAo* me) {
     }
 
     if (result == TxPollResult::kDone) {
+        radio_rate_inc_tx_done();
         s.tx_consec_fail = 0;
         s.tx_count++;
         s.scheduler.on_tx_complete(now_ms());
@@ -475,7 +483,13 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
             s.rx_crc_errors++;
+            if constexpr (job::kRadioModeRx) {
+                radio_rate_inc_rx_crc_fail();
+            }
             return false;
+        }
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_rx_crc_ok();
         }
     }
     return true;

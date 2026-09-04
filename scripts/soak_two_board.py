@@ -126,6 +126,16 @@ def last_str(text: str, pattern: str) -> str | None:
     return hits[-1].group(1)
 
 
+def last_rate(text: str, key: str) -> int | None:
+    return last_int(text, rf"RATE:.*?{re.escape(key)}=(\d+)")
+
+
+def rate_hz(count: int | None, window_ms: int | None) -> str | None:
+    if count is None or window_ms is None or window_ms < 1000:
+        return None
+    return f"{count / (window_ms / 1000.0):.2f}"
+
+
 LAYOUT_BLURB = {
     "A": "A (station on metal PC, ~1.5 m, antennas up)",
     "B": "B (vehicle on floor behind chassis, no LOS, antennas orthogonal)",
@@ -166,6 +176,22 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
     add("paper_nav_toa_ms", paper.get("nav_ms"))
     add("paper_plcw_toa_ms", paper.get("plcw_ms"))
     add("paper_duty_5hz_pct", paper.get("duty_pct"))
+
+    veh_win = last_rate(veh, "window_ms")
+    stn_win = last_rate(stn, "window_ms")
+    add("veh_rate_window_ms", veh_win)
+    add("stn_rate_window_ms", stn_win)
+    for key in (
+        "nav_submit", "pltu_post", "tx_start", "tx_done",
+        "tx_busy_drop", "tx_hold_replace", "rx_crc_ok", "rx_crc_fail",
+        "station_tx",
+    ):
+        vn = last_rate(veh, key)
+        sn = last_rate(stn, key)
+        add(f"veh_{key}_n", vn)
+        add(f"stn_{key}_n", sn)
+        add(f"veh_{key}_hz", rate_hz(vn, veh_win))
+        add(f"stn_{key}_hz", rate_hz(sn, stn_win))
 
     tx = last_int(veh, r"TX:\s+(\d+)\s+sent")
     rx = last_int(stn, r"Pkts:\s+(\d+)") or last_int(stn, r"RX:\s+(\d+)\s+pkts")
@@ -296,8 +322,10 @@ def main() -> int:
 
             if not cfg_sent and elapsed >= 4.0:
                 veh.send(b"t")
+                if stn is not None:
+                    stn.send(b"t")
                 cfg_sent = True
-                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG)")
+                log(f"  t={elapsed:.0f}s CLI t (CFG + RATE) veh+stn")
 
             if not diag_sent and elapsed >= 8.0:
                 veh.send(b"q")
@@ -305,8 +333,14 @@ def main() -> int:
                 veh.send(b"d")
                 time.sleep(0.6)
                 veh.send(b"z")
+                if stn is not None:
+                    stn.send(b"q")
+                    time.sleep(0.4)
+                    stn.send(b"d")
+                    time.sleep(0.6)
+                    stn.send(b"z")
                 diag_sent = True
-                log(f"  t={elapsed:.0f}s vehicle debug d (RegVersion)")
+                log(f"  t={elapsed:.0f}s debug d (RegVersion + RATE) veh+stn")
 
             if not t10_checked and elapsed >= 12.0:
                 vtxt = veh.snapshot_text()
@@ -340,8 +374,10 @@ def main() -> int:
 
             if not cfg2_sent and elapsed >= args.duration - 8.0:
                 veh.send(b"t")
+                if stn is not None:
+                    stn.send(b"t")
                 cfg2_sent = True
-                log(f"  t={elapsed:.0f}s vehicle CLI t (end CFG)")
+                log(f"  t={elapsed:.0f}s CLI t (end CFG + RATE) veh+stn")
 
             time.sleep(0.2)
     finally:

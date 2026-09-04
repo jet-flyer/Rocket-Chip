@@ -36,6 +36,7 @@
 #include "active_objects/ao_flight_director.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
+#include "diag/radio_rate_counters.h"
 #include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
 
 // MAVLink command IDs for station command menu (IVP-62c)
@@ -1085,9 +1086,11 @@ void cli_print_station_status() {
         rc::rc_log("Waiting for vehicle packets...\n");
         rc::rc_log("RX: %lu pkts  %lu CRC err\n",
                (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors);
+        radio_rate_counters_dump();
         return;
     }
     print_station_rx_fields(rx->telem, rs, rx->met_ms, rx->seq);
+    radio_rate_counters_dump();
 }
 
 // ============================================================================
@@ -1380,6 +1383,7 @@ static void cmd_radio_status() {
                a.lna,           lna_ok  ? "OK" : "MISMATCH",
                a.modem_config3, cfg3_ok ? "OK" : "MISMATCH");
     }
+    radio_rate_counters_dump();
 }
 
 // ============================================================================
