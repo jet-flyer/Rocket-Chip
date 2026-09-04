@@ -17,21 +17,24 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Handoff 2026-09-03 (OPEN) — Pass A soak
+## Next after Pass A/B soak (OPEN) (2026-09-03)
 
-Owner to bed. **Plan file:** `starcom/docs/integration/PASS_A_HANDOFF_2026-09-03.md` (copy also in `logs/soak/`, gitignored). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Starcom log: `starcom/CHANGELOG.md` `2026-09-03-001`. Root RC log is a pointer only.
+Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Default boot still **125/5/2 SF7**. Tree restored seq-nav. **Chips still have B5 500/10 expedited** until reflashed.
 
-**In progress:** two-board ON soak Pass A. A1 PASS (lock + 2 dBm; ARM leftover FAIL). A2 FAIL as expected. A3–A5 were invalid while station stayed BW125/`pwr=20`.
+Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to true time (3D / oMCT). Prefer MET + GPS on both ends; oMCT not wired.
 
-**Jam USB flash:** wrap of `rom_reset_usb_boot_extra` was the `-f` break (last-known-good `6c6b0a3` still `-f`’d). Wrap removed. Station image is wrap-free + 2 dBm table. Target Jam `BEC71` COM7 only — never station UF2 onto Feather `02FB`. `picotool load <uf2> -f --bus/--address` after mapping serial.
+**Next to address (fresh sitting, not this wrap):**
 
-**Dirty tree (keep):** `radio_config_table.h` + `kDefaultRocketRadioConfig` 2 dBm; CLI `t` CFG line. Do not `git clean`.
+1. Commanded 10 Hz vs ~5 Hz delivered (TX-busy / half-duplex / COP-P window).
+2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
+3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
+4. FSK (below).
+5. Hail.
+6. Adaptive TX power.
 
-**Do not:** desk SET +20; score a 125 kHz log as A3; 1200-baud poke; kill a hung COM7 `CreateFile`.
+Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET table; retire BW125 from desk SNR. Jam flash: `picotool load <uf2> -f --bus/--address` tracking `BEC71` only. Dirty keep: BOOTSEL helpers + `station_phy_scan` untracked — do not `git clean`.
 
-**SET vs lock (parked):** Vehicle does **not** “just fail to re-lock after changing over.” Hop-on-send made station 125/10 while vehicle stayed 125/5 (reverted). After that, SET CLI log fires but station FOP **V(S) stays 0** — command AD never airs. Dashboard eats `r`. Pass A cells are **reflashed** as `kDefaultRocketRadioConfig`, not SET. Do not score A3 on BW125.
-
-Next: A3 via flash BW250/5/2 both boards, confirm CFG, then `soak_two_board.py --cell A3 --bw 250 --nav-hz 5`. Then A4/A5 same way. Skip A6. A7/A8 layout B.
+**SET vs lock (parked):** hop-on-send reverted. SET CLI can fire while FOP `V(S)` stays 0. Pass A cells were reflash, not SET.
 
 ---
 

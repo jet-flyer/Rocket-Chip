@@ -126,14 +126,23 @@ def last_str(text: str, pattern: str) -> str | None:
     return hits[-1].group(1)
 
 
-def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict) -> str:
+LAYOUT_BLURB = {
+    "A": "A (station on metal PC, ~1.5 m, antennas up)",
+    "B": "B (vehicle on floor behind chassis, no LOS, antennas orthogonal)",
+    "C": "C (station lifted off metal, 2 m LOS, antennas vertical)",
+    "D": "D (outdoors range)",
+}
+
+
+def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
+          layout: str = "A") -> str:
     lines = []
     def add(k: str, v: object) -> None:
         lines.append(f"{k}: {v}")
 
     add("cell", cell)
     add("duration_s", f"{duration_s:.1f}")
-    add("layout", "A (station on metal PC, ~1.5 m, antennas up)")
+    add("layout", LAYOUT_BLURB.get(layout, layout))
     add("operator_bar", "yellow (RSSI -80..-100; consistent with 2 dBm vs hist -40 @ +20)")
     add("veh_git", last_str(veh, r"([0-9a-f]{7,})") or last_str(veh, r"flight-([0-9a-f]+)"))
     add("veh_air", last_str(veh, r"Air:\s+(\S+)"))
@@ -199,6 +208,8 @@ def main() -> int:
                     help="LoRa BW kHz for paper ToA (must match flashed CFG)")
     ap.add_argument("--nav-hz", type=int, default=5,
                     help="nav Hz for paper duty (must match flashed CFG)")
+    ap.add_argument("--layout", default="A", choices=sorted(LAYOUT_BLURB),
+                    help="physical layout class for the score file")
     args = ap.parse_args()
 
     date = dt.date.today().isoformat()
@@ -354,7 +365,7 @@ def main() -> int:
         f"STATION_CDC_UNAVAILABLE {stn_open_err}\n"
         "operator visual: RSSI bar YELLOW\n"
     )
-    summary = score(args.cell, vtxt, stxt, elapsed, paper)
+    summary = score(args.cell, vtxt, stxt, elapsed, paper, layout=args.layout)
     if stn_open_err:
         summary += f"stn_cdc: UNAVAILABLE ({stn_open_err})\n"
     with open(score_path, "w", encoding="utf-8") as fh:
