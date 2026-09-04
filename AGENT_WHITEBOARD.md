@@ -17,34 +17,19 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## R-32 R0 rate counters (OPEN) (2026-09-04)
+## Next after Pass A/B soak (OPEN) (2026-09-03; R-32 rate closed 2026-09-04)
 
-Worktree `../Rocket-Chip-r0` branch `grok/r0-rate-counters` @ `2c8092c` + **product boot B4 250/10 exp**. Increment-only RATE on CLI `t`/`d` and station ANSI dashboard. No last_tx_ms (R1), no hold (R2), no T3 mute.
+Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. **Product boot on `main`:** 250 kHz / 10 Hz SF7 expedited + sparse PLCW (R-32 closed; CHANGELOG `2026-09-04-002`). 125/10 does not fit paper ToA.
 
-**Product boot:** **250 kHz / 10 Hz / SF7 / 2 dBm / CR5 expedited nav** + sparse station PLCW (arm `farm.need_plcw` every 4th CRC-ok RX; drain cadence + ACQ bootstrap). Station air ~nav/4 ≈ 2.5 Hz. **125/10 does not fit** (paper ToA ~118 ms > 100 ms slot). Nathan accepted ~3 dB (BW125→250) for airtime/rate. Buzz: reflash **vehicle + station** Starcom ON. Exit: CFG BW=250 nav=10Hz, veh submit~10, station_tx ~2.5 Hz (not 1 total, not ~nav Hz), COP-P lock OK, busy_drop~0.
+Owner: Prefer MET + GPS on both ends; oMCT not wired.
 
----
+**Next to address (fresh sitting):**
 
-## Next after Pass A/B soak (OPEN) (2026-09-03)
-
-Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Product default now **250/10 SF7 expedited + sparse PLCW** (this worktree). 125/10 does not fit paper ToA.
-
-Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to true time (3D / oMCT). Prefer MET + GPS on both ends; oMCT not wired.
-
-**Next to address (fresh sitting, not this wrap):**
-
-1. Commanded 10 Hz vs ~5 Hz delivered (TX-busy / half-duplex / COP-P window).
-2. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
-3. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
-4. FSK (below).
-5. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
-6. Adaptive TX power.
-
-Do not: desk SET +20; B5r unless leftover is actually fat; mint SF8 into the SET table; retire BW125 from desk SNR. Jam flash: `picotool load <uf2> -f --bus/--address` tracking `BEC71` only. Dirty keep: BOOTSEL helpers + `station_phy_scan` untracked — do not `git clean`.
-
-**SET vs lock (parked):** hop-on-send reverted. SET CLI can fire while FOP `V(S)` stays 0. Pass A cells were reflash, not SET.
-
----
+1. Command AD / `V(S)=0` / SET hop — OTA radio settings still fiction.
+2. Class D outdoor — 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
+3. FSK (below).
+4. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
+5. Adaptive TX power.
 
 ## FPV-style scan / find (WANTED) (2026-09-02, restated 2026-09-03)
 
