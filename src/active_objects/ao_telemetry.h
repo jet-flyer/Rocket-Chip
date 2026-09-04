@@ -88,6 +88,10 @@ struct StarcomLinkStatus {
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
 
+// R-32 R3 follow-up: station may air a bootstrap PLCW while RfManager
+// is still ACQ (no TX window). False on vehicle / non-Starcom.
+bool AO_Telemetry_station_bootstrap_tx();
+
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
 void AO_Telemetry_notify_gcs_heartbeat();
 

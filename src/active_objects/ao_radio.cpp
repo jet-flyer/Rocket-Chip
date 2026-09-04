@@ -220,6 +220,12 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     if constexpr (job::kRadioModeRx) {
         uint32_t window = rc::AO_RfManager_next_tx_window_us(now_us_rf());
         if (window == 0) {
+            // R-32 R3: ACQ has no window. Bootstrap PLCW must air or
+            // COP-P never locks (hold-until-window is a chicken-egg).
+            if (AO_Telemetry_station_bootstrap_tx()) {
+                (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
+                return;
+            }
             if (g_heldTxLen == 0 && tx_evt->len > 0) {
                 memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
                 g_heldTxLen = tx_evt->len;
@@ -784,6 +790,9 @@ static void handle_radio_tick(RadioAo* me) {
         bool window_ok = true;
         if constexpr (job::kRadioModeRx) {
             window_ok = rc::AO_RfManager_next_tx_window_us(now_us_rf()) != 0;
+            if (!window_ok) {
+                window_ok = AO_Telemetry_station_bootstrap_tx();
+            }
         }
         if (window_ok) {
             const uint8_t n = g_heldTxLen;

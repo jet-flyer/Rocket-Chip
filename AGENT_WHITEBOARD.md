@@ -19,13 +19,15 @@
 
 ## R-32 R0 rate counters (OPEN) (2026-09-04)
 
-Worktree `../Rocket-Chip-r0` branch `grok/r0-rate-counters` @ `2a832cd` + R0. Increment-only (`RATE:` / `RATE_HZ:` on CLI `t` and debug `d`). No last_tx_ms / hold / SF/BW / R1–R4. Buzz: flash vehicle Feather + station Fruit Jam with `ROCKETCHIP_USE_STARCOM=ON` for T1.
+Worktree `../Rocket-Chip-r0` branch `grok/r0-rate-counters` @ `388fbff` + R32 closed shape. Increment-only RATE on CLI `t`/`d` and station ANSI dashboard. No last_tx_ms (R1), no hold (R2), no T3 mute.
+
+**Product boot:** **125 kHz / 5 Hz / SF7 / 2 dBm / CR5 seq-nav**. 10 Hz TM = expedited nav + sparse station PLCW (arm `farm.need_plcw` every 4th CRC-ok RX, including expedited RE3 which does not set it; drain cadence + ACQ bootstrap). Station air ~nav/4 (~1.25 Hz at 5 Hz, ~2.5 Hz at 10 Hz) — not every nav, not one-shot. Buzz: reflash **vehicle + station** Starcom ON. Exit: 125/5/2 RATE, veh submit~5, station_tx a few/sec (1–3 Hz, not 1 total, not ~nav Hz), COP-P lock OK, busy_drop~0.
 
 ---
 
 ## Next after Pass A/B soak (OPEN) (2026-09-03)
 
-Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Default boot still **125/5/2 SF7**. Tree restored seq-nav. **Chips still have B5 500/10 expedited** until reflashed.
+Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Product default **125/5/2 SF7 seq-nav** (this worktree restored). 10 Hz TM = expedited + sparse station PLCW.
 
 Owner: sandbagged receive Hz (~4–6 vs commanded 10) is OK for GCS if synced to true time (3D / oMCT). Prefer MET + GPS on both ends; oMCT not wired.
 

@@ -160,6 +160,12 @@ static uint16_t g_ackSeq = 0;
 // One PLTU per call. COP-P resends unacked seq if no peer PLCW; draining
 // a window of frames every 10 Hz tick floods the half-duplex radio.
 static constexpr uint8_t kStarcomDrainCap = 1;
+// R-32 R3: station PLCW/ACK air, not mute. Named cell "B5r (PLCW every 4th)"
+// in RADIO_SOAK_PASS_AB_2026-09-03.md (unrun). T1 B4 station-TX-on ~7.7 Hz
+// vs T3 mute ~9.9 Hz; busy_drop=0 (H3). Skip drain keeps farm.need_plcw.
+static constexpr uint8_t kStationPlcwEveryNthNav = 4;
+static uint32_t g_stationLastAirMs = 0;
+static uint8_t g_stationNavRxSincePlcw = 0;
 
 static void starcom_post_pltu(std::span<const std::byte> octets) {
     if (octets.empty() || octets.size() > sizeof(rc::RadioTxEvt::buf)) {
@@ -174,17 +180,66 @@ static void starcom_post_pltu(std::span<const std::byte> octets) {
     radio_rate_inc_pltu_post();
 }
 
+static bool station_copp_bootstrapping() {
+    if constexpr (!job::kRadioModeRx) {
+        return false;
+    }
+    if (g_stationLastAirMs == 0) {
+        return true;
+    }
+    return !g_pump.copp.fop.plcw_heard;
+}
+
+static bool station_plcw_cadence_allows() {
+    if constexpr (!job::kRadioModeRx) {
+        return true;
+    }
+    const uint32_t now = now_ms();
+    if (g_stationLastAirMs == 0) {
+        return true;
+    }
+    uint32_t nav_ms = g_telemAo.interval_ms;
+    if (nav_ms == 0) {
+        const uint8_t hz = rc::kDefaultRocketRadioConfig.nav_rate_hz;
+        nav_ms = (hz == 0) ? 200U : (1000U / hz);
+    }
+    const uint32_t min_ms =
+        static_cast<uint32_t>(kStationPlcwEveryNthNav) * nav_ms;
+    return (now - g_stationLastAirMs) >= min_ms;
+}
+
+// Expedited FARM-P RE3 does not set need_plcw (Blue Book). Product still
+// wants sparse status PLCWs. Arm every Nth CRC-ok station RX; drain
+// cadence keeps air at ~nav_hz/N (B5r). Do not change starcom RE3.
+static void station_arm_sparse_plcw() {
+    if constexpr (!job::kRadioModeRx) {
+        return;
+    }
+    g_stationNavRxSincePlcw++;
+    if (g_stationNavRxSincePlcw < kStationPlcwEveryNthNav) {
+        return;
+    }
+    g_stationNavRxSincePlcw = 0;
+    g_pump.copp.farm.need_plcw = true;
+}
+
 static void starcom_drain_to_radio() {
 #ifndef ROCKETCHIP_HOST_TEST
     // Station TX is gated in AO_Radio on RfManager window==0 (Stage T IVP-T14).
     // pump_bytes_to_send consumes a COP-P AD. If we drain and Radio then
     // drops the event, FOP-P thinks the frame is in flight. Soak MIB
     // synch_timeout=0 so SYNCH never expires — the command is lost.
-    // Only drain when Radio will actually air the PLTU.
+    // Only drain when Radio will actually air the PLTU — except R3
+    // bootstrap: ACQ has no window, so the first/unlocked PLCW must
+    // still drain or COP-P never locks (plcw4-b: station_tx stuck at 1).
     if constexpr (job::kRadioModeRx) {
         const uint32_t now_us =
             static_cast<uint32_t>(to_us_since_boot(get_absolute_time()));
-        if (rc::AO_RfManager_next_tx_window_us(now_us) == 0) {
+        if (rc::AO_RfManager_next_tx_window_us(now_us) == 0 &&
+            !station_copp_bootstrapping()) {
+            return;
+        }
+        if (!station_plcw_cadence_allows()) {
             return;
         }
     }
@@ -197,6 +252,9 @@ static void starcom_drain_to_radio() {
             return;
         }
         starcom_post_pltu(std::span<const std::byte>(buf, *n));
+        if constexpr (job::kRadioModeRx) {
+            g_stationLastAirMs = now_ms();
+        }
     }
 }
 #endif
@@ -721,18 +779,19 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     return false;
 }
 
-static void note_starcom_pltu_crc(std::span<const std::byte> octets) {
+static bool note_starcom_pltu_crc(std::span<const std::byte> octets) {
     if constexpr (!job::kRadioModeRx) {
-        return;
+        return false;
     }
     const auto pltu = starcom::ccsds::decodePltu(octets);
     if (pltu) {
         radio_rate_inc_rx_crc_ok();
-        return;
+        return true;
     }
     if (pltu.error() == starcom::ccsds::Error::bad_crc) {
         radio_rate_inc_rx_crc_fail();
     }
+    return false;
 }
 
 static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
@@ -744,9 +803,12 @@ static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     for (uint8_t i = 0; i < n; ++i) {
         in[i] = std::byte{rx_evt->buf[i]};
     }
-    note_starcom_pltu_crc(std::span<const std::byte>(in, n));
+    const bool crc_ok = note_starcom_pltu_crc(std::span<const std::byte>(in, n));
     rc::starcom_adapt::pump_receive_bytes(
         g_pump, std::span<const std::byte>(in, n));
+    if (crc_ok) {
+        station_arm_sparse_plcw();
+    }
     starcom_drain_to_radio();
     for (uint8_t i = 0; i < kStarcomDrainCap; ++i) {
         std::byte sdu[starcom::ccsds::kCoppHold];
@@ -898,8 +960,12 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
     me->mav_encoder.init();
     me->telem_valid = false;
     // Output mode owned by AO_RCOS (station_output_mode.h)
-    me->rate_hz = 5;
-    me->interval_ms = 200;
+    // Seed from kDefaultRocketRadioConfig so boot nav_rate_hz is commanded;
+    // telem_ao_initial runs after AO_Radio_set_rate and would otherwise
+    // snap back to a hardcoded 5 Hz.
+    me->rate_hz = rc::kDefaultRocketRadioConfig.nav_rate_hz;
+    if (me->rate_hz == 0) { me->rate_hz = 5; }
+    me->interval_ms = 1000U / me->rate_hz;
     me->last_tx_ms = 0;
     me->last_heartbeat_ms = 0;
     me->gcs_state = GcsState::kWaitingForGcs;
@@ -1023,6 +1089,14 @@ StarcomLinkStatus AO_Telemetry_get_starcom_link() {
     s.nn_r = g_pump.copp.fop.nn_r;
 #endif
     return s;
+}
+
+bool AO_Telemetry_station_bootstrap_tx() {
+#ifdef ROCKETCHIP_USE_STARCOM
+    return station_copp_bootstrapping();
+#else
+    return false;
+#endif
 }
 
 // Encode + send MAVLink COMMAND_LONG over LoRa

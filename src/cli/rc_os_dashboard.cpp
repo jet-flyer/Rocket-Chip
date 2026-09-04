@@ -11,6 +11,7 @@
 #include "rc_os_dashboard.h"
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
+#include "diag/radio_rate_counters.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
@@ -235,6 +236,32 @@ static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
         d.cfg_just_changed ? " [CHANGED]" : "");
 }
 
+// R-32 R0: soak captures the ANSI dashboard, not CLI `t` (dashboard
+// poll_dashboard_keys eats t/q/d). Same RATE: tokens as radio_rate_counters_dump.
+static int format_rate_row(char* out, size_t n) {
+    const RadioRateCounters& c = g_radioRateCounters;
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t window_ms = 0;
+#endif
+    return rc::rc_snprintf(
+        out, n,
+        "RATE: window_ms=%lu nav_submit=%lu pltu_post=%lu tx_start=%lu "
+        "tx_done=%lu tx_busy_drop=%lu tx_hold_replace=%lu "
+        "rx_crc_ok=%lu rx_crc_fail=%lu station_tx=%lu",
+        (unsigned long)window_ms,
+        (unsigned long)c.nav_submit_n,
+        (unsigned long)c.pltu_post_n,
+        (unsigned long)c.tx_start_n,
+        (unsigned long)c.tx_done_n,
+        (unsigned long)c.tx_busy_drop_n,
+        (unsigned long)c.tx_hold_replace_n,
+        (unsigned long)c.rx_crc_ok_n,
+        (unsigned long)c.rx_crc_fail_n,
+        (unsigned long)c.station_tx_n);
+}
+
 // IVP-T14: RF Link glance indicator — green/yellow/red block that matches
 // the FD pre-arm threshold (kTrack + LQ>=65 = green, kTrackDegraded OR
 // LQ<65 in any tracking state = yellow, kAcq/kTentative/no RX = red).
@@ -404,6 +431,9 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         radio_clr, radio_row, kReset, kClrEol);
+    char rate_row[256];
+    format_rate_row(rate_row, sizeof(rate_row));
+    rc::strbuf_printf(&sb, "%s%s\n", rate_row, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         rflink_clr, rflink_row, kReset, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
@@ -486,6 +516,8 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
     char sc_row[80];
     const char* sc_clr = kReset;
     format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
+    char rate_row[256];
+    format_rate_row(rate_row, sizeof(rate_row));
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
@@ -493,6 +525,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         "%s%s%s%s\n"
         "-------------------------------------------%s\n"
         "RX: %lu pkts  CRC err: %lu%s\n"
+        "%s%s\n"
         "Uptime: %lus%s\n"
         "%s\n"
         "'a' ARM  'D' DISARM  'x' menu%s\n",
@@ -502,6 +535,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         sc_clr, sc_row, kReset, kClrEol,
         kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors, kClrEol,
+        rate_row, kClrEol,
         (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);

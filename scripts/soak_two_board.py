@@ -23,7 +23,10 @@ VEH_SER = "02FBDDB8E1CA1281"
 STN_SER = "BEC71B8EDC6AEBD1"
 
 # Strip ANSI for scoring (dashboard is color + home/clear).
-_ANSI_RE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07")
+# Allow CSI '?' private modes and OSC; soak station logs are 90% CSI.
+_ANSI_RE = re.compile(
+    rb"\x1b\[[?0-9;]*[A-Za-z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]"
+)
 
 
 def open_cdc(port: str) -> serial.Serial:
@@ -126,8 +129,16 @@ def last_str(text: str, pattern: str) -> str | None:
     return hits[-1].group(1)
 
 
+def strip_ansi_text(text: str) -> str:
+    blob = text.encode("utf-8", errors="replace")
+    return _ANSI_RE.sub(b"", blob).decode("utf-8", errors="replace")
+
+
 def last_rate(text: str, key: str) -> int | None:
-    return last_int(text, rf"RATE:.*?{re.escape(key)}=(\d+)")
+    # Dashboard RATE sits on a CSI-wrapped line. Strip first, then take
+    # the last RATE: line's token so home/clear refreshes don't glue keys.
+    clean = strip_ansi_text(text)
+    return last_int(clean, rf"RATE:[^\n]*\b{re.escape(key)}\s*=\s*(\d+)")
 
 
 def rate_hz(count: int | None, window_ms: int | None) -> str | None:
@@ -322,10 +333,10 @@ def main() -> int:
 
             if not cfg_sent and elapsed >= 4.0:
                 veh.send(b"t")
-                if stn is not None:
-                    stn.send(b"t")
+                # Station stays on ANSI dash here so `a`/`D` ARM still work.
+                # RATE is on the dashboard frame (poll_dashboard_keys eats `t`).
                 cfg_sent = True
-                log(f"  t={elapsed:.0f}s CLI t (CFG + RATE) veh+stn")
+                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG); stn RATE via dash")
 
             if not diag_sent and elapsed >= 8.0:
                 veh.send(b"q")
@@ -333,14 +344,8 @@ def main() -> int:
                 veh.send(b"d")
                 time.sleep(0.6)
                 veh.send(b"z")
-                if stn is not None:
-                    stn.send(b"q")
-                    time.sleep(0.4)
-                    stn.send(b"d")
-                    time.sleep(0.6)
-                    stn.send(b"z")
                 diag_sent = True
-                log(f"  t={elapsed:.0f}s debug d (RegVersion + RATE) veh+stn")
+                log(f"  t={elapsed:.0f}s vehicle debug d (RegVersion + RATE)")
 
             if not t10_checked and elapsed >= 12.0:
                 vtxt = veh.snapshot_text()
@@ -373,11 +378,22 @@ def main() -> int:
                 disarmed = True
 
             if not cfg2_sent and elapsed >= args.duration - 8.0:
-                veh.send(b"t")
-                if stn is not None:
-                    stn.send(b"t")
+                try:
+                    veh.send(b"t")
+                    if stn is not None:
+                        # After ARM/DISARM: exit dash once (`x`), then `z`/`t`/`s`.
+                        # Do not send `x` again (main-menu `x` is flight-erase).
+                        stn.send(b"x")
+                        time.sleep(0.4)
+                        stn.send(b"z")
+                        time.sleep(0.25)
+                        stn.send(b"t")
+                        time.sleep(0.35)
+                        stn.send(b"s")
+                    log(f"  t={elapsed:.0f}s CLI t (end CFG + RATE) veh+stn")
+                except Exception as e:
+                    log(f"  t={elapsed:.0f}s end-CLI soft-fail ({e!r}) — continue to score")
                 cfg2_sent = True
-                log(f"  t={elapsed:.0f}s CLI t (end CFG + RATE) veh+stn")
 
             time.sleep(0.2)
     finally:
