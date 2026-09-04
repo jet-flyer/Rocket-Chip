@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-04-002 | Grok Hamilton (Grok Bot) | hardware, feature, bugfix
+
+**R-32 close: product boot 250/10 expedited + sparse station PLCW; station dash RX n/desired.** Commanded 10 Hz now delivers ~9.8 Hz on the desk (busy_drop=0, station_tx ~nav/4). Nathan accepted ~3 dB (BW125->250) for airtime; 125/10 does not fit. Station RF Link shows CRC-good `RX n/desired` (same path as RATE `rx_crc_ok`; denom CFG `nav_rate_hz`). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; branch `grok/r0-rate-counters`. Verified: product smoke submit~=tx_done 9.79 Hz; dash spot-check `RX 9.4-9.6/10 Hz [OK]`.
+
 ### 2026-09-04-001 | Grok Hamilton (Grok Bot) | hardware, documentation
 
 **R-32: 10 Hz commanded / ~5 Hz delivered root-cause battery.** Logged problem report and plan (instrumentation counters, T1–T7 split died-in-hold vs died-on-air vs ToA, remediations R1–R4 schedule/hold — not SF/BW). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; evidence `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. No firmware change this commit.
