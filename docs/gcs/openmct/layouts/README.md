@@ -1,27 +1,23 @@
-# layouts
+﻿# layouts
 
-Master Dashboard v1 lives as Open MCT objects in `plugins/rc-csv-dictionary.js` (not exported JSON).
+## Master Dashboard v1 (MCS-ish)
 
-## Pane map (locked 2026-09-05)
+Tree root **Master Dashboard v1** (not one long stacked strip):
 
-| Priority | Pane | Objects |
-|----------|------|---------|
-| 1 | Phase | `flight_state`, `phase_event`, `chute_detected` |
-| 1 | Trajectory | **Trajectory** overlay (`alt_m`, `baro_alt_m`, `max_alt_m`) |
-| 2 | Dynamics | **Dynamics** overlay (`vvel_mps`, `speed_mps`, `accel_g`) |
-| 2 | Link | **Radio** overlay (`rssi`, `snr`) + `lq_pct` / `rx_hz` |
-| 2 | Vehicle | **Vehicle** overlay (`batt_v`, imu/baro/die temps) |
-| 3 | Map | `lat` / `lon` (plot for now; map later) |
+| Pane | Object | Why |
+|------|--------|-----|
+| Phase / Status | Telemetry **table** | flight_state, phase_event, chute, MET, GPS fix — discrete, not a graph |
+| Trajectory | Overlay plot | alt / baro AGL / max |
+| Dynamics | Overlay plot | vvel / speed / accel |
+| Link | **Gauges** (RSSI, LQ) + optional RSSI/SNR plot | current value first |
+| Vehicle | **Battery gauge** | volts now, not a strip |
 
-**Home view:** `Master Glance (stacked)` — flight_state, alt, vvel, accel_g, rssi, batt_v.
+Open **Phase / Status** first when checking the hop. Build a Flexible Layout in My Items later by dragging these panes.
 
-LCARS / frame-wrapper chrome is separate (WB).
+## Facsimile control (on demand)
 
-## Facsimile + live feed
+`	ext
+python docs/gcs/openmct/realtime/feed_facsimile.py --rate 1
+`
 
-```text
-python docs/gcs/openmct/realtime/enrich_big_daddy_fidelity.py
-python docs/gcs/openmct/realtime/feed_facsimile.py --loop --rate 1
-```
-
-Then hard-reload hello-world (defaults to fidelity CSV). Conductor **REAL-TIME** −30s for the feeder; **Fixed** auto-bounds for offline CSV.
+Idle until you hit **Play** at http://127.0.0.1:8092/ (or WS `play`). **Stop** / **Reset** there too. `--loop` only if you want auto-replay after each hop.

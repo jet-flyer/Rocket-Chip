@@ -1,5 +1,5 @@
 /**
- * Rocket Chip CSV / facsimile dictionary + Master Dashboard v1 layouts.
+ * Rocket Chip Master Dashboard v1 — MCS-like panes (not all strip charts).
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
@@ -38,21 +38,45 @@
 
   function idFor(key) { return { namespace: NAMESPACE, key: key }; }
 
-  const MASTER_STACKED = {
-    identifier: idFor('master-stacked'),
-    name: 'Master Glance (stacked)',
-    type: 'telemetry.plot.stacked',
+  function gauge(key, name, min, max, low, high) {
+    return {
+      identifier: idFor('gauge-' + key),
+      name: name,
+      type: 'gauge',
+      location: NAMESPACE + ':master',
+      composition: [idFor(key)],
+      configuration: {
+        gaugeController: {
+          gaugeType: 'vertical-bar',
+          isDisplayMinMax: true,
+          isDisplayCurVal: true,
+          isDisplayUnits: true,
+          isUseTelemetryLimits: false,
+          limitLow: low,
+          limitHigh: high,
+          max: max,
+          min: min,
+          precision: 1
+        }
+      }
+    };
+  }
+
+  const PHASE_TABLE = {
+    identifier: idFor('master-phase'),
+    name: 'Phase / Status (table)',
+    type: 'table',
     location: NAMESPACE + ':master',
     composition: [
-      idFor('flight_state'), idFor('alt_m'), idFor('vvel_mps'),
-      idFor('accel_g'), idFor('rssi'), idFor('batt_v')
+      idFor('flight_state'), idFor('phase_event'), idFor('chute_detected'),
+      idFor('met_ms'), idFor('gps_fix'), idFor('gps_sats'), idFor('health')
     ],
-    configuration: { series: [], yAxis: {}, xAxis: {} }
+    configuration: {}
   };
 
   const TRAJ = {
     identifier: idFor('link-overlay-traj'),
-    name: 'Trajectory (alt + baro AGL)',
+    name: 'Trajectory (alt + baro)',
     type: 'telemetry.plot.overlay',
     location: NAMESPACE + ':master',
     composition: [idFor('alt_m'), idFor('baro_alt_m'), idFor('max_alt_m')],
@@ -82,7 +106,7 @@
 
   const RADIO = {
     identifier: idFor('link-overlay-radio'),
-    name: 'Radio (RSSI+SNR)',
+    name: 'Radio (RSSI+SNR plot)',
     type: 'telemetry.plot.overlay',
     location: NAMESPACE + ':master',
     composition: [idFor('rssi'), idFor('snr')],
@@ -91,34 +115,18 @@
     }
   };
 
-  const VEHICLE = {
-    identifier: idFor('link-overlay-vehicle'),
-    name: 'Vehicle (batt + temps)',
-    type: 'telemetry.plot.overlay',
-    location: NAMESPACE + ':master',
-    composition: [idFor('batt_v'), idFor('imu_temp_c'), idFor('baro_temp_c'), idFor('die_temp_c')],
-    configuration: {
-      series: [
-        { identifier: idFor('batt_v') },
-        { identifier: idFor('imu_temp_c') },
-        { identifier: idFor('baro_temp_c') },
-        { identifier: idFor('die_temp_c') }
-      ]
-    }
-  };
+  const G_BATT = gauge('batt_v', 'Battery gauge', 3.0, 4.2, 3.3, 4.1);
+  const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
+  const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
 
   const LAYOUTS = {
-    'master-stacked': MASTER_STACKED,
+    'master-phase': PHASE_TABLE,
     'link-overlay-traj': TRAJ,
     'link-overlay-dyn': DYN,
     'link-overlay-radio': RADIO,
-    'link-overlay-vehicle': VEHICLE,
-    // keep old key as alias to master stacked
-    'link-stacked': Object.assign({}, MASTER_STACKED, {
-      identifier: idFor('link-stacked'),
-      name: 'Link Live (stacked)',
-      location: NAMESPACE + ':link'
-    })
+    'gauge-batt_v': G_BATT,
+    'gauge-rssi': G_RSSI,
+    'gauge-lq_pct': G_LQ
   };
 
   function RcCsvDictionaryPlugin(options) {
@@ -126,8 +134,8 @@
     const navigateOnStart = options.navigateOnStart !== false;
 
     return function install(openmct) {
-      const rootLink = { namespace: NAMESPACE, key: 'link' };
       const rootMaster = { namespace: NAMESPACE, key: 'master' };
+      const rootLink = { namespace: NAMESPACE, key: 'link' };
 
       openmct.objects.addRoot(rootMaster);
       openmct.objects.addRoot(rootLink);
@@ -141,29 +149,30 @@
               type: 'folder',
               location: 'ROOT',
               composition: [
-                idFor('master-stacked'),
+                idFor('master-phase'),
                 idFor('link-overlay-traj'),
                 idFor('link-overlay-dyn'),
-                idFor('link-overlay-radio'),
-                idFor('link-overlay-vehicle')
-              ].concat(MEASUREMENTS.map(function (m) { return idFor(m.key); }))
+                idFor('gauge-rssi'),
+                idFor('gauge-lq_pct'),
+                idFor('gauge-batt_v'),
+                idFor('link-overlay-radio')
+              ]
             });
           }
           if (identifier.key === 'link') {
             return Promise.resolve({
               identifier: rootLink,
-              name: 'Rocket Chip Link (CSV)',
+              name: 'All measurements',
               type: 'folder',
               location: 'ROOT',
               composition: MEASUREMENTS.map(function (m) { return idFor(m.key); })
-                .concat([idFor('link-stacked'), idFor('link-overlay-traj'), idFor('link-overlay-radio')])
             });
           }
           if (LAYOUTS[identifier.key]) {
             return Promise.resolve(LAYOUTS[identifier.key]);
           }
           const m = MEASUREMENTS.find(function (x) { return x.key === identifier.key; });
-          if (!m) return Promise.reject(new Error('Unknown object ' + identifier.key));
+          if (!m) return Promise.reject(new Error('Unknown ' + identifier.key));
           return Promise.resolve({
             identifier: { namespace: NAMESPACE, key: m.key },
             name: m.name,
@@ -180,20 +189,17 @@
       });
 
       openmct.composition.addProvider({
-        appliesTo: function (domainObject) {
-          return domainObject.identifier.namespace === NAMESPACE &&
-            (domainObject.type === 'folder' ||
-             domainObject.type === 'telemetry.plot.stacked' ||
-             domainObject.type === 'telemetry.plot.overlay');
+        appliesTo: function (o) {
+          return o.identifier.namespace === NAMESPACE &&
+            (o.type === 'folder' || o.type === 'table' || o.type === 'gauge' ||
+             o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },
-        load: function (domainObject) {
-          return Promise.resolve(domainObject.composition || []);
-        }
+        load: function (o) { return Promise.resolve(o.composition || []); }
       });
 
       openmct.types.addType('rocket-chip.telemetry', {
-        name: 'Rocket Chip CSV Telemetry',
-        description: 'Live scrape / Big Daddy fidelity facsimile',
+        name: 'Rocket Chip Telemetry',
+        description: 'Facsimile / live CSV point',
         cssClass: 'icon-telemetry'
       });
 
@@ -201,19 +207,11 @@
         openmct.on('start', function () {
           try {
             var hash = window.location.hash || '';
-            if (hash.indexOf('/browse/') >= 0 && hash.indexOf('master-stacked') < 0 &&
-                hash.indexOf('link-stacked') < 0 && hash.indexOf('link-overlay') < 0) {
-              return;
-            }
-            var path = '/browse/' + NAMESPACE + ':master-stacked';
-            if (openmct.router && typeof openmct.router.setPath === 'function') {
-              openmct.router.setPath(path);
-            } else {
-              window.location.hash = '#' + path;
-            }
-          } catch (e) {
-            console.warn('[rc-dict] navigate failed', e);
-          }
+            if (hash.indexOf('/browse/') >= 0 && hash.indexOf('master') < 0) return;
+            var path = '/browse/' + NAMESPACE + ':master';
+            if (openmct.router && openmct.router.setPath) openmct.router.setPath(path);
+            else window.location.hash = '#' + path;
+          } catch (e) { console.warn(e); }
         });
       }
     };
