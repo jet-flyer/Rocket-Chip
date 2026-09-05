@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<title>Rocket Chip Open MCT hello-world</title>
+<script src="node_modules/openmct/dist/openmct.js"></script>
+<script src="../plugins/rc-csv-dictionary.js"></script>
+<script src="../plugins/rc-csv-historical.js"></script>
+</head><body><script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var csvUrl = params.get('csv') || '../fixtures/omct_hello_fixture.csv';
+  openmct.setAssetPath('node_modules/openmct/dist');
+  openmct.install(openmct.plugins.LocalStorage());
+  openmct.install(openmct.plugins.MyItems());
+  openmct.install(openmct.plugins.UTCTimeSystem());
+  openmct.time.setClock('local');
+  openmct.time.setClockOffsets({ start: -60000, end: 0 });
+  openmct.time.setTimeSystem('utc');
+  openmct.install(openmct.plugins.Espresso());
+  openmct.install(RcCsvDictionaryPlugin());
+  openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
+  document.addEventListener('DOMContentLoaded', function () { openmct.start(); });
+})();
+</script></body></html>

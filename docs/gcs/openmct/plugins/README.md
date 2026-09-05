@@ -1,5 +1,8 @@
 # plugins
 
-Rocket Chip Open MCT provider / plugin notes or source.
+| File | Role |
+|------|------|
+| `rc-csv-dictionary.js` | Folder + seq/rssi/snr telemetry objects |
+| `rc-csv-historical.js` | Historical provider: fetch/parse CSV |
 
-Day-one pattern: tutorial-style historical + realtime provider fed by station USB/m CSV (Buzz can supply dumps). Not Yamcs-backed until we deliberately pull in openmct-quickstart.
+Used by `../hello-world/`. Pattern: nasa/openmct-tutorial; file-backed CSV.
