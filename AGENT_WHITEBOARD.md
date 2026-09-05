@@ -92,26 +92,6 @@ Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". S
 
 ---
 
-## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)
-
-LL entries get cited as current fact, but many are old and rest on assumptions the
-tree has outgrown. Two hit this sitting: **LL 20** (2026-02) prescribes 32-byte
-chunked PA1010D reads - but the MT3333 vendor says partial reads are "not
-recommended", and Adafruit's 32 is just the Arduino `Wire.h` transfer limit, not a
-reasoned departure. **LL 24** (2026-02) says never call `i2c_bus_recover()` in a hot
-loop - **DISPROVED 2026-09-01 by measurement.** Removing the per-timeout
-`i2c_bus_recover()` took IMU failures from 54% to **98.4%** (1101 reads / 68149 errs):
-a timed-out transfer leaves DW_apb wedged until reinit, so recovery there is
-load-bearing on the current bus layer. LL 24 predates the stretch-aware rewrite and
-the 9-clock deletion. **LL 25** is already marked SUPERSEDED, which shows the rot is
-real and unevenly tracked.
-
-Pass should: date-check each entry against current code, add supersession headers in
-place (LL 25 is the pattern), and flag any whose *mechanism* no longer exists. Do not
-rewrite history. Append-only file - owner names it before editing.
-
----
-
 ## Skills to add (OPEN)
 
 Wanted skills - not written yet. Not a license to author them until scheduled.

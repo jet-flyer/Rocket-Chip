@@ -453,7 +453,22 @@ Press 'h' for help, 's' for sensor status
 
 ---
 
-## Entry 20: PA1010D GPS Causes I2C Bus Interference When Probed
+## Entry 20: ~~PA1010D GPS Causes I2C Bus Interference When Probed~~ (SUPERSEDED 2026-09-05)
+
+**STATUS: SUPERSEDED.** Do not cite this entry as standing law for GPS-on-bus freezes or for **32-byte chunked** I2C reads.
+
+**What superseded the freeze story:** LL Entry **47** — live 1 kHz freeze was **FPV-twist of the STEMMA/QT 4-core** (SDA twisted with SCL), not GPS-last. Once untwisted, GPS-first and GPS-last both climbed. Falsified with that sitting: skip-GPS-poll ~= unplug; GPS-last as the live-path freeze.
+
+**What superseded the Rx-size tip:** Prevention below still says 32-byte chunks (Adafruit Wire.h habit). Active path reads up to **255** (`kGpsMaxRead`) per GlobalTop / VENDOR_GUIDELINES (no partial reads).
+
+**What to still take:**
+- Flight GPS = **UART**; I2C PA1010D = stress slave (`SENSOR_ARCHITECTURE`).
+- Standing bus rule: no I2C GPS on the IMU/baro bus until ICM bypass is up.
+- Do not casually include `0x10` on a full shared-bus scan / expected-device list.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-05
 **Time Spent:** ~2 hours
@@ -496,7 +511,15 @@ When adding GPS back:
 
 ---
 
-## Entry 21: ICM-20948 I2C Master Bank-Switching Race Condition
+## Entry 21: ~~ICM-20948 I2C Master Bank-Switching Race Condition~~ (SUPERSEDED 2026-09-05)
+
+**STATUS: SUPERSEDED (mechanism gone).** The standing fix is no longer "disable ICM I2C master during cal / avoid Bank-0 race." Active path uses permanent **I2C bypass** (`enable_bypass` — AK09916 at `0x0C`). `cal_hooks` signals mag reload only; it does not toggle master enable. Do not re-land disable-master-during-cal as current policy.
+
+**What to still take:** multi-bank / internal-master chips can race host Bank-0 traffic if you turn the internal master back on — archaeology for pre-bypass trees.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-06
 **Time Spent:** ~3 hours (across 2 sessions)
@@ -598,7 +621,18 @@ Added `rc_os_i2c_scan_allowed` flag in `rc_os.h`. Set to `false` when Core 1 ent
 
 ---
 
-## Entry 24: PA1010D I2C Bus Contention — 500us Settling Delay Fix
+## Entry 24: ~~PA1010D I2C Bus Contention — 500us Settling Delay Fix~~ (SUPERSEDED 2026-09-05)
+
+**STATUS: SUPERSEDED.** Two standing prescriptions here are obsolete:
+
+1. **Never call recover in a hot loop** — disproved 2026-09-01 desk: removing per-timeout recovery raised IMU failures **54% → 98.4%**. Timed-out DW_apb stays wedged until abort/reinit. Active path: `i2c_master` `on_timeout()` → ABORT-then-STOP + resume/reattach; stretch-aware wait; 9-clock only if SDA stuck. `i2c_bus_recover()` is legacy-only.
+2. **500 µs settle** — active GPS post-read settle is `kPostReadUs = 2000` (2 ms). Do not cite 500 µs as current (VENDOR_GUIDELINES / one CLI PASS string may still echo 500 µs — separate polish).
+
+**What to still take:** shared-bus contention physics; UART preferred for flight GPS — see `SENSOR_ARCHITECTURE` and `i2c_master`.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-08
 **Time Spent:** ~3 hours (gps-11 through gps-12c, 4 controlled isolation tests)
