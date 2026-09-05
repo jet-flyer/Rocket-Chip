@@ -271,7 +271,7 @@ new “maybe rework someday” bullets without listing them in this table.
 
 ## Graphify full re-pass (OPEN) - owner-gated
 
-L2-P5 formal walk closed **2026-08-17**. Full \/graphify\ remains **owner-gated** (billed). Cheap \graphify update\ + curate already runs post-commit.
+L2-P5 formal walk closed **2026-08-17**. Full /graphify remains **owner-gated** (billed). Cheap graphify update + curate already runs post-commit.
 
 Still open if/when you schedule it: **doc->code connectivity pass** (standards/docs islands vs code symbols; rate-limit = batches of ~4). Not a sitting default.
 
