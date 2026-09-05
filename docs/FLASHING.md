@@ -318,3 +318,8 @@ Tier 2 always passes for a correctly-built UF2 on the wrong chip.
 - `docs/deprecated/` — pre-rewrite snapshots of this file and
   `DEBUG_PROBE_NOTES.md` (`origin/main` `9f8aef4`). Not procedure.
 - `standards/DEBUG_OUTPUT.md` — build tags, serial-terminal notes
+
+## Stuck board: wrong PC on the probe
+
+When the board is stuck and the probe stacked PC/LR is **not a line this sitting edited**, do **not** patch that site first. Check E2 / probe residual power (\standards/RP2350_ERRATA.md\): VBUS cycle; Feather-only unplug is not enough while the probe still feeds the board. See \docs/agents/DEBUG_PROBE_NOTES.md\.
+

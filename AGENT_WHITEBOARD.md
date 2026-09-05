@@ -151,12 +151,6 @@ Station/relay NeoPixel bar (`ao_radio.cpp` `handle_rssi_bar` -> `ws2812_set_rssi
 
 ---
 
-## Probe dump PC not in the session diff (OPEN) (2026-08-20)
-
-When the board is stuck and the probe stacked PC/LR is **not a line this sitting edited**, do **not** patch that site first. Check E2 / probe residual power (`standards/RP2350_ERRATA.md`, `docs/FLASHING.md`: VBUS cycle; Feather-only unplug is not enough while the probe still feeds the board). Rescue-DP (`RP_AP:CTRL` `RESCUE_RESTART` / `rp2040-rescue.cfg`) is documented as **not** our primary recovery - replug is; try Rescue-DP only if physical replug stops working, and log the attempt on the E2 incident table.
-
----
-
 ## bench_sim hook vs canary vs A/B recovery (OPEN) (2026-08-19)
 
 **Hook ≠ canary.** Same script (`scripts/bench_sim.py`); different tree, different question. Flesh out in `standards/HW_GATE_DISCIPLINE.md` Rule 5 (still cites dead checklist item 6) + drop/retarget the During Session canary paragraph.
@@ -172,23 +166,6 @@ Owner: hook stays the land gate. A/B is the documented recovery. No boot canary.
 ## `rp400` git remote = Pi 400 keyboard clone (DEFER) (2026-08-20)
 
 Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) is an early clone onto the **Raspberry Pi 400** keyboard computer (CYBERDECK HAT/Bonnet on hand - `docs/hardware/HARDWARE.md` Ground Station). Host was off/unreachable 2026-08-20. Local tracking of `claude/tender-banach` was dropped; that branch may still exist on the Pi (Feb 2026 SAD/ESKF, already an ancestor of `main`). **Do not chase it now.** Next time that machine is used - likely Stage 12B Yamcs / OpenMCT / advanced GCS - if the clone has not been fully redone, delete leftover branches there (at least `claude/tender-banach`). CHANGELOG `2026-08-20-004` is the land-time note.
-
----
-
-## Project status (one-line snapshot)
-
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121; walk WB closed 2026-08-17.** Owner-chunk Phase 3 on `main` (`2026-08-23-002`). Phase 4 Grok+Claude overlay on `main` (`2026-08-24-002`). Sitting 6 RF (WN-100) closed 2026-08-31. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post-Stage-17.**
-
----
-
-
-## L2-P5 Phase 4 overlay (landed 2026-08-24)
-
-Grok+Claude overlay remediates are on `main` (`2026-08-24-002`). Rem WB deleted. Join dump: `docs/audits/l2p5_manual_walk/_grok_claude_overlay.json` (markdown is the review surface). Log: `L2P5_DISPOSITION_LOG.md`.
-
-**Still on this board:** First-flight prod strip, Notify/LED overhaul, leftover sittings (below), Early-impl table.
-
-**DEFER (not a stop):** Starcom / RC_OS structure / leftover early-impl sittings. Protected-doc name rot until named: `SCAFFOLDING.md`, `SAD.md` (tree + §13.1 TIER_* + `config.h`), `DEBUG_OUTPUT.md`, `VERSION_STRING_AUDIT.md`, `job_capabilities.h`, IVP-142c, PROBLEM_REPORTS R-17. Do not edit `standards/RP2350_ERRATA.md` without naming it.
 
 ---
 
@@ -292,9 +269,11 @@ new “maybe rework someday” bullets without listing them in this table.
 
 ---
 
-## Graphify full re-pass (OPEN) - after L2-P5 formal close; owner-gated
+## Graphify full re-pass (OPEN) - owner-gated
 
-L2-P5 walk WB drained and formal walk close **2026-08-17**. Full `/graphify` remains **owner-gated** (billed). Cheap `graphify update` + curate already runs post-commit. A WN cluster index (findings cites, not this graph) is the first disposition-prep step.
+L2-P5 formal walk closed **2026-08-17**. Full \/graphify\ remains **owner-gated** (billed). Cheap \graphify update\ + curate already runs post-commit.
+
+Still open if/when you schedule it: **doc->code connectivity pass** (standards/docs islands vs code symbols; rate-limit = batches of ~4). Not a sitting default.
 
 ---
 
@@ -334,20 +313,6 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 ## IEEE 1028 review-level -> decision-table mapping (PROPOSED / DEFERRED) (2026-07-04, Claude/Opus)
 
 IEEE Std 1028-2008 recorded as a **review/audit-process** reference in `standards/AUDIT_GUIDANCE.md` Appendix B.5, kept deliberately distinct from the JSF/P10/JPL **coding** standards (how we review ≠ how we write). **Provisional, not a sole standard:** useful but broad, lightly vetted so far - complementary review standards may join it later; this is a starting point, not a settled adoption. **Open rework:** the "When to Do What" decision table in AUDIT_GUIDANCE.md sets review *scope* per trigger but leaves review *depth* implicit. IEEE 1028 names five review levels - management review, technical review, **inspection**, walk-through, audit. Map those onto the 7-tier procedure so each trigger states which depth applies (e.g. the L2-P5 manual walk = an **inspection** per Appendix B.4 "Phase 9"; a small change = a walk-through). Deferred - do when the audit procedure is next reworked. Owner decision on priority.
-
----
-
-## Graphify - curated code+docs graph rebuilt; doc->code connectivity pass DEFERRED (2026-06-27, Claude/Opus)
-
-Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+docs map** (supersedes the bloated bootstrap). **2448 nodes / 4521 edges / 186 communities, 71% in giant component, full-detail HTML (<5k).** Protected snapshot at **`graphify-out/claude-build-2026-06-27/`** (with README; safe from future `graphify .` runs, which only rewrite the root). Grok pass-3 snapshot `graphify-out/grok-build-pass3-2026-06-27/` untouched (its own protected folder). `.graphifyignore` updated - now excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). **Not committed** (tooling output; pending repo-owner direction).
-
-**DEFERRED - doc->code connectivity pass (run when the API rate-limit window resets):** `standards/` (113 nodes) + ~431 `docs/` nodes are still their own islands - doc concepts vs code symbols live in different naming spaces, and chunk-parallel extraction dropped ~672 cross-refs on ID-mismatch (prune + fuzzy reconcile already lifted connectivity 50%->71%). **Next:** targeted linking pass - hand a subagent the AST code-symbol list + the orphaned `standards/`/`docs/` nodes and have it draw real doc->code bridge edges, then rebuild. **Rate-limit lesson:** dispatch graphify extraction subagents in **batches of ~4**, NOT all at once (17-at-once tripped a server-side rate limit this session; batches of 4 sailed through).
-
-**WB note (2026-06-27):** Evaluate `standards/GIT_WORKFLOW.md` for outright deprecation. It is no longer referenced from AGENTS.md and its `claude/` branch prefix + immediate-delete rule are over-specific for general agent workflows.
-
-**Protected-file hook DISABLED 2026-06-28 (Claude) - not deletable into a good cross-runner solution.** The category+`ask` hook (CHANGELOG `2026-06-28-002`) works on **Claude Code** (per-file approval prompts via `permissionDecision:"ask"`), but on **Grok Build CLI it can't prompt at all**: Grok's PreToolUse hook contract is `{"decision":"allow"|"deny"}` only - no `ask` - so the `ask` output is unrecognized -> fail-open -> the protected edit silently succeeds (critical false-positive, observed in a Grok session; see `temp/grok-hooks-claude-intake-notes.md` + Grok docs `~/.grok/docs/user-guide/10-hooks.md` lines 188-201). On Grok the only hook signal is hard-`deny` (no prompt). Grok's permission *rules* (`permissions.ask` path patterns in `.claude/settings.json`) DO prompt on both runners, but are static file-granularity only (can't see the diff, so no "CHANGELOG additions allowed" logic), and Grok's user-facing modes are just always-approve / normal with zero granularity. None of those was the solution Nathan wanted, so the hook is **disabled** (PreToolUse `search_replace|Edit|Write|MultiEdit` entry removed from both `.claude/settings.json` files; graphify Bash/Read|Glob hooks untouched). For now we rely on clear docs (`PROTECTED_FILES.md`) + the agent respecting them.
-
-**Dormant assets (NOT deleted, ready to revive):** `scripts/hooks/protected-file-pretool.py` (category model: Hard-Protected / Historical / Checklist-cadence with add-only diff detection) + `tools/scratch/protected_hook/contract-test.py` (20/20) + the 3-category structure in `PROTECTED_FILES.md`. Re-wire by re-adding the PreToolUse entry when a viable approach exists.
 
 ---
 
