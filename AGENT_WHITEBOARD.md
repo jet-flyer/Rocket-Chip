@@ -92,12 +92,6 @@ Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". S
 
 ---
 
-## GPS bus-and-transport rule (OPEN) (2026-08-24)
-
-Encode as a standing rule (not only `init_gps()` comments): shared-bus physics first (no I2C GPS on the IMU/baro bus until ICM bypass is up - LL 20), then pack transport capability (UART if the pack exposes it - LL 24; else I2C probe). Closest homes: `docs/SENSOR_ARCHITECTURE.md` (unprotected) or a named edit of `standards/CODING_STANDARDS.md` / `docs/SAD.md`. Not a license to write those files until scheduled.
-
----
-
 ## STEMMA PA1010D on IMU bus (OPEN)
 
 Live 1 kHz freeze was **FPV-twist of the QT 4-core** (LL 47), not GPS-last. Untwisted shortest Adafruit QT: GPS last and GPS first both `I=` climbing. Do not twist SDA with SCL. `i2c_master` landed. UART GPS is flight GPS; I2C PA1010D is stress slave. CLI `k` with GPS on passed (`e=0`). `window_hit:1` after 255-byte hunt. Falsified: 100 kHz; skip GPS poll = unplug; OpenOCD `program` / extra `reset halt`; skip `reset_block` attach; GPS-last as the live-path freeze (once untwisted).
