@@ -17,6 +17,12 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Exact state (2026-09-05 wrap)
+
+main @ 4554667 (= origin). Desk oMCT glass: USB/m scrape -> WS :8091 + rolling fixtures/live.csv; points seq/rssi/snr/baro; default **Link Live (stacked)** + **Radio (RSSI+SNR overlay)**; Espresso; LCARS still WANTED (row below). Yamcs scaffold research-not-ratified. R-32 10 Hz closed earlier (CHANGELOG 2026-09-04-002). Next: field/verify RC + layout tweaks; dropouts later. Untracked local build_* / starcom/build-* dirs only (not for commit).
+
+---
+
 ## Next after Pass A/B soak (OPEN) (2026-09-03; R-32 rate closed 2026-09-04)
 
 Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. **Product boot on `main`:** 250 kHz / 10 Hz SF7 expedited + sparse PLCW (R-32 closed; CHANGELOG `2026-09-04-002`). 125/10 does not fit paper ToA.
