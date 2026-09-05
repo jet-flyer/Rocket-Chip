@@ -1,18 +1,35 @@
 /**
- * Rocket Chip Master Dashboard — single Flexible Layout home (MCS-style).
- * Discrete → table; limits → gauges; trends → plots. No folder stack as home.
+ * Rocket Chip Master Dashboard — Flexible Layout home (MCS-style).
+ * Discrete → LAD; limits → gauges; trends → plots (dual Y for RSSI/SNR);
+ * master-caution Summary Widgets along the bottom.
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
+  const KS = function (key) { return NAMESPACE + ':' + key; };
+
+  const FLIGHT_ENUMS = [
+    { value: 1, string: 'ARMED' },
+    { value: 2, string: 'BOOST' },
+    { value: 3, string: 'COAST' },
+    { value: 4, string: 'DESCENT' },
+    { value: 6, string: 'LANDED' }
+  ];
+  const PHASE_ENUMS = [
+    { value: 0, string: '-' },
+    { value: 1, string: 'EDGE' }
+  ];
+  const BOOL_ENUMS = [
+    { value: 0, string: 'NO' },
+    { value: 1, string: 'YES' }
+  ];
 
   const MEASUREMENTS = [
     { key: 'seq', name: 'Sequence', units: 'count', format: 'integer', hints: { range: 1 } },
     { key: 'met_ms', name: 'MET', units: 'ms', format: 'integer', hints: { range: 1 } },
-    { key: 'flight_state', name: 'Flight State', units: '', format: 'integer', hints: { range: 1 } },
-    { key: 'phase_event', name: 'Phase Event', units: '', format: 'integer', hints: { range: 1 } },
-    { key: 'chute_detected', name: 'Chute Detected', units: '', format: 'integer', hints: { range: 1 } },
+    { key: 'flight_state', name: 'Flight State', units: '', format: 'enum', hints: { range: 1 }, enumerations: FLIGHT_ENUMS },
+    { key: 'phase_event', name: 'Phase Event', units: '', format: 'enum', hints: { range: 1 }, enumerations: PHASE_ENUMS },
+    { key: 'chute_detected', name: 'Chute Detected', units: '', format: 'enum', hints: { range: 1 }, enumerations: BOOL_ENUMS },
     { key: 'alt_m', name: 'Altitude MSL', units: 'm', format: 'float', hints: { range: 1 } },
-    { key: 'max_alt_m', name: 'Max Altitude', units: 'm', format: 'float', hints: { range: 1 } },
     { key: 'baro_alt_m', name: 'Baro AGL', units: 'm', format: 'float', hints: { range: 1 } },
     { key: 'vvel_mps', name: 'Vertical Vel', units: 'm/s', format: 'float', hints: { range: 1 } },
     { key: 'speed_mps', name: 'Speed', units: 'm/s', format: 'float', hints: { range: 1 } },
@@ -72,6 +89,52 @@
     };
   }
 
+  function swRule(id, label, bg, conditions) {
+    return {
+      name: label,
+      label: label,
+      message: '',
+      id: id,
+      icon: ' ',
+      style: {
+        color: '#ffffff',
+        'background-color': bg,
+        'border-color': 'rgba(0,0,0,0)'
+      },
+      description: label,
+      conditions: conditions,
+      jsCondition: '',
+      trigger: 'any',
+      expanded: 'true'
+    };
+  }
+
+  function caution(key, title, telemKey, alarmOp, alarmVal, alarmLabel, alarmBg) {
+    const telem = KS(telemKey);
+    return {
+      identifier: idFor(key),
+      name: title,
+      type: 'summary-widget',
+      location: NAMESPACE + ':master',
+      composition: [idFor(telemKey)],
+      openNewTab: 'thisTab',
+      telemetry: {},
+      configuration: {
+        ruleOrder: ['default', 'alarm'],
+        ruleConfigById: {
+          default: swRule('default', title + ' OK', '#38761d', []),
+          alarm: swRule('alarm', alarmLabel, alarmBg, [{
+            object: telem,
+            key: 'value',
+            operation: alarmOp,
+            values: [String(alarmVal)]
+          }])
+        },
+        testDataConfig: [{ object: '', key: '', value: '' }]
+      }
+    };
+  }
+
   const PHASE_TABLE = {
     identifier: idFor('master-phase'),
     name: 'Phase / Status (LAD)',
@@ -89,13 +152,13 @@
     name: 'Trajectory (alt + baro)',
     type: 'telemetry.plot.overlay',
     location: NAMESPACE + ':master',
-    composition: [idFor('alt_m'), idFor('baro_alt_m'), idFor('max_alt_m')],
+    composition: [idFor('alt_m'), idFor('baro_alt_m')],
     configuration: {
       series: [
-        { identifier: idFor('alt_m') },
-        { identifier: idFor('baro_alt_m') },
-        { identifier: idFor('max_alt_m') }
-      ]
+        { identifier: idFor('alt_m'), yAxisId: 1 },
+        { identifier: idFor('baro_alt_m'), yAxisId: 1 }
+      ],
+      yAxis: { id: 1 }
     }
   };
 
@@ -107,21 +170,30 @@
     composition: [idFor('vvel_mps'), idFor('speed_mps'), idFor('accel_g')],
     configuration: {
       series: [
-        { identifier: idFor('vvel_mps') },
-        { identifier: idFor('speed_mps') },
-        { identifier: idFor('accel_g') }
-      ]
+        { identifier: idFor('vvel_mps'), yAxisId: 1 },
+        { identifier: idFor('speed_mps'), yAxisId: 1 },
+        { identifier: idFor('accel_g'), yAxisId: 1 }
+      ],
+      yAxis: { id: 1 }
     }
   };
 
+  /** RSSI left axis (dBm), SNR right axis (dB) — like alt vs VSI. */
   const RADIO = {
     identifier: idFor('link-overlay-radio'),
-    name: 'Radio (RSSI+SNR plot)',
+    name: 'Radio (RSSI | SNR)',
     type: 'telemetry.plot.overlay',
     location: NAMESPACE + ':master',
     composition: [idFor('rssi'), idFor('snr')],
     configuration: {
-      series: [{ identifier: idFor('rssi') }, { identifier: idFor('snr') }]
+      series: [
+        { identifier: idFor('rssi'), yAxisId: 1 },
+        { identifier: idFor('snr'), yAxisId: 2 }
+      ],
+      yAxis: { id: 1, label: 'RSSI (dBm)' },
+      additionalYAxes: [
+        { id: 2, label: 'SNR (dB)' }
+      ]
     }
   };
 
@@ -129,7 +201,12 @@
   const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
   const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
 
-  /** Single canvas home: phase row → traj|dyn → gauges. Radio plot stays in tree only. */
+  const SW_RSSI = caution('sw-rssi', 'RSSI', 'rssi', 'lessThan', -100, 'RSSI LO', '#990000');
+  const SW_LQ = caution('sw-lq', 'LQ', 'lq_pct', 'lessThan', 40, 'LQ LO', '#990000');
+  const SW_BATT = caution('sw-batt', 'BATT', 'batt_v', 'lessThan', 3.5, 'BATT LO', '#990000');
+  const SW_CHUTE = caution('sw-chute', 'CHUTE', 'chute_detected', 'equalTo', 1, 'CHUTE', '#b45f06');
+  const SW_GPS = caution('sw-gps', 'GPS', 'gps_fix', 'lessThan', 3, 'NO FIX', '#990000');
+
   const MASTER_HOME = {
     identifier: idFor('master'),
     name: 'Master Dashboard',
@@ -139,34 +216,51 @@
       idFor('master-phase'),
       idFor('link-overlay-traj'),
       idFor('link-overlay-dyn'),
+      idFor('link-overlay-radio'),
       idFor('gauge-rssi'),
       idFor('gauge-lq_pct'),
       idFor('gauge-batt_v'),
-      idFor('link-overlay-radio')
+      idFor('sw-rssi'),
+      idFor('sw-lq'),
+      idFor('sw-batt'),
+      idFor('sw-chute'),
+      idFor('sw-gps')
     ],
     configuration: {
       rowsLayout: true,
       containers: [
         {
           id: 'rc-c-phase',
-          size: 22,
+          size: 18,
           frames: [frame('rc-f-phase', 'master-phase', 100)]
         },
         {
           id: 'rc-c-plots',
-          size: 50,
+          size: 36,
           frames: [
             frame('rc-f-traj', 'link-overlay-traj', 55),
             frame('rc-f-dyn', 'link-overlay-dyn', 45)
           ]
         },
         {
-          id: 'rc-c-gauges',
+          id: 'rc-c-link',
           size: 28,
           frames: [
-            frame('rc-f-rssi', 'gauge-rssi', 34),
-            frame('rc-f-lq', 'gauge-lq_pct', 33),
-            frame('rc-f-batt', 'gauge-batt_v', 33)
+            frame('rc-f-radio', 'link-overlay-radio', 40),
+            frame('rc-f-rssi', 'gauge-rssi', 20),
+            frame('rc-f-lq', 'gauge-lq_pct', 20),
+            frame('rc-f-batt', 'gauge-batt_v', 20)
+          ]
+        },
+        {
+          id: 'rc-c-caution',
+          size: 18,
+          frames: [
+            frame('rc-f-sw-rssi', 'sw-rssi', 20),
+            frame('rc-f-sw-lq', 'sw-lq', 20),
+            frame('rc-f-sw-batt', 'sw-batt', 20),
+            frame('rc-f-sw-chute', 'sw-chute', 20),
+            frame('rc-f-sw-gps', 'sw-gps', 20)
           ]
         }
       ]
@@ -181,7 +275,12 @@
     'link-overlay-radio': RADIO,
     'gauge-batt_v': G_BATT,
     'gauge-rssi': G_RSSI,
-    'gauge-lq_pct': G_LQ
+    'gauge-lq_pct': G_LQ,
+    'sw-rssi': SW_RSSI,
+    'sw-lq': SW_LQ,
+    'sw-batt': SW_BATT,
+    'sw-chute': SW_CHUTE,
+    'sw-gps': SW_GPS
   };
 
   function RcCsvDictionaryPlugin(options) {
@@ -211,6 +310,14 @@
           }
           const m = MEASUREMENTS.find(function (x) { return x.key === identifier.key; });
           if (!m) return Promise.reject(new Error('Unknown ' + identifier.key));
+          const valueMeta = {
+            key: 'value',
+            name: m.name,
+            units: m.units,
+            format: m.format,
+            hints: m.hints
+          };
+          if (m.enumerations) valueMeta.enumerations = m.enumerations;
           return Promise.resolve({
             identifier: { namespace: NAMESPACE, key: m.key },
             name: m.name,
@@ -218,7 +325,7 @@
             telemetry: {
               values: [
                 { key: 'utc', source: 'timestamp', name: 'Timestamp', format: 'utc', hints: { domain: 1 } },
-                { key: 'value', name: m.name, units: m.units, format: m.format, hints: m.hints }
+                valueMeta
               ]
             },
             location: NAMESPACE + ':master'
@@ -229,7 +336,8 @@
       openmct.composition.addProvider({
         appliesTo: function (o) {
           return o.identifier.namespace === NAMESPACE &&
-            (o.type === 'folder' || o.type === 'table' || o.type === 'LadTable' || o.type === 'gauge' ||
+            (o.type === 'folder' || o.type === 'table' || o.type === 'LadTable' ||
+             o.type === 'gauge' || o.type === 'summary-widget' ||
              o.type === 'flexible-layout' || o.type === 'display-layout' ||
              o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },
