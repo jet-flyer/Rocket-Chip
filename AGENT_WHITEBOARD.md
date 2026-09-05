@@ -19,7 +19,7 @@
 
 ## Exact state (2026-09-05 wrap)
 
-main @ 4554667 (= origin). Desk oMCT glass: USB/m scrape -> WS :8091 + rolling fixtures/live.csv; points seq/rssi/snr/baro; default **Link Live (stacked)** + **Radio (RSSI+SNR overlay)**; Espresso; LCARS still WANTED (row below). Yamcs scaffold research-not-ratified. R-32 10 Hz closed earlier (CHANGELOG 2026-09-04-002). Next: field/verify RC + layout tweaks; dropouts later. Untracked local build_* / starcom/build-* dirs only (not for commit).
+main @ 4554667 (= origin). Desk oMCT glass: USB/m scrape -> WS :8091 + rolling fixtures/live.csv; points seq/rssi/snr/baro; default **Link Live (stacked)** + **Radio (RSSI+SNR overlay)**; Espresso; LCARS still WANTED (row below). Yamcs scaffold research-not-ratified. R-32 10 Hz closed earlier (CHANGELOG 2026-09-04-002). Next: field/verify RC + layout tweaks; dropouts later. WB: passive Estes chute detect WANTED (first flight no pyro). Untracked local build_* / starcom/build-* dirs only (not for commit).
 
 ---
 
@@ -46,6 +46,14 @@ Nathan (2026-09-05): facsimile data must be **fully equivalent to everything we 
 2. **Live feeder script** that pushes the facsimile into oMCT **as if live** (WS provider / streamer path), not only Fixed/historical playback — so realtime conductor, subscribe, and layout chrome get real exercise.
 
 Dict + providers grow with the columns. Not a license to implement this sitting.
+
+---
+
+## Passive Estes first flight: chute detect (WANTED) (2026-09-05)
+
+Nathan (2026-09-05): **first flight is a passive motor Estes-style rocket** (single chute, **no pyro**). FD today is dual-deploy pyro (drogue/main fire on phase transitions). Need a **passive chute-detect / recovery-phase path** before that flight — post-apogee drag jump / |Vvel| collapse (baro + fusion), not pyro events. oMCT glance CSV uses layout-only synthetic \chute_detected\ until this lands.
+
+Not a license to implement this sitting. Owner: FD / fusion sitting when scheduled.
 
 ---
 
