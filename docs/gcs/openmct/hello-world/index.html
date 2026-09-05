@@ -9,6 +9,7 @@
 <script src="node_modules/openmct/dist/openmct.js"></script>
 <script src="../plugins/rc-csv-dictionary.js"></script>
 <script src="../plugins/rc-csv-historical.js"></script>
+<script src="../plugins/rc-realtime.js"></script>
 </head><body>
 <div id="boot-error"></div>
 <script>
@@ -45,6 +46,7 @@
     try {
       openmct.install(RcCsvDictionaryPlugin());
       openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
+      openmct.install(RcRealtimePlugin({ wsUrl: 'ws://localhost:8091/' }));
     } catch (pluginErr) {
       fail(pluginErr);
       return;
