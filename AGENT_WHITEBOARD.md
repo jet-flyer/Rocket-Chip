@@ -37,9 +37,15 @@ Owner: Prefer MET + GPS on both ends; desk oMCT CSV/WS glass is live (layouts/th
 4. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
 5. Adaptive TX power.
 
-## GCS glass: facsimile flight CSV (WANTED) (2026-09-05)
+## GCS glass: full-fidelity facsimile + live feeder (WANTED) (2026-09-05)
 
-Generate a **realistic facsimile flight** CSV (or short replay set) so layout/overlay work can be refined without a live RF link. **Required glass columns:** timestamp, seq, rssi, snr, baro. **Layout-stress extras (include soon):** alt_agl, vz, accel_g, batt_v. Timestamps span pad/idle -> boost -> coast -> apogee -> descent (real hop shape, not desk sawtooth). RSSI/SNR stay RF-ish (dropouts/fade OK), not nav-perfect. Synthetic or scrubbed soak/flight dump. Not a license to implement this sitting.
+Nathan (2026-09-05): facsimile data must be **fully equivalent to everything we can currently collect** (and a few near-term futures like Vbatt), down through baro/IMU temps and MCU die temp when available — not a thin RSSI/SNR/baro subset — so oMCT can drive **full dashboard layout** and feature trials offline.
+
+**Deliverables (when scheduled):**
+1. **Full-fidelity hop dataset** (CSV and/or JSONL): pad/idle -> boost -> coast -> apogee -> descent. Seed from `telemetry_state` / station dash fields (alt MSL, baro AGL, vvel, speed, GPS fix/sats/lat/lon, quat, health, MET, baro_temp, imu_temp, battery_mv/Vbatt, RF rssi/snr/seq, flight_state, max_* summaries, …) plus MCU die temp if/when exposed. RSSI/SNR stay RF-ish (fade/dropouts OK), nav not perfect.
+2. **Live feeder script** that pushes the facsimile into oMCT **as if live** (WS provider / streamer path), not only Fixed/historical playback — so realtime conductor, subscribe, and layout chrome get real exercise.
+
+Dict + providers grow with the columns. Not a license to implement this sitting.
 
 ---
 
