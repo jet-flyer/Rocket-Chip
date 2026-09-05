@@ -570,7 +570,13 @@ Implemented as pre/post hooks in `rc_os.h` to keep the IMU driver decoupled from
 
 ---
 
-## Entry 22: USB Reconnect Degrades Core 1 IMU Rate (LiPo-Powered Disconnect)
+## Entry 22: ~~USB Reconnect Degrades Core 1 IMU Rate (LiPo-Powered Disconnect)~~ (REVISIT 2026-09-05)
+
+**STATUS: REVISIT.** Observation still open (USB reconnect + LiPo stay-up degrades Core1 IMU — not a flight path). Do **not** cite `i2c_bus_reset()` as the standing workaround; that symbol is legacy-only. Live recovery is `i2c_master` abort + reattach. Root cause still unproven — re-validate on current `i2c_master` if/when USB stress returns.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-07
 **Status:** Observed, not yet root-caused
@@ -814,7 +820,13 @@ Disabled `readability-math-missing-parentheses` in `.clang-tidy` config with com
 
 ---
 
-## Entry 27: "Codegen Sensitivity" Was Picotool Bus Corruption All Along
+## Entry 27: ~~"Codegen Sensitivity" Was Picotool Bus Corruption All Along~~ (REVISIT 2026-09-05)
+
+**STATUS: REVISIT.** Keep the **methodology** lesson: do not freeze the tree on a false BSS/codegen hypothesis; isolate flash method in soak evidence. Do **not** cite LL 25 picotool-corrupts-I2C as current root cause — Entry 25 is already SUPERSEDED. Probe-for-iterative-soak remains preferred process.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-09
 **Time Spent:** ~3 hours (1.5h original misdiagnosis from Entry 25 + 1.5h definitive disproof test)
@@ -861,7 +873,15 @@ Zero errors across all three tests. The BSS layout change in Test 2 would have b
 
 ---
 
-## Entry 28: i2c_bus_recover() Corrupts DW_apb_i2c When Called on Active Bus
+## Entry 28: ~~i2c_bus_recover() Corrupts DW_apb_i2c When Called on Active Bus~~ (SUPERSEDED 2026-09-05)
+
+**STATUS: SUPERSEDED (legacy API).** `i2c_bus_recover()` exists only under `*_legacy.*`. Active bus layer is `i2c_master_*` (ABORT / reattach / SDA-stuck 9-clock). Do not cite Entry 28 as authority for live recovery call sites.
+
+**What to still take:** do not yank GPIO function while the DW_apb peripheral is still enabled; NACK alone is not a license to recover. That discipline still applies inside the abort path.
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-02-10
 **Time Spent:** ~3 hours (including false starts investigating hardware)
@@ -988,7 +1008,13 @@ The SDK's `__not_in_flash_func()` or `.time_critical` section annotation is the 
 
 ---
 
-## Entry 31: flash_safe_execute() Corrupts I2C Peripheral + Blocks GPS Satellite Lock
+## Entry 31: ~~flash_safe_execute() Corrupts I2C Peripheral + Blocks GPS Satellite Lock~~ (SUPERSEDED 2026-09-05)
+
+**STATUS: SUPERSEDED (API name only) — mechanism KEEP.** `flash_safe_execute` on RP2350B can still trash the I2C peripheral; callers must reattach after flash. Do **not** prescribe `i2c_bus_reset()` — use `i2c_master_abort_and_idle` + `i2c_master_reattach` (see `i2c_master.h` comments that still point here).
+
+Historical content preserved below.
+
+---
 
 **Date:** 2026-03-06
 **Time Spent:** ~2 hours

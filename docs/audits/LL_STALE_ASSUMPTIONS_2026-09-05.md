@@ -149,3 +149,8 @@ erased (done).
 These are polish, not Part B banner candidates.
 
 *End of durable audit. Part B candidates await Nathan.*
+
+## Applied Part B (2026-09-05, Nathan)
+
+- **LL 28, 31** — SUPERSEDE-style STATUS (legacy API to `i2c_master`; 31 keeps flash_safe_execute mechanism).
+- **LL 22, 27** — REVISIT STATUS (observation/process KEEP; dead root-cause/API cites retired).
