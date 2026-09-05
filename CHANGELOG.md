@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-05-003 | Grok Hamilton (Grok Bot) | documentation, hardware
+
+**LL / I2C stale-assumptions close + desk verify.** SUPERSEDE LL 20/21/24 (cable untwist / LL 47), legacy API banners on 28/31 (i2c_bus_* -> i2c_master), REVISIT on 27 (methodology KEEP). LL 22 SUPERSEDED after Feather USB-yank PASS on LiPo (IMU stayed ~995 Hz, no tank). Erased WB PIO-I2C backend + RP2350B bus-corruption rows after Fruit Jam cold-boot (bus alive; residual GPS E/no-fix is separate). Audit: docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. Tip includes 4696232. Verified: docs + desk HW soaks; no firmware change.
+
 ### 2026-09-05-002 | Grok Hamilton (Grok Bot) | tooling, feature, documentation
 
 **Open MCT Master Dashboard MVP (facsimile).** Single Flexible Layout home: phase LAD with named flight states, traj/dyn plots, dual-axis RSSI|SNR radio, gauges (telem \source\ fix), bottom Master Caution Summary strip in a Display Layout. On-demand facsimile feeder Play/Stop/Reset (:8092/:8091); Reset no longer dies on Windows cp1252. MVP not finished polish; **live board USB/m to glass not verified (next).** Pi Zero 2W = static nginx only. Detail: \docs/gcs/openmct/\, WB exact state 2026-09-05 wrap. Tip 88f93\. Verified: pure-software GCS/host; no firmware change.

@@ -17,11 +17,8 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Exact state (2026-09-05 wrap)
-
-Desk oMCT **Master Dashboard MVP** on main (push with this wrap). Single Flexible Layout home: phase LAD (named ARMED/BOOST/...), traj/dyn, dual-axis RSSI|SNR radio, gauges (telem source fixed), bottom Master Caution Display Layout strip. Facsimile on-demand Play :8092 / WS :8091; Reset Unicode crash fixed. Tip includes gauge/caution fix 89918d\ plus this wrap. **MVP not finished polish.** **Next:** verify live board USB/m (or flight) into the same glass path - facsimile path only so far. Pi Zero 2W: static nginx only, not Master-in-browser (~121MB serve + ~34MB feeder host; Chrome renderers 200-600MB). LCARS + passive Estes chute still WANTED below. Untracked local build_* / starcom/build-* dirs only (not for commit).
-
----
+## Exact state (2026-09-05 evening wrap)
+Desk ahead pushed with this wrap. **LL/I2C stale-assumptions pass closed:** SUPERSEDE 20/21/24/22; legacy 28/31; REVISIT 27. FJ cold-boot erased PIO-backend + RP2350B bus-corruption WB rows (bus alive). Audit docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. CHANGELOG 2026-09-05-003. Prior same-day: oMCT Master Dashboard MVP on facsimile (2026-09-05-002); **live board USB/m -> glass still NEXT**. Residual GPS E / no-fix on FJ is a separate sitting. Untracked: local build_* dirs + Buzz soak helpers scripts/_ll22_rate.py / scripts/_fj_cold_gps_soak.py (not for commit).
 
 ## Next after Pass A/B soak (OPEN) (2026-09-03; R-32 rate closed 2026-09-04)
 
