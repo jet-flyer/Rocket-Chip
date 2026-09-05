@@ -92,14 +92,6 @@ Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". S
 
 ---
 
-## STEMMA PA1010D on IMU bus (CLOSED) (2026-09-05)
-
-Bring-up closed. Live 1 kHz freeze was **QT 4-core FPV twist** (LL 47), not GPS-last; `i2c_master` landed; UART = flight GPS, I2C PA1010D = stress slave only. Standing bus-physics rule now lives in `docs/SENSOR_ARCHITECTURE.md` (no I2C GPS on the IMU/baro bus until ICM bypass). No open desk residual for this row.
-
----
-
-
-
 ## Audit all LESSONS_LEARNED entries for stale assumptions (OPEN) (2026-09-01)
 
 LL entries get cited as current fact, but many are old and rest on assumptions the
