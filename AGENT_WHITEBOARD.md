@@ -45,7 +45,7 @@ Nathan (2026-09-05): facsimile data must be **fully equivalent to everything we 
 1. **Full-fidelity hop dataset** (CSV and/or JSONL): pad/idle -> boost -> coast -> apogee -> descent. Seed from `telemetry_state` / station dash fields (alt MSL, baro AGL, vvel, speed, GPS fix/sats/lat/lon, quat, health, MET, baro_temp, imu_temp, battery_mv/Vbatt, RF rssi/snr/seq, flight_state, max_* summaries, …) plus MCU die temp if/when exposed. RSSI/SNR stay RF-ish (fade/dropouts OK), nav not perfect.
 2. **Live feeder script** that pushes the facsimile into oMCT **as if live** (WS provider / streamer path), not only Fixed/historical playback — so realtime conductor, subscribe, and layout chrome get real exercise.
 
-Dict + providers grow with the columns. Not a license to implement this sitting.
+Dict + providers grow with the columns. **Phase transitions on hard timestamps** (ARMED->BOOST->COAST->DESCENT->LANDED) so layout stress is clean. Pane map locked for field: phase strip + trajectory primary; link/vehicle secondary; map last. Not a license to implement this sitting.
 
 ---
 
