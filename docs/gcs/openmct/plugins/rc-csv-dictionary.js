@@ -48,7 +48,7 @@
       composition: [idFor(key)],
       configuration: {
         gaugeController: {
-          gaugeType: 'vertical-bar',
+          gaugeType: 'meter-vertical',
           isDisplayMinMax: true,
           isDisplayCurVal: true,
           isDisplayUnits: true,
@@ -74,8 +74,8 @@
 
   const PHASE_TABLE = {
     identifier: idFor('master-phase'),
-    name: 'Phase / Status (table)',
-    type: 'table',
+    name: 'Phase / Status (LAD)',
+    type: 'LadTable',
     location: NAMESPACE + ':master',
     composition: [
       idFor('flight_state'), idFor('phase_event'), idFor('chute_detected'),
@@ -229,7 +229,7 @@
       openmct.composition.addProvider({
         appliesTo: function (o) {
           return o.identifier.namespace === NAMESPACE &&
-            (o.type === 'folder' || o.type === 'table' || o.type === 'gauge' ||
+            (o.type === 'folder' || o.type === 'table' || o.type === 'LadTable' || o.type === 'gauge' ||
              o.type === 'flexible-layout' || o.type === 'display-layout' ||
              o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },

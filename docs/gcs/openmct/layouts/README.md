@@ -6,7 +6,7 @@ Boot opens **Master Dashboard** as one **Flexible Layout** (not a folder stack):
 
 | Region | Object | Why |
 |--------|--------|-----|
-| Top row | Phase / Status **table** | flight_state, phase_event, chute, MET, GPS — discrete, never a strip chart |
+| Top row | Phase / Status **LAD table** | flight_state, phase_event, chute, MET, GPS — discrete, never a strip chart |
 | Middle | Trajectory + Dynamics **overlay plots** | alt / baro / max · vvel / speed / accel |
 | Bottom | RSSI / LQ / Battery **gauges** | limits / “how full” — green/yellow/red ranges |
 | Tree only | Radio RSSI+SNR plot | optional trend; not on the home canvas |
