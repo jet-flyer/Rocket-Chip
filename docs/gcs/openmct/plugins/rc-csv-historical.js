@@ -1,7 +1,7 @@
 /**
- * Historical provider — loads one CSV (fixture or live) once.
- * Columns: timestamp,seq,rssi,snr (ISO-8601; prefer explicit Z)
- * After openmct.start(), sets Fixed conductor to CSV min/max (+ small pad).
+ * Historical CSV provider + optional live poll of the same file.
+ * When the conductor window is near "now", refetch CSV every second so a
+ * rolling live.csv from stream_station.py feeds the plot without WS.
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
@@ -22,7 +22,8 @@
         timestamp: ts,
         seq: Number(row.seq),
         rssi: Number(row.rssi),
-        snr: Number(row.snr)
+        snr: Number(row.snr),
+        baro: row.baro !== undefined && row.baro !== '' ? Number(row.baro) : NaN
       });
     }
     return rows;
@@ -33,13 +34,16 @@
     var start = rows[0].timestamp;
     var end = rows[rows.length - 1].timestamp;
     if (!(end >= start)) return;
+    // If data ends near now (live rolling file), skip auto Fixed — stay on realtime conductor
+    if (Math.abs(Date.now() - end) < 15000) {
+      console.info('[rc-csv] skip auto Fixed; CSV looks live');
+      return;
+    }
     var pad = Math.max(250, Math.floor((end - start) * 0.02) || 250);
     start -= pad;
     end += pad;
     try {
-      if (typeof openmct.time.stopClock === 'function') {
-        openmct.time.stopClock();
-      }
+      if (typeof openmct.time.stopClock === 'function') openmct.time.stopClock();
       openmct.time.setTimeSystem('utc');
       openmct.time.bounds({ start: start, end: end });
       console.info('[rc-csv] Fixed bounds', new Date(start).toISOString(), '->', new Date(end).toISOString());
@@ -56,37 +60,59 @@
       let cache = null;
       let loadPromise = null;
       let boundsApplied = false;
+      let lastFetch = 0;
 
-      function loadRows() {
-        if (cache) return Promise.resolve(cache);
-        if (loadPromise) return loadPromise;
-        loadPromise = fetch(csvUrl, { cache: 'no-store' })
+      function loadRows(force) {
+        var now = Date.now();
+        if (!force && cache && (now - lastFetch) < 800) {
+          return Promise.resolve(cache);
+        }
+        if (!force && loadPromise) return loadPromise;
+        var url = csvUrl + (csvUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + now;
+        loadPromise = fetch(url, { cache: 'no-store' })
           .then(function (r) {
             if (!r.ok) throw new Error('CSV fetch failed ' + r.status + ' ' + csvUrl);
             return r.text();
           })
           .then(function (text) {
             cache = parseCsv(text);
+            lastFetch = Date.now();
+            loadPromise = null;
             console.info('[rc-csv] loaded', cache.length, 'rows from', csvUrl);
             return cache;
+          })
+          .catch(function (e) {
+            loadPromise = null;
+            throw e;
           });
         return loadPromise;
       }
 
       function tryApplyBounds() {
         if (boundsApplied) return;
-        loadRows().then(function (rows) {
+        loadRows(true).then(function (rows) {
           if (boundsApplied) return;
           boundsApplied = true;
           applyFixedBounds(openmct, rows);
         }).catch(function (e) { console.error(e); });
       }
 
-      // Prefer after start (avoids boot race). Fallback timeout if no event.
-      if (typeof openmct.on === 'function') {
-        openmct.on('start', tryApplyBounds);
-      }
+      if (typeof openmct.on === 'function') openmct.on('start', tryApplyBounds);
       setTimeout(tryApplyBounds, 800);
+
+      // While clock is running, nudge bounds slightly so plots re-request
+      setInterval(function () {
+        try {
+          loadRows(true);
+          // Nudge bounds so TelemetryCollection re-requests while clock runs
+          if (typeof openmct.time.bounds === 'function') {
+            var b = openmct.time.bounds();
+            if (b && b.start != null) {
+              openmct.time.bounds({ start: b.start, end: b.end });
+            }
+          }
+        } catch (e) {}
+      }, 1000);
 
       openmct.telemetry.addProvider({
         supportsRequest: function (domainObject) {
@@ -95,7 +121,8 @@
         },
         request: function (domainObject, requestOptions) {
           const key = domainObject.identifier.key;
-          return loadRows().then(function (rows) {
+          const force = requestOptions.end >= (Date.now() - 120000);
+          return loadRows(force).then(function (rows) {
             const start = requestOptions.start;
             const end = requestOptions.end;
             return rows
@@ -103,7 +130,7 @@
                 return row.timestamp >= start && row.timestamp <= end;
               })
               .map(function (row) {
-                return { timestamp: row.timestamp, value: row[key] };
+                return { timestamp: row.timestamp, utc: row.timestamp, value: row[key] };
               });
           });
         }

@@ -30,6 +30,7 @@
     openmct.install(openmct.plugins.MyItems());
     openmct.install(openmct.plugins.UTCTimeSystem());
     openmct.install(openmct.plugins.Espresso());
+    openmct.install(openmct.plugins.Plot());
     if (openmct.plugins.Conductor) {
       openmct.install(openmct.plugins.Conductor({
         menuOptions: [{
@@ -43,6 +44,8 @@
       openmct.install(openmct.plugins.DisplayLayout({ showAsView: [] }));
     }
     openmct.time.setTimeSystem('utc');
+    openmct.time.setClock('local');
+    openmct.time.setClockOffsets({ start: -30 * 1000, end: 5 * 1000 });
     try {
       openmct.install(RcCsvDictionaryPlugin());
       openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));

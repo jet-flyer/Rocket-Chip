@@ -21,7 +21,7 @@
 
 Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. **Product boot on `main`:** 250 kHz / 10 Hz SF7 expedited + sparse PLCW (R-32 closed; CHANGELOG `2026-09-04-002`). 125/10 does not fit paper ToA.
 
-Owner: Prefer MET + GPS on both ends; oMCT not wired.
+Owner: Prefer MET + GPS on both ends; desk oMCT CSV/WS glass is live (layouts/themes still open).
 
 **Next to address (fresh sitting):**
 
@@ -30,6 +30,12 @@ Owner: Prefer MET + GPS on both ends; oMCT not wired.
 3. FSK (below).
 4. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
 5. Adaptive TX power.
+
+## GCS glass: LCARS skin (WANTED) (2026-09-05)
+
+Desk Open MCT hello-world is on Espresso with stacked RSSI/SNR/Baro + radio overlay. **LCARS skin** (louh/lcars or frame-wrapper) is the next aesthetic pass after more field testing / layout tweaks. Do not start unprompted; themes after ingest was the prior lock and ingest is now desk-proven.
+
+---
 
 ## FPV-style scan / find (WANTED) (2026-09-02, restated 2026-09-03)
 
