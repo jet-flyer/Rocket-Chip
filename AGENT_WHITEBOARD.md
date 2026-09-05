@@ -51,7 +51,7 @@ Dict + providers grow with the columns. Not a license to implement this sitting.
 
 ## Passive Estes first flight: chute detect (WANTED) (2026-09-05)
 
-Nathan (2026-09-05): **first flight is a passive motor Estes-style rocket** (single chute, **no pyro**). FD today is dual-deploy pyro (drogue/main fire on phase transitions). Need a **passive chute-detect / recovery-phase path** before that flight — post-apogee drag jump / |Vvel| collapse (baro + fusion), not pyro events. oMCT glance CSV uses layout-only synthetic \chute_detected\ until this lands.
+Nathan (2026-09-05): **first flight is a passive motor Estes-style rocket** (single chute, **no pyro**). FD today is dual-deploy pyro (drogue/main fire on phase transitions). Need a **passive chute-detect / recovery-phase path** before that flight — post-apogee drag jump / |Vvel| collapse (baro + fusion), not pyro events. oMCT glance CSV uses layout-only synthetic chute_detected until this lands.
 
 Not a license to implement this sitting. Owner: FD / fusion sitting when scheduled.
 
