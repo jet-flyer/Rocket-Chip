@@ -80,12 +80,12 @@
     };
   }
 
-  function frame(id, key, size) {
+  function frame(id, key, size, noFrame) {
     return {
       id: id,
       domainObjectIdentifier: idFor(key),
       size: size,
-      noFrame: false
+      noFrame: !!noFrame
     };
   }
 
@@ -122,7 +122,7 @@
       configuration: {
         ruleOrder: ['default', 'alarm'],
         ruleConfigById: {
-          default: swRule('default', title + ' OK', '#38761d', []),
+          default: swRule('default', 'OK', '#38761d', []),
           alarm: swRule('alarm', alarmLabel, alarmBg, [{
             object: telem,
             key: 'value',
@@ -201,10 +201,10 @@
   const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
   const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
 
-  const SW_RSSI = caution('sw-rssi', 'RSSI', 'rssi', 'lessThan', -100, 'RSSI LO', '#990000');
-  const SW_LQ = caution('sw-lq', 'LQ', 'lq_pct', 'lessThan', 40, 'LQ LO', '#990000');
-  const SW_BATT = caution('sw-batt', 'BATT', 'batt_v', 'lessThan', 3.5, 'BATT LO', '#990000');
-  const SW_CHUTE = caution('sw-chute', 'CHUTE', 'chute_detected', 'equalTo', 1, 'CHUTE', '#b45f06');
+  const SW_RSSI = caution('sw-rssi', 'RSSI', 'rssi', 'lessThan', -100, 'LO', '#990000');
+  const SW_LQ = caution('sw-lq', 'LQ', 'lq_pct', 'lessThan', 40, 'LO', '#990000');
+  const SW_BATT = caution('sw-batt', 'BATT', 'batt_v', 'lessThan', 3.5, 'LO', '#990000');
+  const SW_CHUTE = caution('sw-chute', 'CHUTE', 'chute_detected', 'equalTo', 1, 'YES', '#b45f06');
   const SW_GPS = caution('sw-gps', 'GPS', 'gps_fix', 'lessThan', 3, 'NO FIX', '#990000');
 
   const MASTER_HOME = {
@@ -244,7 +244,7 @@
         },
         {
           id: 'rc-c-link',
-          size: 28,
+          size: 26,
           frames: [
             frame('rc-f-radio', 'link-overlay-radio', 40),
             frame('rc-f-rssi', 'gauge-rssi', 20),
@@ -254,13 +254,13 @@
         },
         {
           id: 'rc-c-caution',
-          size: 18,
+          size: 20,
           frames: [
-            frame('rc-f-sw-rssi', 'sw-rssi', 20),
-            frame('rc-f-sw-lq', 'sw-lq', 20),
-            frame('rc-f-sw-batt', 'sw-batt', 20),
-            frame('rc-f-sw-chute', 'sw-chute', 20),
-            frame('rc-f-sw-gps', 'sw-gps', 20)
+            frame('rc-f-sw-rssi', 'sw-rssi', 20, true),
+            frame('rc-f-sw-lq', 'sw-lq', 20, true),
+            frame('rc-f-sw-batt', 'sw-batt', 20, true),
+            frame('rc-f-sw-chute', 'sw-chute', 20, true),
+            frame('rc-f-sw-gps', 'sw-gps', 20, true)
           ]
         }
       ]

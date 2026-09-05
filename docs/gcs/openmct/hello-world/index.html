@@ -4,6 +4,20 @@
 <title>Rocket Chip Open MCT — Master Dashboard</title>
 <style>
   html,body{margin:0;height:100%;background:#2c2c2c;color:#eee;font:14px/1.4 system-ui,sans-serif}
+  /* Master-caution Summary Widgets: readable labels in Flexible Layout frames */
+  .c-sw, .c-summary-widget, .w-summary-widget {
+    font-size: 18px !important;
+    letter-spacing: 0.04em !important;
+    font-weight: 700 !important;
+  }
+  .c-sw__label, .c-summary-widget__label, .c-sw__text {
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    transform: none !important;
+    letter-spacing: 0.06em !important;
+  }
+
   #boot-error{display:none;padding:16px;white-space:pre-wrap;background:#400;color:#fcc}
 </style>
 <script src="node_modules/openmct/dist/openmct.js"></script>
