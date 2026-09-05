@@ -52,7 +52,7 @@
     var start = rows[0].timestamp;
     var end = rows[rows.length - 1].timestamp;
     if (!(end >= start)) return;
-    // If data ends near now (live rolling file), skip auto Fixed — stay on realtime conductor
+    // If data ends near now (live rolling file), skip auto Fixed â€” stay on realtime conductor
     if (Math.abs(Date.now() - end) < 15000) {
       console.info('[rc-csv] skip auto Fixed; CSV looks live');
       return;
@@ -72,7 +72,7 @@
 
   function RcCsvHistoricalPlugin(options) {
     options = options || {};
-    const csvUrl = options.csvUrl || '../fixtures/omct_big_daddy_glance.csv';
+    const csvUrl = options.csvUrl || '../fixtures/omct_big_daddy_fidelity.csv';
 
     return function install(openmct) {
       let cache = null;

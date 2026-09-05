@@ -1,23 +1,25 @@
-# realtime
+﻿# realtime
 
-Host-side live pipe: station USB CDC (ANSI dash scrape) → WebSocket → Open MCT subscribe provider.
+Two host pipes into Open MCT (not Starcom):
 
-**Not Starcom.** Same columns as the CSV historical path: `seq`, `rssi`, `snr`.
+| Script | Purpose |
+|--------|---------|
+| `stream_station.py` | Live USB/`m` ANSI scrape (COM7) |
+| `feed_facsimile.py` | Replay fidelity CSV as live WS points |
 
-## Run (desk PC)
+## Facsimile live feed (dashboard refine)
 
-```text
-pip install pyserial websockets
+`	ext
+python docs/gcs/openmct/realtime/enrich_big_daddy_fidelity.py
+python docs/gcs/openmct/realtime/feed_facsimile.py --loop --rate 1
+`
+
+WS: `ws://127.0.0.1:8091/`. Hard-reload hello-world; conductor **REAL-TIME** -30s; open **Master Dashboard v1** / **Master Glance (stacked)**.
+
+## Station live scrape
+
+`	ext
 python docs/gcs/openmct/realtime/stream_station.py --port COM7 --ws-port 8091
-```
+`
 
-Leave it running. Then hard-reload Open MCT hello-world (Espresso) and put the conductor in **realtime** / local clock. Open RSSI — points should tick as Pkts update.
-
-## oMCT side
-
-`plugins/rc-realtime.js` connects to `ws://localhost:8091/` and subscribes by measurement id.
-
-## Notes
-
-- Uses the same ANSI RSSI/SNR/Pkts scrape as Buzz's capture script until true CSV `m` mode is the station-dev default.
-- Historical CSV provider remains for recordings; both attach to the same telemetry objects.
+Station scrape today is RF + baro-ish; IMU/quat/temps/Vbatt for glass come from facsimile (or vehicle telem) until those fields are on USB/`m`.
