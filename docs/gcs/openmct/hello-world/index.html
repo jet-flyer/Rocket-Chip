@@ -1,23 +1,61 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Rocket Chip Open MCT hello-world</title>
+<style>
+  html,body{margin:0;height:100%;background:#2c2c2c;color:#eee;font:14px/1.4 system-ui,sans-serif}
+  #boot-error{display:none;padding:16px;white-space:pre-wrap;background:#400;color:#fcc}
+</style>
 <script src="node_modules/openmct/dist/openmct.js"></script>
 <script src="../plugins/rc-csv-dictionary.js"></script>
 <script src="../plugins/rc-csv-historical.js"></script>
-</head><body><script>
+</head><body>
+<div id="boot-error"></div>
+<script>
 (function () {
-  var params = new URLSearchParams(window.location.search);
-  var csvUrl = params.get('csv') || '../fixtures/omct_hello_fixture.csv';
-  openmct.setAssetPath('node_modules/openmct/dist');
-  openmct.install(openmct.plugins.LocalStorage());
-  openmct.install(openmct.plugins.MyItems());
-  openmct.install(openmct.plugins.UTCTimeSystem());
-  openmct.time.setClock('local');
-  openmct.time.setClockOffsets({ start: -60000, end: 0 });
-  openmct.time.setTimeSystem('utc');
-  openmct.install(openmct.plugins.Espresso());
-  openmct.install(RcCsvDictionaryPlugin());
-  openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
-  document.addEventListener('DOMContentLoaded', function () { openmct.start(); });
+  function fail(err) {
+    var el = document.getElementById('boot-error');
+    el.style.display = 'block';
+    el.textContent = 'Open MCT boot failed:\n' + (err && err.stack ? err.stack : String(err));
+    console.error(err);
+  }
+  try {
+    if (typeof openmct === 'undefined') throw new Error('openmct global missing');
+    var params = new URLSearchParams(window.location.search);
+    var csvUrl = params.get('csv') || '../fixtures/live.csv';
+    var assetPath = new URL('node_modules/openmct/dist/', window.location.href).href;
+    openmct.setAssetPath(assetPath);
+    openmct.install(openmct.plugins.LocalStorage());
+    openmct.install(openmct.plugins.MyItems());
+    openmct.install(openmct.plugins.UTCTimeSystem());
+    openmct.install(openmct.plugins.Espresso());
+    if (openmct.plugins.Conductor) {
+      openmct.install(openmct.plugins.Conductor({
+        menuOptions: [{
+          name: 'Fixed',
+          timeSystem: 'utc',
+          bounds: { start: Date.now() - 60000, end: Date.now() }
+        }]
+      }));
+    }
+    if (openmct.plugins.DisplayLayout) {
+      openmct.install(openmct.plugins.DisplayLayout({ showAsView: [] }));
+    }
+    openmct.time.setTimeSystem('utc');
+    try {
+      openmct.install(RcCsvDictionaryPlugin());
+      openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
+    } catch (pluginErr) {
+      fail(pluginErr);
+      return;
+    }
+    function boot() {
+      try { openmct.start(); }
+      catch (e) { fail(e); }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+  } catch (e) { fail(e); }
 })();
-</script></body></html>
+</script>
+</body></html>
