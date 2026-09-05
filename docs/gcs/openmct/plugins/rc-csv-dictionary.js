@@ -207,6 +207,41 @@
   const SW_CHUTE = caution('sw-chute', 'CHUTE', 'chute_detected', 'equalTo', 1, 'YES', '#b45f06');
   const SW_GPS = caution('sw-gps', 'GPS', 'gps_fix', 'lessThan', 3, 'NO FIX', '#990000');
 
+
+  function layoutItem(id, key, x, width) {
+    return {
+      id: id,
+      type: 'subobject-view',
+      identifier: idFor(key),
+      x: x,
+      y: 1,
+      width: width,
+      height: 8,
+      hasFrame: false
+    };
+  }
+
+  const MASTER_CAUTION = {
+    identifier: idFor('master-caution'),
+    name: 'Master Caution',
+    type: 'layout',
+    location: NAMESPACE + ':master',
+    composition: [
+      idFor('sw-rssi'), idFor('sw-lq'), idFor('sw-batt'),
+      idFor('sw-chute'), idFor('sw-gps')
+    ],
+    configuration: {
+      layoutGrid: [10, 10],
+      items: [
+        layoutItem('li-sw-rssi', 'sw-rssi', 1, 18),
+        layoutItem('li-sw-lq', 'sw-lq', 21, 18),
+        layoutItem('li-sw-batt', 'sw-batt', 41, 18),
+        layoutItem('li-sw-chute', 'sw-chute', 61, 18),
+        layoutItem('li-sw-gps', 'sw-gps', 81, 18)
+      ]
+    }
+  };
+
   const MASTER_HOME = {
     identifier: idFor('master'),
     name: 'Master Dashboard',
@@ -220,6 +255,7 @@
       idFor('gauge-rssi'),
       idFor('gauge-lq_pct'),
       idFor('gauge-batt_v'),
+      idFor('master-caution'),
       idFor('sw-rssi'),
       idFor('sw-lq'),
       idFor('sw-batt'),
@@ -256,11 +292,7 @@
           id: 'rc-c-caution',
           size: 20,
           frames: [
-            frame('rc-f-sw-rssi', 'sw-rssi', 20, true),
-            frame('rc-f-sw-lq', 'sw-lq', 20, true),
-            frame('rc-f-sw-batt', 'sw-batt', 20, true),
-            frame('rc-f-sw-chute', 'sw-chute', 20, true),
-            frame('rc-f-sw-gps', 'sw-gps', 20, true)
+            frame('rc-f-caution', 'master-caution', 100, true)
           ]
         }
       ]
@@ -276,6 +308,7 @@
     'gauge-batt_v': G_BATT,
     'gauge-rssi': G_RSSI,
     'gauge-lq_pct': G_LQ,
+    'master-caution': MASTER_CAUTION,
     'sw-rssi': SW_RSSI,
     'sw-lq': SW_LQ,
     'sw-batt': SW_BATT,
@@ -312,6 +345,7 @@
           if (!m) return Promise.reject(new Error('Unknown ' + identifier.key));
           const valueMeta = {
             key: 'value',
+            source: 'value',
             name: m.name,
             units: m.units,
             format: m.format,
@@ -338,7 +372,7 @@
           return o.identifier.namespace === NAMESPACE &&
             (o.type === 'folder' || o.type === 'table' || o.type === 'LadTable' ||
              o.type === 'gauge' || o.type === 'summary-widget' ||
-             o.type === 'flexible-layout' || o.type === 'display-layout' ||
+             o.type === 'flexible-layout' || o.type === 'display-layout' || o.type === 'layout' ||
              o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },
         load: function (o) { return Promise.resolve(o.composition || []); }

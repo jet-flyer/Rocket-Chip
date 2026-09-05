@@ -19,6 +19,32 @@
   }
 
   #boot-error{display:none;padding:16px;white-space:pre-wrap;background:#400;color:#fcc}
+
+  /* Master-caution: Summary Widgets need room + normal tracking in layouts */
+  .l-layout .c-sw,
+  .l-layout .c-summary-widget,
+  .c-so-view .c-sw,
+  .c-so-view .c-summary-widget {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 4em !important;
+    box-sizing: border-box !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    letter-spacing: normal !important;
+    padding: 8px 12px !important;
+  }
+  .l-layout .c-sw__label,
+  .l-layout .c-summary-widget__label,
+  .c-so-view .c-sw__label {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.08em !important;
+    transform: none !important;
+    max-width: none !important;
+  }
 </style>
 <script src="node_modules/openmct/dist/openmct.js"></script>
 <script src="../plugins/rc-csv-dictionary.js"></script>
