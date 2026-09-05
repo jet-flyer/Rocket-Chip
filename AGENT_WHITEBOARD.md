@@ -88,7 +88,7 @@ Owner-wanted after LoRa Pass A. SX1276 FSK (packet and/or continuous bitstream -
 
 ## Pre-commit vehicle bench_sim on station-only firmware (OPEN) (2026-08-27)
 
-Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station-job diffs still demand COM5. HEALTH-ring reclassify is no longer the reason (Core1 vitality + `passive_dump_needs_help`). Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs). Related: *bench_sim hook vs canary* row.
+Hook treats any `src/drivers` / `src/main` touch as "run vehicle `bench_sim`". Station-job diffs still demand COM5. HEALTH-ring reclassify is no longer the reason (Core1 vitality + `passive_dump_needs_help`). Next: role-aware gate (`station_bench_sim` on COM7 for station-job diffs). Hook vs canary/recovery is documented in `standards/HW_GATE_DISCIPLINE.md` Rule 5.
 
 ---
 
@@ -134,18 +134,6 @@ Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBO
 ## Station RSSI LEDs vs Starcom (OPEN) (2026-08-28)
 
 Station/relay NeoPixel bar (`ao_radio.cpp` `handle_rssi_bar` -> `ws2812_set_rssi_bar`) is **last LoRa FIFO RSSI**, any payload. ON air is COP-P / PLTU. Rewire so the bar (and “no signal”) is gated on **decoded CCSDS/Starcom** - a COP-P lock or accepted nav SDU - not raw radio ticks. Dashboard `RSSI:` / `Pkts:` have the same leftover. Not this dashboard-counter sitting.
-
----
-
-## bench_sim hook vs canary vs A/B recovery (OPEN) (2026-08-19)
-
-**Hook ≠ canary.** Same script (`scripts/bench_sim.py`); different tree, different question. Flesh out in `standards/HW_GATE_DISCIPLINE.md` Rule 5 (still cites dead checklist item 6) + drop/retarget the During Session canary paragraph.
-
-- **Hook (prevention of silent skip / LL 36):** pre-commit on firmware-affecting paths. Runs **after** edits are staged, **before** the commit exists. Needs OpenOCD `:3333`. Does **not** flash - talks to whatever image is already on the chip. Stops “claimed PASS, nobody ran it.”
-- **Everyday pre-edit canary (not feasible here):** would need HW on **unchanged** HEAD *before* first edit. Probe is not up at session start; upload is after edits. First-`Read` of `src/` is the wrong moment (no probe; board ≠ HEAD).
-- **Recovery (when a skip or hook-fail is ambiguous):** flash last-known / `HEAD~`, `bench_sim`; flash the new build, `bench_sim`. Attribution, not prevention. Do not put a last-run stamp in `PROJECT_STATUS.md` (LL 36-shaped lie unless only the hook writes it).
-
-Owner: hook stays the land gate. A/B is the documented recovery. No boot canary.
 
 ---
 
@@ -260,39 +248,6 @@ new “maybe rework someday” bullets without listing them in this table.
 L2-P5 formal walk closed **2026-08-17**. Full /graphify remains **owner-gated** (billed). Cheap graphify update + curate already runs post-commit.
 
 Still open if/when you schedule it: **doc->code connectivity pass** (standards/docs islands vs code symbols; rate-limit = batches of ~4). Not a sitting default.
-
----
-
-## Cross-agent commit hygiene - sweep-in convention (OPEN) (2026-06-29, Claude/Opus)
-
-Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents' work getting swept into each other's commits (Grok edited Claude's CHANGELOG entry; an AGENTS.md edit landed in an unexpected commit). **Open ask:** a lightweight convention so agents don't sweep each other's in-flight files - stage explicit paths, never `git add -A` / `git add .` across another agent's working files. Worth a short written rule in AGENTS.md or CROSS_AGENT_REVIEW.md.
-
-**RESOLVED 2026-06-29 (CHANGELOG `2026-06-29-001`) - graphify-out churn no longer dirties the tree.** The post-commit hook rebuilds the graph every commit; the volatile root outputs are now gitignored + untracked (kept on disk, hook keeps them current locally, query/curate/verify unaffected). Protected snapshot subdirs stay tracked. This was the churn that made graph state easy to sweep into unrelated commits.
-
-**Merge-driver note (evaluated, NOT installed):** graphify's README + issue [#1018](https://github.com/safishamsi/graphify/issues/1018) say `graphify hook install` sets up a git merge-driver (`graphify merge-driver %O %A %B` -> `networkx.compose` union) so parallel `graph.json` commits union-merge instead of conflicting - but verified across v0.8.50 + upstream main/v8 that the installer does NOT actually wire it (real doc-vs-code gap; needs manual `.gitattributes merge=graphify` + `git config`). With graph.json now gitignored, parallel-conflict risk on it is moot, so the merge-driver is unnecessary unless graph.json is re-tracked. Left uninstalled.
-
----
-
-## Session-scoped git worktrees for concurrent agents (PROPOSED) (2026-07-01, Claude/Opus)
-
-**Lived trigger:** the L2-P5 manual walk guide (`docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md`) was authored across a long session but left **uncommitted and untracked** on `main`; the graphify tree-churn cleanup (`git clean` - same churn behind the gitignore fixes above) wiped it from the working tree while the repo owner was away. Recovered 2026-07-01 by replaying the session transcript's base Read + 44 Edits (0 misses, signatures + encoding verified), now committed on branch `claude/l2p5-walk-guide-c3757857`.
-
-**Root-cause distinction (the actual lesson):** two separate problems, two separate fixes. **Durability** (don't lose work) is solved *only by committing* - a branch alone would NOT have saved an untracked file from `git clean`. **Isolation** (concurrent agents don't clobber each other) is solved by a dedicated branch - or better, a dedicated *working tree*.
-
-**Proposed policy (evaluate; especially load-bearing for Starcom):**
-- **Per-session branch + commit-often.** Substantive sessions work on `claude/<task>-<id>`, committing checkpoints frequently (even WIP), merged at a natural checkpoint. Branch for isolation, commit for durability - both, not either. This is already what `GIT_WORKFLOW.md` prescribes; the gap was execution, not policy. (Note: the line-~42 flag proposing GIT_WORKFLOW *deprecation* is in tension with this and should be reconsidered.)
-- **`git worktree` per concurrent agent.** Give Claude / Grok / Gemini / Composer each an isolated working directory (`git worktree add`) sharing one object store. Then one agent's `git clean` / `reset --hard` / branch-switch physically **cannot touch** another agent's tree - the exact failure that just happened, and the structural fix for the "Cross-agent commit hygiene - sweep-in" item above (agents also stop sweeping each other's in-flight files into commits).
-- **Starcom specifically:** the standalone CCSDS library is expected to see concurrent multi-agent dev - stand up the worktree model there from the start rather than retrofitting.
-
-**Cost/caveats to weigh:** worktrees add disk + a little setup per agent; graphify's per-tree `graphify-out/` would rebuild per worktree (already gitignored, low risk); any automation that runs `git clean` should be scoped to never delete untracked files it didn't create. Owner decision.
-
-**Owner leans ADOPT (2026-07-04) - applies even to doc-only sessions.** Fresh datapoint: a routine docs-only session hit a push-rejection because Grok pushed to `main` mid-session (clean rebase, but avoidable). **Precision on what fixes what:** a **per-session branch** removes remote-ref contention (the push-collision / rebase dance - this is what bit the doc session); a **worktree** *additionally* prevents local file-clobber (the original guide-wipe). Adopt **both** - branch as the floor (even for docs), worktree when agents run concurrently. Low-friction: the harness supports it natively (`EnterWorktree`/`ExitWorktree` tools + `Agent(isolation:"worktree")`), so the next substantive session should default to a `claude/<task>` branch in its own worktree and merge at a checkpoint.
-
-**Implementation detail (owner idea 2026-07-04) - not done now:** wire this into `docs/agents/SESSION_CHECKLIST.md` **Session-Start** as a *prompt*, not a hard gate - "when substantial work is anticipated, suggest spinning up a new worktree/branch first." Mirrors item 17d's "surface state, owner decides" pattern (a recommendation the agent raises at session start, not an automatic action). Deferred to the same checklist rework that maps the IEEE 1028 review levels.
-
-**Gate skip in a fresh worktree** lives in `standards/CODING_STANDARDS.md` -> Code Verification Process (not a MERGE checklist scope).
-
-**Lived failure (2026-08-20) - project log is not isolated-safe.** Isolation saved the Grok walk *findings* (`L2P5_GROK_WALK_FINDINGS.md` via merge `5841d16`). It did **not** save the walk's CHANGELOG entries (`2026-08-18-001` @ `d0166d2`, `2026-08-19-001` @ `392091a`): those lived only on `grok/l2p5-agent-walk`; main already had a different `2026-08-19-001`; merge conflict kept main's log. `GIT_WORKFLOW.md`'s "delete the branch, all merged work is on main" is false for any file the merge did not copy. **Rule:** before `worktree remove` / branch delete, `CHANGELOG.md` (and `LESSONS_LEARNED.md` if the sitting added an entry) must be on `main` - new date-NNN or a one-time suffix if IDs collide; do not "take ours" and drop the branch block. Detail: LL Entry 45. Recovered onto main as **2026-08-18-001W** / **2026-08-19-001W** under 2026-08-20-003 (one-time wrap; do not copy).
 
 ---
 
