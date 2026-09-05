@@ -23,7 +23,7 @@
   try {
     if (typeof openmct === 'undefined') throw new Error('openmct global missing');
     var params = new URLSearchParams(window.location.search);
-    var csvUrl = params.get('csv') || '../fixtures/live.csv';
+    var csvUrl = params.get('csv') || '../fixtures/omct_big_daddy_glance.csv';
     var assetPath = new URL('node_modules/openmct/dist/', window.location.href).href;
     openmct.setAssetPath(assetPath);
     openmct.install(openmct.plugins.LocalStorage());
