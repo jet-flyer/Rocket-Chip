@@ -154,3 +154,7 @@ These are polish, not Part B banner candidates.
 
 - **LL 28, 31** — SUPERSEDE-style STATUS (legacy API to `i2c_master`; 31 keeps flash_safe_execute mechanism).
 - **LL 22, 27** — REVISIT STATUS (observation/process KEEP; dead root-cause/API cites retired).
+
+## LL 22 desk verify (2026-09-05)
+
+Buzz: Feather COM5 + LiPo, USB yank/replug. Before ~996 Hz / 0 new errs; after ~995 Hz / err_delta=0; uptime continued (~402 s). STATUS flipped REVISIT → **SUPERSEDED (verified fixed)** on current `i2c_master`.

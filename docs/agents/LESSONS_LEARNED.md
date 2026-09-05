@@ -570,9 +570,9 @@ Implemented as pre/post hooks in `rc_os.h` to keep the IMU driver decoupled from
 
 ---
 
-## Entry 22: ~~USB Reconnect Degrades Core 1 IMU Rate (LiPo-Powered Disconnect)~~ (REVISIT 2026-09-05)
+## Entry 22: ~~USB Reconnect Degrades Core 1 IMU Rate (LiPo-Powered Disconnect)~~ (SUPERSEDED 2026-09-05)
 
-**STATUS: REVISIT.** Observation still open (USB reconnect + LiPo stay-up degrades Core1 IMU — not a flight path). Do **not** cite `i2c_bus_reset()` as the standing workaround; that symbol is legacy-only. Live recovery is `i2c_master` abort + reattach. Root cause still unproven — re-validate on current `i2c_master` if/when USB stress returns.
+**STATUS: SUPERSEDED (verified fixed).** Desk 2026-09-05 on current `i2c_master` / tip `2c8092c`: Feather + LiPo stay-up, physical USB yank/replug. IMU stayed ~995–996 Hz with `err_delta=0` (no tank to ~95 Hz as in this entry). Do not cite as a standing bug. Historical body preserved for the old `i2c_bus_reset` workaround archaeology.
 
 Historical content preserved below.
 
