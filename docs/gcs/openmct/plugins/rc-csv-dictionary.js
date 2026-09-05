@@ -1,5 +1,6 @@
 /**
- * Rocket Chip Master Dashboard v1 — MCS-like panes (not all strip charts).
+ * Rocket Chip Master Dashboard — single Flexible Layout home (MCS-style).
+ * Discrete → table; limits → gauges; trends → plots. No folder stack as home.
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
@@ -62,6 +63,15 @@
     };
   }
 
+  function frame(id, key, size) {
+    return {
+      id: id,
+      domainObjectIdentifier: idFor(key),
+      size: size,
+      noFrame: false
+    };
+  }
+
   const PHASE_TABLE = {
     identifier: idFor('master-phase'),
     name: 'Phase / Status (table)',
@@ -119,7 +129,52 @@
   const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
   const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
 
+  /** Single canvas home: phase row → traj|dyn → gauges. Radio plot stays in tree only. */
+  const MASTER_HOME = {
+    identifier: idFor('master'),
+    name: 'Master Dashboard',
+    type: 'flexible-layout',
+    location: 'ROOT',
+    composition: [
+      idFor('master-phase'),
+      idFor('link-overlay-traj'),
+      idFor('link-overlay-dyn'),
+      idFor('gauge-rssi'),
+      idFor('gauge-lq_pct'),
+      idFor('gauge-batt_v'),
+      idFor('link-overlay-radio')
+    ],
+    configuration: {
+      rowsLayout: true,
+      containers: [
+        {
+          id: 'rc-c-phase',
+          size: 22,
+          frames: [frame('rc-f-phase', 'master-phase', 100)]
+        },
+        {
+          id: 'rc-c-plots',
+          size: 50,
+          frames: [
+            frame('rc-f-traj', 'link-overlay-traj', 55),
+            frame('rc-f-dyn', 'link-overlay-dyn', 45)
+          ]
+        },
+        {
+          id: 'rc-c-gauges',
+          size: 28,
+          frames: [
+            frame('rc-f-rssi', 'gauge-rssi', 34),
+            frame('rc-f-lq', 'gauge-lq_pct', 33),
+            frame('rc-f-batt', 'gauge-batt_v', 33)
+          ]
+        }
+      ]
+    }
+  };
+
   const LAYOUTS = {
+    'master': MASTER_HOME,
     'master-phase': PHASE_TABLE,
     'link-overlay-traj': TRAJ,
     'link-overlay-dyn': DYN,
@@ -142,22 +197,8 @@
 
       openmct.objects.addProvider(NAMESPACE, {
         get: function (identifier) {
-          if (identifier.key === 'master') {
-            return Promise.resolve({
-              identifier: rootMaster,
-              name: 'Master Dashboard v1',
-              type: 'folder',
-              location: 'ROOT',
-              composition: [
-                idFor('master-phase'),
-                idFor('link-overlay-traj'),
-                idFor('link-overlay-dyn'),
-                idFor('gauge-rssi'),
-                idFor('gauge-lq_pct'),
-                idFor('gauge-batt_v'),
-                idFor('link-overlay-radio')
-              ]
-            });
+          if (LAYOUTS[identifier.key]) {
+            return Promise.resolve(LAYOUTS[identifier.key]);
           }
           if (identifier.key === 'link') {
             return Promise.resolve({
@@ -167,9 +208,6 @@
               location: 'ROOT',
               composition: MEASUREMENTS.map(function (m) { return idFor(m.key); })
             });
-          }
-          if (LAYOUTS[identifier.key]) {
-            return Promise.resolve(LAYOUTS[identifier.key]);
           }
           const m = MEASUREMENTS.find(function (x) { return x.key === identifier.key; });
           if (!m) return Promise.reject(new Error('Unknown ' + identifier.key));
@@ -192,6 +230,7 @@
         appliesTo: function (o) {
           return o.identifier.namespace === NAMESPACE &&
             (o.type === 'folder' || o.type === 'table' || o.type === 'gauge' ||
+             o.type === 'flexible-layout' || o.type === 'display-layout' ||
              o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },
         load: function (o) { return Promise.resolve(o.composition || []); }

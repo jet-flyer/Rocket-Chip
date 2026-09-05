@@ -2,7 +2,7 @@
 
 Open MCT (oMCT) â€” layouts, plugins, packet dict, and host notes for Rocket Chip glass.
 
-**Status:** scaffold only. Nothing wired to live telem yet.
+**Status:** hello-world glass live (CSV + WS feeder). Master Dashboard = single Flexible Layout home.
 
 ## Settled defaults (2026-09-04)
 
@@ -51,3 +51,11 @@ Live path once boards are on USB: logs/gcs/omct_hello_YYYY-MM-DD.csv.
 3. Themes and Fruit Jam visual consistency only after (1)â€“(2)
 
 See also: docs/gcs/README.md (host rules). Aesthetic research (Claude session, research-not-ratified) lands separately when asked.
+
+## References (layouts / ops displays)
+
+- [Open MCT Users Guide (layouts §69)](https://nasa.github.io/openmct/static/files/Open_MCT_Users_Guide.pdf)
+- [VIPER mission displays notes](https://www.rukminibose.com/viper-mission-displays)
+- MCWS-style showAsView: summary-widget — see [openmct-mcws](https://github.com/NASA-AMMOS/openmct-mcws) DisplayLayout options
+
+Master home is one Flexible Layout (phase table + traj/dyn plots + gauges). Summary Widget / Condition / Condition Widget are stock plugins; lit phase tiles come after the canvas. Details: [layouts/README.md](layouts/README.md).
