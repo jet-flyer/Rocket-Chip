@@ -158,3 +158,7 @@ These are polish, not Part B banner candidates.
 ## LL 22 desk verify (2026-09-05)
 
 Buzz: Feather COM5 + LiPo, USB yank/replug. Before ~996 Hz / 0 new errs; after ~995 Hz / err_delta=0; uptime continued (~402 s). STATUS flipped REVISIT → **SUPERSEDED (verified fixed)** on current `i2c_master`.
+
+## Fruit Jam cold-boot (2026-09-05)
+
+Buzz: COM7 cold boot — G climbing (466→722), E climbing, bus **alive** (not hard freeze). DEPRECATE/erase WB: **I²C PIO backend rework-eval** and **RP2350B persistent bus-corruption hypothesis**. Residual GPS E / window_hit=0 is separate from bus death.

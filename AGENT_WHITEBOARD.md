@@ -358,12 +358,6 @@ No code changes planned - kept as context for future decisions.
   - **In-flight ARM-dead beacon-coverage gap is the trade** - accepted as a known gap for Core/Titan single-MCU pending this session.
 
   Scope of the combined session: (1) evaluate whether SPI-from-fault-handler is ever the right stop-gap given the failure-mode inventory; (2) design the PIO-driven beacon program (target: PIO0 or PIO1 - PIO2 already shared between watchdog SM0 + backup-timer SM1-3); (3) decide whether the design requires soldering the DIO5 jumper on the FeatherWing; (4) bench-verify on a known-faulted chip state if any stop-gap is in scope. Likely outputs a dedicated decision doc under `docs/decisions/`. User direction will determine sequencing relative to other open work.
-- **RP2350B/Fruit Jam persistent bus-corruption hypothesis.** User hunch 2026-04-17: one boot during the Fruit Jam GPS debug had a transition not fully explained by the cable theory alone. Investigate whether RP2350B exhibits bus-corruption state that survives power cycles. Low priority - may be a dead end, keep passive.
-
-- **I²C bus backend rework-eval (prefer PIO if advantages + budget) + Flipper prior art.** **Group:** Early-impl / rework-eval candidates (index above). **Owner lean (2026-08-05):** PIO master is **preferable** when advantages are real and **PIO budget** remains (coordinate with PIO beacon / watchdog allocation - do not eval in isolation). Current `i2c_bus` thin façade over DW_apb stays intentional either way; backend swap is the rework question, not deleting the project API. **Trigger / residual context:** Fruit Jam GPS cold-boot intermittency and related bus pain (`docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`) - not a mandate to switch mid-walk. **Prior art:** Flipper One MCU firmware (public 2026-05-21) has a working RP2350 PIO I²C master at `lib/drivers/i2c_master_pio/pio_i2c.c` in https://github.com/flipperdevices/flipperone-mcu-firmware - claim/init + unclaim/deinit (LL-42 pattern), mid-cycle recover via drain + jump-to-wrap + IRQ clear (no program-memory touch), acquire/release pad-mux (LL-28) in `furi_hal_i2c_config.c`. Same SDK/toolchain family as us. **License check required before any code import.** Eval session outputs: advantages vs HW I²C, SM budget map, keep/reaffirm DW_apb vs plan PIO backend under `i2c_bus_*`.
-
-## Deferred (near-term, post-Stage 15)
-
 - **Battery ADC monitoring.** Hardware not wired. ADC pin + driver + telemetry field.
 - **CCSDS SDLS command authentication.** Telecommand auth for Rocket profile.
 
