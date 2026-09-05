@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-05-001 | Grok Hamilton (Grok Bot) | tooling, documentation, feature
+
+**Desk Open MCT glass live: CSV/WS ingest, baro, default stacked + radio overlay.** Host-only path under `docs/gcs/openmct/`: station ANSI scrape (`realtime/stream_station.py`) publishes WS `:8091` and a rolling `fixtures/live.csv`; historical poller `cache: no-store` + near-now refetch; points seq/rssi/snr/baro. Default boot view **Link Live (stacked)** (RSSI/SNR/Baro) plus **Radio (RSSI+SNR overlay)**; `openmct.plugins.Plot()` installed. Yamcs scaffold remains research-not-ratified (`docs/gcs/yamcs/`). WB: LCARS skin + facsimile flight CSV wanted for offline layout refine. Tip includes `4554667` / realtime `0061010`. Verified: pure-software GCS/host; desk live baro ~0.2 m AGL + RSSI scroll; no firmware change.
+
 ### 2026-09-04-002 | Grok Hamilton (Grok Bot) | hardware, feature, bugfix
 
 **R-32 close: product boot 250/10 expedited + sparse station PLCW; station dash RX n/desired.** Commanded 10 Hz now delivers ~9.8 Hz on the desk (busy_drop=0, station_tx ~nav/4). Nathan accepted ~3 dB (BW125->250) for airtime; 125/10 does not fit. Station RF Link shows CRC-good `RX n/desired` (same path as RATE `rx_crc_ok`; denom CFG `nav_rate_hz`). Detail: `docs/RADIO_RATE_ROOTCAUSE_PLAN_2026-09-04.md`; branch `grok/r0-rate-counters`. Verified: product smoke submit~=tx_done 9.79 Hz; dash spot-check `RX 9.4-9.6/10 Hz [OK]`.

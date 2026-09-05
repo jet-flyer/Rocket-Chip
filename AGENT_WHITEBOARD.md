@@ -39,7 +39,7 @@ Owner: Prefer MET + GPS on both ends; desk oMCT CSV/WS glass is live (layouts/th
 
 ## GCS glass: facsimile flight CSV (WANTED) (2026-09-05)
 
-Generate a **realistic facsimile flight** CSV (or short replay set) with the columns oMCT already plots (timestamp, seq, rssi, snr, baro, plus any easy extras later) so layout/overlay work can be refined without needing a live RF link. Prefer profiles that look like a real hop: pad/idle, boost, coast, apogee, descent — not a flat desk sawtooth. Can be synthetic or scrubbed from a prior soak/flight dump. Not a license to implement this sitting.
+Generate a **realistic facsimile flight** CSV (or short replay set) so layout/overlay work can be refined without a live RF link. **Required glass columns:** timestamp, seq, rssi, snr, baro. **Layout-stress extras (include soon):** alt_agl, vz, accel_g, batt_v. Timestamps span pad/idle -> boost -> coast -> apogee -> descent (real hop shape, not desk sawtooth). RSSI/SNR stay RF-ish (dropouts/fade OK), not nav-perfect. Synthetic or scrubbed soak/flight dump. Not a license to implement this sitting.
 
 ---
 
