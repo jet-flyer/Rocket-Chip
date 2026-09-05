@@ -37,6 +37,12 @@ Owner: Prefer MET + GPS on both ends; desk oMCT CSV/WS glass is live (layouts/th
 4. **FPV-style scan / find** (below) — first impl vs LoRa Hail; FPV scan won. Hail still coupled.
 5. Adaptive TX power.
 
+## GCS glass: facsimile flight CSV (WANTED) (2026-09-05)
+
+Generate a **realistic facsimile flight** CSV (or short replay set) with the columns oMCT already plots (timestamp, seq, rssi, snr, baro, plus any easy extras later) so layout/overlay work can be refined without needing a live RF link. Prefer profiles that look like a real hop: pad/idle, boost, coast, apogee, descent — not a flat desk sawtooth. Can be synthetic or scrubbed from a prior soak/flight dump. Not a license to implement this sitting.
+
+---
+
 ## GCS glass: LCARS skin (WANTED) (2026-09-05)
 
 Desk Open MCT hello-world is on Espresso with stacked RSSI/SNR/Baro + radio overlay. **LCARS skin** (louh/lcars or frame-wrapper) is the next aesthetic pass after more field testing / layout tweaks. Do not start unprompted; themes after ingest was the prior lock and ingest is now desk-proven.
