@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Replay fidelity CSV into Open MCT over WebSocket — on demand.
+Replay fidelity CSV into Open MCT over WebSocket - on demand.
 
 Default: listen idle on ws://127.0.0.1:8091/ and http://127.0.0.1:8092/
   - WS text: play | stop | reset
@@ -229,7 +229,7 @@ async def play_once(hub: Hub, rows: List[dict], rate: float, stop_flag: asyncio.
 async def control_loop(hub: Hub, rows: List[dict], rate: float, loop_after: bool) -> None:
     stop_flag = asyncio.Event()
     play_task: Optional[asyncio.Task] = None
-    print("[feed] idle — send play (WS) or open http://127.0.0.1:8092/", flush=True)
+    print("[feed] idle - send play (WS) or open http://127.0.0.1:8092/", flush=True)
     while True:
         cmd = await hub.cmd_q.get()
         if cmd == "play":
@@ -242,7 +242,7 @@ async def control_loop(hub: Hub, rows: List[dict], rate: float, loop_after: bool
                     await play_once(hub, rows, rate, stop_flag)
                     if stop_flag.is_set() or not loop_after:
                         break
-                    print("[feed] loop — playing again", flush=True)
+                    print("[feed] loop - playing again", flush=True)
             play_task = asyncio.create_task(_run())
         elif cmd == "stop":
             stop_flag.set()
@@ -252,7 +252,7 @@ async def control_loop(hub: Hub, rows: List[dict], rate: float, loop_after: bool
                 await asyncio.sleep(0.05)
             stop_flag.clear()
             hub.state = "idle"
-            print("[feed] RESET → idle", flush=True)
+            print("[feed] RESET -> idle", flush=True)
 
 
 async def main_async(args: argparse.Namespace) -> None:
@@ -284,6 +284,13 @@ async def main_async(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    try:
+        import sys
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(errors='replace')
+            sys.stderr.reconfigure(errors='replace')
+    except Exception:
+        pass
     p = argparse.ArgumentParser(description="On-demand facsimile CSV -> Open MCT WebSocket")
     p.add_argument("--csv", default=str(DEFAULT_CSV))
     p.add_argument("--ws-port", type=int, default=8091)
