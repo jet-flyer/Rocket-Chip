@@ -624,3 +624,7 @@ Each Core module has independent power regulation:
 RP2350 PIO is the first stop for pin-timed work. A small FPGA is optional fabric for parallel MACs and a dissimilar monitor - not a fusion brain, and not on the base RC board for comms.
 
 See `docs/hardware/FPGA/` (hub). `docs/hardware/FPGA.md` is a stub for old links.
+
+## PIO
+
+RP2350 state-machine budget and claim map: [`PIO_BUDGET.md`](PIO_BUDGET.md).
