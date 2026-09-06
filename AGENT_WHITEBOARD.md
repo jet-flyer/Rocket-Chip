@@ -186,7 +186,7 @@ not mid-walk rewrites. Outcome of each eval is keep-with-written-*why*, or plann
 named sections / WNs / Research rows below - this header is the **index + grouping**, not
 a replacement. If the set grows unwieldy, break out a dedicated doc later; **not now**.
 
-**Shared constraint - PIO budget:** see [`docs/hardware/PIO_BUDGET.md`](docs/hardware/PIO_BUDGET.md). **Lock:** PIO2 = safety only (WDT + backup timers); PIO0 = WS2812; **next rent = PIO1 last-gasp beacon** (FSK-assist later / Starcom). Eval order still weighs SM + **instruction** budget.
+**Shared constraint - PIO budget:** see [`docs/hardware/PIO_BUDGET.md`](docs/hardware/PIO_BUDGET.md). **Lock:** PIO2 = safety only; PIO0 = WS2812; **PIO1 empty on purpose** unless we opt into ARM-dead RF chirp (or a later FSK timing need). Not a queued beacon feature.
 
 KEEP closed 2026-08-31 (DW_apb I²C, Hamilton quat, seqlock, PCM, flash layout, PIO backup-timer design, RFM95W): `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. This table is only sittings that remain.
 

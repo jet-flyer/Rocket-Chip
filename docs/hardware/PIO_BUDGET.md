@@ -12,7 +12,7 @@ not raw SM count.
 | Block | Role | Rule |
 |-------|------|------|
 | **PIO0** | Status / soft peripherals | **WS2812** lives here today. Do not put safety timers here. |
-| **PIO1** | Next feature rent | Prefer new work here (last-gasp beacon first). |
+| **PIO1** | Spare (default empty) | Leave empty unless a gated rent (table below) earns a sitting. |
 | **PIO2** | Safety only | Heartbeat WDT + backup pyro timers. Do not rent for product features. |
 
 **Parked / non-starter for now:** I²C-via-PIO (needs rewiring; HW I2C is fine).
@@ -29,12 +29,19 @@ not raw SM count.
 
 Watchdog + backup both load programs into **PIO2 instruction memory** (shared 32-slot pool).
 
-## Next rent (agreed order)
+## Next rent (gated — not a queue)
 
-1. **Last-gasp / fault beacon on PIO1** (desk smoke first). Aligns with WB *PIO beacon + SPI last-gasp* sitting; prefer PIO-SPI / DIO-timed chirp over sharing HW SPI in a fault path. FSK-assist waits for a Starcom sitting.
-2. **PIO WDT role policy** — use of the *existing* PIO2 WDT SM (Go/No-Go vs ARM), not a new program.
-3. **RF / FSK bitstream assist** — later; keep LoRa packet SPI on the HW SPI controller.
+**Default: PIO1 stays empty on purpose.** Do not rent PIO just because SMs are free.
 
+Rent PIO only for a real **independence or timing** win (same bar as PHY work).
+
+| Candidate | When it earns a sitting |
+|-----------|-------------------------|
+| **RF last-gasp beacon on PIO1** | Only if product need is **ARM cores hung, chip still powered → still chirp RF**. Not a completeness item. Arm canned SPI pattern while healthy; never steal PIO0/PIO2. |
+| **PIO WDT role policy** | Policy on the *existing* PIO2 WDT SM (Go/No-Go vs ARM) — not a new program. |
+| **FSK bitstream assist on PIO1** | Later Starcom sitting, and only if continuous DCLK/DATA clocking actually needs it. Bring PIO up *then*; leave LoRa packets on HW SPI. |
+
+If we decline ARM-dead RF, skip the beacon sitting — LED/`b` find-me + pyro PIO timers remain the hang coverage we already have.
 ## Leave alone
 
 - ESKF / fusion math, NeoPixel (done), HW SPI/I2C/UART workloads that already work.
