@@ -186,10 +186,7 @@ not mid-walk rewrites. Outcome of each eval is keep-with-written-*why*, or plann
 named sections / WNs / Research rows below - this header is the **index + grouping**, not
 a replacement. If the set grows unwieldy, break out a dedicated doc later; **not now**.
 
-**Shared constraint - PIO budget:** several candidates prefer or require PIO. Budget is
-shared (watchdog + backup timers already on PIO2; beacon candidate wants PIO0/1). Eval
-order for PIO-touching items should weigh **advantages vs remaining SM/instruction budget**
-together, not in isolation.
+**Shared constraint - PIO budget:** see [`docs/hardware/PIO_BUDGET.md`](docs/hardware/PIO_BUDGET.md). **Lock:** PIO2 = safety only (WDT + backup timers); PIO0 = WS2812; **next rent = PIO1 last-gasp beacon** (FSK-assist later / Starcom). Eval order still weighs SM + **instruction** budget.
 
 KEEP closed 2026-08-31 (DW_apb I²C, Hamilton quat, seqlock, PCM, flash layout, PIO backup-timer design, RFM95W): `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md`. This table is only sittings that remain.
 
@@ -347,7 +344,7 @@ No code changes planned - kept as context for future decisions.
   - **PIO beacon + SPI last-gasp combined session** - see dedicated row below.
   - **AON-timer prior-uptime signal** - stubbed to 0 in the anomalous-boot confidence gate. Wiring it requires adding `pico_aon_timer` to target_link_libraries + explicit timer-start at boot. Marginal value (POWMAN reset register already carries the high-confidence signal for brownout; AON timer would corroborate for the watchdog-RSM / hazard-DP / glitch-detect / SWcore-PD reset classes only). Worth picking up if auto-zero-baro suppression false-positive rate during bench testing needs an extra corroborator. Otherwise deferred.
 
-- **PIO beacon + SPI last-gasp beacon (B.5) - combined dedicated future session.** **Group:** Early-impl / rework-eval candidates (index above; shares **PIO budget** with I²C-backend eval). Council round 3 (NASA/JPL + Cubesat, 2026-05-15) unanimously deferred the SPI-based last-gasp beacon (commit (c) of the rework was scoped for this and *not* implemented). User direction 2026-05-15: "merge with the future PIO beacon" - the two questions evaluate together rather than pre-committing to an interface (compile-time `ROCKETCHIP_LAST_GASP_BEACON` + `radio_init_confirmed` semantics) that would constrain the PIO design choice. Reasons for deferral, fully captured in plan B.5 + council-round-3 transcript at `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-a355e8caee0717e0b.md`:
+- **PIO beacon + SPI last-gasp beacon (B.5) - combined dedicated future session.** **Group:** Early-impl / rework-eval candidates (index above; shares **PIO budget** with other PIO candidates (see PIO_BUDGET.md)). Council round 3 (NASA/JPL + Cubesat, 2026-05-15) unanimously deferred the SPI-based last-gasp beacon (commit (c) of the rework was scoped for this and *not* implemented). User direction 2026-05-15: "merge with the future PIO beacon" - the two questions evaluate together rather than pre-committing to an interface (compile-time `ROCKETCHIP_LAST_GASP_BEACON` + `radio_init_confirmed` semantics) that would constrain the PIO design choice. Reasons for deferral, fully captured in plan B.5 + council-round-3 transcript at `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-a355e8caee0717e0b.md`:
   - **SPI peripheral state corruption** if fault occurred mid-byte/mid-burst - recovery is NOT bounded-cost (FIFO drain + CS deassert via GPIO function override + SX1276 hardware reset pulse + full cold re-init; each step has its own hang potential).
   - **`#ifdef`-scaffolding-rot pattern** per LL Entry 36 - code-shaped-but-never-exercised artifact creates false-confidence for future contributors.
   - **JPL precedent: always architect beacons as independent silicon** (Cassini LGA+USO, SMAP transponder). Cubesats that share the radio rely on modem-level autonomous beacon modes (e.g., FSK Beacon Mode); SX1276 LoRa lacks this in long-range mode.
