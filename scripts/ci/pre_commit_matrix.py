@@ -69,6 +69,8 @@ FLIGHT_CRITICAL = re.compile(
     r'|scripts/ci/'
     r'|scripts/bench_sim\.py'
     r'|scripts/station_bench_sim\.py'
+    r'|scripts/_rc_test_common\.py'
+    r'|scripts/flash_elf_halt_write\.py'
     r')'
 )
 

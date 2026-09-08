@@ -66,6 +66,9 @@ FIELDS = [
     ('REQUIRE_RADIO',       'require_radio',              'bool',   None),
     # Pyro
     ('HAS_PYRO',            'has_pyro',                   'bool',   None),
+    # USB console (sitting 5 catalog). Locked from console SET.
+    ('USB_ARM_INH',         'usb_arm_inhibit',            'bool',   None),
+    ('USB_CFG_EN',          'usb_config_en',              'bool',   None),
     # PIO backup timers
     ('DROGUE_TIMER_S',      'drogue_timer_s',             'float',  None),
     ('MAIN_TIMER_S',        'main_timer_s',               'float',  None),

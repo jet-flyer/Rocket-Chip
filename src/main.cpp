@@ -303,9 +303,9 @@ static void init_core1_role() {
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         g_sensorPhaseActive = true;
         g_startSensorPhase.store(true, std::memory_order_release);
-        rc_os_i2c_scan_allowed = false;  // LL Entry 23
+        g_i2c_scan_allowed = false;  // LL Entry 23
     } else {
-        rc_os_i2c_scan_allowed = true;
+        g_i2c_scan_allowed = true;
         if constexpr (job::kRadioModeRx) {
             rc::station_idle_tick_init();
         }

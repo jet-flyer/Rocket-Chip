@@ -121,6 +121,12 @@ Firmware and host scripts never invent a version string.
 - **Host parsers** (`scripts/_rc_test_common.py`) consume that grammar. They may
   also accept the pre-2026-08-26 form (`RocketChip vX.Y.Z RCOS vA.B.C flight-<sha>`)
   so old logs still classify. They do not emit it.
+- **HW gate (SWE-084):** `bench_sim.py` / `station_bench_sim.py` fail closed
+  unless the running banner's `flight-<sha>` equals generated `kGitHash`, the
+  ELF's `kBuildIdentity` equals live `git describe --abbrev=12 --always --dirty`,
+  firmware-dirty files are not newer than the ELF, and
+  `rocketchip.elf.flashed.json` records this ELF's sha256 (written after a
+  verified halt-write). A leftover image is a failed gate, not a PASS.
 - **PCM** `firmware_version[8]`: `kFirmwareVersion` only (`0.16.3` fits 7 chars +
   NUL). `static_assert` on the generated header rejects a product string that
   cannot fit. Full identity is CLI/banner only.

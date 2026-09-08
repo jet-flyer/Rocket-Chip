@@ -111,7 +111,7 @@ This rule addresses a separate failure mode from Rules 1-4: **gates that are cla
 
 | Role | When | Tree / board | Question |
 |------|------|--------------|----------|
-| **Pre-commit hook** | After edits are staged, before the commit exists | Needs OpenOCD `:3333`. Does **not** flash - talks to whatever image is already on the chip | Stop "claimed PASS, nobody ran it" (prevention / LL 36) |
+| **Pre-commit hook** | After edits are staged, before the commit exists | Needs OpenOCD `:3333`. Does **not** flash. `bench_sim` **refuses leftover**: banner `flight-<sha>` must match the ELF's `kGitHash`, the ELF must match `git describe --dirty` / firmware mtimes, and `rocketchip.elf.flashed.json` must be this ELF's sha256 (written by `flash_elf_halt_write.py` after `verify_image`) | Stop "claimed PASS, nobody ran it" (prevention / LL 36) **and** "PASS on last week's image" (desk 2026-09-07) |
 | **Flight-path canary** | *Before* editing flight-critical paths, only if that work is in play | Prefer unchanged HEAD if probe is up; see During Session in `docs/agents/SESSION_CHECKLIST.md` | Has the tool/gate itself rotted since last real run? |
 | **Recovery** | After a skip, `--no-verify`, or ambiguous hook result | Flash last-known / `HEAD~` or known-good image, then re-run | Separate "gate broken" from "this sitting's code broke it" |
 
@@ -127,6 +127,7 @@ What this means in practice:
 
 - **If your change touches a path the matrix classifies as flight-critical or station-relevant, the hook will run the corresponding bench_sim and block on failure.** You do not have to remember; the hook remembers.
 - **If OpenOCD is not on `127.0.0.1:3333` when you commit, the hook fails closed.** Start OpenOCD and re-attempt - do not bypass.
+- **If the chip is not this ELF, the hook fails closed.** Flash `build_flight/rocketchip.elf` (or the station ELF) with `scripts/flash_elf_halt_write.py`, wait LED+CDC per `docs/FLASHING.md`, then retry. A leftover banner or a rebuilt ELF with no new flash record is a failed gate, not a skip. `--record-only` is only for a flash that already verified by another documented method (picotool).
 - **If the gate runs but you suspect a false PASS**, the positive-control signal was insufficient - open a Rule 1 strengthening followup; do not silently re-run until it "passes."
 - **For gates that cannot be a hook-runnable script** (most field-test / stage-exit gates), the gate is structurally soft per Rule 4.
 

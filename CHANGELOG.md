@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-08-001 | Grok 4.6 (Build CLI) | architecture, refactor
+
+**RC_OS sittings 0–5 landed on `main` (`grok/rcos-rework`).** Table-driven vehicle/station consoles, `ROCKETCHIP_DEV_MODE` gates, leftover-image HW gate, catalog v0 (settings `l`/`n` legal radio presets runtime-only, `USB_ARM_INH`/`USB_CFG_EN`, TX_POWER locked). Plan: `docs/plans/RCOS_REWORK.md` (historical sitting-5 text). Classified-not-implemented leftovers are on WB § RC_OS classified leftovers (address or remove) — not sitting deliverables. Starcom vehicle-console / radio-settings OTA were never this workstream. Merge also uncoupled STOP-GAP 54 B nav from the Starcom 45 B `pack_nav_sdu_user` (clean host rebuild was encoding 12 B). Verified: host tests + vehicle `bench_sim` on the merge commit (positive-control in the merge message).
+
 ### 2026-09-07-001 | Grok 4.6 (Build CLI) | documentation
 
 **WB clear + process/docs sitting on `docs/starcom-sad-draft` (not merged).** Erased already-addressed rows; Regulatory/RF stays open (WN-100 SSOT only). GPS: never twist SDA/SCL (LL 47); I2C on IMU/baro bus is legal (`SENSOR_ARCHITECTURE.md`). USER_GUIDE LED tables match `led_patterns.h`. HW_GATE Rule 5 / checklist: land-gate is the hook, not a canary; A/B recovery. AO_COMMANDMENTS citation audit; R-27 closed. LL header/index + Entry 36 item 4 SUPERSEDED on `main`. Feature tip `1d1620f`. Verified: docs-only; host ctest 860/860; no firmware; no HW reseat required.

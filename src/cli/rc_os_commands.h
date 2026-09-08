@@ -31,16 +31,17 @@ void cli_print_boot_status();
 // Compact ESKF live output (1Hz, 'e' key)
 void cli_print_eskf_live();
 
-// Preflight Go/No-Go poll ('p' key, IVP-110)
+// Preflight Go/No-Go poll ('p')
 void cli_print_preflight();
 
-// Unhandled key dispatcher (logging, radio, download commands)
-void cli_handle_unhandled_key(int key);
+void cmd_flush_log();
+void cmd_list_flights();
+void cmd_radio_status();
+void cmd_station_gps();
+void cmd_station_distance();
 
-// Stage L — manual beacon ('b' key). Publishes SIG_BEACON_MANUAL;
-// AO_Notify flips beacon_manual → resolver returns pure-white 2Hz.
-// Non-destructive: valid in any phase, auto-clears on next non-recovery
-// phase transition.
+// Manual beacon ('b'). SIG_BEACON_MANUAL → Notify pure-white 2 Hz.
+// Valid in any phase; clears on the next non-recovery phase change.
 void cmd_findme_beacon();
 
 #endif // ROCKETCHIP_RC_OS_COMMANDS_H
