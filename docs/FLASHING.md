@@ -108,6 +108,14 @@ WFI park. `--dump-only` is inspect, no write.
 The script will **refuse** if no vehicle CDC is found. That is
 intentional.
 
+On `verify_image` OK it writes `rocketchip.elf.flashed.json` next to the
+ELF (sha256 of those bytes). `scripts/bench_sim.py` **refuses** unless
+that record matches the ELF it is about to talk to **and** the banner
+`flight-<sha>` matches the ELF's `kGitHash`. Leftover firmware on the
+chip is a failed gate. `--record-only` records without writing flash —
+only after a documented non-probe load of **this** ELF (picotool). Do
+not record an ELF that is not on the chip.
+
 ### 4. What the script does (do not re-type this by hand unless debugging the script)
 
 1. Open the vehicle CDC with DTR held low. Send `q` then `u`. Close

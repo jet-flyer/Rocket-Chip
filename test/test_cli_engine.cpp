@@ -100,6 +100,30 @@ TEST(CliEngine, StationHasNoCalAndZReturnsPadAction) {
     EXPECT_EQ(r.act, ActionId::kReturnPad);
 }
 
+TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
+    Engine e{};
+    init(e);
+    auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(r.ev, Event::kPushed);
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'i');
+    EXPECT_EQ(r.act, ActionId::kDebugI2cScan);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'k');
+    EXPECT_EQ(r.act, ActionId::kDebugI2cQuiesce);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'u');
+    EXPECT_EQ(r.act, ActionId::kDebugI2cPark);
+
+    Engine s{};
+    init(s);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'c').ev, Event::kUnknown);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'f').ev, Event::kUnknown);
+    on_key(s, kStationItems, kStationItemCount, 'q');
+    EXPECT_EQ(top(s), MenuId::kDebug);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'i').act,
+              ActionId::kDebugI2cScan);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
+}
+
 TEST(CliEngine, HelpIsNotAPush) {
     Engine e{};
     init(e);

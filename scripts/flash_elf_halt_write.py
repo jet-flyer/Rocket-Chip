@@ -20,6 +20,7 @@ from _rc_test_common import (  # noqa: E402
     enter_cli_menu,
     find_target_port,
     open_classified_port,
+    record_flashed_elf,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -138,6 +139,9 @@ def flash(elf: Path) -> int:
     print(text[-3000:])
     ok = "verified" in text.lower()
     print("flash", "OK" if ok else "CHECK", "park+write+vector resume cm0, no reset")
+    if ok:
+        sidecar = record_flashed_elf(elf)
+        print("flash record", sidecar.as_posix())
     return 0 if ok else 1
 
 
@@ -188,9 +192,19 @@ def main() -> int:
     parser.add_argument("--no-park", action="store_true")
     parser.add_argument("--dump", action="store_true", help="read banner/b/s after write")
     parser.add_argument("--dump-only", action="store_true")
+    parser.add_argument(
+        "--record-only",
+        action="store_true",
+        help="write the bench_sim flash-record sidecar without writing flash "
+             "(picotool, or a halt-write that already verified)",
+    )
     args = parser.parse_args()
     if args.dump_only:
         return dump()
+    if args.record_only:
+        sidecar = record_flashed_elf(Path(args.elf))
+        print("flash record", sidecar.as_posix())
+        return 0
     if not args.no_park:
         if not park():
             return 2

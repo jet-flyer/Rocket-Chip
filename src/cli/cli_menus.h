@@ -71,7 +71,7 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'i', true,  "I2C scan",   MenuId::kNone, ActionId::kDebugI2cScan},
     {MenuId::kDebug, 'k', true,  "I2C quiesce+reboot", MenuId::kNone, ActionId::kDebugI2cQuiesce},
     {MenuId::kDebug, 'u', true,  "I2C park (probe flash)", MenuId::kNone, ActionId::kDebugI2cPark},
-    {MenuId::kDebug, 'b', true,  "boot/HW",    MenuId::kNone, ActionId::kDebugBootHw,
+    {MenuId::kDebug, 'b', true,  "boot/HW",    MenuId::kNone, ActionId::kDebugBootHw},
     {MenuId::kDebug, 'e', false, "ESKF live",  MenuId::kNone, ActionId::kDebugEskfLive},
     {MenuId::kDebug, 'y', true,  "pyro log",   MenuId::kNone, ActionId::kDebugPyroLog},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
@@ -106,6 +106,7 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kMain, 'z', true,  "pad",          MenuId::kNone,     ActionId::kReturnPad},
 
     {MenuId::kDebug, 's', true,  "RX status",  MenuId::kNone, ActionId::kDebugSensors},
+    {MenuId::kDebug, 'i', true,  "I2C scan",   MenuId::kNone, ActionId::kDebugI2cScan},
     {MenuId::kDebug, 'k', true,  "I2C quiesce+reboot", MenuId::kNone, ActionId::kDebugI2cQuiesce},
     {MenuId::kDebug, 'u', true,  "I2C park (probe flash)", MenuId::kNone, ActionId::kDebugI2cPark},
     {MenuId::kDebug, 'b', true,  "boot/HW",    MenuId::kNone, ActionId::kDebugBootHw},

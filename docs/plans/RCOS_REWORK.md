@@ -1,6 +1,6 @@
 # RC_OS rework
 
-**Status:** Sitting 0 in progress (2026-08-26). Live menus unchanged.
+**Status:** Sitting 2 closing (2026-09-07). Rebased onto `origin/main`. Engine + per-job tables + DEV_MODE/`v` live. LED-test / digit-RF stay omitted (sitting 5 / probe). Sitting 3 next (ownership).
 **Branch / worktree:** `grok/rcos-rework` at `C:\Users\pow-w\Documents\Rocket-Chip-rcos`
 **WB:** § Remaining pile order, § RC_OS Rework
 **Origin:** `docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2; L2-P5 WN-288–327 DEFER pile
@@ -259,7 +259,7 @@ Council before sitting 1. Sitting 0 does not change firmware dispatch.
 |---------|------|
 | **0** | Key freeze + host test. This plan (is/isn't + classification). |
 | **1** | Engine + two shallow trees in worktree (`cli_engine.h`, `cli_menus.h`, `cli_actions.cpp`). Inject/cal-reset/digit-RF/LED-test **out**. Host `CliEngine.*` PASS. Target not HW-gated this sitting. |
-| **2** | Cal / flight / debug tables **per job**. Inject and cal-reset compile-gated. **Started 2026-08-27:** `ROCKETCHIP_DEV_MODE` CMake option (Debug default ON) + runtime `v` toggle (USB + idle to enable; USB unplug clears; stays on across ARM for inject). Probe `test_mode_active()` unchanged. LED-test / digit-RF still omitted. |
+| **2** | Cal / flight / debug tables **per job**. Inject and cal-reset compile-gated. **Closed 2026-09-07:** vehicle has cal+flight+debug (I2C scan/quiesce/park); station has no cal/flight, debug is RX/I2C/boot/diag. `ROCKETCHIP_DEV_MODE` + runtime `v`. Probe `test_mode_active()` unchanged. LED-test / digit-RF still omitted (sitting 5 / probe, not this sitting). |
 | **3** | Ownership: I2C flags out of `cli/`; dashboard not a menu; `dev_*` → console-debug names. |
 | **4** | Comment/PA slim (WN-314…). |
 | **5** | Catalog v0: legal radio presets as **basic**, USB flags as profile fields, settings submenu. Dashboard maps (WN-325) only if it stays small. |

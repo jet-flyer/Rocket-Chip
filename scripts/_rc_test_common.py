@@ -83,13 +83,17 @@ Usage:
 from __future__ import annotations
 
 import enum
+import hashlib
+import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Iterator, Optional, Tuple
 
 import serial
@@ -318,6 +322,7 @@ class Banner:
     build: Build
     version: Optional[str]    # e.g. "0.16.3-dev"
     board: Optional[str]      # e.g. "Adafruit Feather RP2350 HSTX"
+    git_hash: Optional[str] = None  # banner flight-<sha> (standards/VERSIONING.md)
     mode: Mode = Mode.UNKNOWN
     raw: str = ''
 
@@ -336,6 +341,8 @@ class Banner:
             parts.append(self.build.value)
         if self.version is not None:
             parts.append(f'v{self.version}')
+        if self.git_hash is not None:
+            parts.append(self.git_hash)
         if self.mode is not Mode.UNKNOWN:
             parts.append(f'({self.mode.value})')
         return ' '.join(parts)
@@ -356,9 +363,11 @@ def classify_banner(text: str) -> Banner:
         role = Role.VEHICLE
 
     build = Build.UNKNOWN
+    git_hash: Optional[str] = None
     m_build = _RE_BUILD_TAG.search(t)
     if m_build is not None:
         build = Build.FLIGHT
+        git_hash = m_build.group(1)
 
     version: Optional[str] = None
     m_ver = _RE_VERSION.search(t)
@@ -382,7 +391,7 @@ def classify_banner(text: str) -> Banner:
         mode = Mode.KMENU
 
     return Banner(role=role, build=build, version=version, board=board,
-                  mode=mode, raw=t)
+                  git_hash=git_hash, mode=mode, raw=t)
 
 
 def passive_dump_needs_help(banner: Banner) -> bool:
@@ -876,6 +885,222 @@ def rc_test(*,
 
 
 # ============================================================================
+# Image identity (leftover-firmware refuse)
+# ============================================================================
+# The pre-commit hook does not flash. Without these checks, bench_sim
+# PASSes on whatever leftover image is already on the chip (Rule 5 hole,
+# desk 2026-09-07). Positive control: this tree built this ELF, this ELF
+# was the last halt-write, and the banner flight-<sha> is that ELF.
+# standards/VERSIONING.md SWE-084; standards/HW_GATE_DISCIPLINE.md Rule 5.
+
+_ROLE_BUILD_DIR = {
+    'vehicle': 'build_flight',
+    'station': 'build_station_flight',
+}
+
+# Same family as scripts/ci/pre_commit_matrix.py FLIGHT_CRITICAL. Kept here
+# so this module does not import the matrix (hook eval path).
+_FIRMWARE_PATH_PREFIXES = (
+    'src/',
+    'include/',
+    'CMakeLists.txt',
+    'cmake/',
+    'EXTERNAL/etl-',
+    'lib/',
+    'profiles/',
+)
+
+_RE_K_GIT_HASH = re.compile(
+    r'constexpr const char\*\s+kGitHash\s*=\s*"([^"]*)"')
+_RE_K_BUILD_IDENTITY = re.compile(
+    r'constexpr const char\*\s+kBuildIdentity\s*=\s*"([^"]*)"')
+
+
+@dataclass(frozen=True)
+class ExpectedImage:
+    """Identity of the ELF the gate claims to be testing."""
+    role: str
+    elf: Path
+    version_header: Path
+    git_hash: str
+    build_identity: str
+    sha256: str
+
+
+def flashed_sidecar_path(elf: Path) -> Path:
+    return elf.with_name(elf.name + '.flashed.json')
+
+
+def elf_sha256(elf: Path) -> str:
+    h = hashlib.sha256()
+    with elf.open('rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def record_flashed_elf(elf: Path) -> Path:
+    """Write the sidecar bench_sim requires. Call after verify_image OK."""
+    elf = elf.resolve()
+    sidecar = flashed_sidecar_path(elf)
+    payload = {
+        'sha256': elf_sha256(elf),
+        'elf': str(elf),
+        'name': elf.name,
+    }
+    sidecar.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+    return sidecar
+
+
+def _parse_version_header(path: Path) -> Tuple[Optional[str], Optional[str]]:
+    text = path.read_text(encoding='utf-8')
+    m_git = _RE_K_GIT_HASH.search(text)
+    m_id = _RE_K_BUILD_IDENTITY.search(text)
+    git_hash = m_git.group(1) if m_git else None
+    ident = m_id.group(1) if m_id else None
+    return git_hash, ident
+
+
+def _git(repo: Path, *args: str) -> Tuple[int, str]:
+    r = subprocess.run(
+        ['git', *args],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return r.returncode, (r.stdout or '').strip()
+
+
+def _is_firmware_path(rel: str) -> bool:
+    rel = rel.replace('\\', '/')
+    return any(rel == p or rel.startswith(p) for p in _FIRMWARE_PATH_PREFIXES)
+
+
+def load_expected_image(repo: Path, role: str) -> Tuple[Optional[ExpectedImage], Optional[str]]:
+    """Load ELF + generated version.h for vehicle|station. Error if missing."""
+    if role not in _ROLE_BUILD_DIR:
+        return None, f'unknown firmware role {role!r}'
+    build_dir = repo / _ROLE_BUILD_DIR[role]
+    elf = build_dir / 'rocketchip.elf'
+    header = build_dir / 'generated' / 'rocketchip' / 'version.h'
+    if not elf.is_file():
+        return None, (
+            f'no {elf.as_posix()} — build the {role} image, flash it '
+            f'(scripts/flash_elf_halt_write.py), wait LED+CDC '
+            f'(docs/FLASHING.md), then retry'
+        )
+    if not header.is_file():
+        return None, (
+            f'no {header.as_posix()} — reconfigure/build so CMake writes '
+            f'kGitHash (standards/VERSIONING.md)'
+        )
+    git_hash, ident = _parse_version_header(header)
+    if not git_hash or git_hash == 'unknown':
+        return None, f'{header.as_posix()} has no live kGitHash'
+    if not ident or ident == 'unknown':
+        return None, f'{header.as_posix()} has no live kBuildIdentity'
+    return ExpectedImage(
+        role=role,
+        elf=elf,
+        version_header=header,
+        git_hash=git_hash,
+        build_identity=ident,
+        sha256=elf_sha256(elf),
+    ), None
+
+
+def tree_matches_elf_error(repo: Path, expected: ExpectedImage) -> Optional[str]:
+    """ELF must be this working tree (describe + firmware file mtimes)."""
+    rc, live = _git(repo, 'describe', '--abbrev=12', '--always', '--dirty')
+    if rc != 0 or not live:
+        return 'git describe failed — cannot attribute this ELF to the tree'
+    if live != expected.build_identity:
+        return (
+            f'ELF identity {expected.build_identity} != git describe {live}\n'
+            f'  rebuild {expected.elf.as_posix()} from this tree, flash, '
+            f'wait LED+CDC (docs/FLASHING.md), then retry'
+        )
+    rc, diff_names = _git(repo, 'diff', '--name-only', 'HEAD')
+    if rc != 0:
+        return 'git diff --name-only HEAD failed'
+    dirty = [n for n in diff_names.splitlines() if n and _is_firmware_path(n)]
+    if not dirty:
+        return None
+    elf_mtime = expected.elf.stat().st_mtime
+    stale = []
+    for rel in dirty:
+        p = repo / rel
+        if p.is_file() and p.stat().st_mtime > elf_mtime:
+            stale.append(rel)
+    if stale:
+        return (
+            'firmware files newer than the ELF (rebuild before bench_sim):\n  '
+            + '\n  '.join(stale)
+        )
+    return None
+
+
+def flash_stamp_error(expected: ExpectedImage) -> Optional[str]:
+    """This exact ELF file must be the last halt-write recorded next to it."""
+    sidecar = flashed_sidecar_path(expected.elf)
+    if not sidecar.is_file():
+        return (
+            f'no flash record {sidecar.as_posix()}\n'
+            f'  leftover image would still PASS bench_sim without this.\n'
+            f'  flash {expected.elf.as_posix()} with '
+            f'scripts/flash_elf_halt_write.py (writes the record), '
+            f'wait LED+CDC (docs/FLASHING.md), then retry'
+        )
+    try:
+        payload = json.loads(sidecar.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f'unreadable flash record {sidecar.as_posix()}: {exc}'
+    recorded = payload.get('sha256')
+    if recorded != expected.sha256:
+        return (
+            f'ELF sha256 {expected.sha256[:12]}… != last flashed '
+            f'{str(recorded)[:12]}…\n'
+            f'  {expected.elf.as_posix()} was rebuilt and not flashed.\n'
+            f'  flash it, wait LED+CDC (docs/FLASHING.md), then retry'
+        )
+    return None
+
+
+def banner_matches_elf_error(banner: Banner, expected: ExpectedImage) -> Optional[str]:
+    """Running banner flight-<sha> must be this ELF's kGitHash."""
+    if not banner.git_hash:
+        return (
+            'banner has no flight-<sha> — cannot prove the chip is this ELF\n'
+            f'  expected flight-{expected.git_hash} from '
+            f'{expected.version_header.as_posix()}'
+        )
+    if banner.git_hash != expected.git_hash:
+        return (
+            f'chip is leftover firmware: banner flight-{banner.git_hash} != '
+            f'ELF flight-{expected.git_hash}\n'
+            f'  flash {expected.elf.as_posix()}, wait LED+CDC '
+            f'(docs/FLASHING.md), then retry'
+        )
+    return None
+
+
+def refuse_stale_tree_and_elf(repo: Path, role: str) -> Tuple[Optional[ExpectedImage], Optional[str]]:
+    """Pre-connect: ELF is this tree and was the last recorded flash."""
+    expected, err = load_expected_image(repo, role)
+    if err:
+        return None, err
+    assert expected is not None
+    err = tree_matches_elf_error(repo, expected)
+    if err:
+        return expected, err
+    err = flash_stamp_error(expected)
+    if err:
+        return expected, err
+    return expected, None
+
+
+# ============================================================================
 # Test-mode arming via debug probe
 # ============================================================================
 # R-25-exec (2026-05-13, Approach A): the bench tier no longer exists.
@@ -938,6 +1163,11 @@ __all__ = [
     'ROCKETCHIP_USB_VID', 'ROCKETCHIP_USB_PID',
     # Test-mode arming (R-25-exec, Approach A)
     'arm_test_mode_via_probe',
+    # Image identity (leftover-firmware refuse)
+    'ExpectedImage', 'flashed_sidecar_path', 'elf_sha256',
+    'record_flashed_elf', 'load_expected_image',
+    'tree_matches_elf_error', 'flash_stamp_error',
+    'banner_matches_elf_error', 'refuse_stale_tree_and_elf',
     # Decorator
     'rc_test',
 ]
