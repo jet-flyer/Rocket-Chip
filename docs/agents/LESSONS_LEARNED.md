@@ -56,8 +56,9 @@
 | 45 | Worktree CHANGELOG is not on main until the merge copies it |
 | 46 | Post-flash extra restart / GDB attach are process, not a new E2 |
 | 47 | FPV-twist of STEMMA 4-core freezes I2C (not GPS-last) |
+| 48 | Gate that talks to a DUT can PASS on leftover / wrong artifact |
 
-Process / tooling cluster (gates, citations, worktrees): **36–46**. HW-debug journal continues around them; this index is the map.
+Process / tooling cluster (gates, citations, worktrees): **36–46, 48**. HW-debug journal continues around them; this index is the map.
 
 ---
 
@@ -1948,3 +1949,50 @@ GPS-last / IR / lumped Cb remain real physics and still prefer GPS-first, but th
 - NXP UM10204 twisted-pair / VSS return; TI SCPA069 I2C crosstalk.
 - LL 20 / 24 (PA1010D on the IMU bus) — still valid as stress-slave physics; this entry is cable dress.
 - `docs/FLASHING.md` — MCU-only `I2C_IF_DIS` latch is a **different** class (SYSRESETREQ, STEMMA 3V3 up). Untwist does not close it.
+
+---
+
+## Entry 48: A Gate That Talks to a DUT Can PASS on Leftover / Wrong Artifact
+
+**Date:** 2026-09-07
+**Context:** RC_OS sitting. `bench_sim --port COM5` returned 2/2 PASS. The Feather was still running leftover firmware; current `grok/rcos-rework` ELF had not been flashed. Owner: you cannot bench-sim current code on a board running old code.
+**Severity:** High-process — the pre-commit HW gate can cite a real 2/2 PASS that never executed the staged tree. Same class as LL 36 (gate claimed, wrong thing observed) and LL 43 ("clean" without proving the check ran on the file).
+
+### Problem
+`scripts/hooks/pre-commit` already ran `bench_sim.py` when firmware-affecting paths were staged (LL 36 item 3, LL 40). Rule 5 required OpenOCD on `:3333` so the gate could not be silently skipped. Neither fact proves **which image** is on the chip. The hook does not flash. Banner product string `0.16.3-dev` is the IVP epoch, not a tree discriminant (`standards/VERSIONING.md` SWE-084). Leftover from last week's HEAD, or same-HEAD dirty tree that was never rebuilt/flashed, still answers ARM/launch/apogee and PASSes.
+
+Lived: first `bench_sim` this sitting classified `vehicle flight v0.16.3-dev` and 2/2 PASS. After halt-write of `build_flight/rocketchip.elf` the banner was `flight-c93019d`. Those are not the same proof.
+
+### Root cause
+A check that observes a device, cache, binary, generated file, or "whatever is already there" is structurally soft unless it **binds that observation to the artifact under test**. "The script ran" and "the DUT answered" are negative-evidence cousins of LL 43. Rule 5 called leftover PASS an "image-attribution problem" with A/B recovery after the fact. That is diagnosis, not prevention.
+
+Sibling holes to hunt (same shape, different DUT):
+
+| Check | Leftover / wrong artifact |
+|---|---|
+| `bench_sim.py` / `station_bench_sim.py` | Firmware already on the chip (this sitting) |
+| Host `ctest` | Stale `build_host/` objects vs staged `test/` / `src/` |
+| clang-tidy / warning-gate coverage | Stale `compile_commands.json` or per-file flag drop (LL 43) |
+| `check_generated_profiles.py` | Committed header vs `profiles/*.cfg` (already fail-closed; keep it) |
+| SPIN / `pan` | `.pml` drifted from `src/` it claims to model |
+| `graphify query` | Stale `graphify-out/graph.json` vs the tree just edited |
+| `picotool info` / banner `Board:` | UF2 self-report, not "this serial is that physical board" (`docs/FLASHING.md` Frankenstein) |
+| soak / `cli_test` / `i2c_soak_test` | Same leftover-image class as bench_sim |
+| Replay goldens | Encoder/log format moved; goldens still match the old bytes |
+
+### Solution (vehicle HW gate, on `grok/rcos-rework` until that merge)
+`bench_sim` fail-closed unless: banner `flight-<sha>` equals ELF `kGitHash`; ELF `kBuildIdentity` equals live `git describe --abbrev=12 --always --dirty`; dirty firmware files are not newer than the ELF; `rocketchip.elf.flashed.json` is this ELF's sha256 (written after `verify_image`). The hook still does **not** flash. A leftover image is now exit 1, not a PASS. `--record-only` is only for a documented non-probe load of **this** ELF.
+
+Not on `main` until that branch lands. The lesson is the class, not the sidecar filename.
+
+### Prevention
+When adding or touching **any** automated test/check, name the artifact under test and the positive-control that it is **this** artifact, not last run's. If that control does not exist, the gate is soft (Rule 4) — say so; do not cite PASS as proof of the staged tree.
+
+Do not treat "OpenOCD is up," "CDC enumerated," "ctest 894/894," or "2/2 PASS" as identity. Walk the table above when a gate looks green after a tree change you did not flash, rebuild, regenerate, or re-extract.
+
+### Related
+- LL 36 — bench_sim regex rot / honor-system run. This entry is leftover DUT, not stale regex.
+- LL 40 — gate did not run (path enumeration). Here the gate ran on the wrong bits.
+- LL 43 — "clean" without proving the check applied. Same negative evidence, hardware edition.
+- LL 46 — first resume after `load` is not a counted boot; leftover CDC can lie the same way.
+- `standards/HW_GATE_DISCIPLINE.md` Rule 5; `standards/VERSIONING.md` SWE-084; `docs/FLASHING.md`.
