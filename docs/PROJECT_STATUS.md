@@ -1,6 +1,10 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-08-24 (L2-P5 Cycle 4 overlay remediates closed and merged — see CHANGELOG)
+**Last Updated:** 2026-09-08 (RC_OS sittings 0–5 merged — see CHANGELOG `2026-09-08-001`)
+
+## RC_OS rework sittings 0–5 MERGED (2026-09-08)
+
+Table-driven vehicle/station consoles + catalog v0 on `main` from `grok/rcos-rework`. Plan: `docs/plans/RCOS_REWORK.md`. **Classified, not implemented** leftovers are labeled in that plan and on `AGENT_WHITEBOARD.md` § RC_OS classified leftovers (address or remove). Starcom vehicle-console over the link and radio-settings OTA are other workstreams.
 
 ## L2-P5 Cycle 4 — itinerary COMPLETE; walk WB CLOSED; overlay remediates MERGED
 
@@ -15,9 +19,10 @@ wrap `2026-08-24-003`). Combined overlay: `L2P5_GROK_CLAUDE_OVERLAY.md`. Log:
 
 **Still open (later sittings, on `AGENT_WHITEBOARD.md`):** first-flight prod strip of
 test/inject, Notify/LED overhaul, leftover sittings (HAB `EMERG_DEPLOY`, PIO WDT,
-Estes vs station ARM, Tiny 2350 pin map), codegen audit, early-impl table. Sitting 6
-RF skipped (WN-100). **Next:** those rows when scheduled; Stage 17 tapered buildup;
-L2-P10 CLA-RBM when scheduled.
+Estes vs station ARM, Tiny 2350 pin map), codegen audit, early-impl table (RC_OS
+sittings 0–5 closed; classified leftovers remain). Sitting 6 RF skipped (WN-100).
+**Next:** those rows when scheduled; Stage 17 tapered buildup; L2-P10 CLA-RBM when
+scheduled.
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 
