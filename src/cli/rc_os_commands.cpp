@@ -16,6 +16,7 @@
 #include "safety/health_monitor.h"
 #include "safety/anomalous_boot.h"
 #include "flight_director/go_nogo_checks.h"
+#include "flight_director/mission_profile.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/telemetry_state.h"
@@ -1559,6 +1560,18 @@ void cli_print_preflight() {
                    static_cast<unsigned>(c.tier), c.name, c.reason);
     }
     preflight_print_mcu_and_critical(hs);
+
+    if constexpr (!job::kRadioModeRx) {
+        if (rc::kDefaultRocketProfile.usb_arm_inhibit) {
+#if !defined(ROCKETCHIP_DEV_MODE)
+            if (stdio_usb_connected()) {
+                rc::rc_log("USB_ARM_INH ON (USB ARM refused)\n");
+            }
+#else
+            rc::rc_log("USB_ARM_INH ON (field image only; DEV_MODE desk allows USB ARM)\n");
+#endif
+        }
+    }
 
     rc::rc_log("----------------\n");
     rc::rc_log("VERDICT:  %s\n", gng_result.all_go ? "GO" : "NO-GO");

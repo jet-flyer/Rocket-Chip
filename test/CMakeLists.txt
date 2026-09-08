@@ -303,6 +303,13 @@ target_include_directories(test_cli_engine_field PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_cli_engine_field)
 
+add_executable(test_cli_catalog test_cli_catalog.cpp)
+target_link_libraries(test_cli_catalog PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_catalog PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_catalog)
+
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
 add_executable(test_prearm_fail_ticks test_prearm_fail_ticks.cpp)
 target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)

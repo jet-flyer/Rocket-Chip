@@ -4,11 +4,13 @@
 // ActionId → domain. Direct switch (P10-9: no function pointers).
 
 #include "cli/cli_actions.h"
+#include "cli/cli_catalog.h"
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
 #include "cli/rc_os_debug.h"
 #include "cli/rc_os_dashboard.h"
 #include "active_objects/ao_rcos.h"
+#include "active_objects/ao_radio.h"
 #include "ao_flight_director.h"
 #include "rocketchip/ao_signals.h"
 #include "ao_notify.h"
@@ -16,11 +18,17 @@
 #include "drivers/i2c_master.h"
 #include "rocketchip/shared_state.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/radio_config.h"
+#include "rocketchip/radio_config_table.h"
+#include "rocketchip/version.h"
+#include "rocketchip/board.h"
 #include "hardware/watchdog.h"
+#include "pico/stdio_usb.h"
 #include "tusb.h"
 #include "diag/diag_stats.h"
 #include "safety/pyro_edge_logger.h"
 #include "flight_director/command_handler.h"
+#include "flight_director/mission_profile.h"
 #include "rocketchip/job.h"
 #include "rocketchip/rc_log.h"
 #include "rocketchip/station_output_mode.h"
@@ -63,11 +71,91 @@ static bool inject_allowed() {
 #endif
 
 static void flight_command(rc::CommandType cmd) {
+#if !defined(ROCKETCHIP_DEV_MODE)
+    if (cmd == rc::CommandType::kArm &&
+        rc::kDefaultRocketProfile.usb_arm_inhibit &&
+        stdio_usb_connected()) {
+        rc::rc_log("ARM refused (USB_ARM_INH)\n");
+        AO_Notify_post_prearm_fail();
+        return;
+    }
+#endif
     const bool accepted =
         AO_FlightDirector_process_command(static_cast<int>(cmd));
     if (!accepted && cmd == rc::CommandType::kArm) {
         AO_Notify_post_prearm_fail();
     }
+}
+
+static const char* stn_out_name(StationOutputMode m) {
+    switch (m) {
+        case StationOutputMode::kAnsi:    return "ansi";
+        case StationOutputMode::kCsv:     return "csv";
+        case StationOutputMode::kMavlink: return "mavlink";
+        case StationOutputMode::kMenu:    return "menu";
+    }
+    return "?";
+}
+
+static void catalog_list() {
+    const bool veh = !job::kRadioModeRx;
+    rc::rc_log("\n--- catalog ---\n");
+    rc::rc_log("  IDENTITY    %s %s-%s  board=%s  profile=%s\n",
+               kVersionString, kBuildConfig, kGitHash, board::kBoardName,
+               rc::kDefaultRocketProfile.name);
+    const rc::RadioConfig* cfg = AO_Radio_get_runtime_config();
+    if (cfg != nullptr) {
+        rc::rc_log("  NAV_PRESET  basic  BW%u %uHz SF%u CR%u  (n=next, not saved)\n",
+                   static_cast<unsigned>(cfg->bandwidth_khz),
+                   static_cast<unsigned>(cfg->nav_rate_hz),
+                   static_cast<unsigned>(cfg->spreading_factor),
+                   static_cast<unsigned>(cfg->coding_rate));
+        rc::rc_log("  TX_POWER    locked %udBm\n",
+                   static_cast<unsigned>(cfg->power_dbm));
+    }
+    if (veh) {
+        rc::rc_log("  USB_ARM_INH locked %s\n",
+                   rc::kDefaultRocketProfile.usb_arm_inhibit ? "ON" : "OFF");
+        rc::rc_log("  USB_CFG_EN  locked %s\n",
+                   rc::kDefaultRocketProfile.usb_config_en ? "ON" : "OFF");
+    } else {
+        rc::rc_log("  STN_OUTPUT  basic  %s  (main m cycles)\n",
+                   stn_out_name(AO_RCOS_get_output_mode()));
+    }
+}
+
+static void catalog_nav_next() {
+    const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
+    if (cur == nullptr) {
+        rc::rc_log("NAV_PRESET: no radio\n");
+        return;
+    }
+    size_t idx = kRadioConfigTableSize;
+    for (size_t i = 0; i < kRadioConfigTableSize; ++i) {
+        const auto& e = kRadioConfigTable[i];
+        if (e.bw_khz == cur->bandwidth_khz &&
+            e.nav_rate_hz == cur->nav_rate_hz &&
+            e.sf == cur->spreading_factor &&
+            e.cr == cur->coding_rate) {
+            idx = i;
+            break;
+        }
+    }
+    const size_t next = (idx >= kRadioConfigTableSize)
+                            ? 0
+                            : (idx + 1) % kRadioConfigTableSize;
+    const auto& e = kRadioConfigTable[next];
+    rc::RadioConfig cfg = *cur;
+    cfg.bandwidth_khz = e.bw_khz;
+    cfg.nav_rate_hz = e.nav_rate_hz;
+    cfg.spreading_factor = e.sf;
+    cfg.coding_rate = e.cr;
+    AO_Radio_set_pending_config(cfg);
+    rc::rc_log("NAV_PRESET set BW%u %uHz SF%u CR%u (runtime, not saved)\n",
+               static_cast<unsigned>(cfg.bandwidth_khz),
+               static_cast<unsigned>(cfg.nav_rate_hz),
+               static_cast<unsigned>(cfg.spreading_factor),
+               static_cast<unsigned>(cfg.coding_rate));
 }
 
 void run_action(ActionId act) {
@@ -252,8 +340,11 @@ void run_action(ActionId act) {
         case ActionId::kDebugDiag:
             diag_stats_dump();
             break;
-        case ActionId::kSettingsStub:
-            rc::rc_log("settings catalog not wired (sitting 5)\n");
+        case ActionId::kCatalogList:
+            catalog_list();
+            break;
+        case ActionId::kCatalogNavNext:
+            catalog_nav_next();
             break;
     }
 }

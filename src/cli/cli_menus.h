@@ -80,8 +80,10 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},
     {MenuId::kDebug, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
 
-    {MenuId::kSettings, 'h', true,  "help", MenuId::kNone, ActionId::kSettingsStub},
-    {MenuId::kSettings, '?', false, "help", MenuId::kNone, ActionId::kSettingsStub},
+    {MenuId::kSettings, 'l', true,  "list catalog", MenuId::kNone, ActionId::kCatalogList},
+    {MenuId::kSettings, 'n', true,  "next radio preset", MenuId::kNone, ActionId::kCatalogNavNext},
+    {MenuId::kSettings, 'h', true,  "help", MenuId::kNone, ActionId::kHelp},
+    {MenuId::kSettings, '?', false, "help", MenuId::kNone, ActionId::kHelp},
     {MenuId::kSettings, 'z', true,  "back", MenuId::kNone, ActionId::kBack},
     {MenuId::kSettings, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
 };
@@ -116,8 +118,10 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},
     {MenuId::kDebug, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
 
-    {MenuId::kSettings, 'h', true,  "help", MenuId::kNone, ActionId::kSettingsStub},
-    {MenuId::kSettings, '?', false, "help", MenuId::kNone, ActionId::kSettingsStub},
+    {MenuId::kSettings, 'l', true,  "list catalog", MenuId::kNone, ActionId::kCatalogList},
+    {MenuId::kSettings, 'n', true,  "next radio preset", MenuId::kNone, ActionId::kCatalogNavNext},
+    {MenuId::kSettings, 'h', true,  "help", MenuId::kNone, ActionId::kHelp},
+    {MenuId::kSettings, '?', false, "help", MenuId::kNone, ActionId::kHelp},
     {MenuId::kSettings, 'z', true,  "back", MenuId::kNone, ActionId::kBack},
     {MenuId::kSettings, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
 };

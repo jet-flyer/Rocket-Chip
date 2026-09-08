@@ -72,7 +72,8 @@ enum class ActionId : uint8_t {
     kDebugEskfLive,
     kDebugPyroLog,
     kDebugDiag,
-    kSettingsStub,
+    kCatalogList,
+    kCatalogNavNext,
 };
 
 enum class Gate : uint8_t {

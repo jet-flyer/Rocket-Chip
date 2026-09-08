@@ -75,13 +75,15 @@ TEST(CliEngine, VehicleFlightOmitsInjectWhenField) {
 }
 #endif
 
-TEST(CliEngine, VehicleSettingsStubAndEsc) {
+TEST(CliEngine, VehicleSettingsCatalogKeys) {
     Engine e{};
     init(e);
     on_key(e, kVehicleItems, kVehicleItemCount, 's');
     EXPECT_EQ(top(e), MenuId::kSettings);
-    auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'h');
-    EXPECT_EQ(r.act, ActionId::kSettingsStub);
+    auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'l');
+    EXPECT_EQ(r.act, ActionId::kCatalogList);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'n');
+    EXPECT_EQ(r.act, ActionId::kCatalogNavNext);
     r = on_key(e, kVehicleItems, kVehicleItemCount, kEsc);
     EXPECT_EQ(r.ev, Event::kPopped);
     EXPECT_EQ(top(e), MenuId::kMain);
