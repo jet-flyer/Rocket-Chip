@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-07-001 | Grok 4.6 (Build CLI) | documentation
+
+**WB clear + process/docs sitting on `docs/starcom-sad-draft` (not merged).** Erased already-addressed rows; Regulatory/RF stays open (WN-100 SSOT only). GPS: never twist SDA/SCL (LL 47); I2C on IMU/baro bus is legal (`SENSOR_ARCHITECTURE.md`). USER_GUIDE LED tables match `led_patterns.h`. HW_GATE Rule 5 / checklist: land-gate is the hook, not a canary; A/B recovery. AO_COMMANDMENTS citation audit; R-27 closed. LL header/index + Entry 36 item 4 SUPERSEDED on `main`. Feature tip `1d1620f`. Verified: docs-only; host ctest 860/860; no firmware; no HW reseat required.
+
 ### 2026-09-05-003 | Grok Hamilton (Grok Bot) | documentation, hardware
 
 **LL / I2C stale-assumptions close + desk verify.** SUPERSEDE LL 20/21/24 (cable untwist / LL 47), legacy API banners on 28/31 (i2c_bus_* -> i2c_master), REVISIT on 27 (methodology KEEP). LL 22 SUPERSEDED after Feather USB-yank PASS on LiPo (IMU stayed ~995 Hz, no tank). Erased WB PIO-I2C backend + RP2350B bus-corruption rows after Fruit Jam cold-boot (bus alive; residual GPS E/no-fix is separate). Audit: docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. Tip includes 4696232. Verified: docs + desk HW soaks; no firmware change.
