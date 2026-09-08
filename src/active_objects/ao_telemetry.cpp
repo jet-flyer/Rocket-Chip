@@ -143,6 +143,20 @@ static uint32_t now_ms() {
 static rc::ccsds::CommandAckPayload g_pendingAck = {};
 static bool g_pendingAckValid = false;
 
+// Station-side pending command. p1..p5 replay SET_RADIO_CONFIG on retry.
+static struct {
+    bool pending;
+    uint8_t seq;
+    uint16_t cmd_id;
+    uint32_t sent_ms;
+    uint8_t retries_left;
+    float p1;
+    float p2;
+    float p3;
+    float p4;
+    float p5;
+} g_pendingCmd = {};
+
 // Radio reconfigure lives in AO_Radio. After SET_RADIO_CONFIG validates,
 // AO_Radio_set_pending_config() applies on the next TxDone (outgoing ACK).
 
@@ -221,8 +235,11 @@ static void starcom_drain_to_radio() {
     if (AO_Radio_tx_active()) {
         return;
     }
+    // R-32 spaces *status* PLCWs (~nav/4). Cmd/ACK SDUs must not wait
+    // on that timer — that was SET hop sitting behind PLCW cadence.
     if constexpr (job::kRadioModeRx) {
-        if (!station_plcw_cadence_allows()) {
+        const bool must_air_now = g_pendingCmd.pending || g_pendingAckValid;
+        if (!must_air_now && !station_plcw_cadence_allows()) {
             return;
         }
     }
@@ -267,6 +284,19 @@ static void encode_and_send(TelemAo* me) {
 
     // ACK before rate-limit so it goes out ASAP, not on the next nav-frame tick.
     send_pending_ack_if_any();
+
+    // FOP-P prefers expedited nav over seq (copp.cpp fopPNeedFrame). A
+    // queued cmd/ACK SDU never airs while 10 Hz nav is submitted. Skip
+    // one nav slot so the seq AD can drain (PLCW-first, then seq).
+    if (g_pump.copp.seq_n != 0) {
+        starcom_drain_to_radio();
+#ifndef ROCKETCHIP_HOST_TEST
+        if (!AO_Radio_tx_active() && g_pump.copp.seq_n != 0) {
+            starcom_drain_to_radio();
+        }
+#endif
+        return;
+    }
 
     uint32_t t = now_ms();
     if (t - me->last_tx_ms < me->interval_ms) { return; }
@@ -386,20 +416,6 @@ static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result)
     }
     g_pendingAckValid = true;
 }
-
-// Station-side pending command. p1..p5 replay SET_RADIO_CONFIG on retry.
-static struct {
-    bool pending;
-    uint8_t seq;
-    uint16_t cmd_id;
-    uint32_t sent_ms;
-    uint8_t retries_left;
-    float p1;
-    float p2;
-    float p3;
-    float p4;
-    float p5;
-} g_pendingCmd = {};
 
 // Last-command-result latch for dashboard. Cleared on send; set on ACK
 // or retry exhaustion. Dashboard holds the result for a brief window.
