@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Debug sub-menu reads (ESKF live). LED test / digit-RF omitted from this
-// sitting (ROCKETCHIP_DEV_MODE + probe test_mode later).
+// Debug sub-menu reads (ESKF live).
 
 #include "cli/rc_os_debug.h"
 #include "cli/rc_os_commands.h"
@@ -37,14 +36,3 @@ bool debug_eskf_live_poll() {
     }
     return true;
 }
-
-// R-25-exec step 5 (2026-05-13): dev_replay_poll() + parse_and_inject()
-// + s_replayBuf DELETED per council amendment #4. Vehicle CSV-streamer
-// replay retired; algorithmic coverage moves to host-side
-// scripts/replay_harness_host.py (same ESKF code, host workstation,
-// no on-target attack surface, no flash cost).
-
-// R-25-exec step 6 (2026-05-13): dev_station_replay_poll() +
-// station_parse_and_inject() + hex_nibble() + s_stReplayBuf DELETED
-// per council amendment #4. Station hex-injection replay retired;
-// coverage moves host-side (rewrite tracked in step 7).

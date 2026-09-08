@@ -12,11 +12,11 @@
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
 #include "diag/radio_rate_counters.h"
-#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "safety/health_monitor.h"
 #include "active_objects/ao_radio.h"
-#include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
+#include "active_objects/ao_telemetry.h"
 #include "starcom_adapt/sc_air.h"
-#include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
+#include "active_objects/ao_rf_manager.h"
 #include "flight_director/flight_state.h"
 #include <string.h>
 #include <stdint.h>
@@ -139,7 +139,7 @@ struct DisplayFields {
     const char* rssi_clr;
     const char* fix_str;
     char bar[16];
-    // Stage T IVP-T5.5 sub 2f — radio config row.
+    // Radio config row (station vs last vehicle echo).
     uint16_t stn_bw;  uint8_t stn_nav;  uint8_t stn_sf;  uint8_t stn_cr;
     uint16_t veh_bw;  uint8_t veh_nav;  uint8_t veh_sf;  uint8_t veh_cr;
     bool     veh_cfg_known;    // false -> dashboard shows "?" for vehicle
@@ -212,8 +212,7 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     else if (d.fix == 2) d.fix_str = "2D";
 }
 
-// Stage T IVP-T5.5 sub 2f — format the "Radio:" row content (no ANSI colour
-// wrappers; caller wraps). Uses "?" for vehicle cfg when not yet known.
+// "Radio:" row (no ANSI colour; caller wraps). "?" until vehicle cfg known.
 // Returns number of chars written, not including the trailing kClrEol.
 static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
     if (!d.veh_cfg_known) {
@@ -285,9 +284,8 @@ static void format_rx_hz_token(char* out, size_t n, uint8_t desired_hz) {
                     static_cast<unsigned>(desired_hz));
 }
 
-// IVP-T14: RF Link glance indicator — green/yellow/red block that matches
-// the FD pre-arm threshold (kTrack + LQ>=65 = green, kTrackDegraded OR
-// LQ<65 in any tracking state = yellow, kAcq/kTentative/no RX = red).
+// RF Link glance — same thresholds as FD pre-arm (kTrack + LQ>=65 green;
+// kTrackDegraded or LQ<65 yellow; kAcq/kTentative/no RX red).
 // Returns pair (color, row text) via out parameters.
 static void format_rf_link_row(char* out, size_t n, const char*& colour,
                                const DisplayFields& d) {
@@ -323,7 +321,7 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour,
                     st_name, static_cast<unsigned>(lq), rxhz, tag);
 }
 
-// IVP-T14c: short command name for dashboard row. Stable across retries.
+// Short command name for the CMD row. Stable across retries.
 static const char* cmd_id_short_name(uint16_t cmd_id) {
     switch (cmd_id) {
     case 400:   return "ARM/DISARM";
@@ -335,7 +333,7 @@ static const char* cmd_id_short_name(uint16_t cmd_id) {
     }
 }
 
-// IVP-T14c: dashboard CMD row. Three display states:
+// CMD row. Three display states:
 //  - pending: "CMD: ARM/DISARM  Try 3/8" (yellow while retrying, reset color on initial send)
 //  - ACK:     "CMD: ARM/DISARM  ACK 180ms" (green, held ~3s after ACK)
 //  - FAIL:    "CMD: ARM/DISARM  FAILED"    (red, held ~5s after exhaustion)
@@ -406,19 +404,19 @@ static void format_starcom_row(char* out, int n, const char*& colour) {
 
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
-    // Sub 2f — build radio row with colour bracket if mismatched or just-changed.
+    // Radio row colour: cyan one frame after a change, yellow if mismatch.
     char radio_row[96];
     format_radio_row(radio_row, sizeof(radio_row), d);
     const char* radio_clr = kReset;
     if (d.cfg_just_changed)      { radio_clr = kCyan;   }
     else if (d.cfg_mismatch)     { radio_clr = kYellow; }
 
-    // IVP-T14: RF Link row with glance indicator (pre-arm parity).
+    // RF Link row (pre-arm parity).
     char rflink_row[96];
     const char* rflink_clr = kReset;
     format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr, d);
 
-    // IVP-T14c: CMD row — pending/ACK/FAIL status with auto-clear.
+    // CMD row — pending/ACK/FAIL with auto-clear.
     char cmd_row[80];
     const char* cmd_clr = kReset;
     format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
@@ -492,7 +490,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     return static_cast<int>(rc::strbuf_len(&sb));
 }
 
-// IVP-122: Dashboard pause for ARM confirm flow
+// Pause render so ARM confirm text is not overwritten.
 static bool g_dashboardPaused = false;
 
 void ansi_dashboard_pause()  { g_dashboardPaused = true; }
@@ -502,7 +500,7 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,
                             uint32_t met_ms, uint16_t seq, bool valid,
                             const RxTelemSnapshot* rx) {
-    if (g_dashboardPaused) return;  // IVP-122: suppress during ARM confirm
+    if (g_dashboardPaused) return;
 
     if (!valid) {
         ansi_dashboard_render_waiting(rs);
@@ -512,7 +510,7 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
     DisplayFields d = {};
     decode_telem_fields(t, rs, met_ms, seq, d);
 
-    // Stage T IVP-T5.5 sub 2f — populate radio config row.
+    // Populate radio config row.
     d.stn_bw  = rs->runtime_config.bandwidth_khz;
     d.stn_nav = rs->runtime_config.nav_rate_hz;
     d.stn_sf  = rs->runtime_config.spreading_factor;

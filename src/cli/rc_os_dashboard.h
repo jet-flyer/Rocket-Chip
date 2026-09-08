@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Station pad ANSI surface. Not a cli_engine menu (sitting 3 / WN-325).
+// Station pad ANSI surface. Not a cli_engine menu.
 // Three keys live in ao_rcos poll_dashboard_keys; console is kMenu after 'x'.
-// Redraws in-place (cursor-home + clear-to-EOL) — no scrolling.
-// Works in any ANSI-capable terminal: PuTTY, Windows Terminal, miniterm,
-// macOS Terminal, VSCode Serial Monitor (Terminal mode).
-// Stage 12B Phase 1: Firmware ANSI dashboard (no companion app needed).
+// In-place redraw (cursor-home + clear-to-EOL). No full-screen clear.
 
 #ifndef ROCKETCHIP_RC_OS_DASHBOARD_H
 #define ROCKETCHIP_RC_OS_DASHBOARD_H

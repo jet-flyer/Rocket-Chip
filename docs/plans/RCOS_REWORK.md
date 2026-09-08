@@ -1,6 +1,6 @@
 # RC_OS rework
 
-**Status:** Sitting 3 closing (2026-09-07). I2C flags → shared_state (WN-315); pad is not a menu; `debug_eskf_live_poll`. WN-290: `ao_rcos.cpp` is target-only — HOST_TEST ifdefs/stubs removed (host CMake never compiled this file).
+**Status:** Sitting 4 closed (2026-09-07). Comment/PA slim on `rc_os*`. Sitting 5 next (catalog v0).
 **Branch / worktree:** `grok/rcos-rework` at `C:\Users\pow-w\Documents\Rocket-Chip-rcos`
 **WB:** § Remaining pile order, § RC_OS Rework
 **Origin:** `docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2; L2-P5 WN-288–327 DEFER pile
@@ -261,7 +261,7 @@ Council before sitting 1. Sitting 0 does not change firmware dispatch.
 | **1** | Engine + two shallow trees in worktree (`cli_engine.h`, `cli_menus.h`, `cli_actions.cpp`). Inject/cal-reset/digit-RF/LED-test **out**. Host `CliEngine.*` PASS. Target not HW-gated this sitting. |
 | **2** | Cal / flight / debug tables **per job**. Inject and cal-reset compile-gated. **Closed 2026-09-07:** vehicle has cal+flight+debug (I2C scan/quiesce/park); station has no cal/flight, debug is RX/I2C/boot/diag. `ROCKETCHIP_DEV_MODE` + runtime `v`. Probe `test_mode_active()` unchanged. LED-test / digit-RF still omitted (sitting 5 / probe, not this sitting). |
 | **3** | Ownership: I2C flags out of `cli/`; dashboard not a menu; `dev_*` → console-debug names. **Closed 2026-09-07:** `g_i2c_scan_allowed` / `g_mag_cal_active` in `shared_state`; pad not a `MenuId`; `debug_eskf_live_poll`. WN-290: stripped dead `ROCKETCHIP_HOST_TEST` from `ao_rcos.cpp` (never in host CMake; stubs never linked). |
-| **4** | Comment/PA slim (WN-314…). |
+| **4** | Comment/PA slim (WN-314…). **Closed 2026-09-07:** dropped FreeRTOS v0.3 PA (not current engine); stripped IVP/Stage/R-25/Grok-triage process comments. Live invariants kept (ARM confirm vs pad, RF-link colors, GPS early-init, LL 35). NOLINT / Go-NoGo SSOT / digit-RF not this sitting. |
 | **5** | Catalog v0: legal radio presets as **basic**, USB flags as profile fields, settings submenu. Dashboard maps (WN-325) only if it stays small. |
 | **later** | Station “vehicle console” over Starcom (full board menu via a station option). Not this workstream’s first sittings. |
 

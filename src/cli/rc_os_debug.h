@@ -17,7 +17,4 @@ void cli_debug_start_eskf_live();
 // stream is active and consumed the key; false otherwise.
 bool debug_eskf_live_poll();
 
-// R-25-exec step 6 (2026-05-13): station replay poll DELETED;
-// coverage moves host-side per council amendment #4.
-
 #endif // ROCKETCHIP_CLI_RC_OS_DEBUG_H

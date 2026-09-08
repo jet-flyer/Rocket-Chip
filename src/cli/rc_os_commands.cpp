@@ -13,9 +13,9 @@
 #include "rocketchip/version.h"
 #include "starcom_adapt/sc_air.h"
 #include "rocketchip/shared_state.h"     // g_* + core1_i2c_pause/resume (R-17)
-#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "safety/health_monitor.h"
 #include "safety/anomalous_boot.h"
-#include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
+#include "flight_director/go_nogo_checks.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/telemetry_state.h"
@@ -37,23 +37,17 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "diag/radio_rate_counters.h"
-#include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
+#include "rocketchip/radio_config_table.h"
 
-// MAVLink command IDs for station command menu (IVP-62c)
-// Values from common/common.h — avoids pulling full mavlink.h with packed struct warnings
+// MAVLink command IDs (common.h values; avoid pulling mavlink.h here).
 static constexpr uint16_t kMavCmdArmDisarm = 400;        // MAV_CMD_COMPONENT_ARM_DISARM
 static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTERMINATION
 static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
-static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1 — Stage L manual beacon
-static constexpr uint16_t kMavCmdSetRadioConfig = 31011;  // MAV_CMD_USER_2 — T5.5 SET
+static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1
+static constexpr uint16_t kMavCmdSetRadioConfig = 31011;  // MAV_CMD_USER_2
 
-// ============================================================================
-// Stage T2 cheat-mode — throwaway code, revertible in one commit.
-// Gated behind -DROCKETCHIP_STAGE_T2_CHEAT=ON (station build only).
-// Queues X presses and fires tracked_command when a vehicle nav packet
-// is received (station is now guaranteed to be just after vehicle TX,
-// which means vehicle is entering kRxWindow).
-// ============================================================================
+// Optional station cheat: queue a command, fire on next vehicle nav RX
+// (vehicle then entering kRxWindow). -DROCKETCHIP_STAGE_T2_CHEAT=ON.
 #ifdef ROCKETCHIP_STAGE_T2_CHEAT
 static volatile bool g_t2_pending = false;
 static volatile uint16_t g_t2_cmd = 0;
@@ -80,16 +74,8 @@ void stage_t2_fire_pending_if_any() {
 }
 #endif  // ROCKETCHIP_STAGE_T2_CHEAT
 
-// ============================================================================
-// Stage T IVP-T5.5 sub 2c — station SET_RADIO_CONFIG cycle
-// ============================================================================
-// Operator presses `r` to step to the NEXT entry in kRadioConfigTable. Station
-// issues MAV_CMD_USER_2 with the target config's params. Vehicle validates +
-// ACKs on OLD, applies on TxDone. Station's own radio switch (so it can hear
-// the vehicle on NEW) lands in a follow-up (sub 2c.2 — LOS watchdog +
-// own-radio reconfigure on ACK receipt). For this first step we just send
-// the command and log it — operator verifies on dashboard that the NEW
-// config shows up in the echo.
+// Station `r`: step kRadioConfigTable, send MAV_CMD_USER_2. Vehicle ACKs
+// on the old config, applies on TxDone. Station radio switch is separate.
 [[maybe_unused]]
 static void cmd_radio_config_cycle() {
     if constexpr (!job::kRadioModeRx) { return; }  // station-only
@@ -287,8 +273,7 @@ static void print_eskf_status() {
                    (double)(meuler.z * kRadToDeg),
                    (double)mdiv_deg);
         }
-        // R-25-exec step 8 (2026-05-13): ifdef stripped. ESKF profiling
-        // counters always run; CLI print is unconditional.
+        // ESKF profiling counters always run; print if any samples.
         {
             uint32_t bench_avg = 0, bench_min = 0, bench_max = 0, bench_count = 0;
             eskf_runner_get_bench(&bench_avg, &bench_min, &bench_max, &bench_count);
@@ -690,9 +675,8 @@ static void print_gps_status() {
                                   : "[N/A ] GPS not installed\n");
     }
 
-    // Grok-triage debug: show PMTK write return codes + window-hit flag
-    // captured by the ultra-early gps_pa1010d_init() call in init_early_hw()
-    // (printf from there is dropped because USB CDC is not up yet).
+    // Early gps_pa1010d_init runs before CDC; print the captured PMTK /
+    // window-hit status here.
     char gps_dbg[96] = { 0 };
     gps_pa1010d_get_debug_status(gps_dbg, sizeof(gps_dbg));
     rc::rc_log("[DBG ] GPS early-init: %s\n", gps_dbg);
@@ -855,9 +839,7 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     check(true);                                    // USB CDC
     check(time_us_32() > 0);                        // Debug macros
     check(g_i2cInitialized);                        // I2C bus
-    // Sensors: "OK" == initialized, or "not counted at all" == not
-    // installed (IVP-142c A2). A sensor the role doesn't use (station
-    // IMU/baro) shouldn't flag as FAIL in the boot summary.
+    // Sensors: OK if initialized. Not attempted (wrong role) is not FAIL.
     auto check_sensor = [&](bool attempted, bool initialized) {
         if (!attempted) { return; }             // not counted
         if (initialized) { ++pass; } else { ++fail; }
@@ -876,9 +858,7 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     check(true);                                    // Flash
 }
 
-// Print specific FAIL items. Sensors only flag as FAIL when attempted
-// AND init returned false (IVP-142c A2) — uninstalled sensors on this
-// role are silent.
+// FAIL only if init was attempted and failed. Uninstalled sensors: silent.
 static void print_hw_failures() {
     if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
     if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
@@ -1369,9 +1349,7 @@ void cmd_radio_status() {
            static_cast<unsigned>(rs->runtime_config.nav_rate_hz),
            static_cast<unsigned>(rs->runtime_config.power_dbm));
 
-    // IVP-T11 boot-register audit. Printed on every `t` so the Batch A
-    // gate ("RegInvertIQ=0x27, CRC on, LNA=0x23, CFG3=0x04") is always
-    // verifiable post-boot.
+    // Boot-register audit on every `t` (InvertIQ / CRC / LNA / CFG3).
     if (rs->boot_audit_valid) {
         const rfm95w_audit_t& a = rs->boot_audit;
         bool iq_ok   = (a.invert_iq == kAuditInvertIqExpected);
@@ -1456,7 +1434,7 @@ void cmd_station_gps() {
            static_cast<double>(g_bestGpsFix.alt_msl_m));
 }
 
-// IVP-123: bearing from station to vehicle (degrees, 0-360)
+// Bearing station → vehicle, degrees 0-360.
 [[maybe_unused]]
 static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
@@ -1544,7 +1522,7 @@ static const char* health_level_str(rc::HealthLevel level) {
 }
 
 static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
-    // MCU die temp (Stage 16C IVP-142b-1) — separate field, not in primary.
+    // MCU die temp — separate field, not in the primary health row.
     shared_sensor_data_t snap{};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
         rc::rc_log("MCU temp: --- (seqlock)\n");
@@ -1557,9 +1535,7 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
                static_cast<double>(snap.mcu_die_temp_c));
     }
 
-    // Critical conditions (IVP-142b-2) — threshold-bound invariants that
-    // warrant loud operator attention. Does NOT auto-abort; operator
-    // must manually command abort if they decide to act on the flag.
+    // Critical flags: loud operator attention. Does not auto-abort.
     if (hs->critical != 0) {
         rc::rc_log("CRITICAL: ");
         if (hs->critical & rc::kHealthCriticalMcu) {
@@ -1588,25 +1564,13 @@ void cli_print_preflight() {
     rc::rc_log("VERDICT:  %s\n", gng_result.all_go ? "GO" : "NO-GO");
 }
 
-// ============================================================================
-// Stage L — manual beacon ('b' / find-me)
-// ============================================================================
-// Publishes SIG_BEACON_MANUAL so AO_Notify sets NotifyState.beacon_manual,
-// which the resolver overlay turns into pure-white 2Hz (kFdBeacon).
-// Valid in any phase — non-destructive. Clears automatically on the next
-// SIG_PHASE_CHANGE out of {LANDED, ABORT}.
-//
-// Static event per LL Entry 35: QP stores the pointer, not a copy.
-//
-// Stage L IVP-L5: role-gated. On vehicle, publish SIG_BEACON_MANUAL locally
-// (AO_Notify flips beacon_manual, resolver returns pure white). On station,
-// send MAV_CMD_USER_1 over the radio — the vehicle's ao_telemetry.cpp command
-// handler turns that into the same SIG_BEACON_MANUAL publish, so the visual
-// behavior is identical from either side.
+// Find-me beacon. SIG_BEACON_MANUAL → Notify white 2 Hz. Any phase.
+// Clears on SIG_PHASE_CHANGE out of {LANDED, ABORT}.
+// Static event: QP stores the pointer (LL 35).
+// Vehicle publishes locally; station sends MAV_CMD_USER_1 (same vehicle path).
 void cmd_findme_beacon() {
     if constexpr (job::kRadioModeRx) {
-        // Station — send beacon command to vehicle via tracked command (IVP-122
-        // ACK protocol). cmd.param1 unused by MAV_CMD_USER_1 receiver.
+        // Station — tracked command; param1 unused by MAV_CMD_USER_1.
         AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0F);
         rc::rc_log("[CMD] find-me beacon command sent, waiting for ACK...\n");
     } else {
