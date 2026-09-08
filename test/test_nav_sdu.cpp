@@ -51,9 +51,6 @@ TEST(NavSdu, PackRejectsShortBuffer) {
     EXPECT_EQ(pack_nav_sdu_user(buf, sizeof(buf), in), 0);
 }
 
-TEST(NavSdu, DefaultBuildAllowsLoraCommands) {
-#ifndef ROCKETCHIP_USE_STARCOM
-    EXPECT_TRUE(kAirLoraCommandsEnabled);
-    EXPECT_FALSE(kStarcomPrepBuild);
-#endif
+TEST(NavSdu, AirDialectIsStarcom) {
+    EXPECT_STREQ(kAirDialect, "starcom");
 }

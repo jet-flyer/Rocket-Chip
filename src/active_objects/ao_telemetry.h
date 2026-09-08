@@ -77,8 +77,7 @@ struct RxTelemSnapshot {
 };
 const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 
-// COP-P peer lock (valid PLCW heard) and nav SDU accept. All-false when
-// ROCKETCHIP_USE_STARCOM is off.
+// COP-P peer lock (valid PLCW heard) and nav SDU accept.
 struct StarcomLinkStatus {
     bool on = false;
     bool peer_plcw = false;
@@ -88,8 +87,7 @@ struct StarcomLinkStatus {
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
 
-// R-32 R3 follow-up: station may air a bootstrap PLCW while RfManager
-// is still ACQ (no TX window). False on vehicle / non-Starcom.
+// Station COP-P has not heard a peer PLCW yet (first air / unlocked).
 bool AO_Telemetry_station_bootstrap_tx();
 
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)

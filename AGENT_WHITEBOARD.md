@@ -98,13 +98,13 @@ Wanted skills - not written yet. Not a license to author them until scheduled.
 
 ---
 
-## Starcom (OPEN) (2026-09-02)
+## Starcom (OPEN) (2026-09-08)
 
-Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `starcom-v0.2.25`. RC consumer is **on `main`** (`ROCKETCHIP_USE_STARCOM` default OFF = STOP-GAP).
+Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `starcom-v0.2.25`. RC air is always Starcom COP-P (no `ROCKETCHIP_USE_STARCOM` flag, no STOP-GAP LoRa, no RadioScheduler).
 
-**Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). One tree. Not a `Rocket-Chip-*` folder. `docs/starcom-sad-draft` and `grok/starcom-ivp23` are leftovers to drop after this sitting's port.
+**Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). Stays while Starcom work continues.
 
-**Still RC:** two-board ON soak - station COP-P cmd SDU (ARM) after vehicle nav has given RfManager an anchor. Do not drain COP-P when the station TX window is 0 (Radio would drop the PLTU and FOP-P would never resend: synch_timeout=0). Next RC feature when scheduled: radio settings OTA on the ON path (`starcom/AGENT_WHITEBOARD.md`). FPGA PHY/decode held. Consumer guide: `starcom/docs/USER_GUIDE.md`.
+**Still RC (this sitting leftover):** Command AD / SET hop (`V(S)=0` was the window-0 drop — retest). RfManager ACQ/TRACK/LQ for dash + pre-arm still live; rekey to COP-P lock / accepted nav SDU (RSSI bar too). Prox-1 §6 half-duplex turnaround not wired (`macTick` unused). Keep R-32 cadence (250/10 expedited nav, station PLCW every 4th). FPGA PHY/decode held.
 
 ---
 

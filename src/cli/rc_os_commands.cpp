@@ -1329,18 +1329,18 @@ void cmd_radio_status() {
                static_cast<int>(rs->last_rx_rssi),
                static_cast<int>(rs->last_rx_snr),
                (unsigned long)rs->rx_crc_errors);
-        rc::rc_log("    last=%lu.%lus ago  phase=%d\n",
+        rc::rc_log("    last=%lu.%lus ago  tx=%s\n",
                (unsigned long)(gap / 1000),
                (unsigned long)((gap % 1000) / 100),
-               static_cast<int>(rs->scheduler.phase));
+               rs->tx_active ? "busy" : "idle");
         if constexpr (job::kRole == job::DeviceRole::kRelay) {
             rc::rc_log("    relayed=%lu\n", (unsigned long)rs->relay_count);
         }
     } else {
-        rc::rc_log("TX: %lu sent  %u fail  phase=%d\n",
+        rc::rc_log("TX: %lu sent  %u fail  tx=%s\n",
                (unsigned long)rs->tx_count,
                static_cast<unsigned>(rs->tx_consec_fail),
-               static_cast<int>(rs->scheduler.phase));
+               rs->tx_active ? "busy" : "idle");
     }
 
     rc::rc_log("CFG: BW=%u SF=%u CR=%u nav=%uHz pwr=%udBm\n",

@@ -13,7 +13,6 @@
 #include "crc16_ccitt.h"
 #include <cstring>
 #include <cmath>
-#ifdef ROCKETCHIP_USE_STARCOM
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/space_packet.hpp"
 #include "starcom/ccsds/v3.hpp"
@@ -22,7 +21,6 @@
 #include <algorithm>
 #include <array>
 #include <span>
-#endif
 
 extern "C" {
 #include "common/mavlink.h"
@@ -91,7 +89,6 @@ TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
     ASSERT_TRUE(result.ok);
     EXPECT_EQ(result.buf[0] & 0xE0, 0x00);
     EXPECT_NE(result.buf[0], 0xFA);
-#ifdef ROCKETCHIP_USE_STARCOM
     const auto octets = std::span<const std::byte>(
         reinterpret_cast<const std::byte*>(result.buf), result.len);
     const auto view = starcom::ccsds::decodePltu(octets);
@@ -99,7 +96,6 @@ TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
     EXPECT_EQ(view.error(), starcom::ccsds::Error::bad_asm);
     const auto hunt = starcom::ccsds::huntPltu(octets);
     EXPECT_FALSE(hunt.pltu.has_value());
-#endif
 }
 
 TEST_F(CcsdsEncoderTest, MaxPacketSize) {
@@ -797,13 +793,11 @@ TEST(CcsdsCommandAck, CorruptCrcRejected) {
     EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen, decoded));
 }
 
-#ifdef ROCKETCHIP_USE_STARCOM
-
 TEST(StarcomHostLink, VersionHeaderVisible) {
     EXPECT_EQ(starcom::kVersionMajor, 0);
-    EXPECT_EQ(starcom::kVersionMinor, 19);
-    EXPECT_EQ(starcom::kVersionPatch, 0);
-    EXPECT_STREQ(starcom::kVersionString, "0.19.0-dev");
+    EXPECT_EQ(starcom::kVersionMinor, 2);
+    EXPECT_EQ(starcom::kVersionPatch, 25);
+    EXPECT_STREQ(starcom::kVersionString, "0.2.25");
 }
 
 TEST(StarcomHostLink, PltuV3HeaderOnlyRoundTrip) {
@@ -881,5 +875,3 @@ TEST(StarcomHostLink, NavSduPltuEighteenPlusN) {
     EXPECT_EQ(out.met_ms, in.met_ms);
     EXPECT_EQ(out.flags, in.flags);
 }
-
-#endif  // ROCKETCHIP_USE_STARCOM

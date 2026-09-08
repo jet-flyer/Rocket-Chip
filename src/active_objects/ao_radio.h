@@ -3,9 +3,9 @@
 //============================================================================
 // AO_Radio — Radio Hardware Active Object
 //
-// Owns RFM95W radio driver + RadioScheduler half-duplex state machine.
-// Protocol-agnostic: receives encoded packets via SIG_RADIO_TX, posts
-// raw received bytes via SIG_RADIO_RX. Never inspects packet contents.
+// Owns RFM95W radio driver. Protocol-agnostic: receives encoded packets
+// via SIG_RADIO_TX, posts raw received bytes via SIG_RADIO_RX.
+// tx_active is chip-busy (do not start a second send). COP-P owns retry.
 //============================================================================
 #ifndef ROCKETCHIP_AO_RADIO_H
 #define ROCKETCHIP_AO_RADIO_H
@@ -14,7 +14,6 @@ extern "C" {
 #include "qp_port.h"
 }
 
-#include "rocketchip/radio_scheduler.h"
 #include "rocketchip/radio_config.h"
 #include "drivers/rfm95w.h"
 
@@ -26,7 +25,7 @@ void AO_Radio_start(uint8_t prio, bool spi_ok);
 // CLI access — safe under QV cooperative scheduling (no preemption on Core 0)
 struct RadioAoState {
     rfm95w_t           radio;
-    rc::RadioScheduler scheduler;
+    bool               tx_active;    // send in flight; RX polled when false
     bool               initialized;
     uint8_t            tx_consec_fail;   // TX failure escalation counter
     uint8_t            tx_bw_mode;       // 0=BW125, 1=BW250, 2=BW500
@@ -67,6 +66,10 @@ struct RadioAoState {
 };
 
 const RadioAoState* AO_Radio_get_state();
+
+// True while a send is in flight. Telemetry must not drain a COP-P AD
+// that Radio would then be unable to start.
+bool AO_Radio_tx_active();
 
 // Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
 // after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.

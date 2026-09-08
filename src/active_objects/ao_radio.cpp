@@ -3,18 +3,17 @@
 //============================================================================
 // AO_Radio — Radio Hardware Active Object
 //
-// Owns radio hardware (RFM95W) and RadioScheduler half-duplex SM.
-// Protocol-agnostic: posts SIG_RADIO_RX with raw bytes, receives
-// SIG_RADIO_TX with encoded packets.
+// Owns radio hardware (RFM95W). Protocol-agnostic: posts SIG_RADIO_RX
+// with raw bytes, receives SIG_RADIO_TX with encoded packets.
 //
-// 100 Hz. Idle ~10 µs. TX-busy: drop and log. TX timeout → kRxWindow.
-// IRQ register for TX completion, not GPIO DIO0 [C3-R3].
+// 100 Hz. Idle ~10 µs. tx_active: one-deep hold, else drop. After TxDone
+// or TX timeout, start RX. IRQ register for TX completion, not GPIO DIO0
+// [C3-R3]. COP-P owns retry; do not drop a PLTU because a TX window is 0.
 //============================================================================
 
 #include "ao_radio.h"
-#include "ao_telemetry.h"         // AO_Telemetry_set_rate / _set_ack_retry_timeout_ms (Batch B prelim)
+#include "ao_telemetry.h"         // AO_Telemetry_set_rate / _set_ack_retry_timeout_ms
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
-#include "ao_rf_manager.h"       // AO_RfManager_next_tx_window_us (Batch B IVP-T14)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
 #include "rocketchip/rc_debug.h"
@@ -113,40 +112,20 @@ static uint32_t now_ms() {
 #endif
 }
 
-// Microsecond-resolution counter used by AO_RfManager TX-window anchoring
-// (Stage T Batch B IVP-T14). Always compiled (unlike stage_t_now_us which
-// is gated behind ROCKETCHIP_STAGE_T_LOGGING).
-static uint32_t now_us_rf() {
-#ifndef ROCKETCHIP_HOST_TEST
-    return time_us_32();
-#else
-    return 0;
-#endif
-}
-
-// Stage T (IVP-T1) — RadioScheduler timing diagnostics.
+// Stage T (IVP-T1) — TX/RX timing diagnostics.
 // Off unless built with -DROCKETCHIP_STAGE_T_LOGGING=ON. Never in flight builds.
 #if defined(ROCKETCHIP_STAGE_T_LOGGING) && !defined(ROCKETCHIP_HOST_TEST)
 static uint32_t stage_t_now_us() { return time_us_32(); }
-static const char* phase_name(rc::RadioPhase p) {
-    switch (p) {
-        case rc::RadioPhase::kIdle:         return "IDLE";
-        case rc::RadioPhase::kTxActive:     return "TX";
-        case rc::RadioPhase::kRxWindow:     return "RXW";
-        case rc::RadioPhase::kRxContinuous: return "RXC";
-    }
-    return "?";
-}
-static void stage_t_log_state(rc::RadioPhase old_phase, rc::RadioPhase new_phase) {
-    if (old_phase == new_phase) { return; }
+static void stage_t_log_state(bool old_tx, bool new_tx) {
+    if (old_tx == new_tx) { return; }
     rc::rc_log("[STAGE_T] state %s->%s t=%lu\n",
-               phase_name(old_phase), phase_name(new_phase),
+               old_tx ? "TX" : "RX", new_tx ? "TX" : "RX",
                static_cast<unsigned long>(stage_t_now_us()));
 }
-static void stage_t_log_rx(rc::RadioPhase state_at_rx, int rssi, int snr,
+static void stage_t_log_rx(bool tx_active, int rssi, int snr,
                            bool crc_ok, uint8_t len, uint16_t seq) {
     rc::rc_log("[STAGE_T] rx state=%s rssi=%d snr=%d crc=%s len=%u seq=%u t=%lu\n",
-               phase_name(state_at_rx), rssi, snr, crc_ok ? "ok" : "err",
+               tx_active ? "TX" : "RX", rssi, snr, crc_ok ? "ok" : "err",
                static_cast<unsigned>(len), static_cast<unsigned>(seq),
                static_cast<unsigned long>(stage_t_now_us()));
 }
@@ -165,8 +144,8 @@ static void stage_t_log_tx_done(TxPollResult result) {
                r, static_cast<unsigned long>(stage_t_now_us()));
 }
 #else
-static inline void stage_t_log_state(rc::RadioPhase, rc::RadioPhase) {}
-static inline void stage_t_log_rx(rc::RadioPhase, int, int, bool,
+static inline void stage_t_log_state(bool, bool) {}
+static inline void stage_t_log_rx(bool, int, int, bool,
                                   uint8_t, uint16_t) {}
 static inline void stage_t_log_tx_start(uint8_t) {}
 static inline void stage_t_log_tx_done(TxPollResult) {}
@@ -178,7 +157,7 @@ static uint8_t g_heldTxLen = 0;
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
     if (rfm95w_send_start(&s.radio, buf, len)) {
-        s.scheduler.on_tx_start(now_ms());
+        s.tx_active = true;
         stage_t_log_tx_start(len);
         radio_rate_inc_tx_start();
         if constexpr (job::kRadioModeRx) {
@@ -195,7 +174,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     // One-deep hold: desk 2026-09-03 dropped 12/14 B ACK/PLCW while nav
     // occupied the radio, so SET never completed. Drop only if already
     // holding.
-    if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
+    if (s.tx_active) {
         if (g_heldTxLen == 0 && tx_evt->len > 0) {
             memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
             g_heldTxLen = tx_evt->len;
@@ -208,35 +187,6 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
 
     if (!s.initialized || tx_evt->len == 0) {
         return;
-    }
-
-    // Stage T Batch B IVP-T14: station-side TX is anchored to vehicle RxDone
-    // via AO_RfManager. If the link isn't in a TX-safe state (kAcq or stale
-    // anchor), drop the TX event. AO_Telemetry's airtime-scaled retry timer
-    // will re-fire; on first successful RxDone (post ACQ→TENTATIVE), the
-    // retry lands in a real window instead of firing blind.
-    // Vehicle-role keeps free-running TX (it's the anchor source, not the
-    // follower).
-    if constexpr (job::kRadioModeRx) {
-        uint32_t window = rc::AO_RfManager_next_tx_window_us(now_us_rf());
-        if (window == 0) {
-            // R-32 R3: ACQ has no window. Bootstrap PLCW must air or
-            // COP-P never locks (hold-until-window is a chicken-egg).
-            if (AO_Telemetry_station_bootstrap_tx()) {
-                (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
-                return;
-            }
-            if (g_heldTxLen == 0 && tx_evt->len > 0) {
-                memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
-                g_heldTxLen = tx_evt->len;
-            } else {
-                radio_rate_inc_tx_busy_drop();
-                DBG_PRINT("RADIO: station TX held — RfManager window=0 "
-                          "(link ACQ or stale anchor), dropping %u bytes",
-                          tx_evt->len);
-            }
-            return;
-        }
     }
 
     (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
@@ -255,7 +205,7 @@ static void handle_tx_poll(RadioAo* me) {
         radio_rate_inc_tx_done();
         s.tx_consec_fail = 0;
         s.tx_count++;
-        s.scheduler.on_tx_complete(now_ms());
+        s.tx_active = false;
         // Stage T IVP-T5.5 sub 2b: if a config change is pending, the ACK
         // we just finished transmitting was its last carrier on the OLD
         // config — safe to reconfigure now.
@@ -295,8 +245,8 @@ static void handle_tx_poll(RadioAo* me) {
                       static_cast<unsigned>(s.tx_consec_fail));
         }
 
-        // TX timeout → kRxWindow (not kIdle) [C3-A3]
-        s.scheduler.on_tx_complete(now_ms());
+        s.tx_active = false;
+        rfm95w_start_rx(&s.radio);
     }
     // kBusy — continue polling next tick
 }
@@ -321,9 +271,8 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     rfm95w_set_bandwidth(&s.radio, bw_reg);
     rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
     rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
-    // Scheduler rate follows nav_rate_hz; caller owns RX-mode transition.
+    // Nav cadence is AO_Telemetry interval_ms; caller owns RX-mode transition.
     if (rc.nav_rate_hz != 0) {
-        s.scheduler.set_rate(rc.nav_rate_hz);
         // Stage T Batch B prelim: actually wire nav_rate_hz into the vehicle TX
         // cadence. AO_Telemetry owns the rate-limit check (interval_ms) that
         // gates encode_and_send(); without this call, SET_RADIO_CONFIG only
@@ -476,15 +425,13 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
     s.last_rx_ms = now_ms();
     s.rx_count++;
 
-#ifdef ROCKETCHIP_USE_STARCOM
-    // PLTU ASM FA F3 20 (211.2). STOP-GAP CRC-16-CCITT is the old encoder.
+    // PLTU ASM FA F3 20 (211.2). COP-P CRC-32 is inside the envelope;
+    // AO_Telemetry decodePltu scores it. Do not apply STOP-GAP CRC-16.
     if (len >= 3 && buf[0] == 0xFA && buf[1] == 0xF3 && buf[2] == 0x20) {
         return true;
     }
-#endif
 
-    // CCSDS validation: check CRC only if it looks like a CCSDS packet
-    // (version bits 000 in first byte). MAVLink starts with 0xFD (v2).
+    // Legacy CCSDS CRC-16 (version bits 000). MAVLink starts with 0xFD (v2).
     if (len >= kCcsdsMinLen && (buf[0] & 0xE0) == 0x00) {
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
@@ -508,9 +455,9 @@ static void handle_relay_forward(RadioAo* me, const uint8_t* buf, uint8_t len) {
     if (seq == g_lastRelaySeq) { return; }
     g_lastRelaySeq = seq;
 
-    if (s.scheduler.phase != rc::RadioPhase::kTxActive) {
+    if (!s.tx_active) {
         rfm95w_send_start(&s.radio, buf, len);
-        s.scheduler.on_tx_start(now_ms());
+        s.tx_active = true;
         s.relay_count++;
     }
 }
@@ -524,7 +471,7 @@ static void handle_rx_poll(RadioAo* me) {
     if (len == 0) { return; }
 
     // Stage T — capture state at arrival BEFORE validate (we want CRC errors).
-    rc::RadioPhase state_at_rx = s.scheduler.phase;
+    bool state_at_rx = s.tx_active;
     bool crc_ok = validate_rx_packet(s, buf, len);
     uint16_t seq = 0;
     if (len >= kCcsdsMinLen && (buf[0] & 0xE0) == 0x00) {
@@ -611,23 +558,19 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
         rfm95w_read_audit(&s.radio, &s.boot_audit);
         s.boot_audit_valid = true;
 
-        // Mode selection based on device role
-        bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||
-                              job::kRole == job::DeviceRole::kRelay);
-        uint32_t interval = 1000 / s.runtime_config.nav_rate_hz;
-        s.scheduler.init(interval, rx_continuous);
-
-        if (rx_continuous) {
-            rfm95w_start_rx(&s.radio);
-            DBG_PRINT("RADIO: AO_Radio RX continuous (%s)",
-                       job::kRole == job::DeviceRole::kRelay ? "relay" : "station");
+        s.tx_active = false;
+        rfm95w_start_rx(&s.radio);
+        if constexpr (job::kRole == job::DeviceRole::kRelay) {
+            DBG_PRINT("RADIO: AO_Radio RX (relay)");
+        } else if constexpr (job::kRadioModeRx) {
+            DBG_PRINT("RADIO: AO_Radio RX (station)");
         } else {
             DBG_PRINT("RADIO: AO_Radio TX+RX (vehicle)");
         }
     } else {
         s.initialized = false;
-        s.scheduler.phase = rc::RadioPhase::kIdle;
-        DBG_PRINT("RADIO: not detected — AO_Radio in kIdle");
+        s.tx_active = false;
+        DBG_PRINT("RADIO: not detected — AO_Radio idle");
     }
 
     // Subscribe to SIG_RADIO_TX from AO_Telemetry
@@ -774,39 +717,27 @@ static void handle_radio_tick(RadioAo* me) {
     RadioAoState& s = me->state;
     if (!s.initialized) { return; }
 
-    // Stage T (IVP-T1) — log phase change since last tick.
-    static rc::RadioPhase g_stageTPrevPhase = rc::RadioPhase::kIdle;
-    stage_t_log_state(g_stageTPrevPhase, s.scheduler.phase);
+    static bool g_stageTPrevTx = false;
+    stage_t_log_state(g_stageTPrevTx, s.tx_active);
 
-    if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
+    if (s.tx_active) {
         handle_tx_poll(me);
-    }
-    if (s.scheduler.rx_active()) {
+    } else {
         handle_rx_poll(me);
     }
 
-    if (g_heldTxLen > 0 &&
-        s.scheduler.phase != rc::RadioPhase::kTxActive) {
-        bool window_ok = true;
-        if constexpr (job::kRadioModeRx) {
-            window_ok = rc::AO_RfManager_next_tx_window_us(now_us_rf()) != 0;
-            if (!window_ok) {
-                window_ok = AO_Telemetry_station_bootstrap_tx();
-            }
-        }
-        if (window_ok) {
-            const uint8_t n = g_heldTxLen;
-            g_heldTxLen = 0;
-            (void)radio_start_tx(s, g_heldTx, n);
-        }
+    if (g_heldTxLen > 0 && !s.tx_active) {
+        const uint8_t n = g_heldTxLen;
+        g_heldTxLen = 0;
+        (void)radio_start_tx(s, g_heldTx, n);
     }
 
     tick_apply_backstop(s);
     tick_symmetric_revert(s);
     tick_persist_debounce(s);
 
-    stage_t_log_state(g_stageTPrevPhase, s.scheduler.phase);
-    g_stageTPrevPhase = s.scheduler.phase;
+    stage_t_log_state(g_stageTPrevTx, s.tx_active);
+    g_stageTPrevTx = s.tx_active;
 
     handle_link_quality(me);
     handle_rssi_bar(me);
@@ -839,6 +770,10 @@ QActive * const AO_Radio = &g_radioAo.super;
 
 const RadioAoState* AO_Radio_get_state() {
     return &g_radioAo.state;
+}
+
+bool AO_Radio_tx_active() {
+    return g_radioAo.state.tx_active;
 }
 
 // Stage T IVP-T5.5 sub 2b: queue a runtime radio config change.

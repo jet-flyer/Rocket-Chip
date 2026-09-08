@@ -14,11 +14,11 @@ option(ROCKETCHIP_DEV_MODE
     "Compile inject, cal-reset, and runtime DEV_MODE toggle into the ELF (OFF for field images)"
     ON)
 
-# Dual-build soak for the Starcom consumer. Default OFF = today's STOP-GAP
-# air path. ON: add_subdirectory(starcom) and link Starcom::starcom on host
-# tests and the Pico image (IVP 21). Dies at ops cutover.
-# See docs/plans/SC_DEV_RC_TEST_PREP.md.
-option(ROCKETCHIP_USE_STARCOM "Link Starcom on host and Pico; default OFF is STOP-GAP air" OFF)
+# Starcom is core RC air (COP-P + nav/cmd/ACK SDUs). Always nested.
+# Nested ctest stays in the library tree. Host adapters (UDP/file) are
+# not required for the consumer link (MSVC CRT fopen is -Werror there).
+set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
+set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "RC consumer does not need UDP/file" FORCE)
 
 if(BUILD_TESTS)
     # ========================================================================
@@ -34,17 +34,8 @@ if(BUILD_TESTS)
     # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
 
-    if(ROCKETCHIP_USE_STARCOM)
-        add_compile_definitions(ROCKETCHIP_USE_STARCOM=1)
-        # Nested consumer: Starcom's own ctest stays in the library tree (IVP 20).
-        # Do not enable STARCOM_SANITIZE here — this host has no libasan.
-        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
-        # Host PLTU round-trip does not need UDP/file. Skip adapters_host
-        # (MSVC CRT fopen deprecation is -Werror in the Starcom host adapter).
-        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 20 does not need UDP/file" FORCE)
-        add_subdirectory(starcom)
-        message(STATUS "Starcom consumer: ON (host; linking Starcom::starcom)")
-    endif()
+    add_subdirectory(starcom)
+    message(STATUS "Starcom consumer: host linking Starcom::starcom")
 
     # Google Test (pinned v1.14.0)
     include(FetchContent)
@@ -143,9 +134,7 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink
     )
-    if(ROCKETCHIP_USE_STARCOM)
-        target_link_libraries(rc_telemetry PUBLIC Starcom::starcom)
-    endif()
+    target_link_libraries(rc_telemetry PUBLIC Starcom::starcom)
 
     # ------------------------------------------------------------------
     # QEP library (IVP-67, vendored QP/C 8.1.3 HSM dispatch engine)
@@ -261,12 +250,8 @@ else()
     # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
 
-    if(ROCKETCHIP_USE_STARCOM)
-        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
-        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 21 Pico: no UDP/file" FORCE)
-        add_subdirectory(starcom)
-        message(STATUS "Starcom nested for Pico (Starcom::starcom)")
-    endif()
+    add_subdirectory(starcom)
+    message(STATUS "Starcom nested for Pico (Starcom::starcom)")
 
     # ============================================================================
     # Build Configuration
@@ -829,11 +814,10 @@ else()
         if(ROCKETCHIP_STAGE_ARCHIVE)
             message(STATUS "Stage archive: UNLOCKED (individual stage flags available, still opt-in per flag)")
 
-            # Stage T — RadioScheduler timing diagnostics (IVP-T1)
+            # Stage T — radio TX/RX timing diagnostics (IVP-T1)
             # Emits [STAGE_T] state-transition and per-RX metadata lines on vehicle.
-            # Use when replaying Stage T RadioScheduler investigation.
             # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
-            option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
+            option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T radio TX/RX diagnostics" OFF)
             if(ROCKETCHIP_STAGE_T_LOGGING)
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
                 message(STATUS "Stage T diagnostics: ENABLED")
@@ -868,11 +852,8 @@ else()
     # Firmware identity is cmake/rc_version.cmake -> generated/rocketchip/version.h.
     # Do not add a second GIT_HASH compile-definition mechanism.
 
-    if(ROCKETCHIP_USE_STARCOM)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_USE_STARCOM=1)
-        target_link_libraries(rocketchip Starcom::starcom)
-        message(STATUS "Starcom consumer: ON (Pico linking Starcom::starcom)")
-    endif()
+    target_link_libraries(rocketchip Starcom::starcom)
+    message(STATUS "Starcom consumer: Pico linking Starcom::starcom")
 
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)

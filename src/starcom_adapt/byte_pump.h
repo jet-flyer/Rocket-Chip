@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// AO byte pump (IVP 21–22). RC-owned. RadioScheduler / SX1276 stay in RC.
-// No Starcom default pin map. Soak SCIDs are RC IDs, not a Starcom MIB.
-// IVP 22: air path is COP-P (submit_sdu / bytes_to_send / receive_bytes).
+// AO byte pump. RC-owned. SX1276 stays in RC. No Starcom default pin map.
+// Soak SCIDs are RC IDs, not a Starcom MIB.
+// Air path is COP-P (submit_sdu / bytes_to_send / receive_bytes).
 
 #ifndef ROCKETCHIP_STARCOM_BYTE_PUMP_H
 #define ROCKETCHIP_STARCOM_BYTE_PUMP_H
 
-#ifdef ROCKETCHIP_USE_STARCOM
 
 #include "starcom/ccsds/copp.hpp"
 #include "starcom/ccsds/pltu.hpp"
@@ -70,5 +69,4 @@ void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept;
 
 }  // namespace rc::starcom_adapt
 
-#endif  // ROCKETCHIP_USE_STARCOM
 #endif  // ROCKETCHIP_STARCOM_BYTE_PUMP_H

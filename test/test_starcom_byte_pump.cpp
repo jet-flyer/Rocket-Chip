@@ -4,8 +4,6 @@
 
 #include <gtest/gtest.h>
 
-#ifdef ROCKETCHIP_USE_STARCOM
-
 #include "starcom_adapt/byte_pump.h"
 #include "starcom_adapt/nav_sdu.h"
 #include "starcom/ccsds/pltu.hpp"
@@ -233,5 +231,3 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     ASSERT_TRUE(tn.has_value());
     ASSERT_EQ(*tn, *cn);
 }
-
-#endif  // ROCKETCHIP_USE_STARCOM

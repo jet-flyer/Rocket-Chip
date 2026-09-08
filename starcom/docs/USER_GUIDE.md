@@ -37,7 +37,7 @@ Sent copies are sized to the book window (`kFopPSentCap` 127, `kFop1SentCap` 255
 ## First loop (host, no radio)
 
 1. `add_subdirectory(starcom)` with nested `STARCOM_BUILD_TESTS=OFF`. Dependency is **consumer → Starcom** only.
-2. Dual-build if an old air path must keep shipping (RC: `ROCKETCHIP_USE_STARCOM`, default OFF until soak). Never dual-**run** two air protocols on one radio.
+2. Never dual-**run** two air protocols on one radio. RC LoRa air is Starcom COP-P only.
 3. Own one endpoint in BSS. `coppInit` (or `coppInitUslp`).
 4. Host loop: submit an SDU, `bytesToSend` on the peer, `receiveBytes` on the local, `takeSdu`. RC test `StarcomBytePump.CoppHostLoopNoRadio` is the shape.
 5. Prove peer PLCW lock and one SDU round-trip **before** adding user-field fields.

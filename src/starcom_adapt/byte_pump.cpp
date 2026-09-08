@@ -3,8 +3,6 @@
 
 #include "starcom_adapt/byte_pump.h"
 
-#ifdef ROCKETCHIP_USE_STARCOM
-
 #include "starcom_adapt/nav_sdu.h"
 #include "starcom_adapt/cmd_sdu.h"
 #include "starcom/error.hpp"
@@ -149,5 +147,3 @@ void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept {
 }
 
 }  // namespace rc::starcom_adapt
-
-#endif  // ROCKETCHIP_USE_STARCOM
