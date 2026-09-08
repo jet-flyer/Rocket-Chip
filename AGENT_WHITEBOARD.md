@@ -193,7 +193,7 @@ KEEP closed 2026-08-31 (DW_apb I²C, Hamilton quat, seqlock, PCM, flash layout, 
 | Candidate | Prefer / lean | Full detail |
 |-----------|---------------|-------------|
 | **Fault beacon (last-gasp)** | **Held until FPGA PHY work is done.** Then PIO beacon + SPI stop-gap in one session. | Research row *PIO beacon + SPI last-gasp* below |
-| **RC_OS / CLI “pseudo-OS”** | Sitting in progress (`grok/rcos-rework`). | **§ RC_OS Rework** below |
+| **RC_OS / CLI “pseudo-OS”** | Sittings 0–5 landed. Classified leftovers only. | **§ RC_OS classified leftovers** below |
 | **Radio / telem surfaces** | Drivers KEEP. Remaining: Starcom ON two-board soak, radio-settings OTA. | Starcom WB |
 | **CCSDS TC + COP-1** | KEEP defer post-Stage-17. Starcom library already has COP-P/COP-1. | Project status line |
 
@@ -205,15 +205,29 @@ new “maybe rework someday” bullets without listing them in this table.
 
 ---
 
-## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
+## RC_OS classified leftovers (OPEN) (2026-09-08)
 
-**Group:** Early-impl / rework-eval candidates (see index above).
+**Not implemented.** Classified in `docs/plans/RCOS_REWORK.md` during sittings 0–5; **not** sitting deliverables and **not** landed as done. Address or **remove** (reclassify as won't-do). Do not treat the plan tables as a live inventory.
 
-**Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
+Sittings 0–5 **did** land (branch `grok/rcos-rework`): table-driven console, per-job trees, ownership, PA slim, catalog v0 (`l`/`n` legal presets runtime-only, `USB_ARM_INH`/`USB_CFG_EN`, TX_POWER locked). Plan: `docs/plans/RCOS_REWORK.md`.
 
-**Intent:** Future workstream - structure RC_OS more like a proper UX/OS layer than accretion of single-key handlers: table-driven key->handler maps, clear UX vs domain ownership (AO_RCOS vs cal_manager vs FD), station/vehicle gating without copy-paste, host-testable dispatch. Entry docs: `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING §2.
+**Address or remove:**
 
-**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before code.
+- persist / set≠save (`n` is runtime only)
+- `LOG_RATE` (advanced)
+- `STN_OUTPUT` row exists; station output boot default (WN-066) not wired
+- Digit-RF `0..5` compile-out + `ROCKETCHIP_DEV_MODE` CMake field preset
+- Who may SET over radio (locked until SDLS; `DEV_MODE` / `USB_ARM_INH` never over radio)
+- WN-325 dashboard maps
+- Estes pad ARM vs USB ARM vs station pad ARM (`USER_GUIDE`)
+- Stale docs vs new trees: `docs/ROCKETCHIP_OS.md`, `docs/USER_GUIDE.md`, `docs/ADVANCED_SETTINGS.md`, `docs/SCAFFOLDING.md` CLI tree
+- First-class screens: who-am-I, cal status, legal radio cap
+- Catalog metadata: range, units, reboot-required
+- Station GPS-push `p` (still dead; not main preflight)
+
+**Not this list:** Starcom “vehicle console over the link” and radio-settings OTA (Starcom WB / Command AD / SET hop). Those were never sittings 0–5.
+
+Not a license to implement this sitting.
 
 ---
 

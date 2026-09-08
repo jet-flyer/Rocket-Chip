@@ -1,9 +1,29 @@
 # RC_OS rework
 
-**Status:** Sitting 5 closed (2026-09-07). Catalog v0: settings `l`/`n`, legal radio presets basic, USB flags in profile, TX power locked.
+**Status:** Sittings **0–5 closed** (2026-09-08). Firmware workstream done; merging to `main`.
 **Branch / worktree:** `grok/rcos-rework` at `C:\Users\pow-w\Documents\Rocket-Chip-rcos`
-**WB:** § Remaining pile order, § RC_OS Rework
+**WB:** § RC_OS classified leftovers (not the old “RC_OS Rework (OPEN)” row — that sitting is over)
 **Origin:** `docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2; L2-P5 WN-288–327 DEFER pile
+
+### Classified, **not implemented** (not sittings 0–5)
+
+The classification tables below are a **map of intent**, not an inventory of what shipped. Rows and “Gaps” items that have no sitting-closed note were **classified only**. They are **not** committed work and must not be read as done. Track: `AGENT_WHITEBOARD.md` § RC_OS classified leftovers. Address or remove (reclassify as won't-do); do not silently grow sitting 5.
+
+| Item | Classified as | Sitting status |
+|------|---------------|----------------|
+| persist / **set ≠ save** | catalog metadata | **Not implemented.** `n` is runtime only (`cli_catalog.h`: `NAV_PRESET` persist=false). |
+| `LOG_RATE` | advanced | **Not implemented.** |
+| Station output boot default (WN-066) | basic catalog | **Not implemented.** `STN_OUTPUT` row exists; not wired as boot default. |
+| Digit-RF `0..5` out of field ELF + `ROCKETCHIP_DEV_MODE` CMake preset | compile gate | **Not implemented** as a field CMake preset. Digit keys omitted from the field tree; inject/cal-reset/LED-test compile-gated. |
+| Who may SET over radio | locked until SDLS | **Not implemented.** `DEV_MODE` / `USB_ARM_INH` never over radio (comment only). |
+| WN-325 dashboard maps | station pad | **Not implemented.** Explicitly not sitting 5. |
+| Estes pad ARM vs USB ARM vs station pad ARM | docs | **Not implemented.** |
+| Stale docs (`ROCKETCHIP_OS.md`, `USER_GUIDE.md`, `ADVANCED_SETTINGS.md`, `SCAFFOLDING.md` CLI tree) | docs | **Not implemented.** Tables still describe the pre-engine CLI. |
+| Who-am-I / cal status / legal radio cap screens | read | **Not implemented** as first-class screens. `IDENTITY` catalog row exists. |
+| Catalog metadata (range, units, reboot-required) | `cli_catalog` | **Not implemented.** v0 has id/name/write-class/persist/`starcom:` only. |
+| Station GPS-push `p` | advanced | **Not implemented.** Still dead; main `p` remains preflight. |
+
+**Not this list (other workstreams):** station vehicle-console over Starcom; radio-settings OTA / SET hop (Starcom WB). Those were never sittings 0–5.
 
 ## What this is
 
