@@ -611,7 +611,7 @@ void cli_print_i2c_scan() {
 }
 
 static void hw_validate_i2c_devices() {
-    if (rc_os_i2c_scan_allowed) {
+    if (g_i2c_scan_allowed) {
         static constexpr uint8_t kExpected[] = {
             kI2cAddrAk09916,
             kI2cAddrIcm20948,
@@ -644,9 +644,9 @@ static void print_imu_status() {
         uint8_t accel_cfg = 0;
         uint8_t gyro_cfg1 = 0;
         uint8_t gyro_div = 0;
-        // After Core 1 launch the vehicle sets rc_os_i2c_scan_allowed false
+        // After Core 1 launch the vehicle sets g_i2c_scan_allowed false
         // (LL 23). Do not icm20948_read* on g_imu while Core 1 owns the bus.
-        if (!rc_os_i2c_scan_allowed) {
+        if (!g_i2c_scan_allowed) {
             rc::rc_log("  IMU config: not re-read (Core 1 owns bus)\n");
         } else if (icm20948_read_config_registers(&g_imu, &accel_cfg, &gyro_cfg1, &gyro_div)) {
             uint8_t accel_dlpf = (accel_cfg >> 3) & kDlpfCfgMask;

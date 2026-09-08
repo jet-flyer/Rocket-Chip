@@ -3,13 +3,11 @@
 //============================================================================
 // AO_RCOS — CLI / Terminal Active Object
 //
-// 20Hz tick handler: polls USB key input, dispatches to rc_os menu system,
-// renders ANSI dashboard, manages output mode cycling, and drives the
-// calibration UI state machine.
-//
-// All calibration wizards are non-blocking. The cal UI state machine runs
-// at 20Hz, polling calibration_manager for completion and reading keys
-// for user interaction (Enter/ESC).
+// 20Hz tick: USB keys, station pad (not a menu), output mode, cal UI.
+// Console dispatch is rc_os_update + cli_engine. Pad keys stay here.
+// Target-only TU (not in host CMake). No ROCKETCHIP_HOST_TEST split
+// (WN-290: those ifdefs were stubs for a host compile that never linked
+// this file; host does not exercise AO_RCOS).
 //============================================================================
 
 #include "ao_rcos.h"
@@ -40,13 +38,10 @@ void cli_do_erase_flights();
 void cli_do_download_flight(int flight_num);
 
 #include "rocketchip/rc_log.h"
-
-#ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
 #include <string.h>
 #include <math.h>
-#endif
 
 // ============================================================================
 // Internal tick signal
@@ -85,8 +80,6 @@ void AO_RCOS_cycle_output_mode() {
 // ============================================================================
 // Calibration UI State Machine
 // ============================================================================
-
-#ifndef ROCKETCHIP_HOST_TEST
 
 enum class CalUiState : uint8_t {
     kIdle = 0,
@@ -607,7 +600,7 @@ static void cal_ui_mag_process_sample(RcosAo* me,
             rc::rc_log("ERROR: Not enough samples (%u < %u)\n",
                    final_count, kMagMinSamples);
             calibration_reset_mag_cal();
-            rc_os_mag_cal_active.store(false, std::memory_order_release);
+            g_mag_cal_active.store(false, std::memory_order_release);
             cal_neo(kCalNeoFail);
             if (me->cal_wizard_active) { me->wizard_failed++; }
             me->cal_ui_state = cal_ui_next_or_idle(me);
@@ -624,7 +617,7 @@ static void cal_ui_begin_mag_collection(RcosAo* me) {
     rc::rc_log("Collecting...\n");
     calibration_reset_mag_cal();
     cal_reset_mag_staleness();
-    rc_os_mag_cal_active.store(true, std::memory_order_release);
+    g_mag_cal_active.store(true, std::memory_order_release);
     cal_neo(kCalNeoMag);
     me->mag_last_printed_count = 0;
     me->mag_total_reads = 0;
@@ -652,7 +645,7 @@ static void cal_ui_handle_mag_collecting(RcosAo* me) {
     if (ch == 27 || ch == 'x' || ch == 'X') {
         rc::rc_log("\nCompass calibration cancelled.\n");
         calibration_reset_mag_cal();
-        rc_os_mag_cal_active.store(false, std::memory_order_release);
+        g_mag_cal_active.store(false, std::memory_order_release);
         cal_neo(kCalNeoOff);
         if (me->cal_wizard_active) { me->wizard_skipped++; }
         me->cal_ui_state = cal_ui_next_or_idle(me);
@@ -660,7 +653,7 @@ static void cal_ui_handle_mag_collecting(RcosAo* me) {
     }
     if (!stdio_usb_connected()) {
         calibration_reset_mag_cal();
-        rc_os_mag_cal_active.store(false, std::memory_order_release);
+        g_mag_cal_active.store(false, std::memory_order_release);
         cal_neo(kCalNeoOff);
         me->cal_ui_state = CalUiState::kIdle;
         return;
@@ -691,7 +684,7 @@ static void cal_ui_handle_computing(RcosAo* me) {
         } else {
             rc::rc_log("Ellipsoid fit did not converge or params out of range.\n");
             calibration_reset_mag_cal();
-            rc_os_mag_cal_active.store(false, std::memory_order_release);
+            g_mag_cal_active.store(false, std::memory_order_release);
         }
         cal_neo(kCalNeoFail);
         if (me->cal_wizard_active) { me->wizard_failed++; }
@@ -744,7 +737,7 @@ static void cal_ui_handle_result(RcosAo* me) {
         rc::rc_log("\n6-position accel calibration complete.\n");
     } else {
         calibration_reset_mag_cal();
-        rc_os_mag_cal_active.store(false, std::memory_order_release);
+        g_mag_cal_active.store(false, std::memory_order_release);
         rc::rc_log("\nCompass calibration complete.\n");
     }
     cal_neo(kCalNeoSuccess);
@@ -1001,8 +994,6 @@ static void cal_ui_tick(RcosAo* me) {
     }
 }
 
-#endif // !ROCKETCHIP_HOST_TEST
-
 // ============================================================================
 // State Handlers
 // ============================================================================
@@ -1013,7 +1004,6 @@ static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e) {
     me->last_ansi_rx_count = 0;
     me->last_ansi_render_ms = 0;
 
-#ifndef ROCKETCHIP_HOST_TEST
     me->cal_ui_state = CalUiState::kIdle;
     me->cal_6pos_position = 0;
     me->cal_wizard_step = 0;
@@ -1027,7 +1017,6 @@ static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e) {
     me->wizard_passed = 0;
     me->wizard_failed = 0;
     me->wizard_skipped = 0;
-#endif
 
     // 20Hz tick (every 5 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 5U, 5U);
@@ -1037,7 +1026,6 @@ static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e) {
 static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RCOS_TICK: {
-#ifndef ROCKETCHIP_HOST_TEST
         cli_dispatch();
         ansi_render_tick(me);
 
@@ -1048,7 +1036,6 @@ static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
 
         // Calibration UI state machine
         cal_ui_tick(me);
-#endif
         return Q_HANDLED();
     }
 
@@ -1097,8 +1084,6 @@ void AO_RCOS_resume_tick() {
 // ============================================================================
 // Calibration UI — Public Trigger Functions (Phase D3)
 // ============================================================================
-
-#ifndef ROCKETCHIP_HOST_TEST
 
 void AO_RCOS_start_cal_gyro() {
     if (!rc_os_imu_available) {
@@ -1297,18 +1282,3 @@ void AO_RCOS_start_cal_save() {
     rc::core1_i2c_resume();
     cal_post_hook();
 }
-
-#else
-// Host test stubs
-void AO_RCOS_start_cal_gyro() {}
-void AO_RCOS_start_cal_level() {}
-void AO_RCOS_start_cal_baro() {}
-void AO_RCOS_start_cal_6pos() {}
-void AO_RCOS_start_cal_mag() {}
-void AO_RCOS_start_cal_wizard() {}
-void AO_RCOS_start_cal_reset() {}
-void AO_RCOS_start_cal_save() {}
-void AO_RCOS_start_erase_flights() {}
-void AO_RCOS_start_download_flight() {}
-bool AO_RCOS_cal_active() { return false; }
-#endif

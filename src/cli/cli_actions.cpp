@@ -213,7 +213,7 @@ void run_action(ActionId act) {
             }
             break;
         case ActionId::kDebugI2cScan:
-            if (rc_os_i2c_scan_allowed) {
+            if (g_i2c_scan_allowed) {
                 rc::rc_log("\nRescanning I2C bus...\n");
                 cli_print_i2c_scan();
             } else {

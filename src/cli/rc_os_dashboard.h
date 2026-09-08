@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Live-updating ANSI terminal dashboard for ground station mode
-// Renders a color-coded telemetry dashboard using ANSI escape codes.
+// Station pad ANSI surface. Not a cli_engine menu (sitting 3 / WN-325).
+// Three keys live in ao_rcos poll_dashboard_keys; console is kMenu after 'x'.
 // Redraws in-place (cursor-home + clear-to-EOL) — no scrolling.
 // Works in any ANSI-capable terminal: PuTTY, Windows Terminal, miniterm,
 // macOS Terminal, VSCode Serial Monitor (Terminal mode).
@@ -28,7 +28,7 @@ void ansi_dashboard_render(const rc::TelemetryState& telem,
 void ansi_dashboard_render_waiting(const RadioAoState* rs);
 
 // When paused, ansi_dashboard_render() returns immediately without writing.
-void rc_os_dashboard_pause();
-void rc_os_dashboard_resume();
+void ansi_dashboard_pause();
+void ansi_dashboard_resume();
 
 #endif // ROCKETCHIP_RC_OS_DASHBOARD_H

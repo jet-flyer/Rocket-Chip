@@ -2,8 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
 // Console engine: menu-as-data + stack. Pico/QP-free.
-// Modes (pad / line / catalog / mavlock) stay in the caller. This is
-// kKey only: lookup → push submenu | ActionId | help | back.
+// Modes (pad / line / catalog / mavlock) stay in the caller. Pad is not
+// a MenuId. This is kKey only: lookup → push submenu | ActionId | help | back.
 // P10-9: items carry ActionId, not function pointers (direct switch in
 // cli_actions.cpp). AO_RCOS ticks USB; it is not one QP state per menu.
 // JSF-190: find() has no continue. P10-2: scan bound is table length n.

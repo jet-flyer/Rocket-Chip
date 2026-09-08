@@ -524,7 +524,7 @@ else()
         src/active_objects/ao_logger.cpp
         src/active_objects/ao_telemetry.cpp
         src/active_objects/ao_radio.cpp
-        src/active_objects/ao_rcos.cpp
+        src/active_objects/ao_rcos.cpp  # target-only; not in host CMake (WN-290)
 
         # -------------------------------------------------------------------------
         # Stage 16C: Station Runtime Decoupling (IVP-140+)
@@ -582,7 +582,7 @@ else()
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
-        src/active_objects/ao_rcos.cpp
+        src/active_objects/ao_rcos.cpp          # target-only; not in host rc_flight_director (WN-290)
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
         src/active_objects/ao_led_engine.cpp        # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)

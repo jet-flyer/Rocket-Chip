@@ -495,8 +495,8 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 // IVP-122: Dashboard pause for ARM confirm flow
 static bool g_dashboardPaused = false;
 
-void rc_os_dashboard_pause()  { g_dashboardPaused = true; }
-void rc_os_dashboard_resume() { g_dashboardPaused = false; }
+void ansi_dashboard_pause()  { g_dashboardPaused = true; }
+void ansi_dashboard_resume() { g_dashboardPaused = false; }
 
 void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,

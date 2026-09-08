@@ -21,7 +21,7 @@ void cli_debug_start_eskf_live() {
     cli_print_eskf_live();
 }
 
-bool dev_eskf_live_poll() {
+bool debug_eskf_live_poll() {
     if (!g_eskfLiveActive) { return false; }
     int c = getchar_timeout_us(0);
     if (c != PICO_ERROR_TIMEOUT) {

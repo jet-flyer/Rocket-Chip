@@ -26,7 +26,7 @@
 #include "drivers/mcu_temp.h"
 #include "fusion/eskf_runner.h"
 #include "calibration/calibration_manager.h"
-#include "cli/rc_os.h"
+#include "rocketchip/shared_state.h"
 #include "math/quat.h"
 
 #include <math.h>
@@ -472,7 +472,7 @@ static void core1_sensor_pass(shared_sensor_data_t* local_data,
     cyc->gpsCycle++;
     if (cyc->gpsCycle >= kCore1GpsDivider &&
         g_gpsInitialized.load(std::memory_order_acquire)
-        && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
+        && !g_mag_cal_active.load(std::memory_order_acquire)) {
         cyc->gpsCycle = 0;
         core1_read_gps(local_data, &cyc->lastGpsReadUs);
     }

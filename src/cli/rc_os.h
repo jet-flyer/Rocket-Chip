@@ -3,18 +3,14 @@
 // RocketChip OS - CLI menu system (bare-metal)
 // Provides terminal-based CLI with menu state machine.
 // Adapted from v0.3 FreeRTOS implementation for bare-metal Pico SDK.
-// Key patterns:
-// - Single-key commands (no parsing)
-// - Two-level menu: Main → Calibration
-// - Non-blocking input via getchar_timeout_us(0)
-// - Terminal-connected guard (no USB I/O when disconnected)
+// USB / lockout / ARM-confirm + engine kKey dispatch. Menu data is
+// cli_menus.h. Station ANSI pad is not a menu (ao_rcos poll_dashboard_keys).
 
 #ifndef ROCKETCHIP_RC_OS_H
 #define ROCKETCHIP_RC_OS_H
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <atomic>
 
 // ============================================================================
 // Menu State
@@ -80,20 +76,7 @@ void rc_os_dev_mode_toggle(void);
 extern bool rc_os_imu_available;
 extern bool rc_os_baro_available;
 
-// ============================================================================
-// I2C Bus Scan Guard (set by main)
-// ============================================================================
-
-// Set to false when Core 1 owns the I2C bus (sensor phase).
-// Prevents 'i' command from corrupting bus while Core 1 reads sensors.
-// Defaults to true (scan allowed).
-extern bool rc_os_i2c_scan_allowed;
-
-// Set to true by cmd_mag_cal() to suppress GPS reads on Core 1.
-// In bypass mode, GPS NMEA streaming (0x10) causes bus contention
-// with AK09916 mag reads (0x0C). Core 1 checks this flag before
-// calling core1_read_gps().
-extern std::atomic<bool> rc_os_mag_cal_active;
+// I2C scan / mag-cal GPS suppress live in shared_state.h (WN-315).
 
 // P10-9: rc_os_read_accel / rc_os_read_mag / rc_os_reset_mag_staleness
 // function-pointer table removed. Accel 6-pos samples come from Core 1;

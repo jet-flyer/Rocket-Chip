@@ -43,8 +43,6 @@ static bool g_devModeRuntime = false;
 
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
-bool rc_os_i2c_scan_allowed = true;
-std::atomic<bool> rc_os_mag_cal_active{false};
 
 #if defined(ROCKETCHIP_JOB_STATION)
 static const rc::cli::Item* items() { return rc::cli::kStationItems; }
@@ -113,7 +111,7 @@ void rc_os_start_arm_confirm() {
     g_armConfirmActive = true;
     g_armBufPos = 0;
     g_armStartMs = to_ms_since_boot(get_absolute_time());
-    rc_os_dashboard_pause();
+    ansi_dashboard_pause();
     rc::rc_log("Type ARM in caps then Enter to confirm (5s): ");
 #endif
 }
@@ -186,7 +184,7 @@ static int handle_arm_confirm() {
     if (now - g_armStartMs > kArmConfirmTimeoutMs) {
         rc::rc_log("ARM aborted (timeout)\n");
         g_armConfirmActive = false;
-        rc_os_dashboard_resume();
+        ansi_dashboard_resume();
         show_prompt();
         return 1;
     }
@@ -204,7 +202,7 @@ static int handle_arm_confirm() {
             rc::rc_log("ARM aborted (bad input: '%s')\n", g_armBuf);
         }
         g_armConfirmActive = false;
-        rc_os_dashboard_resume();
+        ansi_dashboard_resume();
         show_prompt();
         return 1;
     }
@@ -214,7 +212,7 @@ static int handle_arm_confirm() {
     } else {
         rc::rc_log("ARM aborted (overflow)\n");
         g_armConfirmActive = false;
-        rc_os_dashboard_resume();
+        ansi_dashboard_resume();
         show_prompt();
     }
     return 1;
@@ -257,7 +255,7 @@ bool rc_os_update() {
     if (!handle_usb_connect()) {
         return false;
     }
-    if (dev_eskf_live_poll()) {
+    if (debug_eskf_live_poll()) {
         return false;
     }
 
