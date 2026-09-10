@@ -223,6 +223,59 @@ static void station_arm_sparse_plcw() {
     g_pump.copp.farm.need_plcw = true;
 }
 
+#ifndef ROCKETCHIP_HOST_TEST
+static rc::RadioConfig radio_from_catalog(uint8_t idx) {
+    rc::RadioConfig cfg = rc::kDefaultRocketRadioConfig;
+    if (idx >= rc::kRadioConfigTableSize) {
+        return cfg;
+    }
+    const auto& e = rc::kRadioConfigTable[idx];
+    cfg.bandwidth_khz = e.bw_khz;
+    cfg.nav_rate_hz = e.nav_rate_hz;
+    cfg.spreading_factor = e.sf;
+    cfg.coding_rate = e.cr;
+    cfg.power_dbm = e.power_dbm;
+    return cfg;
+}
+static bool g_commChangeRxArmed = false;
+static rc::RadioConfig g_commChangePending = rc::kDefaultRocketRadioConfig;
+
+static void starcom_poll_mac_radio() {
+    const auto n = rc::starcom_adapt::pump_poll_mac_notify(g_pump);
+    if (n == starcom::ccsds::MacNotify::comm_change_apply_rx &&
+        g_pump.pending_catalog_valid) {
+        g_commChangePending = radio_from_catalog(g_pump.pending_catalog_idx);
+        g_commChangeRxArmed = true;
+        rc::rc_log("[SC] COMM_CHANGE RX armed idx=%u BW=%u nav=%u\n",
+                   static_cast<unsigned>(g_pump.pending_catalog_idx),
+                   static_cast<unsigned>(g_commChangePending.bandwidth_khz),
+                   static_cast<unsigned>(g_commChangePending.nav_rate_hz));
+    } else if (n == starcom::ccsds::MacNotify::comm_change_ok) {
+        g_commChangeRxArmed = false;
+        rc::rc_log("[SC] COMM_CHANGE ok\n");
+    } else if (n == starcom::ccsds::MacNotify::comm_change_revert) {
+        g_commChangeRxArmed = false;
+        AO_Radio_apply_config_now(
+            radio_from_catalog(g_pump.hail_catalog_idx));
+        rc::rc_log("[SC] COMM_CHANGE revert hail\n");
+    }
+    if (g_pump.remote_apply_now && g_pump.pending_catalog_valid) {
+        g_pump.remote_apply_now = false;
+        AO_Radio_apply_config_now(
+            radio_from_catalog(g_pump.pending_catalog_idx));
+        rc::rc_log("[SC] COMM_CHANGE remote apply idx=%u\n",
+                   static_cast<unsigned>(g_pump.pending_catalog_idx));
+    }
+    const auto phy = rc::starcom_adapt::pump_mac_phy(g_pump);
+    if (g_commChangeRxArmed && phy.receive && !phy.transmit) {
+        AO_Radio_apply_config_now(g_commChangePending);
+        g_commChangeRxArmed = false;
+        rc::rc_log("[SC] COMM_CHANGE RX applied\n");
+    }
+    AO_Radio_set_mac_dir(phy.receive, phy.transmit);
+}
+#endif
+
 static bool starcom_drain_to_radio() {
 #ifndef ROCKETCHIP_HOST_TEST
     // pump_bytes_to_send consumes a COP-P AD. Do not drain while the
@@ -733,6 +786,9 @@ static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     const bool crc_ok = note_starcom_pltu_crc(std::span<const std::byte>(in, n));
     rc::starcom_adapt::pump_handle_air(
         g_pump, std::span<const std::byte>(in, n));
+#ifndef ROCKETCHIP_HOST_TEST
+    starcom_poll_mac_radio();
+#endif
     if (crc_ok) {
         station_arm_sparse_plcw();
     }
@@ -874,10 +930,7 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     case SIG_TELEM_TICK: {
         rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
 #ifndef ROCKETCHIP_HOST_TEST
-        {
-            const auto phy = rc::starcom_adapt::pump_mac_phy(g_pump);
-            AO_Radio_set_mac_dir(phy.receive, phy.transmit);
-        }
+        starcom_poll_mac_radio();
 #endif
         if constexpr (job::kRadioModeRx) {
             starcom_drain_to_radio();
@@ -952,6 +1005,17 @@ static void boot_starcom_session() {
 void AO_Telemetry_on_radio_phy_applied() {
     boot_starcom_session();
     rc::rc_log("[SC] COP-P/MAC reinit after radio PHY apply\n");
+}
+
+bool AO_Telemetry_request_comm_change(uint8_t catalog_idx) {
+    const bool ok = rc::starcom_adapt::pump_begin_comm_change(
+        g_pump, catalog_idx, static_cast<starcom::ccsds::Tick>(now_ms()));
+    if (!ok) {
+        return false;
+    }
+    rc::rc_log("[SC] COMM_CHANGE queued idx=%u\n",
+               static_cast<unsigned>(catalog_idx));
+    return true;
 }
 
 void AO_Telemetry_set_rate(uint8_t rate_hz) {

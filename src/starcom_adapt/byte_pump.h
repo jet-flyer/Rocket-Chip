@@ -40,6 +40,10 @@ struct BytePump {
   starcom::ccsds::MacSession mac{};
   starcom::ccsds::Scid local_scid{};
   starcom::ccsds::Scid remote_scid{};
+  std::uint8_t hail_catalog_idx = 0;
+  std::uint8_t pending_catalog_idx = 0;
+  bool pending_catalog_valid = false;
+  bool remote_apply_now = false;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
@@ -78,6 +82,15 @@ starcom::ccsds::Result<std::size_t> pump_air_to_send(
 starcom::ccsds::MacPhy pump_mac_phy(BytePump const& p) noexcept;
 starcom::ccsds::MacFifoSource pump_fifo_source(BytePump const& p) noexcept;
 starcom::ccsds::MacNotify pump_poll_mac_notify(BytePump& p) noexcept;
+
+// Catalog idx packed in SET PL EXTENSIONS (consumer LoRa, not 211.1).
+starcom::ccsds::MacCommValue pump_comm_value_for_catalog(
+    std::uint8_t idx) noexcept;
+bool pump_catalog_fits(std::uint8_t idx) noexcept;
+bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
+                            starcom::ccsds::Tick now) noexcept;
+std::uint8_t pump_catalog_from_pl(
+    starcom::ccsds::MacPlExt const& pl) noexcept;
 
 }  // namespace rc::starcom_adapt
 

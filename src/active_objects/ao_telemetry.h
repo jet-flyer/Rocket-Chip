@@ -38,6 +38,8 @@ void AO_Telemetry_set_rate(uint8_t rate_hz);
 // coppInit in place (byte_pump). Both roles. Desk 2026-09-03: SET changed
 // vehicle CFG but lock died (hear ≠ PLCW).
 void AO_Telemetry_on_radio_phy_applied();
+// 211.0 table 6-11. idx is kRadioConfigTable. False if ToA does not fit.
+bool AO_Telemetry_request_comm_change(uint8_t catalog_idx);
 
 // Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
 // Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for

@@ -11,3 +11,10 @@ a separate path. Station is MAC caller (`connecting-T`); vehicle is
 responder (`connecting-L`).
 
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
+
+COMM_CHANGE (211.0 table 6-11): catalog index rides SET PL EXTENSIONS
+(`mode_select` + `scrambler`, not 211.1). SX1276 is one modem — apply the
+new PHY when `macPhy` is receive (after COMM_CHANGE left on the old TX),
+or immediately on the remote (E69 sender). No E68 in `receive_duration`
+reverts to hail/boot 250/10. `radio_config_nav_fits_hz` refuses 125/10
+SF7 nav ToA. USB MAVLink `dispatch_command` is unchanged.

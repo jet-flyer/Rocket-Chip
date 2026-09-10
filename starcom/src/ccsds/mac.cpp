@@ -594,7 +594,8 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     applyState(m, MacState::s60);
     return;
   }
-  if (m.state == MacState::s61 && m.y == 3) {  // E68
+  if ((m.state == MacState::s61 || m.state == MacState::s62) &&
+      m.y == 3) {  // E68 — S62 is the receive wait after E67
     m.y = 0;
     m.persistence = false;
     applyState(m, MacState::s60);
@@ -603,6 +604,10 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
       m.pending_cv_valid = false;
     }
     notify(m, MacNotify::comm_change_ok);
+    return;
+  }
+  if (m.state == MacState::s62) {
+    applyState(m, MacState::s60);
   }
 }
 

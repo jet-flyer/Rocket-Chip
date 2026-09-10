@@ -83,6 +83,8 @@ bool AO_Radio_mac_receive();
 // A ~200 ms backstop timer guards against TxDone never firing.
 // Caller is responsible for validating the config BEFORE calling this.
 void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
+// 6-11 receive-wait / revert: retune now. Does not reinit COP-P/MAC.
+void AO_Radio_apply_config_now(const rc::RadioConfig& cfg);
 
 // Stage T IVP-T5.5: read-only access to the AO's current runtime config.
 // Used by SET dispatch to compute power-delta for the +/-6 dB gate.

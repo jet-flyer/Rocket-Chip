@@ -28,6 +28,12 @@ using rc::starcom_adapt::pump_tick;
 using rc::starcom_adapt::pump_start_session;
 using rc::starcom_adapt::pump_air_to_send;
 using rc::starcom_adapt::pump_handle_air;
+using rc::starcom_adapt::pump_begin_comm_change;
+using rc::starcom_adapt::pump_catalog_fits;
+using rc::starcom_adapt::pump_comm_value_for_catalog;
+using rc::starcom_adapt::pump_catalog_from_pl;
+using rc::starcom_adapt::pump_poll_mac_notify;
+using rc::starcom_adapt::pump_mac_phy;
 using rc::starcom_adapt::pump_mac_phy;
 using rc::starcom_adapt::pump_fifo_source;
 using rc::starcom_adapt::pump_poll_mac_notify;
@@ -266,4 +272,41 @@ TEST(StarcomBytePump, MacHalfDuplexHailFifo) {
     EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
     EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
     EXPECT_FALSE(pump_mac_phy(vehicle).receive);
+}
+
+TEST(StarcomBytePump, CommChangeCatalogToA) {
+    EXPECT_FALSE(pump_catalog_fits(1));  // 125/10 SF7
+    EXPECT_TRUE(pump_catalog_fits(2));   // 250/10
+    EXPECT_TRUE(pump_catalog_fits(3));   // 500/10
+    static BytePump p{};
+    pump_init(p, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    EXPECT_EQ(p.hail_catalog_idx, 2u);
+    EXPECT_FALSE(pump_begin_comm_change(p, 1, 0));
+    const auto cv = pump_comm_value_for_catalog(3);
+    EXPECT_TRUE(cv.has_pl_tx);
+    EXPECT_EQ(pump_catalog_from_pl(cv.pl_tx), 3u);
+}
+
+TEST(StarcomBytePump, CommChangeApplyRxAfterHail) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+    pump_tick(station, 10);
+    pump_tick(station, 20);
+    std::array<std::byte, 255> wire{};
+    const auto n = pump_air_to_send(station, wire);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_GT(*n, 0u);
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *n));
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    pump_tick(vehicle, 30);
+    pump_tick(vehicle, 40);
+    EXPECT_TRUE(pump_begin_comm_change(vehicle, 3, 40));
+    EXPECT_EQ(pump_poll_mac_notify(vehicle),
+              starcom::ccsds::MacNotify::comm_change_apply_rx);
+    EXPECT_TRUE(vehicle.pending_catalog_valid);
+    EXPECT_EQ(vehicle.pending_catalog_idx, 3u);
 }

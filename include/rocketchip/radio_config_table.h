@@ -52,9 +52,7 @@ inline constexpr bool radio_config_in_whitelist(uint16_t bw_khz,
 }
 
 // SX1276 gate: BW 125/250/500, SF 7-12, CR 5-8, power 2-20 dBm, nav 1-50 Hz.
-// No airtime-headroom check. COMM_CHANGE (211.0 table 6-11) and FPV scan
-// must still warn/refuse when nav ToA > 1/nav_hz (see AGENT_WHITEBOARD
-// "Legal catalog leftover vs commanded Hz"). 125/10 SF7 does not fit.
+// Chip-legal only. COMM_CHANGE / NAV_PRESET still need radio_config_nav_fits_hz.
 inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
                                                  uint8_t nav_rate_hz,
                                                  uint8_t sf,
@@ -67,6 +65,58 @@ inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
     if (nav_rate_hz == 0 || nav_rate_hz > 50) { return false; }
     return true;
 }
+
+// Nav PLTU on air: ASM+V-3+Space Packet+CRC = 18 + kNavSduUserBytes (45).
+// Source: test_starcom_byte_pump encode_nav. Same formula as rfm95w_airtime_us
+// (SX1276 §4.1.1.6, explicit header, CRC on, 8-sym preamble, CR 4/5).
+inline constexpr uint8_t kRadioConfigNavPltuBytes = 63;
+inline constexpr uint8_t kRadioConfigNoIndex = 0xFF;
+
+inline constexpr uint32_t radio_config_nav_airtime_us(uint8_t sf, uint16_t bw_khz,
+                                                      uint8_t payload_bytes) {
+    if (bw_khz == 0) { bw_khz = 125; }
+    if (sf < 7) { sf = 7; }
+    if (sf > 12) { sf = 12; }
+    const uint32_t t_sym_us =
+        (static_cast<uint32_t>(1U) << sf) * 1000U / bw_khz;
+    const uint32_t t_preamble_us = (t_sym_us * 49U) / 4U;
+    const int32_t numerator = static_cast<int32_t>(8U * payload_bytes)
+                              - static_cast<int32_t>(4U * sf) + 44;
+    const int32_t denominator = static_cast<int32_t>(4U * sf);
+    int32_t chunks = 0;
+    if (numerator > 0) {
+        chunks = (numerator + denominator - 1) / denominator;
+    }
+    const uint32_t n_payload = 8U + static_cast<uint32_t>(chunks) * 5U;
+    return t_preamble_us + n_payload * t_sym_us;
+}
+
+inline constexpr bool radio_config_nav_fits_hz(uint16_t bw_khz, uint8_t nav_hz,
+                                               uint8_t sf,
+                                               uint8_t payload_bytes) {
+    if (nav_hz == 0) { return false; }
+    const uint32_t slot_us = 1000000U / static_cast<uint32_t>(nav_hz);
+    return radio_config_nav_airtime_us(sf, bw_khz, payload_bytes) < slot_us;
+}
+
+inline constexpr uint8_t radio_config_catalog_index(uint16_t bw_khz,
+                                                    uint8_t nav_rate_hz,
+                                                    uint8_t sf, uint8_t cr,
+                                                    uint8_t power_dbm) {
+    for (size_t i = 0; i < kRadioConfigTableSize; ++i) {
+        const auto& e = kRadioConfigTable[i];
+        if (e.bw_khz == bw_khz && e.nav_rate_hz == nav_rate_hz &&
+            e.sf == sf && e.cr == cr && e.power_dbm == power_dbm) {
+            return static_cast<uint8_t>(i);
+        }
+    }
+    return kRadioConfigNoIndex;
+}
+
+static_assert(!radio_config_nav_fits_hz(125, 10, 7, kRadioConfigNavPltuBytes),
+              "125/10 SF7 nav PLTU must not fit a 100 ms slot");
+static_assert(radio_config_nav_fits_hz(250, 10, 7, kRadioConfigNavPltuBytes),
+              "250/10 SF7 nav PLTU must fit a 100 ms slot");
 
 } // namespace rc
 

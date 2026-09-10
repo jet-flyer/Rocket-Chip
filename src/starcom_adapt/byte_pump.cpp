@@ -6,6 +6,7 @@
 #include "starcom_adapt/nav_sdu.h"
 #include "starcom_adapt/cmd_sdu.h"
 #include "flight_director/mission_profile_data.h"
+#include "rocketchip/radio_config_table.h"
 #include "starcom/error.hpp"
 
 #include <tl/expected.hpp>
@@ -56,11 +57,37 @@ starcom::ccsds::Result<std::size_t> wrap_mac_p_frame(
       out, std::span<const std::byte>(frame.data(), *vn));
 }
 
+std::uint8_t catalog_from_pl(starcom::ccsds::MacPlExt const& pl) noexcept {
+  return static_cast<std::uint8_t>((pl.mode_select & 0x03u) |
+                                   ((pl.scrambler & 0x03u) << 2));
+}
+
+starcom::ccsds::MacPlExt pl_from_catalog(std::uint8_t idx) noexcept {
+  starcom::ccsds::MacPlExt pl{};
+  pl.mode_select = static_cast<std::uint8_t>(idx & 0x03u);
+  pl.scrambler = static_cast<std::uint8_t>((idx >> 2) & 0x03u);
+  return pl;
+}
+
+void load_pending_from_idx(BytePump& p, std::uint8_t idx) noexcept {
+  p.pending_catalog_idx = idx;
+  p.pending_catalog_valid = true;
+  starcom::ccsds::macLoadPendingCommValue(p.mac,
+                                          pump_comm_value_for_catalog(idx));
+}
+
 void dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
                            starcom::ccsds::Tick now) noexcept {
   for (std::size_t i = 0; i + 2 <= data.size(); i += 2) {
     const auto chunk = data.subspan(i, 2);
     const auto type = starcom::ccsds::spduDirectiveType(chunk);
+    if (type == starcom::ccsds::kSetPlExtDirectiveType) {
+      const auto pl = starcom::ccsds::decodeSetPlExt(chunk);
+      if (pl && (p.mac.state == starcom::ccsds::MacState::s60 ||
+                 p.mac.state == starcom::ccsds::MacState::s61)) {
+        load_pending_from_idx(p, catalog_from_pl(*pl));
+      }
+    }
     if (type == starcom::ccsds::kSetTxDirectiveType ||
         type == starcom::ccsds::kSetRxDirectiveType ||
         type == starcom::ccsds::kSetPlExtDirectiveType) {
@@ -69,6 +96,7 @@ void dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
       } else if (p.mac.state == starcom::ccsds::MacState::s60 ||
                  p.mac.state == starcom::ccsds::MacState::s61) {
         starcom::ccsds::macOnRemoteCommChange(p.mac, now);
+        p.remote_apply_now = p.pending_catalog_valid;
       }
       continue;
     }
@@ -98,6 +126,15 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
   starcom::ccsds::coppInit(p.copp, mib, kSoakPcid, local, remote, kSoakPort);
   starcom::ccsds::macInit(p.mac, flight_mac_mib(local),
                           starcom::ccsds::MacDuplex::half, &p.copp);
+  const auto& hail = rc::kDefaultRocketRadioConfig;
+  p.hail_catalog_idx = rc::radio_config_catalog_index(
+      hail.bandwidth_khz, hail.nav_rate_hz, hail.spreading_factor,
+      hail.coding_rate, hail.power_dbm);
+  if (p.hail_catalog_idx == rc::kRadioConfigNoIndex) {
+    p.hail_catalog_idx = 2;  // kRadioConfigTable 250/10
+  }
+  starcom::ccsds::macLoadHailCommValue(
+      p.mac, pump_comm_value_for_catalog(p.hail_catalog_idx));
 }
 
 void pump_init_for_this_job(BytePump& p) noexcept {
@@ -297,6 +334,42 @@ starcom::ccsds::MacFifoSource pump_fifo_source(BytePump const& p) noexcept {
 
 starcom::ccsds::MacNotify pump_poll_mac_notify(BytePump& p) noexcept {
   return starcom::ccsds::macPollNotify(p.mac);
+}
+
+starcom::ccsds::MacCommValue pump_comm_value_for_catalog(
+    std::uint8_t idx) noexcept {
+  starcom::ccsds::MacCommValue cv{};
+  cv.tx.encoding = starcom::ccsds::kPhyEncodingBypass;
+  cv.rx.encoding = starcom::ccsds::kPhyEncodingBypass;
+  cv.pl_tx = pl_from_catalog(idx);
+  cv.pl_rx = pl_from_catalog(idx);
+  cv.has_pl_tx = true;
+  cv.has_pl_rx = true;
+  return cv;
+}
+
+bool pump_catalog_fits(std::uint8_t idx) noexcept {
+  if (idx >= rc::kRadioConfigTableSize) {
+    return false;
+  }
+  const auto& e = rc::kRadioConfigTable[idx];
+  return rc::radio_config_nav_fits_hz(e.bw_khz, e.nav_rate_hz, e.sf,
+                                      rc::kRadioConfigNavPltuBytes);
+}
+
+bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
+                            starcom::ccsds::Tick now) noexcept {
+  if (!pump_catalog_fits(idx)) {
+    return false;
+  }
+  load_pending_from_idx(p, idx);
+  starcom::ccsds::macLocalCommChange(p.mac, now);
+  return true;
+}
+
+std::uint8_t pump_catalog_from_pl(
+    starcom::ccsds::MacPlExt const& pl) noexcept {
+  return catalog_from_pl(pl);
 }
 
 }  // namespace rc::starcom_adapt

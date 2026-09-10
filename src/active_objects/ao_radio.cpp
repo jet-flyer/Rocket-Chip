@@ -820,6 +820,23 @@ void AO_Radio_set_pending_config(const rc::RadioConfig& cfg) {
     g_pendingApplyBackstopCount = 0;
 }
 
+void AO_Radio_apply_config_now(const rc::RadioConfig& cfg) {
+    RadioAoState& s = g_radioAo.state;
+    if (!s.initialized) {
+        return;
+    }
+    if (s.tx_active) {
+        AO_Radio_set_pending_config(cfg);
+        return;
+    }
+    s.runtime_config = cfg;
+    ao_radio_apply_runtime_config(s);
+    g_configJustChanged = true;
+    if (g_macReceive) {
+        rfm95w_start_rx(&s.radio);
+    }
+}
+
 const rc::RadioConfig* AO_Radio_get_runtime_config() {
     return &g_radioAo.state.runtime_config;
 }

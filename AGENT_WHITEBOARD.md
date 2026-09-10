@@ -29,15 +29,9 @@ Owner: pull back from skip-nav / listen-slot / 500 kHz leftover; run **211.0-B-6
 
 Do **not** restore RfManager TX windows / RadioScheduler. Do **not** flash 500 as an ACK experiment; 500 is a later 6-11 catalog row.
 
-### Legal catalog leftover vs commanded Hz (OPEN)
+### Legal catalog leftover vs commanded Hz
 
-`radio_config_sx1276_legal` is chip-legal only. COMM_CHANGE and **FPV scan** must warn/refuse when commanded nav Hz cannot fit:
-
-- Nav ToA (`rfm95w_airtime_us`, SX1276 §4.1.1.6, explicit header, CRC on, 8-sym preamble) must be **< 1/nav_hz**.
-- CLI: *“these settings are only possible with N Hz telem — OK to confirm?”*
-- 125/10 SF7 is ~159% of a 100 ms slot — not a 10 Hz cell. 250/10 nav ~59 ms is R-32 margin; leftover vs cmd ToA was the **full-duplex-assumption** ARM squeeze. Under HD MAC, cmd rides the station send contact; **nav Hz vs nav ToA still applies**.
-
-First catalog hop must be airtime-legal, not table-idx-0 125/5 or idx-1 125/10 off 250/10 without that warning.
+COMM_CHANGE / NAV_PRESET refuse when nav ToA ≥ 1/nav_hz (`radio_config_nav_fits_hz`, 63 B nav PLTU). 125/10 SF7 is refused. **FPV scan** still needs the same check.
 
 ### Also open (not blocking this sitting)
 RfManager TRACK/LQ → COP-P lock / RSSI bar; FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.

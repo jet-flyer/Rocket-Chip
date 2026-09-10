@@ -145,17 +145,35 @@ static void catalog_nav_next() {
                             ? 0
                             : (idx + 1) % kRadioConfigTableSize;
     const auto& e = kRadioConfigTable[next];
-    rc::RadioConfig cfg = *cur;
-    cfg.bandwidth_khz = e.bw_khz;
-    cfg.nav_rate_hz = e.nav_rate_hz;
-    cfg.spreading_factor = e.sf;
-    cfg.coding_rate = e.cr;
-    AO_Radio_set_pending_config(cfg);
-    rc::rc_log("NAV_PRESET set BW%u %uHz SF%u CR%u (runtime, not saved)\n",
-               static_cast<unsigned>(cfg.bandwidth_khz),
-               static_cast<unsigned>(cfg.nav_rate_hz),
-               static_cast<unsigned>(cfg.spreading_factor),
-               static_cast<unsigned>(cfg.coding_rate));
+    const uint32_t toa_us = radio_config_nav_airtime_us(
+        e.sf, e.bw_khz, kRadioConfigNavPltuBytes);
+    const uint32_t slot_us = (e.nav_rate_hz == 0)
+                                 ? 0
+                                 : (1000000U / e.nav_rate_hz);
+    const uint32_t pct = (slot_us == 0) ? 999U : (toa_us * 100U / slot_us);
+    if (!radio_config_nav_fits_hz(e.bw_khz, e.nav_rate_hz, e.sf,
+                                  kRadioConfigNavPltuBytes)) {
+        const uint8_t fit_hz =
+            (toa_us == 0) ? 1 : static_cast<uint8_t>((1000000U / toa_us) + 1U);
+        rc::rc_log("NAV_PRESET BW%u %uHz ToA %u%% of slot — only possible "
+                   "with %u Hz telem — not hopping\n",
+                   static_cast<unsigned>(e.bw_khz),
+                   static_cast<unsigned>(e.nav_rate_hz),
+                   static_cast<unsigned>(pct),
+                   static_cast<unsigned>(fit_hz));
+        return;
+    }
+    if (!AO_Telemetry_request_comm_change(static_cast<uint8_t>(next))) {
+        rc::rc_log("NAV_PRESET COMM_CHANGE refused idx=%u\n",
+                   static_cast<unsigned>(next));
+        return;
+    }
+    rc::rc_log("NAV_PRESET COMM_CHANGE BW%u %uHz SF%u (idx %u, ToA %u%%)\n",
+               static_cast<unsigned>(e.bw_khz),
+               static_cast<unsigned>(e.nav_rate_hz),
+               static_cast<unsigned>(e.sf),
+               static_cast<unsigned>(next),
+               static_cast<unsigned>(pct));
 }
 
 void run_action(ActionId act) {

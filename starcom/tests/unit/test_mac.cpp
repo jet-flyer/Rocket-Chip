@@ -398,6 +398,33 @@ void test_half_comm_change_and_revert() {
   CHECK(!s.pending_cv_valid);
 }
 
+void test_half_comm_change_ok() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  macLoadPendingCommValue(s, cv);
+  macLocalCommChange(s, 5);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 6);
+  macOnNoFramesPending(s, 7);
+  CHECK(s.state == MacState::s58);
+  macTick(s, 9);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 3);
+  macOnValidFrame(s, 10);
+  CHECK(s.state == MacState::s60);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_ok);
+  CHECK(!s.pending_cv_valid);
+}
+
 void test_heap() {
   MacSession s{};
   starcom::test::heapTrapReset();
@@ -429,6 +456,7 @@ int run_mac_tests() {
   test_half_hail_octets();
   test_half_token_octets();
   test_half_comm_change_and_revert();
+  test_half_comm_change_ok();
   test_heap();
   return g_fails;
 }
