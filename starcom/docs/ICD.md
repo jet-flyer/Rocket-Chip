@@ -239,7 +239,18 @@ MacFifoSource macFifoSource(MacSession const&);  // table 6-14
 MacNotify macPollNotify(MacSession&);
 Result<std::size_t> encodeSetVr(std::span<std::byte>, std::uint8_t seq_ctrl_fsn, Pcid);
 Result<std::uint8_t> decodeSetVr(std::span<const std::byte>, Pcid* = nullptr);
+Result<std::size_t> encodeSetPhy(std::span<std::byte>, MacPhyParams const&, bool transmitter);
+Result<MacPhyParams> decodeSetPhy(std::span<const std::byte>, bool* transmitter_out = nullptr);
+Result<std::size_t> encodeSetControl(std::span<std::byte>, MacControlParams const&);
+Result<MacControlParams> decodeSetControl(std::span<const std::byte>);
+Result<std::size_t> encodeSetPlExt(std::span<std::byte>, MacPlExt const&);
+Result<MacPlExt> decodeSetPlExt(std::span<const std::byte>);
+void macLoadHailCommValue(MacSession&, MacCommValue const&);
+void macLoadPendingCommValue(MacSession&, MacCommValue const&);
+Result<std::size_t> macCopySpdu(MacSession const&, std::span<std::byte>);
 ```
+
+Hail/token/COMM_CHANGE now emit Annex B octets into `mac_queue` (not an empty pending flag). 6-11 confirm is E68 (valid frame on new RX); timeout with `y==3` notifies `comm_change_revert`. Annex B frequency/PSK/kb/s fields are codec-only; LoRa knobs stay in the consumer Comm Value Buffer / SET PL EXTENSIONS.
 
 `MacMib` timers are Annex C names in `Tick` (0 = never). Hail_Response may be a valid TF or `SYMBOL_INLOCK_STATUS` (book option). Adapters declare what the hardware can do. No SX1276 / RC half-duplex lock-in. Simplex: SET MODE active → S71 (transmit) / S72 (receive). Hailing is not used (211.0 §6); `connecting_t` on simplex does not enter S31/S11.
 

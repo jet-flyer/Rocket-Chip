@@ -118,6 +118,93 @@ void queueSetVr(MacSession& m) noexcept {
   m.persistence = true;
 }
 
+std::uint8_t rev8(std::uint8_t x) noexcept {
+  x = static_cast<std::uint8_t>(((x & 0xF0u) >> 4) | ((x & 0x0Fu) << 4));
+  x = static_cast<std::uint8_t>(((x & 0xCCu) >> 2) | ((x & 0x33u) << 2));
+  x = static_cast<std::uint8_t>(((x & 0xAAu) >> 1) | ((x & 0x55u) << 1));
+  return x;
+}
+
+Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept {
+  if (out.size() < 2) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  out[0] = std::byte{static_cast<std::uint8_t>(book)};
+  out[1] = std::byte{rev8(static_cast<std::uint8_t>(book >> 8))};
+  return std::size_t{2};
+}
+
+Result<std::uint16_t> readBook16(std::span<const std::byte> octets) noexcept {
+  if (octets.size() < 2) {
+    return tl::unexpected(Error::truncated);
+  }
+  const auto lo = std::to_integer<std::uint8_t>(octets[0]);
+  const auto hi = rev8(std::to_integer<std::uint8_t>(octets[1]));
+  return static_cast<std::uint16_t>(lo | (static_cast<std::uint16_t>(hi) << 8));
+}
+
+bool appendQueue(MacSession& m, std::span<const std::byte> src) noexcept {
+  if (src.empty() || m.mac_queue_len + src.size() > kMacQueueCap) {
+    return false;
+  }
+  for (std::size_t i = 0; i < src.size(); ++i) {
+    m.mac_queue[m.mac_queue_len + i] = src[i];
+  }
+  m.mac_queue_len += src.size();
+  return true;
+}
+
+void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept {
+  m.mac_queue_len = 0;
+  std::array<std::byte, 2> buf{};
+  if (cv.has_pl_tx) {
+    const auto n = encodeSetPlExt(buf, cv.pl_tx);
+    if (n) {
+      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+    }
+  }
+  {
+    const auto n = encodeSetPhy(buf, cv.tx, true);
+    if (n) {
+      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+    }
+  }
+  if (cv.has_pl_rx) {
+    const auto n = encodeSetPlExt(buf, cv.pl_rx);
+    if (n) {
+      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+    }
+  }
+  {
+    const auto n = encodeSetPhy(buf, cv.rx, false);
+    if (n) {
+      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+    }
+  }
+  m.mac_frame_pending = m.mac_queue_len > 0;
+  m.fifo_empty = !m.mac_frame_pending;
+}
+
+void queueHailSpdus(MacSession& m) noexcept { queueFromCv(m, m.hail_cv); }
+
+void queueCommChangeSpdus(MacSession& m) noexcept {
+  queueFromCv(m, m.pending_cv_valid ? m.pending_cv : m.hail_cv);
+}
+
+void queueControl(MacSession& m, bool pass, bool rnmd) noexcept {
+  MacControlParams p{};
+  p.pass = pass;
+  p.rnmd = rnmd;
+  m.mac_queue_len = 0;
+  const auto n = encodeSetControl(m.mac_queue, p);
+  if (!n) {
+    return;
+  }
+  m.mac_queue_len = *n;
+  m.mac_frame_pending = true;
+  m.fifo_empty = false;
+}
+
 void enterS1(MacSession& m, Tick /*now*/, bool end) noexcept {
   applyTable66(m);
   applyState(m, MacState::s1);
@@ -206,8 +293,7 @@ void macWaitExpiredConnect(MacSession& m) noexcept {
       break;
     case MacState::s32:  // E5
       applyState(m, MacState::s33);
-      m.mac_frame_pending = true;
-      m.fifo_empty = false;
+      queueHailSpdus(m);
       break;
     case MacState::s34:  // E7
       applyState(m, MacState::s35);
@@ -228,8 +314,7 @@ void macWaitExpiredConnect(MacSession& m) noexcept {
       break;
     case MacState::s12:  // E33
       applyState(m, MacState::s13);
-      m.mac_frame_pending = true;
-      m.fifo_empty = false;
+      queueHailSpdus(m);
       break;
     case MacState::s14:  // E35
       applyState(m, MacState::s36);
@@ -304,6 +389,11 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
     case MacState::s52:  // E41
       applyState(m, MacState::s50);
       loadWait(m, m.mib.send_duration);
+      if (m.y == 1 || m.y == 3) {  // E64
+        m.y = 2;
+        m.persistence = true;
+        notify(m, MacNotify::comm_change_apply_rx);
+      }
       break;
     case MacState::s58:
       if (m.y == 2) {  // E67
@@ -336,14 +426,26 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
       } else {  // E50
         applyState(m, MacState::s51);
         loadWait(m, m.mib.carrier_only_duration);
-        notify(m, MacNotify::no_data_this_contact);
+        if (m.y == 3) {
+          m.y = 0;
+          m.pending_cv_valid = false;
+          notify(m, MacNotify::comm_change_revert);
+        } else {
+          notify(m, MacNotify::no_data_this_contact);
+        }
       }
       break;
     case MacState::s62:
       if (!m.carrier_acquired) {  // E50
         applyState(m, MacState::s51);
         loadWait(m, m.mib.carrier_only_duration);
-        notify(m, MacNotify::no_carrier_this_contact);
+        if (m.y == 3) {
+          m.y = 0;
+          m.pending_cv_valid = false;
+          notify(m, MacNotify::comm_change_revert);
+        } else {
+          notify(m, MacNotify::no_carrier_this_contact);
+        }
       }
       break;
     default:
@@ -496,6 +598,10 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     m.y = 0;
     m.persistence = false;
     applyState(m, MacState::s60);
+    if (m.pending_cv_valid) {
+      m.hail_cv = m.pending_cv;
+      m.pending_cv_valid = false;
+    }
     notify(m, MacNotify::comm_change_ok);
   }
 }
@@ -539,7 +645,7 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   }
   if (m.state == MacState::s50 && m.y == 0 && !m.need_plcw) {  // E39
     applyState(m, MacState::s56);
-    m.mac_frame_pending = true;
+    queueControl(m, true, false);
     return;
   }
   if (m.state == MacState::s56 && m.y == 0) {  // E42
@@ -550,7 +656,7 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   }
   if (m.state == MacState::s50 && m.y == 2) {  // E65
     applyState(m, MacState::s56);
-    m.mac_frame_pending = true;
+    queueCommChangeSpdus(m);
     return;
   }
   if (m.state == MacState::s56 && m.y == 2) {  // E66
@@ -560,13 +666,13 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   }
   if (m.state == MacState::s50 && m.x == 1) {  // E53
     m.x = 2;
-    m.mac_frame_pending = true;
+    queueControl(m, false, true);
     return;
   }
   if (m.state == MacState::s50 && m.x == 4) {  // E55
     m.x = 5;
     applyState(m, MacState::s54);
-    m.mac_frame_pending = true;
+    queueControl(m, false, true);
     return;
   }
   if (m.state == MacState::s54 && m.x == 5) {  // E56
@@ -637,6 +743,7 @@ void macLocalCommChange(MacSession& m, Tick now) noexcept {
     if (m.state == MacState::s50) {  // E63
       m.y = 2;
       m.persistence = true;
+      notify(m, MacNotify::comm_change_apply_rx);
     } else if (m.y == 0) {  // E62
       m.y = 1;
     }
@@ -857,6 +964,160 @@ void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcep
     m.resync_life_left = 0;
     notify(m, MacNotify::resync_ok);
   }
+}
+
+void macLoadHailCommValue(MacSession& m, MacCommValue const& cv) noexcept {
+  m.hail_cv = cv;
+}
+
+void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept {
+  m.pending_cv = cv;
+  m.pending_cv_valid = true;
+}
+
+Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept {
+  if (m.mac_queue_len == 0) {
+    return std::size_t{0};
+  }
+  if (out.size() < m.mac_queue_len) {
+    return tl::unexpected(Error::buffer_too_small);
+  }
+  for (std::size_t i = 0; i < m.mac_queue_len; ++i) {
+    out[i] = m.mac_queue[i];
+  }
+  return m.mac_queue_len;
+}
+
+std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
+  if (octets.size() < 2) {
+    return 0xFF;
+  }
+  return static_cast<std::uint8_t>(std::to_integer<unsigned>(octets[1]) & 0x07u);
+}
+
+Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
+                                  bool transmitter) noexcept {
+  std::uint16_t book = 0;
+  book |= static_cast<std::uint16_t>(p.mode & 0x07u);
+  book |= static_cast<std::uint16_t>(p.data_rate & 0x0Fu) << 3;
+  book |= static_cast<std::uint16_t>(p.modulation & 0x01u) << 7;
+  book |= static_cast<std::uint16_t>(p.encoding & 0x03u) << 8;
+  book |= static_cast<std::uint16_t>(p.frequency & 0x07u) << 10;
+  if (!transmitter) {
+    book |= static_cast<std::uint16_t>(1u << 14);  // type 010, LSB at bit 15
+  }
+  return writeBook16(out, book);
+}
+
+Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
+                                   bool* transmitter_out) noexcept {
+  const auto book = readBook16(octets);
+  if (!book) {
+    return tl::unexpected(book.error());
+  }
+  const std::uint16_t w = *book;
+  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
+                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
+                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
+    return tl::unexpected(Error::truncated);
+  }
+  if (transmitter_out != nullptr) {
+    *transmitter_out = (type == kSetTxDirectiveType);
+  }
+  MacPhyParams p{};
+  p.mode = static_cast<std::uint8_t>(w & 0x07u);
+  p.data_rate = static_cast<std::uint8_t>((w >> 3) & 0x0Fu);
+  p.modulation = static_cast<std::uint8_t>((w >> 7) & 0x01u);
+  p.encoding = static_cast<std::uint8_t>((w >> 8) & 0x03u);
+  p.frequency = static_cast<std::uint8_t>((w >> 10) & 0x07u);
+  return p;
+}
+
+Result<std::size_t> encodeSetControl(std::span<std::byte> out,
+                                      MacControlParams const& p) noexcept {
+  std::uint16_t book = 0;
+  book |= static_cast<std::uint16_t>(p.time_sample & 0x3Fu);
+  book |= static_cast<std::uint16_t>(p.duplex & 0x07u) << 6;
+  if (p.rnmd) {
+    book |= static_cast<std::uint16_t>(1u << 11);
+  }
+  if (p.pass) {
+    book |= static_cast<std::uint16_t>(1u << 12);
+  }
+  book |= static_cast<std::uint16_t>(1u << 15);  // type 001
+  return writeBook16(out, book);
+}
+
+Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept {
+  const auto book = readBook16(octets);
+  if (!book) {
+    return tl::unexpected(book.error());
+  }
+  const std::uint16_t w = *book;
+  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
+                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
+                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  if (type != kSetControlDirectiveType) {
+    return tl::unexpected(Error::truncated);
+  }
+  MacControlParams p{};
+  p.time_sample = static_cast<std::uint8_t>(w & 0x3Fu);
+  p.duplex = static_cast<std::uint8_t>((w >> 6) & 0x07u);
+  p.rnmd = ((w >> 11) & 1u) != 0;
+  p.pass = ((w >> 12) & 1u) != 0;
+  return p;
+}
+
+Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept {
+  std::uint16_t book = 0;
+  if (p.direction) {
+    book |= 1u;
+  }
+  if (p.freq_table) {
+    book |= static_cast<std::uint16_t>(1u << 1);
+  }
+  if (p.rate_table) {
+    book |= static_cast<std::uint16_t>(1u << 2);
+  }
+  book |= static_cast<std::uint16_t>(p.carrier_mod & 0x03u) << 3;
+  book |= static_cast<std::uint16_t>(p.data_mod & 0x03u) << 5;
+  book |= static_cast<std::uint16_t>(p.mode_select & 0x03u) << 7;
+  book |= static_cast<std::uint16_t>(p.scrambler & 0x03u) << 9;
+  if (p.diff_mark) {
+    book |= static_cast<std::uint16_t>(1u << 11);
+  }
+  if (p.rs_code) {
+    book |= static_cast<std::uint16_t>(1u << 12);
+  }
+  book |= static_cast<std::uint16_t>(1u << 13);  // type 110: bit13=1, bit14=1, bit15=0
+  book |= static_cast<std::uint16_t>(1u << 14);
+  return writeBook16(out, book);
+}
+
+Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
+  const auto book = readBook16(octets);
+  if (!book) {
+    return tl::unexpected(book.error());
+  }
+  const std::uint16_t w = *book;
+  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
+                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
+                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  if (type != kSetPlExtDirectiveType) {
+    return tl::unexpected(Error::truncated);
+  }
+  MacPlExt p{};
+  p.direction = (w & 1u) != 0;
+  p.freq_table = ((w >> 1) & 1u) != 0;
+  p.rate_table = ((w >> 2) & 1u) != 0;
+  p.carrier_mod = static_cast<std::uint8_t>((w >> 3) & 0x03u);
+  p.data_mod = static_cast<std::uint8_t>((w >> 5) & 0x03u);
+  p.mode_select = static_cast<std::uint8_t>((w >> 7) & 0x03u);
+  p.scrambler = static_cast<std::uint8_t>((w >> 9) & 0x03u);
+  p.diff_mark = ((w >> 11) & 1u) != 0;
+  p.rs_code = ((w >> 12) & 1u) != 0;
+  return p;
 }
 
 }  // namespace starcom::ccsds

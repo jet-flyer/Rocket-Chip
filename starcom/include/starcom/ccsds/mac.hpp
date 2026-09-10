@@ -67,7 +67,9 @@ enum class MacNotify : std::uint8_t {
   hail_ok,
   hail_repeat,          // Hail_Wait timeout; activity still live
   hail_fail,            // Hail_Lifetime elapsed
-  comm_change_ok,
+  comm_change_apply_rx, // 6-11 E63/E64: apply pending RX now; TX still old
+  comm_change_ok,       // 6-11 E68: valid frame on new RX; apply pending TX
+  comm_change_revert,   // no E68 in receive_duration: restore hail/boot PHY
   end_session,
   carrier_only_heard,
   sender_overran,       // E44
@@ -114,6 +116,54 @@ struct MacPhy {
   bool modulation = false;
 };
 
+// Annex B Type-1 SPDUs, 16 bits. Octet packing matches encodeSetVr:
+// octet[0] = book bits 0–7 (0x01 = bit 0); octet[1] bit 0 = book bit 15.
+inline constexpr std::uint8_t kSetTxDirectiveType = 0x00;
+inline constexpr std::uint8_t kSetControlDirectiveType = 0x01;
+inline constexpr std::uint8_t kSetRxDirectiveType = 0x02;
+inline constexpr std::uint8_t kSetPlExtDirectiveType = 0x06;
+inline constexpr std::uint8_t kPhyEncodingBypass = 0x02;  // Annex B '10'
+inline constexpr std::uint8_t kPhyModeProximity1 = 0x01;
+inline constexpr std::size_t kMacQueueCap = 16;  // 4× 16-bit hail SPDUs
+
+struct MacPhyParams {
+  std::uint8_t mode = kPhyModeProximity1;  // bits 0–2; 001 = Prox-1
+  std::uint8_t data_rate = 0;              // bits 3–6; 211.1 kb/s table, not LoRa
+  std::uint8_t modulation = 1;             // bit 7; 1 = non-coherent PSK
+  std::uint8_t encoding = kPhyEncodingBypass;  // bits 8–9
+  std::uint8_t frequency = 0;              // bits 10–12; 211.1 Ch0–7, not enacted
+};
+
+struct MacControlParams {
+  std::uint8_t time_sample = 0;  // bits 0–5
+  std::uint8_t duplex = 0;       // bits 6–8; 0 = no change, 2 = half
+  bool rnmd = false;             // bit 11
+  bool pass = false;             // bit 12 Token = Transmit
+};
+
+struct MacPlExt {
+  bool direction = false;        // bit 0
+  bool freq_table = false;       // bit 1
+  bool rate_table = false;       // bit 2
+  std::uint8_t carrier_mod = 0;  // bits 3–4
+  std::uint8_t data_mod = 0;     // bits 5–6
+  std::uint8_t mode_select = 0;  // bits 7–8
+  std::uint8_t scrambler = 0;    // bits 9–10
+  bool diff_mark = false;        // bit 11
+  bool rs_code = false;          // bit 12
+};
+
+// Hail / COMM_CHANGE working set. LoRa SF/BW live in PL EXTENSIONS at the
+// consumer; this library only stores the 16-bit SPDUs.
+struct MacCommValue {
+  MacPhyParams tx{};
+  MacPhyParams rx{};
+  MacPlExt pl_tx{};
+  MacPlExt pl_rx{};
+  bool has_pl_tx = false;
+  bool has_pl_rx = false;
+};
+
 struct MacSession {
   MacMib mib{};
   MacDuplex duplex = MacDuplex::full;
@@ -144,8 +194,11 @@ struct MacSession {
   bool no_frames_pending = true;
   bool sdu_pending = false;
   std::uint8_t token_fail_n = 0;
-  std::array<std::byte, 2> mac_queue{};
+  std::array<std::byte, kMacQueueCap> mac_queue{};
   std::size_t mac_queue_len = 0;
+  MacCommValue hail_cv{};     // session / S80 revert target
+  MacCommValue pending_cv{};  // 6-11 Comm Value Buffer
+  bool pending_cv_valid = false;
   MacNotify notify = MacNotify::none;
   CoppEndpoint* copp = nullptr;  // caller-owned; null = no COP this sitting
 };
@@ -174,6 +227,9 @@ void macOnToken(MacSession& m, Tick now) noexcept;
 void macOnFifoEmpty(MacSession& m, Tick now) noexcept;
 void macOnNoFramesPending(MacSession& m, Tick now) noexcept;
 void macSetSduPending(MacSession& m, bool pending) noexcept;
+void macLoadHailCommValue(MacSession& m, MacCommValue const& cv) noexcept;
+void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept;
+Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept;
 
 void macTick(MacSession& m, Tick now) noexcept;
 MacNotify macPollNotify(MacSession& m) noexcept;
@@ -185,6 +241,16 @@ inline constexpr std::uint8_t kSetVrDirectiveType = 0x03;
 Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid pcid) noexcept;
 Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;
+Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
+                                  bool transmitter) noexcept;
+Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
+                                   bool* transmitter_out) noexcept;
+Result<std::size_t> encodeSetControl(std::span<std::byte> out,
+                                      MacControlParams const& p) noexcept;
+Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept;
+Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept;
+Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept;
+std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept;
 void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept;
 void macDriveSetVr(MacSession& m, Tick now) noexcept;  // 7.2.3.2
 void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept;

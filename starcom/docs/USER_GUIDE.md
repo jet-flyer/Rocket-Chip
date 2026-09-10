@@ -25,7 +25,7 @@ If a verb is not in that list, you own it.
 ## What you own
 
 - Event loop and clock (`now` in the same unit as MIB timeouts).
-- Radio. Half-duplex: drain **one** PLTU per TX opportunity or COP resend floods a small FIFO.
+- Radio. Apply `macPhy()` (TRANSMIT vs receive). Pull `coppBytesToSend` only when `macFifoSource` is `plcw` or `sdu`. Drain **one** PLTU per TX opportunity or COP resend floods a small FIFO. Settings hops are local COMM_CHANGE (table 6-11), not a second command dialect. Confirm is a valid frame on the new RX (E68); no confirm within `receive_duration` reverts to hail PHY.
 - Space Packet **user field** (IMU/nav/commands). Starcom does not pack application data. CCSDS 133.0 stops at the 6-octet header.
 - SCIDs, APIDs, air MTU. Book max transfer frame is `kTransferFrameMax` (2048, 11-bit). That is not your radio MTU (SX1276 FIFO is 255).
 - Storage: one `CoppEndpoint` / `Cop1Endpoint` in **BSS/static**. Pico Core 0 stack is 4 KiB. Host sizeof (MinGW): `CoppEndpoint` ~10 KiB, `Cop1Endpoint` ~19 KiB (`kFop1SentCap` 255). `coppInit` / `cop1Init` / `fopPInit` / `fop1Init` memset in place — never `e = CoppEndpoint{}` or `f = Fop1{}`. Encode scratch is file-scope (`g_tfScratch`), not an automatic. GNU `-Wstack-usage=1024` is on the library.
