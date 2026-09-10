@@ -623,6 +623,9 @@ static void hw_validate_i2c_devices() {
 static void print_imu_status() {
     if (g_imuInitialized) {
         rc::rc_log("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
+        rc::rc_log("  IMU FS: accel=%ug gyro=%u dps\n",
+               2U << static_cast<unsigned>(g_imu.accel_fs),
+               250U << static_cast<unsigned>(g_imu.gyro_fs));
         rc::rc_log("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");

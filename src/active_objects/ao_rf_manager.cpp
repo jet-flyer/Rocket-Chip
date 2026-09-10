@@ -7,8 +7,7 @@
 //   AO_Radio posts SIG_RADIO_RX on every valid RX → AO_RfManager handles,
 //   updates per-RX state (LQ, anchor_estimate, consec counters, state-machine
 //   transitions).
-//   10 Hz internal tick drives deadman + idle-drift + forced-ACQ checks that
-//   fire on absence of RX, not on RX events.
+//   10 Hz internal tick drives forced-ACQ / miss accounting on RX absence.
 //
 // Design: docs/plans/STAGE_T_T14_DESIGN.md
 //============================================================================
@@ -320,41 +319,6 @@ const RfManagerState* AO_RfManager_get_state() {
     // guard — invariant is contract, not enforcement. Debug builds could
     // assert-on-Core1-access in future.
     return &g_rf.state;
-}
-
-uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
-    const RfManagerState& s = g_rf.state;
-
-    // No anchor yet → no window.
-    if (!s.anchor_valid || s.state == LinkState::kAcq) {
-        return 0;
-    }
-
-    // Deadman check: anchor stale? Delegates to shared helper.
-    uint32_t elapsed_us = now_us - s.last_rx_us;
-    if (rf_deadman_fired(elapsed_us, g_rf.nav_period_ms)) {
-        return 0;  // Deadman fired — hold TX, wait for re-sync.
-    }
-
-    // Window math: next vehicle TX is expected at last_rx_us + nav_period.
-    // Safe station-TX window opens at last_rx_us + small settle (2 ms) and
-    // closes at next_vehicle_tx - guard_us.
-    //
-    // Skeleton: return "next safe moment" simply as last_rx_us + small offset.
-    // Full window arithmetic per design §6 lands in a follow-up commit alongside
-    // airtime-aware guard computation (needs airtime-formula integration into
-    // this AO — currently only AO_Radio knows airtime).
-    //
-    // For now, return last_rx_us + 2 ms as a conservative "after vehicle
-    // settles, before next period" window opener.
-    return s.last_rx_us + 2000U;
-}
-
-bool AO_RfManager_ok_to_retry() {
-    const RfManagerState& s = g_rf.state;
-    // Don't retry in kAcq (no point TXing blind).
-    // Permit retries in kTentative (builds up link) + kTrack + kTrackDegraded.
-    return s.state != LinkState::kAcq;
 }
 
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms) {

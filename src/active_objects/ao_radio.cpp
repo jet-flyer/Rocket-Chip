@@ -12,7 +12,7 @@
 //============================================================================
 
 #include "ao_radio.h"
-#include "ao_telemetry.h"         // AO_Telemetry_set_rate / _set_ack_retry_timeout_ms
+#include "ao_telemetry.h"         // set_rate / drain_after_tx
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
@@ -153,6 +153,8 @@ static inline void stage_t_log_tx_done(TxPollResult) {}
 
 static uint8_t g_heldTx[sizeof(rc::RadioTxEvt::buf)];
 static uint8_t g_heldTxLen = 0;
+static bool g_macReceive = true;
+static bool g_macTransmit = false;
 
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
@@ -186,6 +188,10 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     }
 
     if (!s.initialized || tx_evt->len == 0) {
+        return;
+    }
+    if (!g_macTransmit) {
+        radio_rate_inc_tx_busy_drop();
         return;
     }
 
@@ -224,8 +230,13 @@ static void handle_tx_poll(RadioAo* me) {
                 return;
             }
         }
-        // Enter RX mode between TX slots to receive commands from station
-        rfm95w_start_rx(&s.radio);
+        // Leftover air: seq cmd/ACK (or station PLCW) after this nav ToA.
+        if (AO_Telemetry_drain_after_tx()) {
+            return;
+        }
+        if (g_macReceive) {
+            rfm95w_start_rx(&s.radio);
+        }
     } else if (result == TxPollResult::kTimeout) {
         s.tx_consec_fail++;
 
@@ -246,7 +257,12 @@ static void handle_tx_poll(RadioAo* me) {
         }
 
         s.tx_active = false;
-        rfm95w_start_rx(&s.radio);
+        if (AO_Telemetry_drain_after_tx()) {
+            return;
+        }
+        if (g_macReceive) {
+            rfm95w_start_rx(&s.radio);
+        }
     }
     // kBusy — continue polling next tick
 }
@@ -722,7 +738,7 @@ static void handle_radio_tick(RadioAo* me) {
 
     if (s.tx_active) {
         handle_tx_poll(me);
-    } else {
+    } else if (g_macReceive) {
         handle_rx_poll(me);
     }
 
@@ -774,6 +790,24 @@ const RadioAoState* AO_Radio_get_state() {
 
 bool AO_Radio_tx_active() {
     return g_radioAo.state.tx_active;
+}
+
+void AO_Radio_set_mac_dir(bool receive, bool transmit) {
+    const bool was_rx = g_macReceive;
+    g_macReceive = receive;
+    g_macTransmit = transmit;
+    RadioAoState& s = g_radioAo.state;
+    if (!s.initialized || s.tx_active) {
+        return;
+    }
+    if (receive && !was_rx) {
+        rfm95w_start_rx(&s.radio);
+    }
+    (void)transmit;
+}
+
+bool AO_Radio_mac_receive() {
+    return g_macReceive;
 }
 
 // Stage T IVP-T5.5 sub 2b: queue a runtime radio config change.

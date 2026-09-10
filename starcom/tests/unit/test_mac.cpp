@@ -10,16 +10,31 @@
 using starcom::ccsds::CoppEndpoint;
 using starcom::ccsds::CoppMib;
 using starcom::ccsds::coppInit;
+using starcom::ccsds::decodeSetControl;
+using starcom::ccsds::decodeSetPhy;
+using starcom::ccsds::decodeSetPlExt;
 using starcom::ccsds::decodeSetVr;
+using starcom::ccsds::encodeSetControl;
+using starcom::ccsds::encodeSetPhy;
+using starcom::ccsds::encodeSetPlExt;
 using starcom::ccsds::encodeSetVr;
+using starcom::ccsds::kPhyEncodingBypass;
+using starcom::ccsds::kSetControlDirectiveType;
+using starcom::ccsds::kSetPlExtDirectiveType;
+using starcom::ccsds::kSetRxDirectiveType;
+using starcom::ccsds::kSetTxDirectiveType;
 using starcom::ccsds::farmPReport;
 using starcom::ccsds::FopPState;
 using starcom::ccsds::kSetVrDirectiveType;
 using starcom::ccsds::macDriveSetVr;
 using starcom::ccsds::macFifoSource;
+using starcom::ccsds::macCopySpdu;
 using starcom::ccsds::macInit;
+using starcom::ccsds::macLoadPendingCommValue;
+using starcom::ccsds::macLocalCommChange;
 using starcom::ccsds::macOnFifoEmpty;
 using starcom::ccsds::macOnHailReceived;
+using starcom::ccsds::macOnNoFramesPending;
 using starcom::ccsds::macOnPlcw;
 using starcom::ccsds::macOnSetVrDirective;
 using starcom::ccsds::macOnValidFrame;
@@ -30,7 +45,12 @@ using starcom::ccsds::macSetDuplex;
 using starcom::ccsds::macSetInitializeMode;
 using starcom::ccsds::macSetMode;
 using starcom::ccsds::macTick;
+using starcom::ccsds::MacCommValue;
+using starcom::ccsds::MacControlParams;
 using starcom::ccsds::MacDuplex;
+using starcom::ccsds::MacPhyParams;
+using starcom::ccsds::MacPlExt;
+using starcom::ccsds::spduDirectiveType;
 using starcom::ccsds::MacFifoSource;
 using starcom::ccsds::MacMib;
 using starcom::ccsds::MacMode;
@@ -257,6 +277,127 @@ void test_carrier_loss_caller() {
   CHECK(s.state == MacState::s80);
 }
 
+void test_annex_b_codecs() {
+  MacPhyParams tx{};
+  tx.encoding = kPhyEncodingBypass;
+  tx.mode = 1;
+  tx.modulation = 1;
+  std::array<std::byte, 2> buf{};
+  auto n = encodeSetPhy(buf, tx, true);
+  CHECK(n.has_value());
+  CHECK(*n == 2);
+  CHECK(spduDirectiveType(buf) == kSetTxDirectiveType);
+  bool is_tx = false;
+  auto back = decodeSetPhy(buf, &is_tx);
+  CHECK(back.has_value());
+  CHECK(is_tx);
+  CHECK(back->encoding == kPhyEncodingBypass);
+  CHECK(back->mode == 1);
+
+  n = encodeSetPhy(buf, tx, false);
+  CHECK(n.has_value());
+  CHECK(spduDirectiveType(buf) == kSetRxDirectiveType);
+  back = decodeSetPhy(buf, &is_tx);
+  CHECK(back.has_value());
+  CHECK(!is_tx);
+
+  MacControlParams ctl{};
+  ctl.pass = true;
+  n = encodeSetControl(buf, ctl);
+  CHECK(n.has_value());
+  CHECK(spduDirectiveType(buf) == kSetControlDirectiveType);
+  auto cback = decodeSetControl(buf);
+  CHECK(cback.has_value());
+  CHECK(cback->pass);
+  CHECK(!cback->rnmd);
+
+  MacPlExt pl{};
+  pl.rate_table = true;
+  n = encodeSetPlExt(buf, pl);
+  CHECK(n.has_value());
+  CHECK(spduDirectiveType(buf) == kSetPlExtDirectiveType);
+  auto pback = decodeSetPlExt(buf);
+  CHECK(pback.has_value());
+  CHECK(pback->rate_table);
+}
+
+void test_half_hail_octets() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  CHECK(s.state == MacState::s13);
+  CHECK(s.mac_frame_pending);
+  CHECK(s.mac_queue_len == 4);
+  CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data(), 2)) ==
+        kSetTxDirectiveType);
+  CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data() + 2, 2)) ==
+        kSetRxDirectiveType);
+  std::array<std::byte, 16> copy{};
+  auto n = macCopySpdu(s, copy);
+  CHECK(n.has_value());
+  CHECK(*n == 4);
+}
+
+void test_half_token_octets() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  CHECK(s.state == MacState::s51);
+  macTick(s, 3);
+  CHECK(s.state == MacState::s52);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 5);
+  CHECK(s.state == MacState::s56);
+  CHECK(s.mac_queue_len == 2);
+  CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data(), 2)) ==
+        kSetControlDirectiveType);
+  auto ctl = decodeSetControl(std::span<const std::byte>(s.mac_queue.data(), 2));
+  CHECK(ctl.has_value());
+  CHECK(ctl->pass);
+}
+
+void test_half_comm_change_and_revert() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  cv.tx.frequency = 1;
+  cv.rx.frequency = 1;
+  macLoadPendingCommValue(s, cv);
+  macLocalCommChange(s, 5);
+  CHECK(s.y == 2);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 6);
+  CHECK(s.state == MacState::s56);
+  CHECK(s.mac_queue_len == 4);
+  bool is_tx = false;
+  auto phy = decodeSetPhy(std::span<const std::byte>(s.mac_queue.data(), 2), &is_tx);
+  CHECK(phy.has_value());
+  CHECK(is_tx);
+  CHECK(phy->frequency == 1);
+  macOnNoFramesPending(s, 7);
+  CHECK(s.state == MacState::s58);
+  macTick(s, 9);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 3);
+  macTick(s, 14);
+  CHECK(s.state == MacState::s51);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_revert);
+  CHECK(!s.pending_cv_valid);
+}
+
 void test_heap() {
   MacSession s{};
   starcom::test::heapTrapReset();
@@ -284,6 +425,10 @@ int run_mac_tests() {
   test_set_vr_persistent();
   test_inbound_set_vr();
   test_carrier_loss_caller();
+  test_annex_b_codecs();
+  test_half_hail_octets();
+  test_half_token_octets();
+  test_half_comm_change_and_revert();
   test_heap();
   return g_fails;
 }

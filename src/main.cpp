@@ -51,6 +51,7 @@
 #include "active_objects/ao_rcos.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
+#include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "rocketchip/ao_signals.h"
 #include "ao_led_engine.h"
 #include "ao_flight_director.h"
@@ -471,12 +472,13 @@ static void start_active_objects() {
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify
     }
-    // AO_RfManager: RF link health + station TX anchored to vehicle RxDone.
-    // Vehicle and station; not Relay.
+    // AO_RfManager: link health (TRACK/LQ) for dash + pre-arm. Not TX gating.
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
-        // Initial nav_period_ms = 200 (5 Hz default). Updated via
-        // AO_RfManager_set_nav_period_ms() on SET_RADIO_CONFIG apply.
-        rc::AO_RfManager_start(7U, 200U);  // 10Hz
+        uint32_t nav_ms = 1000U / rc::kDefaultRocketRadioConfig.nav_rate_hz;
+        if (nav_ms == 0U) {
+            nav_ms = 100U;
+        }
+        rc::AO_RfManager_start(7U, nav_ms);
     }
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_Notify_start(5U);         // 33Hz — notification intent hub

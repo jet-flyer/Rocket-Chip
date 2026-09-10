@@ -52,7 +52,9 @@ inline constexpr bool radio_config_in_whitelist(uint16_t bw_khz,
 }
 
 // SX1276 gate: BW 125/250/500, SF 7-12, CR 5-8, power 2-20 dBm, nav 1-50 Hz.
-// No airtime-headroom check.
+// No airtime-headroom check. COMM_CHANGE (211.0 table 6-11) and FPV scan
+// must still warn/refuse when nav ToA > 1/nav_hz (see AGENT_WHITEBOARD
+// "Legal catalog leftover vs commanded Hz"). 125/10 SF7 does not fit.
 inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
                                                  uint8_t nav_rate_hz,
                                                  uint8_t sf,

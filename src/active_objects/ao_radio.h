@@ -71,6 +71,11 @@ const RadioAoState* AO_Radio_get_state();
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();
 
+// 211.0 §6 macPhy(): RX and TX are exclusive on half-duplex. Telemetry
+// updates this every tick. After TxDone, enter RX only if receive is set.
+void AO_Radio_set_mac_dir(bool receive, bool transmit);
+bool AO_Radio_mac_receive();
+
 // Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
 // after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.
 // immediately after the ACK packet has physically left the antenna.

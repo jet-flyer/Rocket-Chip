@@ -87,8 +87,9 @@ struct StarcomLinkStatus {
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
 
-// Station COP-P has not heard a peer PLCW yet (first air / unlocked).
-bool AO_Telemetry_station_bootstrap_tx();
+// After TxDone/timeout the radio is idle. Drain one queued seq cmd/ACK
+// (or station PLCW) into SIG_RADIO_TX. True if a PLTU was posted.
+bool AO_Telemetry_drain_after_tx();
 
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
 void AO_Telemetry_notify_gcs_heartbeat();

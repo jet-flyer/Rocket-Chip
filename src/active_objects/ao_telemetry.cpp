@@ -76,7 +76,7 @@ static constexpr uint8_t kAckMaxRetries = 8U;
 
 struct TelemAo {
     QActive super;
-    QTimeEvt tick_timer;    // 10Hz (every 10 ticks at 100Hz base)
+    QTimeEvt tick_timer;    // 100 Hz (QF 100 Hz / 1)
 
     // Protocol state (USB MAVLink is separate from LoRa Starcom)
     rc::MavlinkEncoder  mav_encoder;
@@ -103,6 +103,12 @@ struct TelemAo {
 
 static TelemAo g_telemAo;
 static rc::starcom_adapt::BytePump g_pump;
+// QF 100 Hz. Nav still 10 Hz (ticks_per_nav). HD MAC (211.0 §6) owns
+// TX/RX contacts; do not skip nav to fake leftover RX.
+static constexpr uint8_t kTelemTickHz = 100;
+static uint8_t g_navTickAcc = 0;
+
+static uint32_t g_lastMavlinkMs = 0;
 
 // Queue depth 8: non-blocking handlers (SIG_RADIO_TX posts, SIG_RADIO_RX decodes)
 static QEvtPtr g_telemAoQueue[8];
@@ -184,16 +190,6 @@ static void starcom_post_pltu(std::span<const std::byte> octets) {
     radio_rate_inc_pltu_post();
 }
 
-static bool station_copp_bootstrapping() {
-    if constexpr (!job::kRadioModeRx) {
-        return false;
-    }
-    if (g_stationLastAirMs == 0) {
-        return true;
-    }
-    return !g_pump.copp.fop.plcw_heard;
-}
-
 static bool station_plcw_cadence_allows() {
     if constexpr (!job::kRadioModeRx) {
         return true;
@@ -227,35 +223,42 @@ static void station_arm_sparse_plcw() {
     g_pump.copp.farm.need_plcw = true;
 }
 
-static void starcom_drain_to_radio() {
+static bool starcom_drain_to_radio() {
 #ifndef ROCKETCHIP_HOST_TEST
     // pump_bytes_to_send consumes a COP-P AD. Do not drain while the
     // radio is already sending — FOP-P would think the frame is in
     // flight (soak MIB synch_timeout=0, so SYNCH never expires).
     if (AO_Radio_tx_active()) {
-        return;
+        return false;
     }
     // R-32 spaces *status* PLCWs (~nav/4). Cmd/ACK SDUs must not wait
     // on that timer — that was SET hop sitting behind PLCW cadence.
     if constexpr (job::kRadioModeRx) {
         const bool must_air_now = g_pendingCmd.pending || g_pendingAckValid;
-        if (!must_air_now && !station_plcw_cadence_allows()) {
-            return;
+        if (must_air_now) {
+            // coppBytesToSend sends FARM PLCW first. Cap-1 drain then never
+            // takes the seq cmd. Idle 10 Hz arms need_plcw every 4th RX.
+            g_pump.copp.farm.need_plcw = false;
+        } else if (!station_plcw_cadence_allows()) {
+            return false;
         }
     }
 #endif
+    bool posted = false;
     for (uint8_t i = 0; i < kStarcomDrainCap; ++i) {
         std::byte buf[rc::starcom_adapt::kAirMtu];
-        const auto n = rc::starcom_adapt::pump_bytes_to_send(
+        const auto n = rc::starcom_adapt::pump_air_to_send(
             g_pump, std::span<std::byte>(buf, sizeof(buf)));
         if (!n.has_value() || *n == 0) {
-            return;
+            return posted;
         }
         starcom_post_pltu(std::span<const std::byte>(buf, *n));
+        posted = true;
         if constexpr (job::kRadioModeRx) {
             g_stationLastAirMs = now_ms();
         }
     }
+    return posted;
 }
 
 static void send_pending_ack_if_any() {
@@ -282,25 +285,40 @@ static void send_pending_ack_if_any() {
 static void encode_and_send(TelemAo* me) {
     if (!me->telem_valid) { return; }
 
-    // ACK before rate-limit so it goes out ASAP, not on the next nav-frame tick.
     send_pending_ack_if_any();
 
-    // FOP-P prefers expedited nav over seq (copp.cpp fopPNeedFrame). A
-    // queued cmd/ACK SDU never airs while 10 Hz nav is submitted. Skip
-    // one nav slot so the seq AD can drain (PLCW-first, then seq).
+    // Command-gated yield only. FOP prefers expedited, so a queued seq
+    // ACK/cmd never airs while this tick also submits nav.
     if (g_pump.copp.seq_n != 0) {
-        starcom_drain_to_radio();
+        (void)starcom_drain_to_radio();
 #ifndef ROCKETCHIP_HOST_TEST
         if (!AO_Radio_tx_active() && g_pump.copp.seq_n != 0) {
-            starcom_drain_to_radio();
+            (void)starcom_drain_to_radio();
         }
 #endif
         return;
     }
 
-    uint32_t t = now_ms();
-    if (t - me->last_tx_ms < me->interval_ms) { return; }
-    me->last_tx_ms = t;
+    uint8_t hz = me->rate_hz;
+    if (hz == 0U) {
+        hz = 5U;
+    }
+    bool due = false;
+    if ((kTelemTickHz % hz) == 0U) {
+        const uint8_t ticks_per_nav = static_cast<uint8_t>(kTelemTickHz / hz);
+        if (g_navTickAcc < ticks_per_nav) {
+            g_navTickAcc++;
+        }
+        due = (g_navTickAcc >= ticks_per_nav);
+    } else {
+        const uint32_t t = now_ms();
+        due = ((t - me->last_tx_ms) + 1U >= me->interval_ms);
+    }
+    if (!due) {
+        return;
+    }
+    g_navTickAcc = 0;
+    me->last_tx_ms = now_ms();
     radio_rate_inc_nav_submit();
 
     std::byte pkt[6u + rc::kNavSduUserBytes];
@@ -309,7 +327,7 @@ static void encode_and_send(TelemAo* me) {
     if (!n.has_value() || *n == 0) { return; }
     (void)rc::starcom_adapt::pump_submit_sdu(
         g_pump, std::span<const std::byte>(pkt, *n), true);
-    starcom_drain_to_radio();
+    (void)starcom_drain_to_radio();
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
@@ -713,7 +731,7 @@ static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
         in[i] = std::byte{rx_evt->buf[i]};
     }
     const bool crc_ok = note_starcom_pltu_crc(std::span<const std::byte>(in, n));
-    rc::starcom_adapt::pump_receive_bytes(
+    rc::starcom_adapt::pump_handle_air(
         g_pump, std::span<const std::byte>(in, n));
     if (crc_ok) {
         station_arm_sparse_plcw();
@@ -803,7 +821,11 @@ static void mavlink_direct_tick(TelemAo* me) {
 
     // Full telemetry — always stream when in MAVLink mode
 
-    // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
+    // USB MAVLink attitude stays 10 Hz; telem AO ticks at 100 Hz for RF dwell.
+    if (t - g_lastMavlinkMs < 100U) {
+        return;
+    }
+    g_lastMavlinkMs = t;
     len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame);
     usb_write_nonblocking(frame, len);
     len = me->mav_encoder.encode_global_pos(me->latest_telem, t, frame);
@@ -843,8 +865,7 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
     QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // health byte
 
-    // 10Hz tick (every 10 ticks at 100Hz base)
-    QTimeEvt_armX(&me->tick_timer, 10U, 10U);
+    QTimeEvt_armX(&me->tick_timer, 1U, 1U);
     return Q_TRAN(&telem_ao_running);
 }
 
@@ -852,6 +873,12 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
         rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
+#ifndef ROCKETCHIP_HOST_TEST
+        {
+            const auto phy = rc::starcom_adapt::pump_mac_phy(g_pump);
+            AO_Radio_set_mac_dir(phy.receive, phy.transmit);
+        }
+#endif
         if constexpr (job::kRadioModeRx) {
             starcom_drain_to_radio();
         }
@@ -915,9 +942,16 @@ uint8_t AO_Telemetry_cycle_rate() {
 }
 
 // SET_RADIO_CONFIG → vehicle TX interval. Rate policy is radio_config_table.
-void AO_Telemetry_on_radio_phy_applied() {
+static void boot_starcom_session() {
     rc::starcom_adapt::pump_init_for_this_job(g_pump);
-    rc::rc_log("[SC] COP-P reinit after radio PHY apply\n");
+    constexpr bool kCaller = job::kRadioModeRx;
+    rc::starcom_adapt::pump_start_session(
+        g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
+}
+
+void AO_Telemetry_on_radio_phy_applied() {
+    boot_starcom_session();
+    rc::rc_log("[SC] COP-P/MAC reinit after radio PHY apply\n");
 }
 
 void AO_Telemetry_set_rate(uint8_t rate_hz) {
@@ -925,6 +959,7 @@ void AO_Telemetry_set_rate(uint8_t rate_hz) {
     if (rate_hz > 50) { rate_hz = 50; }  // sanity: 50 Hz ~ 20ms period
     g_telemAo.rate_hz = rate_hz;
     g_telemAo.interval_ms = 1000U / rate_hz;
+    g_navTickAcc = 0;
 }
 
 // Airtime-scaled ACK-retry timeout from AO_Radio ({SF, BW, payload}).
@@ -948,8 +983,14 @@ StarcomLinkStatus AO_Telemetry_get_starcom_link() {
     return s;
 }
 
-bool AO_Telemetry_station_bootstrap_tx() {
-    return station_copp_bootstrapping();
+bool AO_Telemetry_drain_after_tx() {
+    // Leftover is for seq cmd/ACK only. Status PLCWs stay on R-32
+    // cadence. Draining FARM PLCW here filled the RX window and the
+    // station command never arrived (desk: ARM pending cleared 3840 ms).
+    if (g_pump.copp.seq_n == 0) {
+        return false;
+    }
+    return starcom_drain_to_radio();
 }
 
 void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
@@ -1129,7 +1170,7 @@ void AO_Telemetry_start(uint8_t prio) {
     g_telemAo.telem_valid = false;
     memset(&g_telemAo.rx_snapshot, 0, sizeof(g_telemAo.rx_snapshot));
     g_telemAo.starcom_nav_sdu = false;
-    rc::starcom_adapt::pump_init_for_this_job(g_pump);
+    boot_starcom_session();
 
     QActive_start(&g_telemAo.super,
                   Q_PRIO(prio, 0U),

@@ -1,19 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_RfManager — RF link manager (Stage T Batch B, IVP-T14)
+// AO_RfManager — RF link health (ACQ / TENTATIVE / TRACK / TRACK_DEGRADED).
 //
-// Owns link state (ACQ / TENTATIVE / TRACK / TRACK_DEGRADED), filtered
-// RxDone anchor estimate, and the "when is my next safe TX window" math.
-//
-// Station-side consumer: AO_Radio TX scheduler calls
-// AO_RfManager_next_tx_window_us() to anchor station TX to vehicle RxDone.
-//
-// Read-only consumers: AO_FlightDirector (pre-arm aggregator),
-// rc_os_dashboard (row + glance indicator) read AO_RfManager_get_state().
-//
-// Design doc: docs/plans/STAGE_T_T14_DESIGN.md (Round 2 final).
-// Council: NASA/JPL, ArduPilot, Rocketeer, Cubesat (2026-04-21 Round 2 GO).
+// Read-only consumers: AO_FlightDirector (pre-arm), rc_os_dashboard
+// (row + glance) via AO_RfManager_get_state(). Does not gate radio TX.
+// COP-P + R-32 cadence own air. Rekey TRACK/LQ to COP-P lock later.
 //============================================================================
 #ifndef ROCKETCHIP_AO_RF_MANAGER_H
 #define ROCKETCHIP_AO_RF_MANAGER_H
@@ -64,7 +56,7 @@ struct RfManagerState {
 };
 
 // ============================================================================
-// Public API — Start + read-only accessor + scheduler gate
+// Public API — start + read-only snapshot (no TX window gate)
 // ============================================================================
 
 extern QActive * const AO_RfManager;
@@ -78,27 +70,12 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init);
 // **Cooperative-dispatch-only invariant — see header doc.**
 const RfManagerState* AO_RfManager_get_state();
 
-// Station TX scheduler hook: returns the microsecond timestamp of the
-// next safe-to-TX window, OR 0 if the anchor is stale (deadman fired,
-// §4) or not yet acquired. Returns 0 if LinkState is kAcq.
-uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us);
-
-// Station retry gate: "is the link healthy enough to bother retrying?"
-// Returns false in kAcq (no point TXing blind) and during kTrackDegraded
-// early frames (wait for recovery).
-bool AO_RfManager_ok_to_retry();
-
 // Called when SET_RADIO_CONFIG successfully applies a new nav rate.
-// Recomputes deadman + alpha thresholds against the new period.
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms);
 
-// Test-only: override last_rx_ms so the next 10 Hz tick sees a stale anchor
-// and the deadman / forced-ACQ branches fire. Used by fault_force_radio_
-// dropout() (R-9b) for fault-injection harness; never called from
-// production paths. R-25-exec step 3 (2026-05-13): no longer dev-tier
-// gated. Lives in single flight binary; access is protected at
-// fault_force_radio_dropout()'s entry by test_mode_active() (SWE-133
-// partitioning).
+// Test-only: override last_rx_ms so the next 10 Hz tick sees a stale
+// anchor and forced-ACQ fires. fault_force_radio_dropout() (R-9b);
+// test_mode_active() at entry (SWE-133).
 void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms);
 
 } // namespace rc

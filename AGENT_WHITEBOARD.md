@@ -17,6 +17,31 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Sitting 2026-09-10 — 211.0 half-duplex MAC (not leftover-ToA)
+
+**Sit on `C:\Users\pow-w\Documents\Rocket-Chip-main` (`main`).** Library: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`); copy MAC codec/queue edits into nested `starcom/` so RC links them. Not `docs/starcom-sad-draft`.
+
+Owner: pull back from skip-nav / listen-slot / 500 kHz leftover; run **211.0-B-6 `DUPLEX=half`** (tables 6-10 hail/token **and** 6-11 COMM_CHANGE). 211.1 stays 0. Product boot **250/10 SF7 2 dBm**.
+
+**6-11 hop confirm (half-duplex, not a settings echo):** initiator applies **RX first** (E63/E64), radiates COMM_CHANGE on **old TX**, switches to new RX, waits. Confirm is a **valid frame heard on the new RX** (E68), then apply TX. Remote (E69) loads the buffer and becomes sender. No echo-ACK of the parameter bits.
+
+**No confirm:** E68 never runs, so **new TX is never applied**. 6-11 does not name a NACK; E50 (receive_duration, no carrier) returns the node to transmit (S51). RX was already hopped at E63 — sitting there deaf is the failure mode. Adapter: if E68 does not fire within `receive_duration`, **revert RX (and pending TX) to hail/boot `kDefaultRocketRadioConfig` (250/10)**. Same restore as E83/S80 (“reconfigure to initial Hail SET TRANSMITTER/RECEIVER”). Do not keep a half-applied modem.
+
+Do **not** restore RfManager TX windows / RadioScheduler. Do **not** flash 500 as an ACK experiment; 500 is a later 6-11 catalog row.
+
+### Legal catalog leftover vs commanded Hz (OPEN)
+
+`radio_config_sx1276_legal` is chip-legal only. COMM_CHANGE and **FPV scan** must warn/refuse when commanded nav Hz cannot fit:
+
+- Nav ToA (`rfm95w_airtime_us`, SX1276 §4.1.1.6, explicit header, CRC on, 8-sym preamble) must be **< 1/nav_hz**.
+- CLI: *“these settings are only possible with N Hz telem — OK to confirm?”*
+- 125/10 SF7 is ~159% of a 100 ms slot — not a 10 Hz cell. 250/10 nav ~59 ms is R-32 margin; leftover vs cmd ToA was the **full-duplex-assumption** ARM squeeze. Under HD MAC, cmd rides the station send contact; **nav Hz vs nav ToA still applies**.
+
+First catalog hop must be airtime-legal, not table-idx-0 125/5 or idx-1 125/10 off 250/10 without that warning.
+
+### Also open (not blocking this sitting)
+RfManager TRACK/LQ → COP-P lock / RSSI bar; FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.
+
 ## Exact state (2026-09-05 evening wrap)
 Desk ahead pushed with this wrap. **LL/I2C stale-assumptions pass closed:** SUPERSEDE 20/21/24/22; legacy 28/31; REVISIT 27. FJ cold-boot erased PIO-backend + RP2350B bus-corruption WB rows (bus alive). Audit docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. CHANGELOG 2026-09-05-003. Prior same-day: oMCT Master Dashboard MVP on facsimile (2026-09-05-002); **live board USB/m -> glass still NEXT**. Residual GPS E / no-fix on FJ is a separate sitting. Untracked: local build_* dirs + Buzz soak helpers scripts/_ll22_rate.py / scripts/_fj_cold_gps_soak.py (not for commit).
 
@@ -104,7 +129,7 @@ Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBO
 
 **Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). Stays while Starcom work continues.
 
-**Still RC (this sitting leftover):** Command AD / SET hop (`V(S)=0` was the window-0 drop — retest). RfManager ACQ/TRACK/LQ for dash + pre-arm still live; rekey to COP-P lock / accepted nav SDU (RSSI bar too). Prox-1 §6 half-duplex turnaround not wired (`macTick` unused). Keep R-32 cadence (250/10 expedited nav, station PLCW every 4th). FPGA PHY/decode held.
+**Still RC:** exact desk/WIP is **Handoff 2026-09-09** at top. SET OTA + ARM leftover + TRACK/LQ rekey + `macTick` after FPV scan. FPGA PHY/decode held.
 
 ---
 
