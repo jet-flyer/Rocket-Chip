@@ -4,11 +4,13 @@ RC-owned glue. Starcom core stays in `starcom/` and must not include
 these headers.
 
 Host and Pico always link `Starcom::starcom`. `byte_pump` + `cmd_sdu` /
-`nav_sdu`. LoRa air is 211.0 §6 `MacDuplex::half` (`macPhy` / table 6-14
-FIFO via `pump_air_to_send`) with COP-P inside a send contact.
-`pump_bytes_to_send` remains raw COP-P for host loopback. USB MAVLink is
-a separate path. Station is MAC caller (`connecting-T`); vehicle is
-responder (`connecting-L`).
+`nav_sdu`. Desk-working air is 97c9413 always-on COP-P: the SX1276
+listens whenever a send is not in flight, and `pump_air_to_send` still
+emits nav/PLCW when table 6-14 is none/idle. MAC SPDUs (hail /
+COMM_CHANGE) ride the same drain. `pump_bytes_to_send` remains raw
+COP-P for host loopback. USB MAVLink is a separate path. Station is MAC
+caller (`connecting-T`); vehicle is responder (`connecting-L`). Hail
+lifetime is 0 (no abort): station radio is up ~0.6 s, vehicle ~2.8 s.
 
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
 

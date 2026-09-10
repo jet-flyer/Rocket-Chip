@@ -274,6 +274,73 @@ TEST(StarcomBytePump, MacHalfDuplexHailFifo) {
     EXPECT_FALSE(pump_mac_phy(vehicle).receive);
 }
 
+TEST(StarcomBytePump, HailLifetimeZeroKeepsCalling) {
+    static BytePump station{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_start_session(station, true, 0);
+    for (starcom::ccsds::Tick t = 20; t <= 5000; t += 20) {
+        pump_tick(station, t);
+        (void)pump_poll_mac_notify(station);
+    }
+    EXPECT_NE(station.mac.state, starcom::ccsds::MacState::s1);
+    EXPECT_NE(pump_poll_mac_notify(station), starcom::ccsds::MacNotify::hail_fail);
+}
+
+TEST(StarcomBytePump, HailThenNavReachesStation) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 255> stn_wire{};
+    std::array<std::byte, 255> veh_wire{};
+    int vehicle_air = 0;
+    int station_rx = 0;
+
+    for (starcom::ccsds::Tick t = 10; t <= 2000; t += 10) {
+        pump_tick(station, t);
+        pump_tick(vehicle, t);
+        (void)pump_poll_mac_notify(station);
+        (void)pump_poll_mac_notify(vehicle);
+
+        if ((t % 100) == 0) {
+            std::array<std::byte, 64> pkt{};
+            const auto pn = pump_pack_nav_packet(pkt, telem);
+            ASSERT_TRUE(pn.has_value());
+            (void)pump_submit_sdu(
+                vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
+        }
+
+        const auto sn = pump_air_to_send(station, stn_wire);
+        const auto vn = pump_air_to_send(vehicle, veh_wire);
+        const bool stn_tx = sn.has_value() && *sn > 0;
+        const bool veh_tx = vn.has_value() && *vn > 0;
+        if (veh_tx) {
+            ++vehicle_air;
+        }
+        if (stn_tx && veh_tx) {
+            continue;
+        }
+        if (stn_tx && !veh_tx) {
+            pump_handle_air(
+                vehicle, std::span<const std::byte>(stn_wire.data(), *sn));
+            (void)pump_poll_mac_notify(vehicle);
+        }
+        if (veh_tx && !stn_tx) {
+            pump_handle_air(
+                station, std::span<const std::byte>(veh_wire.data(), *vn));
+            (void)pump_poll_mac_notify(station);
+            ++station_rx;
+        }
+    }
+    EXPECT_GT(vehicle_air, 5);
+    EXPECT_GT(station_rx, 5);
+}
+
 TEST(StarcomBytePump, CommChangeCatalogToA) {
     EXPECT_FALSE(pump_catalog_fits(1));  // 125/10 SF7
     EXPECT_TRUE(pump_catalog_fits(2));   // 250/10
@@ -309,4 +376,10 @@ TEST(StarcomBytePump, CommChangeApplyRxAfterHail) {
               starcom::ccsds::MacNotify::comm_change_apply_rx);
     EXPECT_TRUE(vehicle.pending_catalog_valid);
     EXPECT_EQ(vehicle.pending_catalog_idx, 3u);
+    const auto hop = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(hop.has_value());
+    ASSERT_GT(*hop, 0u);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s58);
+    pump_tick(vehicle, 50);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
 }

@@ -30,7 +30,10 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   m.send_duration = nav_ms;
   m.receive_duration = nav_ms;
   m.hail_wait_duration = nav_ms + 20U;
-  m.hail_lifetime = static_cast<starcom::ccsds::Tick>(10U * m.hail_wait_duration);
+  // 0 = no abort (211.0 6.2.4.14.2). Station radio is up ~0.6 s; vehicle
+  // ~2.8 s. 10x hail_wait (~1.2 s) expired into S1 before the vehicle
+  // was listening.
+  m.hail_lifetime = 0;
   m.drop_carrier_duration = 20;
   m.carrier_loss_timer_duration = static_cast<starcom::ccsds::Tick>(2U * nav_ms);
   m.plcw_repeat_interval = nav_ms;
@@ -76,21 +79,38 @@ void load_pending_from_idx(BytePump& p, std::uint8_t idx) noexcept {
                                           pump_comm_value_for_catalog(idx));
 }
 
-void dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
+bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
                            starcom::ccsds::Tick now) noexcept {
+  bool consumed = false;
   for (std::size_t i = 0; i + 2 <= data.size(); i += 2) {
     const auto chunk = data.subspan(i, 2);
     const auto type = starcom::ccsds::spduDirectiveType(chunk);
     if (type == starcom::ccsds::kSetPlExtDirectiveType) {
       const auto pl = starcom::ccsds::decodeSetPlExt(chunk);
-      if (pl && (p.mac.state == starcom::ccsds::MacState::s60 ||
-                 p.mac.state == starcom::ccsds::MacState::s61)) {
+      if (!pl) {
+        continue;
+      }
+      consumed = true;
+      if (p.mac.state == starcom::ccsds::MacState::s60 ||
+          p.mac.state == starcom::ccsds::MacState::s61) {
         load_pending_from_idx(p, catalog_from_pl(*pl));
       }
+      if (p.mac.state == starcom::ccsds::MacState::s2) {
+        starcom::ccsds::macOnHailReceived(p.mac, now);
+      } else if (p.mac.state == starcom::ccsds::MacState::s60 ||
+                 p.mac.state == starcom::ccsds::MacState::s61) {
+        starcom::ccsds::macOnRemoteCommChange(p.mac, now);
+        p.remote_apply_now = p.pending_catalog_valid;
+      }
+      continue;
     }
     if (type == starcom::ccsds::kSetTxDirectiveType ||
-        type == starcom::ccsds::kSetRxDirectiveType ||
-        type == starcom::ccsds::kSetPlExtDirectiveType) {
+        type == starcom::ccsds::kSetRxDirectiveType) {
+      bool is_tx = false;
+      if (!starcom::ccsds::decodeSetPhy(chunk, &is_tx)) {
+        continue;
+      }
+      consumed = true;
       if (p.mac.state == starcom::ccsds::MacState::s2) {
         starcom::ccsds::macOnHailReceived(p.mac, now);
       } else if (p.mac.state == starcom::ccsds::MacState::s60 ||
@@ -102,16 +122,19 @@ void dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
     }
     if (type == starcom::ccsds::kSetControlDirectiveType) {
       const auto ctl = starcom::ccsds::decodeSetControl(chunk);
-      if (ctl) {
-        if (ctl->pass) {
-          starcom::ccsds::macOnToken(p.mac, now);
-        }
-        if (ctl->rnmd) {
-          starcom::ccsds::macOnRnmd(p.mac, now);
-        }
+      if (!ctl) {
+        continue;
+      }
+      consumed = true;
+      if (ctl->pass) {
+        starcom::ccsds::macOnToken(p.mac, now);
+      }
+      if (ctl->rnmd) {
+        starcom::ccsds::macOnRnmd(p.mac, now);
       }
     }
   }
+  return consumed;
 }
 
 }  // namespace
@@ -267,12 +290,7 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
   starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
   starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
   if (v3->fields.p_frame && !v3->data.empty()) {
-    const auto type = starcom::ccsds::spduDirectiveType(v3->data);
-    if (type == starcom::ccsds::kSetTxDirectiveType ||
-        type == starcom::ccsds::kSetRxDirectiveType ||
-        type == starcom::ccsds::kSetControlDirectiveType ||
-        type == starcom::ccsds::kSetPlExtDirectiveType) {
-      dispatch_p_frame_spdu(p, v3->data, now);
+    if (dispatch_p_frame_spdu(p, v3->data, now)) {
       return;
     }
   }
@@ -303,11 +321,6 @@ starcom::ccsds::Result<std::size_t> pump_air_to_send(
       p.copp.exp_full || p.copp.seq_n != 0;
   starcom::ccsds::macSetSduPending(p.mac, sdu_pending);
   const auto src = starcom::ccsds::macFifoSource(p.mac);
-  if (src == starcom::ccsds::MacFifoSource::none ||
-      src == starcom::ccsds::MacFifoSource::carrier_only ||
-      src == starcom::ccsds::MacFifoSource::idle) {
-    return std::size_t{0};
-  }
   if (src == starcom::ccsds::MacFifoSource::spdu) {
     std::array<std::byte, starcom::ccsds::kMacQueueCap> spdu{};
     const auto n = starcom::ccsds::macCopySpdu(p.mac, spdu);
@@ -321,7 +334,14 @@ starcom::ccsds::Result<std::size_t> pump_air_to_send(
     }
     return pltu;
   }
-  return starcom::ccsds::coppBytesToSend(p.copp, out);
+  // 97c9413 always-on COP-P: nav/PLCW air even while MAC is in hail or
+  // receive (fifo none/idle). Table 6-14 alone stalled vehicle TX at 1.
+  if (src == starcom::ccsds::MacFifoSource::plcw ||
+      src == starcom::ccsds::MacFifoSource::sdu ||
+      sdu_pending || p.copp.farm.need_plcw) {
+    return starcom::ccsds::coppBytesToSend(p.copp, out);
+  }
+  return std::size_t{0};
 }
 
 starcom::ccsds::MacPhy pump_mac_phy(BytePump const& p) noexcept {
@@ -364,6 +384,8 @@ bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
   }
   load_pending_from_idx(p, idx);
   starcom::ccsds::macLocalCommChange(p.mac, now);
+  // E65 queues COMM_CHANGE SPDUs. S50 wait expiry (E38) clears y.
+  starcom::ccsds::macOnNoFramesPending(p.mac, now);
   return true;
 }
 

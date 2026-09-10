@@ -624,6 +624,21 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
+  if (m.state == MacState::s56) {
+    m.mac_frame_pending = false;
+    m.mac_queue_len = 0;
+    if (m.y == 2) {  // E66
+      applyState(m, MacState::s58);
+      loadWait(m, m.mib.tail_idle_duration);
+      return;
+    }
+    if (m.y == 0) {  // E42
+      applyState(m, MacState::s58);
+      loadWait(m, m.mib.tail_idle_duration);
+      ++m.token_fail_n;
+      return;
+    }
+  }
   if (m.state == MacState::s48 && m.y == 2) {  // E15
     m.y = 3;
     loadWait(m, m.mib.persistence_wait_time);

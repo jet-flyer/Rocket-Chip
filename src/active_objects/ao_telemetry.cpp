@@ -258,6 +258,13 @@ static void starcom_poll_mac_radio() {
         AO_Radio_apply_config_now(
             radio_from_catalog(g_pump.hail_catalog_idx));
         rc::rc_log("[SC] COMM_CHANGE revert hail\n");
+    } else if (n == starcom::ccsds::MacNotify::hail_ok) {
+        rc::rc_log("[SC] hail ok\n");
+    } else if (n == starcom::ccsds::MacNotify::hail_fail) {
+        rc::rc_log("[SC] hail fail, retry session\n");
+        constexpr bool kCaller = job::kRadioModeRx;
+        rc::starcom_adapt::pump_start_session(
+            g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
     }
     if (g_pump.remote_apply_now && g_pump.pending_catalog_valid) {
         g_pump.remote_apply_now = false;
@@ -368,6 +375,10 @@ static void encode_and_send(TelemAo* me) {
         due = ((t - me->last_tx_ms) + 1U >= me->interval_ms);
     }
     if (!due) {
+        const auto src = rc::starcom_adapt::pump_fifo_source(g_pump);
+        if (src == starcom::ccsds::MacFifoSource::spdu) {
+            (void)starcom_drain_to_radio();
+        }
         return;
     }
     g_navTickAcc = 0;
@@ -1013,6 +1024,7 @@ bool AO_Telemetry_request_comm_change(uint8_t catalog_idx) {
     if (!ok) {
         return false;
     }
+    (void)starcom_drain_to_radio();
     rc::rc_log("[SC] COMM_CHANGE queued idx=%u\n",
                static_cast<unsigned>(catalog_idx));
     return true;

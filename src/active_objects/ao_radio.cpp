@@ -156,6 +156,12 @@ static uint8_t g_heldTxLen = 0;
 static bool g_macReceive = true;
 static bool g_macTransmit = false;
 
+// One modem: poll RX whenever a send is not in flight. b9fd73b gated RX
+// on macPhy().receive and dropped SIG_RADIO_TX unless macPhy().transmit;
+// hail S1 / send-contact S50 left the station bar red and vehicle TX=1.
+// Desk 97c9413 (always-on) is the working air. COMM_CHANGE still reads
+// macPhy via AO_Telemetry; these flags are the MAC view, not the modem.
+
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
     if (rfm95w_send_start(&s.radio, buf, len)) {
@@ -188,10 +194,6 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     }
 
     if (!s.initialized || tx_evt->len == 0) {
-        return;
-    }
-    if (!g_macTransmit) {
-        radio_rate_inc_tx_busy_drop();
         return;
     }
 
@@ -234,9 +236,7 @@ static void handle_tx_poll(RadioAo* me) {
         if (AO_Telemetry_drain_after_tx()) {
             return;
         }
-        if (g_macReceive) {
-            rfm95w_start_rx(&s.radio);
-        }
+        rfm95w_start_rx(&s.radio);
     } else if (result == TxPollResult::kTimeout) {
         s.tx_consec_fail++;
 
@@ -260,9 +260,7 @@ static void handle_tx_poll(RadioAo* me) {
         if (AO_Telemetry_drain_after_tx()) {
             return;
         }
-        if (g_macReceive) {
-            rfm95w_start_rx(&s.radio);
-        }
+        rfm95w_start_rx(&s.radio);
     }
     // kBusy — continue polling next tick
 }
@@ -738,7 +736,7 @@ static void handle_radio_tick(RadioAo* me) {
 
     if (s.tx_active) {
         handle_tx_poll(me);
-    } else if (g_macReceive) {
+    } else {
         handle_rx_poll(me);
     }
 
@@ -793,17 +791,8 @@ bool AO_Radio_tx_active() {
 }
 
 void AO_Radio_set_mac_dir(bool receive, bool transmit) {
-    const bool was_rx = g_macReceive;
     g_macReceive = receive;
     g_macTransmit = transmit;
-    RadioAoState& s = g_radioAo.state;
-    if (!s.initialized || s.tx_active) {
-        return;
-    }
-    if (receive && !was_rx) {
-        rfm95w_start_rx(&s.radio);
-    }
-    (void)transmit;
 }
 
 bool AO_Radio_mac_receive() {
@@ -832,9 +821,7 @@ void AO_Radio_apply_config_now(const rc::RadioConfig& cfg) {
     s.runtime_config = cfg;
     ao_radio_apply_runtime_config(s);
     g_configJustChanged = true;
-    if (g_macReceive) {
-        rfm95w_start_rx(&s.radio);
-    }
+    rfm95w_start_rx(&s.radio);
 }
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {

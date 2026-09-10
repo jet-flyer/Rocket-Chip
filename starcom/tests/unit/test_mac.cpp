@@ -425,6 +425,27 @@ void test_half_comm_change_ok() {
   CHECK(!s.pending_cv_valid);
 }
 
+void test_half_comm_change_fifo_empty_leaves_s56() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  macLoadPendingCommValue(s, cv);
+  macLocalCommChange(s, 5);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 6);
+  CHECK(s.state == MacState::s56);
+  macOnFifoEmpty(s, 6);
+  CHECK(s.state == MacState::s58);
+  CHECK(!s.mac_frame_pending);
+}
+
 void test_heap() {
   MacSession s{};
   starcom::test::heapTrapReset();
@@ -457,6 +478,7 @@ int run_mac_tests() {
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
+  test_half_comm_change_fifo_empty_leaves_s56();
   test_heap();
   return g_fails;
 }
