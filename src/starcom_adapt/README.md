@@ -15,8 +15,11 @@ lifetime is 0 (no abort): station radio is up ~0.6 s, vehicle ~2.8 s.
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
 
 COMM_CHANGE (211.0 table 6-11): catalog index rides SET PL EXTENSIONS
-(`mode_select` + `scrambler`, not 211.1). SX1276 is one modem — apply the
-new PHY when `macPhy` is receive (after COMM_CHANGE left on the old TX),
-or immediately on the remote (E69 sender). No E68 in `receive_duration`
-reverts to hail/boot 250/10. `radio_config_nav_fits_hz` refuses 125/10
-SF7 nav ToA. USB MAVLink `dispatch_command` is unchanged.
+(`mode_select` + `scrambler`, not 211.1). SX1276 is one modem — stay on
+the old PHY until the remote has echoed COMM_CHANGE (initiator:
+`peer_comm_change`, not E69 on the echo after E68 moves S62→S60). The
+remote radiates that echo from S56 then applies on `macPhy` receive.
+Applying RX as soon as S62 opened split 500→125 when the station missed
+the SPDU. No E68 in `receive_duration` reverts to hail/boot 250/10.
+`radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA. USB MAVLink
+`dispatch_command` is unchanged.

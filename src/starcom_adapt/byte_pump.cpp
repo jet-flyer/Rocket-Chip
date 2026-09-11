@@ -79,6 +79,32 @@ void load_pending_from_idx(BytePump& p, std::uint8_t idx) noexcept {
                                           pump_comm_value_for_catalog(idx));
 }
 
+void on_comm_change_spdu(BytePump& p, starcom::ccsds::Tick now,
+                         bool have_pl,
+                         starcom::ccsds::MacPlExt const* pl) noexcept {
+  // This side started the hop. E68 moves S62→S60 before dispatch, so a
+  // peer echo looks like E69. Confirm only — do not retune as remote.
+  if (p.local_comm_change) {
+    p.peer_comm_change = true;
+    return;
+  }
+  const auto st = p.mac.state;
+  if (have_pl && pl != nullptr &&
+      (st == starcom::ccsds::MacState::s60 ||
+       st == starcom::ccsds::MacState::s61)) {
+    load_pending_from_idx(p, catalog_from_pl(*pl));
+  }
+  if (st == starcom::ccsds::MacState::s2) {
+    starcom::ccsds::macOnHailReceived(p.mac, now);
+  } else if (st == starcom::ccsds::MacState::s60 ||
+             st == starcom::ccsds::MacState::s61) {
+    starcom::ccsds::macOnRemoteCommChange(p.mac, now);
+    p.remote_apply_now = p.pending_catalog_valid;
+  } else if (st == starcom::ccsds::MacState::s62) {
+    p.peer_comm_change = true;
+  }
+}
+
 bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
                            starcom::ccsds::Tick now) noexcept {
   bool consumed = false;
@@ -91,17 +117,7 @@ bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
         continue;
       }
       consumed = true;
-      if (p.mac.state == starcom::ccsds::MacState::s60 ||
-          p.mac.state == starcom::ccsds::MacState::s61) {
-        load_pending_from_idx(p, catalog_from_pl(*pl));
-      }
-      if (p.mac.state == starcom::ccsds::MacState::s2) {
-        starcom::ccsds::macOnHailReceived(p.mac, now);
-      } else if (p.mac.state == starcom::ccsds::MacState::s60 ||
-                 p.mac.state == starcom::ccsds::MacState::s61) {
-        starcom::ccsds::macOnRemoteCommChange(p.mac, now);
-        p.remote_apply_now = p.pending_catalog_valid;
-      }
+      on_comm_change_spdu(p, now, true, &*pl);
       continue;
     }
     if (type == starcom::ccsds::kSetTxDirectiveType ||
@@ -111,13 +127,7 @@ bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
         continue;
       }
       consumed = true;
-      if (p.mac.state == starcom::ccsds::MacState::s2) {
-        starcom::ccsds::macOnHailReceived(p.mac, now);
-      } else if (p.mac.state == starcom::ccsds::MacState::s60 ||
-                 p.mac.state == starcom::ccsds::MacState::s61) {
-        starcom::ccsds::macOnRemoteCommChange(p.mac, now);
-        p.remote_apply_now = p.pending_catalog_valid;
-      }
+      on_comm_change_spdu(p, now, false, nullptr);
       continue;
     }
     if (type == starcom::ccsds::kSetControlDirectiveType) {
@@ -143,6 +153,10 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
                starcom::ccsds::Scid remote) noexcept {
   p.local_scid = local;
   p.remote_scid = remote;
+  p.pending_catalog_valid = false;
+  p.remote_apply_now = false;
+  p.peer_comm_change = false;
+  p.local_comm_change = false;
   starcom::ccsds::CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 0;
@@ -286,11 +300,16 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
     return;
   }
   const auto now = p.mac.last_now;
+  const bool comm_wait = (p.mac.state == starcom::ccsds::MacState::s62 &&
+                          p.mac.y == 3);
   starcom::ccsds::macOnValidFrame(p.mac, now);
   starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
   starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
   if (v3->fields.p_frame && !v3->data.empty()) {
     if (dispatch_p_frame_spdu(p, v3->data, now)) {
+      if (comm_wait) {
+        p.peer_comm_change = true;
+      }
       return;
     }
   }
@@ -383,6 +402,9 @@ bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
     return false;
   }
   load_pending_from_idx(p, idx);
+  p.local_comm_change = true;
+  p.remote_apply_now = false;
+  p.peer_comm_change = false;
   starcom::ccsds::macLocalCommChange(p.mac, now);
   // E65 queues COMM_CHANGE SPDUs. S50 wait expiry (E38) clears y.
   starcom::ccsds::macOnNoFramesPending(p.mac, now);

@@ -818,10 +818,19 @@ void AO_Radio_apply_config_now(const rc::RadioConfig& cfg) {
         AO_Radio_set_pending_config(cfg);
         return;
     }
+    const bool phy_changed =
+        (s.runtime_config.bandwidth_khz != cfg.bandwidth_khz) ||
+        (s.runtime_config.spreading_factor != cfg.spreading_factor) ||
+        (s.runtime_config.coding_rate != cfg.coding_rate);
     s.runtime_config = cfg;
     ao_radio_apply_runtime_config(s);
     g_configJustChanged = true;
     rfm95w_start_rx(&s.radio);
+    // Same as pending-apply: otherwise initiator stays S60 and the
+    // peer's post-apply hail (SET PL) looks like E69 and hops back.
+    if (phy_changed) {
+        AO_Telemetry_on_radio_phy_applied();
+    }
 }
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {

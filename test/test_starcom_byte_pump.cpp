@@ -382,4 +382,66 @@ TEST(StarcomBytePump, CommChangeApplyRxAfterHail) {
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s58);
     pump_tick(vehicle, 50);
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
+    EXPECT_TRUE(vehicle.pending_catalog_valid);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *hop));
+    EXPECT_TRUE(vehicle.peer_comm_change);
+    EXPECT_FALSE(vehicle.remote_apply_now);
+    EXPECT_TRUE(vehicle.local_comm_change);
+}
+
+TEST(StarcomBytePump, CommChangeEchoDoesNotE69Initiator) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+    pump_tick(station, 10);
+    pump_tick(station, 20);
+    std::array<std::byte, 255> wire{};
+    const auto hail = pump_air_to_send(station, wire);
+    ASSERT_TRUE(hail.has_value());
+    ASSERT_GT(*hail, 0u);
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *hail));
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    pump_tick(station, 30);
+    ASSERT_EQ(station.mac.state, starcom::ccsds::MacState::s36);
+    starcom::ccsds::macOnValidFrame(station.mac, 30);
+    ASSERT_EQ(station.mac.state, starcom::ccsds::MacState::s60);
+    pump_tick(vehicle, 30);
+    pump_tick(vehicle, 40);
+    ASSERT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s50);
+
+    EXPECT_TRUE(pump_begin_comm_change(vehicle, 3, 40));
+    const auto hop = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(hop.has_value());
+    ASSERT_GT(*hop, 0u);
+    pump_tick(vehicle, 50);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
+    EXPECT_TRUE(vehicle.local_comm_change);
+
+    pump_handle_air(station, std::span<const std::byte>(wire.data(), *hop));
+    EXPECT_TRUE(station.remote_apply_now);
+    EXPECT_FALSE(station.local_comm_change);
+    EXPECT_EQ(station.pending_catalog_idx, 3u);
+    EXPECT_EQ(station.mac.state, starcom::ccsds::MacState::s51);
+    EXPECT_EQ(station.mac.y, 2);
+
+    pump_tick(station, 60);
+    pump_tick(station, 70);
+    EXPECT_EQ(station.mac.state, starcom::ccsds::MacState::s56);
+    const auto echo = pump_air_to_send(station, wire);
+    ASSERT_TRUE(echo.has_value());
+    ASSERT_GT(*echo, 0u);
+    EXPECT_EQ(station.mac.state, starcom::ccsds::MacState::s58);
+    pump_tick(station, 80);
+    EXPECT_EQ(station.mac.state, starcom::ccsds::MacState::s62);
+    EXPECT_TRUE(pump_mac_phy(station).receive);
+    EXPECT_FALSE(pump_mac_phy(station).transmit);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *echo));
+    EXPECT_TRUE(vehicle.peer_comm_change);
+    EXPECT_FALSE(vehicle.remote_apply_now);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s60);
 }

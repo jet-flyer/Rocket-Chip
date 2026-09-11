@@ -237,7 +237,8 @@ static rc::RadioConfig radio_from_catalog(uint8_t idx) {
     cfg.power_dbm = e.power_dbm;
     return cfg;
 }
-static bool g_commChangeRxArmed = false;
+static bool g_commChangeArmed = false;
+static bool g_remoteApplyOnReceive = false;
 static rc::RadioConfig g_commChangePending = rc::kDefaultRocketRadioConfig;
 
 static void starcom_poll_mac_radio() {
@@ -245,16 +246,15 @@ static void starcom_poll_mac_radio() {
     if (n == starcom::ccsds::MacNotify::comm_change_apply_rx &&
         g_pump.pending_catalog_valid) {
         g_commChangePending = radio_from_catalog(g_pump.pending_catalog_idx);
-        g_commChangeRxArmed = true;
+        g_commChangeArmed = true;
         rc::rc_log("[SC] COMM_CHANGE RX armed idx=%u BW=%u nav=%u\n",
                    static_cast<unsigned>(g_pump.pending_catalog_idx),
                    static_cast<unsigned>(g_commChangePending.bandwidth_khz),
                    static_cast<unsigned>(g_commChangePending.nav_rate_hz));
-    } else if (n == starcom::ccsds::MacNotify::comm_change_ok) {
-        g_commChangeRxArmed = false;
-        rc::rc_log("[SC] COMM_CHANGE ok\n");
     } else if (n == starcom::ccsds::MacNotify::comm_change_revert) {
-        g_commChangeRxArmed = false;
+        g_commChangeArmed = false;
+        g_remoteApplyOnReceive = false;
+        g_pump.local_comm_change = false;
         AO_Radio_apply_config_now(
             radio_from_catalog(g_pump.hail_catalog_idx));
         rc::rc_log("[SC] COMM_CHANGE revert hail\n");
@@ -266,18 +266,29 @@ static void starcom_poll_mac_radio() {
         rc::starcom_adapt::pump_start_session(
             g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
     }
+    // E69: stay on the old PHY through the following send so the
+    // initiator can hear a frame (E68) before anyone retunes.
     if (g_pump.remote_apply_now && g_pump.pending_catalog_valid) {
         g_pump.remote_apply_now = false;
-        AO_Radio_apply_config_now(
-            radio_from_catalog(g_pump.pending_catalog_idx));
-        rc::rc_log("[SC] COMM_CHANGE remote apply idx=%u\n",
+        g_commChangePending = radio_from_catalog(g_pump.pending_catalog_idx);
+        g_remoteApplyOnReceive = true;
+        rc::rc_log("[SC] COMM_CHANGE remote armed idx=%u\n",
                    static_cast<unsigned>(g_pump.pending_catalog_idx));
     }
-    const auto phy = rc::starcom_adapt::pump_mac_phy(g_pump);
-    if (g_commChangeRxArmed && phy.receive && !phy.transmit) {
+    if (g_pump.peer_comm_change && g_commChangeArmed) {
+        g_pump.peer_comm_change = false;
+        g_pump.local_comm_change = false;
+        g_commChangeArmed = false;
+        g_remoteApplyOnReceive = false;
         AO_Radio_apply_config_now(g_commChangePending);
-        g_commChangeRxArmed = false;
-        rc::rc_log("[SC] COMM_CHANGE RX applied\n");
+        rc::rc_log("[SC] COMM_CHANGE ok\n");
+    }
+    const auto phy = rc::starcom_adapt::pump_mac_phy(g_pump);
+    if (g_remoteApplyOnReceive && phy.receive && !phy.transmit) {
+        AO_Radio_apply_config_now(g_commChangePending);
+        g_remoteApplyOnReceive = false;
+        rc::rc_log("[SC] COMM_CHANGE remote apply idx=%u\n",
+                   static_cast<unsigned>(g_pump.pending_catalog_idx));
     }
     AO_Radio_set_mac_dir(phy.receive, phy.transmit);
 }
@@ -344,6 +355,18 @@ static void send_pending_ack_if_any() {
 
 static void encode_and_send(TelemAo* me) {
     if (!me->telem_valid) { return; }
+
+#ifndef ROCKETCHIP_HOST_TEST
+    // Stay on the old PHY and listen for the remote's post-E69 send.
+    // Always-on nav through S62 was why E68 never fired (CFG stayed 250).
+    if (g_commChangeArmed) {
+        const auto src = rc::starcom_adapt::pump_fifo_source(g_pump);
+        if (src == starcom::ccsds::MacFifoSource::spdu) {
+            (void)starcom_drain_to_radio();
+        }
+        return;
+    }
+#endif
 
     send_pending_ack_if_any();
 
@@ -1008,12 +1031,30 @@ uint8_t AO_Telemetry_cycle_rate() {
 // SET_RADIO_CONFIG → vehicle TX interval. Rate policy is radio_config_table.
 static void boot_starcom_session() {
     rc::starcom_adapt::pump_init_for_this_job(g_pump);
+#ifndef ROCKETCHIP_HOST_TEST
+    const rc::RadioConfig* cfg = AO_Radio_get_runtime_config();
+    if (cfg != nullptr) {
+        const uint8_t idx = rc::radio_config_catalog_index(
+            cfg->bandwidth_khz, cfg->nav_rate_hz, cfg->spreading_factor,
+            cfg->coding_rate, cfg->power_dbm);
+        if (idx != rc::kRadioConfigNoIndex) {
+            g_pump.hail_catalog_idx = idx;
+            starcom::ccsds::macLoadHailCommValue(
+                g_pump.mac,
+                rc::starcom_adapt::pump_comm_value_for_catalog(idx));
+        }
+    }
+#endif
     constexpr bool kCaller = job::kRadioModeRx;
     rc::starcom_adapt::pump_start_session(
         g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
 }
 
 void AO_Telemetry_on_radio_phy_applied() {
+#ifndef ROCKETCHIP_HOST_TEST
+    g_commChangeArmed = false;
+    g_remoteApplyOnReceive = false;
+#endif
     boot_starcom_session();
     rc::rc_log("[SC] COP-P/MAC reinit after radio PHY apply\n");
 }

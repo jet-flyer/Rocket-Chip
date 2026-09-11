@@ -36,6 +36,7 @@ using starcom::ccsds::macOnFifoEmpty;
 using starcom::ccsds::macOnHailReceived;
 using starcom::ccsds::macOnNoFramesPending;
 using starcom::ccsds::macOnPlcw;
+using starcom::ccsds::macOnRemoteCommChange;
 using starcom::ccsds::macOnSetVrDirective;
 using starcom::ccsds::macOnValidFrame;
 using starcom::ccsds::macPhy;
@@ -425,6 +426,38 @@ void test_half_comm_change_ok() {
   CHECK(!s.pending_cv_valid);
 }
 
+void test_half_remote_comm_change_echo() {
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  macLoadPendingCommValue(s, cv);
+  macOnRemoteCommChange(s, 6);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.y == 2);
+  macTick(s, 8);
+  CHECK(s.state == MacState::s52);
+  macTick(s, 10);
+  CHECK(s.state == MacState::s56);
+  CHECK(s.mac_frame_pending);
+  macOnFifoEmpty(s, 10);
+  CHECK(s.state == MacState::s58);
+  CHECK(!s.mac_frame_pending);
+  macTick(s, 12);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 3);
+  CHECK(macPhy(s).receive);
+  CHECK(!macPhy(s).transmit);
+}
+
 void test_half_comm_change_fifo_empty_leaves_s56() {
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -478,6 +511,7 @@ int run_mac_tests() {
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
+  test_half_remote_comm_change_echo();
   test_half_comm_change_fifo_empty_leaves_s56();
   test_heap();
   return g_fails;

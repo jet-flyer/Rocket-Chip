@@ -394,6 +394,12 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
         m.persistence = true;
         notify(m, MacNotify::comm_change_apply_rx);
       }
+      // E65 is NoFramesPending in S50. E38 (send_duration) clears y, so a
+      // one-modem hop cannot wait out the contact — queue COMM_CHANGE now.
+      if (m.y == 2) {
+        applyState(m, MacState::s56);
+        queueCommChangeSpdus(m);
+      }
       break;
     case MacState::s58:
       if (m.y == 2) {  // E67
@@ -639,6 +645,15 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
       return;
     }
   }
+  // Echo queued while still in S50 (not S56): one-shot then receive, else
+  // mac_frame_pending sticks and COMM_CHANGE repeats every drain.
+  if (m.state == MacState::s50 && m.y == 2) {
+    m.mac_frame_pending = false;
+    m.mac_queue_len = 0;
+    applyState(m, MacState::s58);
+    loadWait(m, m.mib.tail_idle_duration);
+    return;
+  }
   if (m.state == MacState::s48 && m.y == 2) {  // E15
     m.y = 3;
     loadWait(m, m.mib.persistence_wait_time);
@@ -781,6 +796,8 @@ void macOnRemoteCommChange(MacSession& m, Tick now) noexcept {
   if (m.duplex == MacDuplex::half &&
       (m.state == MacState::s60 || m.state == MacState::s61)) {  // E69
     applyState(m, MacState::s51);
+    m.y = 2;
+    m.persistence = true;
     m.need_plcw = true;
     loadWait(m, m.mib.carrier_only_duration);
   }

@@ -44,6 +44,8 @@ struct BytePump {
   std::uint8_t pending_catalog_idx = 0;
   bool pending_catalog_valid = false;
   bool remote_apply_now = false;
+  bool peer_comm_change = false;
+  bool local_comm_change = false;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
