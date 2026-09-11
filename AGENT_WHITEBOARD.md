@@ -28,7 +28,7 @@ Product boot **250/10 SF7 2 dBm**. 211.1 stays 0. Do **not** restore RfManager T
 COMM_CHANGE / NAV_PRESET refuse when nav ToA ≥ 1/nav_hz (`radio_config_nav_fits_hz`, 63 B nav PLTU). 125/10 SF7 is refused. **FPV scan** still needs the same check.
 
 ### Also open (not blocking this sitting)
-RfManager TRACK/LQ → COP-P lock / RSSI bar; FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.
+FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect. LED lock-blink + windowed RX Hz + station-reinit PLCW are in the tree this sitting — desk verify (Jam reset without vehicle USB POR; ARM ACK).
 
 ## Exact state (2026-09-05 evening wrap)
 Desk ahead pushed with this wrap. **LL/I2C stale-assumptions pass closed:** SUPERSEDE 20/21/24/22; legacy 28/31; REVISIT 27. FJ cold-boot erased PIO-backend + RP2350B bus-corruption WB rows (bus alive). Audit docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. CHANGELOG 2026-09-05-003. Prior same-day: oMCT Master Dashboard MVP on facsimile (2026-09-05-002); **live board USB/m -> glass still NEXT**. Residual GPS E / no-fix on FJ is a separate sitting. Untracked: local build_* dirs + Buzz soak helpers scripts/_ll22_rate.py / scripts/_fj_cold_gps_soak.py (not for commit).
@@ -41,7 +41,7 @@ Owner: Prefer MET + GPS on both ends; desk oMCT Master Dashboard is **MVP** on f
 
 **Next to address (fresh sitting):**
 
-1. Command AD / `V(S)=0` / SET hop - OTA radio settings still fiction.
+1. Command AD / ARM leftover re-score on 250/10 (MAC drain landed). Radio hop is COMM_CHANGE, not MAVLink SET.
 2. Class D outdoor - 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
 3. FSK (below).
 4. **FPV-style scan / find** (below) - first impl vs LoRa Hail; FPV scan won. Hail still coupled.
@@ -84,9 +84,9 @@ WIP untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`
 
 ---
 
-## Station LED: COP-P lock vs RSSI (WANTED) (2026-09-03)
+## Station LED: COP-P lock vs RSSI (desk verify) (2026-09-11)
 
-Owner: RSSI LEDs can be yellow/green (LoRa heard) while COP-P is **waiting peer PLCW**. Desk 2026-09-03: after Jam reset, RX climbing CRC=0 / yellow LEDs, no lock until vehicle USB replug. Wanted: keep current RSSI colour, **0.5 Hz on/off blink when not locked**. Not a soak step. Not a license to implement this sitting.
+Code on `main` (this sitting): RSSI bar gated on decoded Starcom (`nav_sdu` or peer PLCW), not raw FIFO. Heard / no lock: keep RSSI colour, **0.5 Hz on/off**. Dash RSSI row yellow while Air is waiting peer PLCW. **Not desk-verified yet.**
 
 ---
 
@@ -117,13 +117,7 @@ Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBO
 
 **Starcom library tree:** `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). Stays while Starcom work continues.
 
-**Still RC:** SET OTA + ARM leftover + COP-P-lock LED vs RSSI + FPV scan. FPGA PHY/decode held. Desk hop/miss-tick closed 2026-09-11.
-
----
-
-## Station RSSI LEDs vs Starcom (OPEN) (2026-08-28)
-
-Station/relay NeoPixel bar (`ao_radio.cpp` `handle_rssi_bar` -> `ws2812_set_rssi_bar`) is **last LoRa FIFO RSSI**, any payload. ON air is COP-P / PLTU. Rewire so the bar (and “no signal”) is gated on **decoded CCSDS/Starcom** - a COP-P lock or accepted nav SDU - not raw radio ticks. Dashboard `RSSI:` / `Pkts:` have the same leftover. Not this dashboard-counter sitting.
+**Still RC:** ARM leftover (re-score on 250/10); FPV scan. Air is CCSDS. MAVLink is station/RX translation (USB QGC); MAVLink OTA is later. FPGA PHY/decode held. Desk hop/miss-tick closed 2026-09-11.
 
 ---
 

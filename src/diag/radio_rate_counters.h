@@ -25,6 +25,11 @@ extern RadioRateCounters g_radioRateCounters;
 const RadioRateCounters* radio_rate_counters();
 void radio_rate_counters_dump();
 
+// Pad RX n/desired: tumbling window, not boot-lifetime average
+// (COMM_CHANGE hop leftover). window_ms 0 keeps the last window (2 s).
+void radio_rate_rx_window_reset(uint32_t now_ms);
+uint32_t radio_rate_rx_window_hz10(uint32_t now_ms, uint32_t window_ms);
+
 inline void radio_rate_inc_nav_submit(void) {
     g_radioRateCounters.nav_submit_n++;
 }

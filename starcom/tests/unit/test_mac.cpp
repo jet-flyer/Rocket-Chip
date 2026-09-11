@@ -479,6 +479,21 @@ void test_half_comm_change_fifo_empty_leaves_s56() {
   CHECK(!s.mac_frame_pending);
 }
 
+void test_plcw_repeat_arms() {
+  MacSession s{};
+  MacMib m = test_mib();
+  m.plcw_repeat_interval = 4;
+  macInit(s, m, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  s.need_plcw = false;
+  macTick(s, 1);
+  CHECK(!s.need_plcw);
+  CHECK(s.plcw_left == 4);
+  macTick(s, 5);
+  CHECK(s.need_plcw);
+  CHECK(s.plcw_left == 4);
+}
+
 void test_heap() {
   MacSession s{};
   starcom::test::heapTrapReset();
@@ -513,6 +528,7 @@ int run_mac_tests() {
   test_half_comm_change_ok();
   test_half_remote_comm_change_echo();
   test_half_comm_change_fifo_empty_leaves_s56();
+  test_plcw_repeat_arms();
   test_heap();
   return g_fails;
 }

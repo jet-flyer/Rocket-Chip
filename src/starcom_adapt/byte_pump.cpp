@@ -35,8 +35,11 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   // was listening.
   m.hail_lifetime = 0;
   m.drop_carrier_duration = 20;
-  m.carrier_loss_timer_duration = static_cast<starcom::ccsds::Tick>(2U * nav_ms);
-  m.plcw_repeat_interval = nav_ms;
+  // Two missed sparse PLCWs (R-32 station_tx ~ nav/4) before S60→S2.
+  m.carrier_loss_timer_duration =
+      static_cast<starcom::ccsds::Tick>(8U * nav_ms);
+  // R-32 desk: sparse PLCW ~ nav/4. Every-nav PLCW ate ARM leftover.
+  m.plcw_repeat_interval = static_cast<starcom::ccsds::Tick>(4U * nav_ms);
   m.local_scid = local;
   m.local_pcid = kSoakPcid;
   return m;
@@ -157,6 +160,8 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
   p.remote_apply_now = false;
   p.peer_comm_change = false;
   p.local_comm_change = false;
+  p.air_heard = false;
+  p.last_air_tick = 0;
   starcom::ccsds::CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 0;
@@ -305,8 +310,21 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
   starcom::ccsds::macOnValidFrame(p.mac, now);
   starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
   starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
+  p.air_heard = true;
+  p.last_air_tick = now;
   if (v3->fields.p_frame && !v3->data.empty()) {
-    if (dispatch_p_frame_spdu(p, v3->data, now)) {
+    // PLCW Fig 3-5 Format ID 1 (octet0 bit7). report_value 0 makes
+    // spduDirectiveType look like SET TX (octets[1]&7==0). COMM_CHANGE
+    // is SET PL EXT (type 6) even if bit7 is set.
+    const unsigned hi = std::to_integer<unsigned>(v3->data[0]);
+    const auto spdu_t = starcom::ccsds::spduDirectiveType(v3->data);
+    const bool plcw = (hi & 0x80u) != 0u;
+    const bool mac_spdu =
+        spdu_t == starcom::ccsds::kSetPlExtDirectiveType ||
+        spdu_t == starcom::ccsds::kSetControlDirectiveType ||
+        spdu_t == starcom::ccsds::kSetRxDirectiveType ||
+        (spdu_t == starcom::ccsds::kSetTxDirectiveType && !plcw);
+    if (mac_spdu && dispatch_p_frame_spdu(p, v3->data, now)) {
       if (comm_wait) {
         p.peer_comm_change = true;
       }
@@ -322,6 +340,11 @@ starcom::ccsds::Result<std::size_t> pump_take_sdu(
 }
 
 void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept {
+  const auto loss = p.mac.mib.carrier_loss_timer_duration;
+  if (p.air_heard && loss != 0 && now > p.last_air_tick &&
+      (now - p.last_air_tick) >= loss) {
+    starcom::ccsds::macSetCarrierAcquired(p.mac, false, now);
+  }
   starcom::ccsds::macTick(p.mac, now);
 }
 
@@ -355,10 +378,19 @@ starcom::ccsds::Result<std::size_t> pump_air_to_send(
   }
   // 97c9413 always-on COP-P: nav/PLCW air even while MAC is in hail or
   // receive (fifo none/idle). Table 6-14 alone stalled vehicle TX at 1.
+  // MAC need_plcw is table 6-14; coppBytesToSend only emits on FARM.
+  if (p.mac.need_plcw) {
+    p.copp.farm.need_plcw = true;
+  }
   if (src == starcom::ccsds::MacFifoSource::plcw ||
       src == starcom::ccsds::MacFifoSource::sdu ||
       sdu_pending || p.copp.farm.need_plcw) {
-    return starcom::ccsds::coppBytesToSend(p.copp, out);
+    const bool want_plcw = p.copp.farm.need_plcw;
+    const auto n = starcom::ccsds::coppBytesToSend(p.copp, out);
+    if (want_plcw && n && *n > 0) {
+      p.mac.need_plcw = false;
+    }
+    return n;
   }
   return std::size_t{0};
 }

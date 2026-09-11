@@ -18,15 +18,15 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
-## Radio settings OTA (WANTED) (2026-08-31)
+## Radio settings OTA (WANTED) (2026-08-31; restated 2026-09-11)
 
-Owner-wanted. Next RC consumer feature: apply `RadioConfig` (SF / BW /
-CR / power / nav rate) over Starcom ON air as a cmd SDU (IVP 22
-`cmd_sdu`, APID 0x003). STOP-GAP already has `SET_RADIO_CONFIG`
-(MAVLink COMMAND_LONG + `kRadioConfigTable`). RC's implementation of
-Starcom — not a new library increment or air dialect. Not IVP 0–25.
-Not CFDP. Not a license to start this sitting. Desk: two-board ON soak,
-legal table row, ACK + reconfig, link stays up.
+Air hop is **COMM_CHANGE** (211.0 table 6-11, RC catalog `n`). Desk hops
+landed 2026-09-11. Do **not** send MAVLink `SET_RADIO_CONFIG` OTA —
+MAVLink is station/RX translation; MAVLink OTA (OTS radios) is later.
+
+Leftover: station-initiated COMM_CHANGE from the pad (caller `n` while
+vehicle stays on pad) vs vehicle-initiated hops already desk-proven.
+Cmd-SDU RadioConfig is not the hop dialect. Not IVP 0–25. Not CFDP.
 
 ---
 

@@ -637,9 +637,26 @@ static void handle_rssi_bar(RadioAo* me) {
         static uint8_t g_rssiDiv = 0;
         if (++g_rssiDiv >= 50) {  // ~2Hz update
             g_rssiDiv = 0;
-            uint32_t gap = now_ms() - s.last_rx_ms;
-            bool no_signal = (s.rx_count == 0 || gap >= 5000);
-            ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
+            const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+            const uint32_t now = now_ms();
+            const uint32_t gap = now - s.last_rx_ms;
+            // WB: bar / no-signal on decoded Starcom, not raw FIFO.
+            const bool starcom_heard = sc.nav_sdu || sc.peer_plcw;
+            const bool no_signal =
+                !starcom_heard || s.rx_count == 0 || gap >= 5000U;
+            if (no_signal) {
+                ws2812_set_rssi_bar(s.last_rx_rssi, true);
+            } else if (!sc.peer_plcw) {
+                // Heard RF, no COP-P lock: keep RSSI colour, 0.5 Hz on/off.
+                const bool on = ((now / 1000U) % 2U) == 0U;
+                if (on) {
+                    ws2812_set_rssi_bar(s.last_rx_rssi, false);
+                } else {
+                    ws2812_off();
+                }
+            } else {
+                ws2812_set_rssi_bar(s.last_rx_rssi, false);
+            }
         }
     } else {
         (void)me;

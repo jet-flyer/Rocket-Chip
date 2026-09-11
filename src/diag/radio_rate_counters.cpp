@@ -14,6 +14,36 @@
 
 RadioRateCounters g_radioRateCounters = {};
 
+namespace {
+constexpr uint32_t kRxWindowMs = 2000U;  // hop plan: not boot-lifetime
+uint32_t g_rx_mark_n = 0;
+uint32_t g_rx_mark_ms = 0;
+}  // namespace
+
+void radio_rate_rx_window_reset(uint32_t now_ms) {
+    g_rx_mark_n = g_radioRateCounters.rx_crc_ok_n;
+    g_rx_mark_ms = now_ms;
+}
+
+uint32_t radio_rate_rx_window_hz10(uint32_t now_ms, uint32_t window_ms) {
+    if (window_ms == 0) {
+        window_ms = kRxWindowMs;
+    }
+    if (g_rx_mark_ms == 0 && now_ms > 0) {
+        radio_rate_rx_window_reset(now_ms);
+    }
+    if (now_ms > g_rx_mark_ms && (now_ms - g_rx_mark_ms) >= window_ms) {
+        g_rx_mark_n = g_radioRateCounters.rx_crc_ok_n;
+        g_rx_mark_ms = now_ms;
+    }
+    const uint32_t dt = (now_ms > g_rx_mark_ms) ? (now_ms - g_rx_mark_ms) : 0;
+    if (dt < 1000U) {
+        return 0xFFFFFFFFu;  // caller prints "--"
+    }
+    const uint32_t dn = g_radioRateCounters.rx_crc_ok_n - g_rx_mark_n;
+    return static_cast<uint32_t>((static_cast<uint64_t>(dn) * 10000U) / dt);
+}
+
 const RadioRateCounters* radio_rate_counters() {
     return &g_radioRateCounters;
 }

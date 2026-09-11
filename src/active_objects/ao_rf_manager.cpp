@@ -18,6 +18,7 @@
 #include "rocketchip/job.h"         // job::kRole
 #include "rocketchip/rc_log.h"
 #include "ao_notify.h"              // IVP-T14 #10: vehicle-lost/found posts
+#include "diag/radio_rate_counters.h"
 #include <string.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -337,6 +338,9 @@ void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms) {
     g_rf.lq_window_count = 0;
     g_rf.next_miss_due_ms = 0;
     g_rf.state.consec_missed_rx = 0;
+#ifndef ROCKETCHIP_HOST_TEST
+    radio_rate_rx_window_reset(to_ms_since_boot(get_absolute_time()));
+#endif
     rc::rc_log("[RF] nav period %u ms\n",
                static_cast<unsigned>(nav_period_ms));
 }

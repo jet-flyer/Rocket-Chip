@@ -445,3 +445,62 @@ TEST(StarcomBytePump, CommChangeEchoDoesNotE69Initiator) {
     EXPECT_FALSE(vehicle.remote_apply_now);
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s60);
 }
+
+// Jam reset: station COP-P/MAC reinit. Vehicle must emit PLCW without a USB POR
+// (expedited nav used to starve FARM need_plcw; MAC interval never armed).
+TEST(StarcomBytePump, StationReinitLocksOnVehiclePlcw) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+    pump_tick(station, 10);
+    pump_tick(station, 20);
+    std::array<std::byte, 255> wire{};
+    const auto hail = pump_air_to_send(station, wire);
+    ASSERT_TRUE(hail.has_value());
+    ASSERT_GT(*hail, 0u);
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *hail));
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    pump_tick(vehicle, 30);
+    pump_tick(vehicle, 40);
+
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_nav_packet(pkt, telem);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
+                    .has_value());
+    const auto nav = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(nav.has_value());
+    ASSERT_GT(*nav, 0u);
+    pump_handle_air(station, std::span<const std::byte>(wire.data(), *nav));
+
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_start_session(station, true, 50);
+    EXPECT_FALSE(station.copp.fop.plcw_heard);
+
+    int plcw_rx = 0;
+    for (starcom::ccsds::Tick t = 100; t <= 1600; t += 100) {
+        pump_tick(vehicle, t);
+        pump_tick(station, t);
+        (void)pump_poll_mac_notify(vehicle);
+        (void)pump_poll_mac_notify(station);
+        const auto vn = pump_air_to_send(vehicle, wire);
+        if (vn.has_value() && *vn > 0) {
+            pump_handle_air(
+                station, std::span<const std::byte>(wire.data(), *vn));
+            ++plcw_rx;
+        }
+        const auto sn = pump_air_to_send(station, wire);
+        if (sn.has_value() && *sn > 0) {
+            pump_handle_air(
+                vehicle, std::span<const std::byte>(wire.data(), *sn));
+        }
+    }
+    EXPECT_GT(plcw_rx, 0);
+    EXPECT_TRUE(station.copp.fop.plcw_heard);
+}

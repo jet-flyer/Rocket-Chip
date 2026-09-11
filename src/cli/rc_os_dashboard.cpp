@@ -196,6 +196,12 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.phase_clr = flight_phase_color(t.flight_state);
     d.sig_clr   = signal_age_color(d.age_ms);
     d.rssi_clr  = rssi_color(rs->last_rx_rssi);
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        if (sc.on && !sc.peer_plcw && (sc.nav_sdu || rs->rx_count > 0)) {
+            d.rssi_clr = kYellow;  // heard RF, COP-P waiting peer PLCW
+        }
+    }
 
     d.met_s  = met_ms / 1000;
     d.met_ds = (met_ms % 1000) / 100;
@@ -269,15 +275,12 @@ static void format_rx_hz_token(char* out, size_t n, uint8_t desired_hz) {
 #else
     const uint32_t window_ms = 0;
 #endif
-    if (window_ms < 1000U) {
+    const uint32_t hz10 = radio_rate_rx_window_hz10(window_ms, 0);
+    if (hz10 == 0xFFFFFFFFu) {
         rc::rc_snprintf(out, n, "RX --/%u Hz",
                         static_cast<unsigned>(desired_hz));
         return;
     }
-    const uint32_t window_s = window_ms / 1000U;
-    const uint32_t hz10 = static_cast<uint32_t>(
-        (static_cast<uint64_t>(g_radioRateCounters.rx_crc_ok_n) * 10U) /
-        window_s);
     rc::rc_snprintf(out, n, "RX %lu.%lu/%u Hz",
                     (unsigned long)(hz10 / 10U),
                     (unsigned long)(hz10 % 10U),

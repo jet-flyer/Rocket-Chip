@@ -21,5 +21,18 @@ the old PHY until the remote has echoed COMM_CHANGE (initiator:
 remote radiates that echo from S56 then applies on `macPhy` receive.
 Applying RX as soon as S62 opened split 500→125 when the station missed
 the SPDU. No E68 in `receive_duration` reverts to hail/boot 250/10.
-`radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA. USB MAVLink
-`dispatch_command` is unchanged.
+`radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA.
+
+Air is CCSDS (COP-P + MAC). MAVLink is a **station/RX translator**
+(USB QGC / output mode `m`), not the over-the-air dialect. MAVLink OTA
+(raw MAVLink for OTS radios) is a later feature. Settings hops are
+COMM_CHANGE, not `SET_RADIO_CONFIG`. Cmd SDU user field still uses
+MAVLink *command numbers* (ARM 400, ABORT 185, beacon 31010) as
+opcodes the station can translate; that is not MAVLink framing on air.
+Station `r` SET cycle is unused.
+
+MAC `plcw_repeat_interval` is 4× nav (R-32 sparse). `need_plcw` drives
+FARM PLCW so a station reinit can lock without a vehicle USB POR.
+`pump_tick` drops `CARRIER_ACQUIRED` after 8× nav of silence (two missed
+PLCWs) so half-duplex S60 can return to S2. P-frame PLCW uses Fig 3-5
+Format ID 1 (octet0 bit7); `report_value` 0 must not be parsed as SET TX.
