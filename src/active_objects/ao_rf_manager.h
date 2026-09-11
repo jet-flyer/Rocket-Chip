@@ -70,7 +70,7 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init);
 // **Cooperative-dispatch-only invariant — see header doc.**
 const RfManagerState* AO_RfManager_get_state();
 
-// Called when SET_RADIO_CONFIG successfully applies a new nav rate.
+// Called when a radio apply (SET_RADIO_CONFIG or COMM_CHANGE) changes nav rate.
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms);
 
 // Test-only: override last_rx_ms so the next 10 Hz tick sees a stale

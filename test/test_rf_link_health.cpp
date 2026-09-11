@@ -76,6 +76,43 @@ TEST(RfLqWindow, WindowMasksCorrectly) {
     EXPECT_EQ(rf_lq_compute_pct(w, 10), 0);
 }
 
+TEST(RfMissSlot, Healthy2HzOn10HzTickChargesNothing) {
+    uint32_t next_due = 0;
+    uint32_t last_rx = 0;
+    const uint32_t period = 500;  // 2 Hz
+    int misses = 0;
+    for (uint32_t t = 100; t <= 5000; t += 100) {
+        if ((t % 500U) == 0U) {
+            last_rx = t;
+            next_due = t + period;
+        }
+        if (rf_charge_miss_slot(t, last_rx, period, &next_due)) {
+            misses++;
+        }
+    }
+    EXPECT_EQ(misses, 0);
+}
+
+TEST(RfMissSlot, GapChargesOnePerPeriodNotPerTick) {
+    uint32_t next_due = 0;
+    const uint32_t last_rx = 0;
+    const uint32_t period = 500;
+    int misses = 0;
+    for (uint32_t t = 100; t <= 2000; t += 100) {
+        if (rf_charge_miss_slot(t, last_rx, period, &next_due)) {
+            misses++;
+        }
+    }
+    // Grace 1000 ms; first miss at t=1100, then 1600.
+    EXPECT_EQ(misses, 2);
+}
+
+TEST(RfMissSlot, GraceIsTwoPeriods) {
+    EXPECT_EQ(rf_miss_grace_ms(100), 200U);
+    EXPECT_EQ(rf_miss_grace_ms(500), 1000U);
+    EXPECT_EQ(rf_miss_grace_ms(0), 400U);
+}
+
 // ============================================================================
 // State transitions
 // ============================================================================

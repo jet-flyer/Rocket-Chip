@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-09-11-001 | Grok 4.6 (Build CLI) | hardware, bugfix, documentation
+
+**Desk COMM_CHANGE hop + RfManager miss-tick closed on `main`.** Initiator stays on the old PHY until the remote echo (one SX1276; hop `2f88744`). `AO_RfManager_set_nav_period_ms` now follows COMM_CHANGE; miss accounting is one slot per nav period with 2× grace so a 10 Hz tick does not charge a 2 Hz catalog. Plan: `docs/plans/COMM_CHANGE_HOP_AND_MISS_TICK_2026-09-11.md`. Pad `RX n/desired Hz` is still a boot-lifetime average, not this sitting. Verified: host `RfMissSlot.*` 3/3; desk 500→125 both CFG BW125 2 Hz, Lost 0 held, TRACK LQ 100%, `[RF] nav period 500 ms` both ends.
+
 ### 2026-09-08-001 | Grok 4.6 (Build CLI) | architecture, refactor
 
 **RC_OS sittings 0–5 landed on `main` (`grok/rcos-rework`).** Table-driven vehicle/station consoles, `ROCKETCHIP_DEV_MODE` gates, leftover-image HW gate, catalog v0 (settings `l`/`n` legal radio presets runtime-only, `USB_ARM_INH`/`USB_CFG_EN`, TX_POWER locked). Plan: `docs/plans/RCOS_REWORK.md` (historical sitting-5 text). Classified-not-implemented leftovers are on WB § RC_OS classified leftovers (address or remove) — not sitting deliverables. Starcom vehicle-console / radio-settings OTA were never this workstream. Merge also uncoupled STOP-GAP 54 B nav from the Starcom 45 B `pack_nav_sdu_user` (clean host rebuild was encoding 12 B). Verified: host tests + vehicle `bench_sim` on the merge commit (positive-control in the merge message).

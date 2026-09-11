@@ -13,6 +13,7 @@
 
 #include "ao_radio.h"
 #include "ao_telemetry.h"         // set_rate / drain_after_tx
+#include "ao_rf_manager.h"        // nav period for station LQ / Lost
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
@@ -295,6 +296,7 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
         // cosmetic — discovered 2026-04-21 during IVP-T14 instrumentation when
         // station inter-arrival PDF showed 5 Hz at "BW500 10Hz" config.
         AO_Telemetry_set_rate(rc.nav_rate_hz);
+        rc::AO_RfManager_set_nav_period_ms(1000U / rc.nav_rate_hz);
     }
 
     // Stage T Batch B prelim: airtime-scaled TX timeout. Replaces hardcoded
