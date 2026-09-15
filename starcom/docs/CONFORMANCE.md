@@ -16,7 +16,7 @@ CCSDS conformance is per book and per option (the PICS in Annex A of each Blue B
 
 Honesty: a PIO bit pipe, RFM95 LoRa, bit-bang, or wrapping 211.2 inside LoRa packets is not 211.1 residual-carrier Bi-Phase-L PM. Wrapping 211.2 in LoRa does not buy dB (packet erasures). Code `PhyTier` maps `none` → 0, `best_effort` → Best effort, `compliant` → Full. Full 211.1 (`PhyTier::compliant`) is not offered.
 
-Book cites here are pointers. The Blue Book is the claim; this table is the index.
+Book cites here are pointers. The Blue Book is the claim; this table is the index. Clause-level walk (implemented vs unread, plus neighbors): [`COVERAGE.md`](COVERAGE.md). That file does not publish a tick.
 
 | Claim | Book | Level | Status | Notes |
 |-------|------|-------|--------|--------|

@@ -2,7 +2,7 @@
 
 Library docs live here, not under repo-root `docs/research/`.
 
-**Living:** [`USER_GUIDE.md`](USER_GUIDE.md), [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`IVP.md`](IVP.md), [`TESTING.md`](TESTING.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
+**Living:** [`USER_GUIDE.md`](USER_GUIDE.md), [`WORKING_HERE.md`](WORKING_HERE.md), [`SAD.md`](SAD.md), [`ICD.md`](ICD.md), [`CONFORMANCE.md`](CONFORMANCE.md), [`COVERAGE.md`](COVERAGE.md), [`IVP.md`](IVP.md), [`TESTING.md`](TESTING.md), [`GLOSSARY.md`](GLOSSARY.md), [`../STATUS.md`](../STATUS.md), [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md).
 
 **Audits (house standards, not CONFORMANCE):** [`audits/`](audits/).
 
@@ -15,7 +15,7 @@ Library docs live here, not under repo-root `docs/research/`.
 1. [`USER_GUIDE.md`](USER_GUIDE.md) — consumer how-to
 2. [`WORKING_HERE.md`](WORKING_HERE.md) — agents; dos/don'ts and vocabulary
 3. [`DESIGN.md`](DESIGN.md) — research freeze and standing locks
-4. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims
+4. [`SAD.md`](SAD.md) — map, [`ICD.md`](ICD.md) — handshake, [`CONFORMANCE.md`](CONFORMANCE.md) — claims, [`COVERAGE.md`](COVERAGE.md) — clause walk
 5. [`../STATUS.md`](../STATUS.md) — phase; [`IVP.md`](IVP.md) — order of proof through increment 25; [`TESTING.md`](TESTING.md) — how host tests are written and run
 6. [`integration/CONSUMERS.md`](integration/CONSUMERS.md) — what RC and other stacks can call now vs later
 7. [`comparison.md`](comparison.md) / [`research/`](research/) as needed (historical)

@@ -18,4 +18,4 @@ MCU stack: Pico Core 0 is 4 KiB. COP-P encode uses file-scope `g_tfScratch` (`kT
 | `conv.cpp` | Rate 1/2 K=7 convolutional encode (211.2 §3.4.3) |
 | `ldpc.cpp` | LDPC (2048,1024) encode + CSM + 211.2 randomizer |
 
-SAD field maps are working copies — open the cited Blue Book first. See `STATUS.md`.
+SAD field maps are working copies — open the cited Blue Book first. Before coding a clause, open `docs/COVERAGE.md` (row + neighbors), then the PDF. See `STATUS.md`.

@@ -14,7 +14,7 @@ Starcom is a CCSDS comms **stack** incubating inside Rocket-Chip until it extrac
 
 Full acronym list with Blue Book section cites: [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
-**Using it:** [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). Agents: [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md). Map: [`docs/SAD.md`](docs/SAD.md). Handshake: [`docs/ICD.md`](docs/ICD.md). Proof order: [`docs/IVP.md`](docs/IVP.md). Phase: [`STATUS.md`](STATUS.md). Claims: [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md).
+**Using it:** [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). Agents: [`docs/WORKING_HERE.md`](docs/WORKING_HERE.md). Map: [`docs/SAD.md`](docs/SAD.md). Handshake: [`docs/ICD.md`](docs/ICD.md). Proof order: [`docs/IVP.md`](docs/IVP.md). Phase: [`STATUS.md`](STATUS.md). Claims: [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). Clause walk: [`docs/COVERAGE.md`](docs/COVERAGE.md).
 
 ```
 starcom/
@@ -22,7 +22,7 @@ starcom/
   src/ccsds/         core
   adapters/          first-party ports
   tests/             host tests
-  docs/              DESIGN, SAD, ICD, IVP, GLOSSARY, …
+  docs/              DESIGN, SAD, ICD, CONFORMANCE, COVERAGE, IVP, GLOSSARY, …
   CMakeLists.txt     Starcom::starcom lands with the first codec
 ```
 

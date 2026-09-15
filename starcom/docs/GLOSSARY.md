@@ -1,6 +1,6 @@
 # Starcom glossary
 
-Blue Book and stack terms. **The cited section is the definition.** This file is a working index.
+Blue Book and stack terms. **The cited section is the definition.** This file is a working index. Implemented vs unread, plus neighbors: [`COVERAGE.md`](COVERAGE.md).
 
 Key concepts for a first read also sit in [`../README.md`](../README.md). Agent vocabulary: [`WORKING_HERE.md`](WORKING_HERE.md).
 

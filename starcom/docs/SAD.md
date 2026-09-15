@@ -4,7 +4,7 @@
 
 Shape follows ISO/IEC/IEEE 42010 in miniature: stakeholders and concerns, then views that answer them, then decisions. Layout follows Pitchfork (`include/` public, `src/` implementation). The core is sans-I/O (I/O and flow control at the edges).
 
-This is the map. ICD is the handshake. CONFORMANCE is the claim table. STATUS is phase. Terms: [`GLOSSARY.md`](GLOSSARY.md).
+This is the map. ICD is the handshake. CONFORMANCE is the claim table. [`COVERAGE.md`](COVERAGE.md) is the clause walk. STATUS is phase. Terms: [`GLOSSARY.md`](GLOSSARY.md).
 
 **Primary sources win.** Figures, octet counts, and field tables in this file are working copies. Always open the cited Blue Book (or other named primary) first. If this file disagrees with the book, the book is right — fix this file; do not implement the copy. Standing rule: `WORKING_HERE.md`.
 

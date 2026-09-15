@@ -2,7 +2,7 @@
 
 **Status:** Draft. Codec handshake locked. COP-P / COP-1 engine verbs landed. Host loopback / radio mailbox / UDP / file replay in `starcom::adapters`. Namespace `starcom::ccsds` for the core.
 
-This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Primary sources (the Blue Books) win over names here. `WORKING_HERE.md`.
+This is the handshake at the core boundary. The SAD is the map. Conformance is the claim table. Clause walk and neighbors: [`COVERAGE.md`](COVERAGE.md). Primary sources (the Blue Books) win over names here. `WORKING_HERE.md`.
 
 Spellings below are the API we code against for **codecs**. They are still working copies of intent: if Annex C or Fig 3-1 disagrees with a comment, fix the code and this file together.
 
