@@ -127,6 +127,16 @@ target_include_directories(test_nav_sdu PRIVATE
 )
 gtest_discover_tests(test_nav_sdu)
 
+add_executable(test_station_bar_mode
+    test_station_bar_mode.cpp
+)
+target_link_libraries(test_station_bar_mode PRIVATE GTest::gtest_main)
+target_include_directories(test_station_bar_mode PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_station_bar_mode)
+
 add_executable(test_cmd_sdu
     test_cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp

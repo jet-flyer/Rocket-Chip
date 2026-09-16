@@ -15,6 +15,7 @@
 #include "safety/health_monitor.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
+#include "active_objects/station_bar_mode.h"
 #include "starcom_adapt/sc_air.h"
 #include "active_objects/ao_rf_manager.h"
 #include "flight_director/flight_state.h"
@@ -196,6 +197,14 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.phase_clr = flight_phase_color(t.flight_state);
     d.sig_clr   = signal_age_color(d.age_ms);
     d.rssi_clr  = rssi_color(rs->last_rx_rssi);
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        const StationBarMode bar = station_bar_mode(
+            sc.nav_sdu || sc.peer_plcw, rs->rx_count, d.age_ms);
+        if (bar == StationBarMode::Waiting) {
+            d.rssi_clr = kYellow;
+        }
+    }
 
     d.met_s  = met_ms / 1000;
     d.met_ds = (met_ms % 1000) / 100;

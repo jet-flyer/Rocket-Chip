@@ -25,6 +25,7 @@
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
 #include "drivers/ws2812_status.h"
+#include "station_bar_mode.h"
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
 #include <string.h>
@@ -201,69 +202,65 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
 }
 
+static void handle_tx_done(RadioAoState& s) {
+    radio_rate_inc_tx_done();
+    s.tx_consec_fail = 0;
+    s.tx_count++;
+    s.tx_active = false;
+    // Stage T IVP-T5.5 sub 2b: last carrier on the OLD config — apply now.
+    ao_radio_commit_pending_config(s);
+    // Sub 2d: count TX toward revert; threshold is in handle_radio_tick.
+    if (s.apply_in_progress) {
+        s.tx_since_apply++;
+    }
+    if (g_heldTxLen > 0) {
+        const uint8_t n = g_heldTxLen;
+        g_heldTxLen = 0;
+        if (radio_start_tx(s, g_heldTx, n)) {
+            return;
+        }
+    }
+    // Leftover air: seq cmd/ACK (or station PLCW) after this nav ToA.
+    if (AO_Telemetry_drain_after_tx()) {
+        return;
+    }
+    rfm95w_start_rx(&s.radio);
+}
+
+static void handle_tx_timeout(RadioAoState& s) {
+    s.tx_consec_fail++;
+    if (s.tx_consec_fail >= kTxFailErrorThresh) {
+        DBG_ERROR("RADIO: %u consecutive TX failures — error flag set",
+                  static_cast<unsigned>(s.tx_consec_fail));
+    } else if (s.tx_consec_fail >= kTxFailReinitThresh) {
+        DBG_ERROR("RADIO: %u consecutive TX failures — reinit attempt",
+                  static_cast<unsigned>(s.tx_consec_fail));
+        rfm95w_init(&s.radio,
+                    s.radio.cs_pin, s.radio.rst_pin, s.radio.irq_pin);
+        // rfm95w_init() writes compile-time modem defaults.
+        ao_radio_apply_runtime_config(s);
+    } else if (s.tx_consec_fail >= kTxFailLogThresh) {
+        DBG_ERROR("RADIO: TX timeout (%u consecutive)",
+                  static_cast<unsigned>(s.tx_consec_fail));
+    }
+    s.tx_active = false;
+    if (AO_Telemetry_drain_after_tx()) {
+        return;
+    }
+    rfm95w_start_rx(&s.radio);
+}
+
 static void handle_tx_poll(RadioAo* me) {
     RadioAoState& s = me->state;
-
-    TxPollResult result = rfm95w_send_poll(&s.radio);
-
+    const TxPollResult result = rfm95w_send_poll(&s.radio);
     if (result != TxPollResult::kBusy) {
         stage_t_log_tx_done(result);
     }
-
     if (result == TxPollResult::kDone) {
-        radio_rate_inc_tx_done();
-        s.tx_consec_fail = 0;
-        s.tx_count++;
-        s.tx_active = false;
-        // Stage T IVP-T5.5 sub 2b: if a config change is pending, the ACK
-        // we just finished transmitting was its last carrier on the OLD
-        // config — safe to reconfigure now.
-        ao_radio_commit_pending_config(s);
-        // Sub 2d: if we're in the post-apply "waiting for station RX" window,
-        // count this TX toward the revert threshold. Threshold check itself
-        // happens in handle_radio_tick so a revert is never triggered from
-        // inside a TX-completion handler.
-        if (s.apply_in_progress) {
-            s.tx_since_apply++;
-        }
-        if (g_heldTxLen > 0) {
-            const uint8_t n = g_heldTxLen;
-            g_heldTxLen = 0;
-            if (radio_start_tx(s, g_heldTx, n)) {
-                return;
-            }
-        }
-        // Leftover air: seq cmd/ACK (or station PLCW) after this nav ToA.
-        if (AO_Telemetry_drain_after_tx()) {
-            return;
-        }
-        rfm95w_start_rx(&s.radio);
+        handle_tx_done(s);
     } else if (result == TxPollResult::kTimeout) {
-        s.tx_consec_fail++;
-
-        if (s.tx_consec_fail >= kTxFailErrorThresh) {
-            DBG_ERROR("RADIO: %u consecutive TX failures — error flag set",
-                      static_cast<unsigned>(s.tx_consec_fail));
-        } else if (s.tx_consec_fail >= kTxFailReinitThresh) {
-            DBG_ERROR("RADIO: %u consecutive TX failures — reinit attempt",
-                      static_cast<unsigned>(s.tx_consec_fail));
-            rfm95w_init(&s.radio,
-                        s.radio.cs_pin, s.radio.rst_pin, s.radio.irq_pin);
-            // rfm95w_init() writes compile-time modem defaults. Reapply
-            // runtime_config so a runtime-SET config survives recovery.
-            ao_radio_apply_runtime_config(s);
-        } else if (s.tx_consec_fail >= kTxFailLogThresh) {
-            DBG_ERROR("RADIO: TX timeout (%u consecutive)",
-                      static_cast<unsigned>(s.tx_consec_fail));
-        }
-
-        s.tx_active = false;
-        if (AO_Telemetry_drain_after_tx()) {
-            return;
-        }
-        rfm95w_start_rx(&s.radio);
+        handle_tx_timeout(s);
     }
-    // kBusy — continue polling next tick
 }
 
 // Apply runtime radio config to the SX1276.
@@ -634,12 +631,36 @@ static void handle_rssi_bar(RadioAo* me) {
             }
             return;
         }
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        const uint32_t now = now_ms();
+        const uint32_t gap = now - s.last_rx_ms;
+        const bool starcom_heard = sc.nav_sdu || sc.peer_plcw;
+        const StationBarMode mode = station_bar_mode(
+            starcom_heard, s.rx_count, gap);
+
+        static StationBarMode g_prevBar = StationBarMode::NoSignal;
         static uint8_t g_rssiDiv = 0;
-        if (++g_rssiDiv >= 50) {  // ~2Hz update
-            g_rssiDiv = 0;
-            uint32_t gap = now_ms() - s.last_rx_ms;
-            bool no_signal = (s.rx_count == 0 || gap >= 5000);
-            ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
+        static uint8_t g_waitSweep = 0;
+        const bool entered = (mode != g_prevBar);
+        g_prevBar = mode;
+
+        if (mode == StationBarMode::Waiting) {
+            // 20 Hz KITT in kColorRed (LOS). Config-apply sweep stays yellow.
+            if (entered || ++g_waitSweep >= 5) {
+                g_waitSweep = 0;
+                ws2812_set_sweep_bar(kColorRed);
+            }
+            return;
+        }
+        g_waitSweep = 0;
+        if (!entered && ++g_rssiDiv < 50) {
+            return;
+        }
+        g_rssiDiv = 0;
+        if (mode == StationBarMode::NoSignal) {
+            ws2812_set_rssi_bar(s.last_rx_rssi, true);
+        } else {
+            ws2812_set_rssi_bar(s.last_rx_rssi, false);
         }
     } else {
         (void)me;

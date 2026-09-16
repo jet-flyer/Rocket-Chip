@@ -71,11 +71,14 @@
 
 ### Station (RX mode)
 
+Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel / `AO_LedEngine`. Gated on decoded Starcom (nav SDU or peer PLCW), not raw LoRa FIFO. Pad `Air:` COP-P lock vs waiting peer PLCW is a separate protocol row.
+
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| Green | Solid | Receiving packets (gap < 1s) |
-| Yellow | Blink | Link gap (1-5s since last packet) |
-| Red | Fast blink | Link lost (>5s) |
+| RSSI green→red | Solid bar | Vehicle heard in the last 2 s (same 2 s hold as RF Link gap) |
+| Red | Cylon (one pixel walking the bar) | Had a live link, now LOS — keeps sweeping until packets return |
+| Dim red | Pixel 0 only | Never heard Starcom this boot |
+| Yellow | Cylon | Radio config apply in flight (`apply_in_progress`); not LOS |
 
 ---
 
