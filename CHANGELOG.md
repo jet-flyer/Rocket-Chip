@@ -42,6 +42,10 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+
+### 2026-09-16-001 | Grok 4.6 (Build CLI) | hardware, feature, documentation
+
+**Station Fruit Jam bar follows live RX, not COP-P.** Solid RSSI while Starcom heard in the last 2 s; red Cylon after a live drop until packets return; dim red only if never heard this boot; yellow Cylon still = config-apply. Table: `docs/USER_GUIDE.md` Station (RX mode). `1d79865`. Next sitting: pad `Air:` COP-P lock (`waiting peer PLCW` while TRACK is live) and ARM ACK (vehicle RX 0). Verified: host 919/919; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; owner desk unplug/replug on the bar.
 <!-- These format rules stay pinned at the top; the file is newest-first, so a -->
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->

@@ -19,7 +19,7 @@
 
 ## Sitting 2026-09-10 — 211.0 half-duplex MAC (not leftover-ToA)
 
-**Sit on `C:\Users\pow-w\Documents\Rocket-Chip-main` (`main`).** Library: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`); copy MAC codec/queue edits into nested `starcom/` so RC links them. Not `docs/starcom-sad-draft`.
+**Sit on `C:\Users\pow-w\Documents\Rocket-Chip` (`main`).** Library: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`); copy MAC codec/queue edits into nested `starcom/` so RC links them. Not `docs/starcom-sad-draft`.
 
 Product boot **250/10 SF7 2 dBm**. 211.1 stays 0. Do **not** restore RfManager TX windows / RadioScheduler. Desk hop + miss-tick closed 2026-09-11 — plan `docs/plans/COMM_CHANGE_HOP_AND_MISS_TICK_2026-09-11.md`, CHANGELOG `2026-09-11-001`.
 
@@ -28,7 +28,7 @@ Product boot **250/10 SF7 2 dBm**. 211.1 stays 0. Do **not** restore RfManager T
 COMM_CHANGE / NAV_PRESET refuse when nav ToA ≥ 1/nav_hz (`radio_config_nav_fits_hz`, 63 B nav PLTU). 125/10 SF7 is refused. **FPV scan** still needs the same check.
 
 ### Also open (not blocking this sitting)
-RfManager TRACK/LQ → COP-P lock / RSSI bar; FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.
+FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.
 
 ## Exact state (2026-09-05 evening wrap)
 Desk ahead pushed with this wrap. **LL/I2C stale-assumptions pass closed:** SUPERSEDE 20/21/24/22; legacy 28/31; REVISIT 27. FJ cold-boot erased PIO-backend + RP2350B bus-corruption WB rows (bus alive). Audit docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. CHANGELOG 2026-09-05-003. Prior same-day: oMCT Master Dashboard MVP on facsimile (2026-09-05-002); **live board USB/m -> glass still NEXT**. Residual GPS E / no-fix on FJ is a separate sitting. Untracked: local build_* dirs + Buzz soak helpers scripts/_ll22_rate.py / scripts/_fj_cold_gps_soak.py (not for commit).
@@ -84,9 +84,12 @@ WIP untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`
 
 ---
 
-## Station LED: COP-P lock vs RSSI (WANTED) (2026-09-03)
+## Next sitting — COP-P pad lock + ARM ACK (2026-09-16)
 
-Owner: RSSI LEDs can be yellow/green (LoRa heard) while COP-P is **waiting peer PLCW**. Desk 2026-09-03: after Jam reset, RX climbing CRC=0 / yellow LEDs, no lock until vehicle USB replug. Wanted: keep current RSSI colour, **0.5 Hz on/off blink when not locked**. Not a soak step. Not a license to implement this sitting.
+Station bar (live RSSI / red Cylon LOS) closed `1d79865`; USER_GUIDE Station RX. **Do next:**
+
+1. **Pad `Air:` COP-P lock** — desk still `waiting peer PLCW` while TRACK ~7.5/10 Hz and the bar is solid. `plcw_heard` never sets (P-frame PLCW vs SET TX classify; f19ae96 did not land on this tip). Bar is RX freshness, not COP-P.
+2. **ARM ACK** — pad CMD aired (`V(S)` moved) but scored FAIL; vehicle `rx_crc_ok=0` / deaf to Jam. Seq-cmd vs periodic PLCW steal was an uncommitted pump fix on a deleted worktree — not in `1d79865`. Do not fire pyro.
 
 ---
 
