@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-17-002 | Grok 4.6 (Build CLI) | tooling, bugfix, documentation
+
+**Catalog ToA skip + role-aware pre-commit.** NAV_PRESET/`SET` skip leftover 125/10 via `radio_config_next_fit`. Station-only diffs (`src/station/`, Fruit Jam board, dashboard) run `station_bench_sim` only. Pad `GPS (veh):`. Tiny/Pico2 `board_led_set` honors `kLedActiveHigh`. Living STOP-GAP comments retargeted to pre-Starcom 54 B / COP-P air.
+
 ### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation, tooling
 
 **Hygiene sitting: PR queue empty, WB dated leftovers gone, Starcom-owned rows on the Starcom board.** Closed R-27/30/31/32/10b (`docs/PROBLEM_REPORTS.md`; USER_GUIDE keys in `1ba4e22`). Starcom WB now holds FSK / station readiness bit / SDLS (`starcom/CHANGELOG.md` 2026-09-17-001). Living consumer docs no longer call RC air STOP-GAP (frozen CHANGELOG/plans/audits left as history). Catalog ToA skip + role-aware pre-commit remain unstaged (no CMSIS-DAP/COM5 this sitting). Next: pad `Air:` COP-P lock + ARM ACK.

@@ -353,6 +353,22 @@ static void send_pending_ack_if_any() {
     }
 }
 
+static bool nav_submit_due(TelemAo* me) {
+    uint8_t hz = me->rate_hz;
+    if (hz == 0U) {
+        hz = 5U;
+    }
+    if ((kTelemTickHz % hz) == 0U) {
+        const uint8_t ticks_per_nav = static_cast<uint8_t>(kTelemTickHz / hz);
+        if (g_navTickAcc < ticks_per_nav) {
+            g_navTickAcc++;
+        }
+        return g_navTickAcc >= ticks_per_nav;
+    }
+    const uint32_t t = now_ms();
+    return ((t - me->last_tx_ms) + 1U >= me->interval_ms);
+}
+
 static void encode_and_send(TelemAo* me) {
     if (!me->telem_valid) { return; }
 
@@ -382,22 +398,7 @@ static void encode_and_send(TelemAo* me) {
         return;
     }
 
-    uint8_t hz = me->rate_hz;
-    if (hz == 0U) {
-        hz = 5U;
-    }
-    bool due = false;
-    if ((kTelemTickHz % hz) == 0U) {
-        const uint8_t ticks_per_nav = static_cast<uint8_t>(kTelemTickHz / hz);
-        if (g_navTickAcc < ticks_per_nav) {
-            g_navTickAcc++;
-        }
-        due = (g_navTickAcc >= ticks_per_nav);
-    } else {
-        const uint32_t t = now_ms();
-        due = ((t - me->last_tx_ms) + 1U >= me->interval_ms);
-    }
-    if (!due) {
+    if (!nav_submit_due(me)) {
         const auto src = rc::starcom_adapt::pump_fifo_source(g_pump);
         if (src == starcom::ccsds::MacFifoSource::spdu) {
             (void)starcom_drain_to_radio();
@@ -419,7 +420,8 @@ static void encode_and_send(TelemAo* me) {
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
 // SET_RADIO_CONFIG dispatcher. Returns ACK result.
-// 3 gates (flight-state, SX1276-legal, ±6 dB power delta) before queue.
+// 4 gates (flight-state, SX1276-legal, nav ToA fits Hz, ±6 dB power
+// delta) before queue.
 static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     uint16_t new_bw  = static_cast<uint16_t>(lroundf(cmd.param1));
     uint8_t  new_nav = static_cast<uint8_t> (lroundf(cmd.param2));
@@ -431,7 +433,8 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
         rc::rc_log("[CMD] SET denied — not ground state\n");
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
-    // Presets are debug-menu defaults; advanced path accepts SX1276-legal.
+    // Presets are debug-menu defaults; advanced path accepts SX1276-legal
+    // tuples whose nav PLTU still fits commanded Hz (125/10 SF7 does not).
     if (!rc::radio_config_sx1276_legal(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
         rc::rc_log("[CMD] SET denied — illegal BW=%u nav=%u SF=%u CR=%u pwr=%u\n",
                    static_cast<unsigned>(new_bw),
@@ -439,6 +442,14 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
                    static_cast<unsigned>(new_sf),
                    static_cast<unsigned>(new_cr),
                    static_cast<unsigned>(new_pwr));
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    if (!rc::radio_config_nav_fits_hz(new_bw, new_nav, new_sf,
+                                      rc::kRadioConfigNavPltuBytes)) {
+        rc::rc_log("[CMD] SET denied — nav ToA does not fit %u Hz (BW=%u SF=%u)\n",
+                   static_cast<unsigned>(new_nav),
+                   static_cast<unsigned>(new_bw),
+                   static_cast<unsigned>(new_sf));
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
@@ -487,7 +498,7 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
         break;
     }
     case MAV_CMD_USER_2:
-        // SET_RADIO_CONFIG (3 gates inside).
+        // SET_RADIO_CONFIG (4 gates inside).
         ack_result = dispatch_set_radio_config(cmd);
         break;
     case MAV_CMD_USER_3:
@@ -726,58 +737,66 @@ static void dispatch_nav_output(TelemAo* me,
 }
 #endif
 
+static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data) {
+    rc::TelemetryState telem = {};
+    uint8_t user[rc::kNavSduUserBytes];
+    if (data.size() != rc::kNavSduUserBytes) {
+        return false;
+    }
+    for (std::size_t i = 0; i < rc::kNavSduUserBytes; ++i) {
+        user[i] = static_cast<uint8_t>(data[i]);
+    }
+    if (!rc::unpack_nav_sdu_user(user, rc::kNavSduUserBytes, &telem)) {
+        return false;
+    }
+    me->rx_snapshot.telem = telem;
+    me->rx_snapshot.valid = true;
+    me->starcom_nav_sdu = true;
+    return true;
+}
+
+static bool starcom_handle_cmd_sdu(TelemAo* me, std::span<const std::byte> data) {
+    uint16_t cmd_id = 0;
+    uint8_t seq = 0;
+    float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
+    uint8_t user[rc::kCmdSduUserBytes];
+    if (data.size() != rc::kCmdSduUserBytes) {
+        return false;
+    }
+    for (std::size_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
+        user[i] = static_cast<uint8_t>(data[i]);
+    }
+    if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, &cmd_id, &seq,
+                                 &p1, &p2, &p3, &p4, &p5)) {
+        return false;
+    }
+    mavlink_command_long_t cmd{};
+    cmd.command = cmd_id;
+    cmd.confirmation = seq;
+    cmd.param1 = p1;
+    cmd.param2 = p2;
+    cmd.param3 = p3;
+    cmd.param4 = p4;
+    cmd.param5 = p5;
+    const uint8_t ack_result = dispatch_command(me, cmd);
+    stage_cmd_ack(cmd, ack_result);
+    send_pending_ack_if_any();
+    return false;
+}
+
 static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     const auto pkt = starcom::ccsds::decodeSpacePacket(sdu);
     if (!pkt) {
         return false;
     }
     if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
-        rc::TelemetryState telem = {};
-        uint8_t user[rc::kNavSduUserBytes];
-        if (pkt->data.size() != rc::kNavSduUserBytes) {
-            return false;
-        }
-        for (std::size_t i = 0; i < rc::kNavSduUserBytes; ++i) {
-            user[i] = static_cast<uint8_t>(pkt->data[i]);
-        }
-        if (!rc::unpack_nav_sdu_user(user, rc::kNavSduUserBytes, &telem)) {
-            return false;
-        }
-        me->rx_snapshot.telem = telem;
-        me->rx_snapshot.valid = true;
-        me->starcom_nav_sdu = true;
-        return true;
+        return starcom_handle_nav_sdu(me, pkt->data);
     }
     if (pkt->fields.apid != rc::starcom_adapt::kCmdApid) {
         return false;
     }
     if (pkt->fields.telecommand) {
-        uint16_t cmd_id = 0;
-        uint8_t seq = 0;
-        float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
-        uint8_t user[rc::kCmdSduUserBytes];
-        if (pkt->data.size() != rc::kCmdSduUserBytes) {
-            return false;
-        }
-        for (std::size_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
-            user[i] = static_cast<uint8_t>(pkt->data[i]);
-        }
-        if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, &cmd_id, &seq,
-                                     &p1, &p2, &p3, &p4, &p5)) {
-            return false;
-        }
-        mavlink_command_long_t cmd{};
-        cmd.command = cmd_id;
-        cmd.confirmation = seq;
-        cmd.param1 = p1;
-        cmd.param2 = p2;
-        cmd.param3 = p3;
-        cmd.param4 = p4;
-        cmd.param5 = p5;
-        const uint8_t ack_result = dispatch_command(me, cmd);
-        stage_cmd_ack(cmd, ack_result);
-        send_pending_ack_if_any();
-        return false;
+        return starcom_handle_cmd_sdu(me, pkt->data);
     }
     rc::ccsds::CommandAckPayload ack{};
     uint8_t user[rc::kAckSduUserBytes];

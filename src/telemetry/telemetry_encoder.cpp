@@ -87,7 +87,7 @@ static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
 }
 
 static uint8_t* write_nav_payload_42(uint8_t* p, const TelemetryState& telem) {
-    // STOP-GAP 54 B frame uses the 42 B prefix. pack_nav_sdu_user is the
+    // Pre-Starcom 54 B encoder uses the 42 B prefix. pack_nav_sdu_user is the
     // Starcom 45 B SDU (full TelemetryState) and refuses out_len < 45.
     memcpy(p, &telem, ccsds::kNavPayloadLen);
     return p + ccsds::kNavPayloadLen;

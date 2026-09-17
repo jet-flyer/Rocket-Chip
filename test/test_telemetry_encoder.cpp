@@ -82,8 +82,8 @@ TEST_F(CcsdsEncoderTest, PacketSize) {
     EXPECT_EQ(result.len, 54);
 }
 
-TEST_F(CcsdsEncoderTest, StopGapFrameIsNotPltuAsm) {
-    // STOP-GAP 54 B nav is not a PLTU (ASM is FAF320). Do not invent a
+TEST_F(CcsdsEncoderTest, LegacyCcsdsFrameIsNotPltuAsm) {
+    // Pre-Starcom 54 B nav is not a PLTU (ASM is FAF320). Do not invent a
     // second ARQ; Starcom decodePltu rejects this as bad_asm when linked.
     enc.encode_nav(telem, 12345, result);
     ASSERT_TRUE(result.ok);

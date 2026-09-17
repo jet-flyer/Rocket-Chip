@@ -21,5 +21,6 @@ the old PHY until the remote has echoed COMM_CHANGE (initiator:
 remote radiates that echo from S56 then applies on `macPhy` receive.
 Applying RX as soon as S62 opened split 500→125 when the station missed
 the SPDU. No E68 in `receive_duration` reverts to hail/boot 250/10.
-`radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA. USB MAVLink
-`dispatch_command` is unchanged.
+`radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA. NAV_PRESET `n`
+skips that leftover via `radio_config_next_fit`. SET_RADIO_CONFIG uses
+the same ToA gate.

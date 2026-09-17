@@ -439,7 +439,7 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
     s.rx_count++;
 
     // PLTU ASM FA F3 20 (211.2). COP-P CRC-32 is inside the envelope;
-    // AO_Telemetry decodePltu scores it. Do not apply STOP-GAP CRC-16.
+    // AO_Telemetry decodePltu scores it. Do not apply the legacy CCSDS CRC-16.
     if (len >= 3 && buf[0] == 0xFA && buf[1] == 0xF3 && buf[2] == 0x20) {
         return true;
     }

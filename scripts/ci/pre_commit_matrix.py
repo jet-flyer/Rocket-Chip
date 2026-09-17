@@ -37,6 +37,11 @@ Adding files HERE: any path that produces firmware bytes (src, include,
 CMakeLists, cmake helpers, vendored libs we link, gate scripts that are
 themselves load-bearing per LL 36 self-rot prevention).
 
+Role-aware (2026-09-17): `STATION_ONLY` prefixes suppress TRIGGER_FLIGHT_BENCH
+when every staged firmware path is station-role-only (`src/station/`, Fruit
+Jam board header, station dashboard). Shared TUs still fire vehicle
+bench_sim. Station bench_sim still runs for STATION_SCOPE / station-only.
+
 Removing files HERE: not without a council. The exemption discipline is
 per-incident (--no-verify with repo-owner approval per DEBUG_PROBE_NOTES.md),
 not category-broadening.
@@ -87,6 +92,18 @@ STATION_SCOPE = re.compile(
     r')'
 )
 
+# Station-role-only: firmware bytes that cannot affect the vehicle DUT.
+# Vehicle bench_sim (COM5) is the wrong gate. Prefixes, not a file list
+# (LL 40). Shared TUs (ao_telemetry, drivers, main, include/ except
+# Fruit Jam board) still fire vehicle bench_sim.
+STATION_ONLY = re.compile(
+    r'^('
+    r'src/station/'
+    r'|src/cli/rc_os_dashboard'
+    r'|include/rocketchip/board_fruit_jam'
+    r')'
+)
+
 
 def _repo_root() -> str:
     return subprocess.check_output(
@@ -105,15 +122,15 @@ def _git_staged_paths() -> list[str]:
 
 
 def match(paths: list[str]) -> tuple[bool, bool]:
-    tri_f = False
-    tri_s = False
-    for p in paths:
-        if FLIGHT_CRITICAL.search(p):
-            tri_f = True
-        if STATION_SCOPE.search(p):
-            tri_s = True
-        if tri_f and tri_s:
-            break
+    firmware = [p for p in paths if FLIGHT_CRITICAL.search(p)]
+    tri_s = any(STATION_SCOPE.search(p) for p in paths)
+    if not firmware:
+        return False, tri_s
+    # Role-aware: skip vehicle bench_sim when every ELF-affecting path is
+    # station-role-only. Mixed or shared paths still need COM5 (LL 39).
+    tri_f = any(not STATION_ONLY.search(p) for p in firmware)
+    if not tri_f:
+        tri_s = True
     return tri_f, tri_s
 
 

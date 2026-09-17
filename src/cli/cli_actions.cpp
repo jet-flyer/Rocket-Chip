@@ -141,9 +141,11 @@ static void catalog_nav_next() {
             break;
         }
     }
-    const size_t next = (idx >= kRadioConfigTableSize)
-                            ? 0
-                            : (idx + 1) % kRadioConfigTableSize;
+    const uint8_t next = radio_config_next_fit(idx);
+    if (next == kRadioConfigNoIndex) {
+        rc::rc_log("NAV_PRESET: no catalog row fits nav ToA\n");
+        return;
+    }
     const auto& e = kRadioConfigTable[next];
     const uint32_t toa_us = radio_config_nav_airtime_us(
         e.sf, e.bw_khz, kRadioConfigNavPltuBytes);
@@ -151,19 +153,7 @@ static void catalog_nav_next() {
                                  ? 0
                                  : (1000000U / e.nav_rate_hz);
     const uint32_t pct = (slot_us == 0) ? 999U : (toa_us * 100U / slot_us);
-    if (!radio_config_nav_fits_hz(e.bw_khz, e.nav_rate_hz, e.sf,
-                                  kRadioConfigNavPltuBytes)) {
-        const uint8_t fit_hz =
-            (toa_us == 0) ? 1 : static_cast<uint8_t>((1000000U / toa_us) + 1U);
-        rc::rc_log("NAV_PRESET BW%u %uHz ToA %u%% of slot — only possible "
-                   "with %u Hz telem — not hopping\n",
-                   static_cast<unsigned>(e.bw_khz),
-                   static_cast<unsigned>(e.nav_rate_hz),
-                   static_cast<unsigned>(pct),
-                   static_cast<unsigned>(fit_hz));
-        return;
-    }
-    if (!AO_Telemetry_request_comm_change(static_cast<uint8_t>(next))) {
+    if (!AO_Telemetry_request_comm_change(next)) {
         rc::rc_log("NAV_PRESET COMM_CHANGE refused idx=%u\n",
                    static_cast<unsigned>(next));
         return;

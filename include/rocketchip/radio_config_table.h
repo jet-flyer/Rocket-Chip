@@ -23,6 +23,10 @@ struct RadioConfigEntry {
 
 // Tested runtime-SET tuples. Default first, then higher-rate / wider-BW,
 // then lower-rate fallbacks.
+// idx 1 (125/10 SF7) is chip-legal leftover: nav PLTU ToA does not fit
+// 10 Hz. COMM_CHANGE / NAV_PRESET / SET skip it via radio_config_next_fit
+// / radio_config_nav_fits_hz. Do not reorder — catalog idx rides SET PL
+// EXTENSIONS.
 inline constexpr RadioConfigEntry kRadioConfigTable[] = {
     { .bw_khz = 125, .nav_rate_hz = 5,  .sf = 7, .cr = 5, .power_dbm = 2 },
     { .bw_khz = 125, .nav_rate_hz = 10, .sf = 7, .cr = 5, .power_dbm = 2 },
@@ -52,7 +56,8 @@ inline constexpr bool radio_config_in_whitelist(uint16_t bw_khz,
 }
 
 // SX1276 gate: BW 125/250/500, SF 7-12, CR 5-8, power 2-20 dBm, nav 1-50 Hz.
-// Chip-legal only. COMM_CHANGE / NAV_PRESET still need radio_config_nav_fits_hz.
+// Chip-legal only. Hops (COMM_CHANGE / NAV_PRESET / SET) also need
+// radio_config_nav_fits_hz so commanded Hz can actually air.
 inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
                                                  uint8_t nav_rate_hz,
                                                  uint8_t sf,
@@ -99,6 +104,23 @@ inline constexpr bool radio_config_nav_fits_hz(uint16_t bw_khz, uint8_t nav_hz,
     return radio_config_nav_airtime_us(sf, bw_khz, payload_bytes) < slot_us;
 }
 
+// Next table row whose nav PLTU ToA fits commanded Hz. current_idx >=
+// kRadioConfigTableSize means "not in table" — first fitting row (idx 0).
+inline constexpr uint8_t radio_config_next_fit(size_t current_idx) {
+    const size_t n = kRadioConfigTableSize;
+    if (n == 0) { return kRadioConfigNoIndex; }
+    const size_t start = (current_idx >= n) ? 0 : ((current_idx + 1) % n);
+    for (size_t k = 0; k < n; ++k) {
+        const size_t i = (start + k) % n;
+        const auto& e = kRadioConfigTable[i];
+        if (radio_config_nav_fits_hz(e.bw_khz, e.nav_rate_hz, e.sf,
+                                     kRadioConfigNavPltuBytes)) {
+            return static_cast<uint8_t>(i);
+        }
+    }
+    return kRadioConfigNoIndex;
+}
+
 inline constexpr uint8_t radio_config_catalog_index(uint16_t bw_khz,
                                                     uint8_t nav_rate_hz,
                                                     uint8_t sf, uint8_t cr,
@@ -117,6 +139,12 @@ static_assert(!radio_config_nav_fits_hz(125, 10, 7, kRadioConfigNavPltuBytes),
               "125/10 SF7 nav PLTU must not fit a 100 ms slot");
 static_assert(radio_config_nav_fits_hz(250, 10, 7, kRadioConfigNavPltuBytes),
               "250/10 SF7 nav PLTU must fit a 100 ms slot");
+static_assert(radio_config_next_fit(0) == 2, "NAV_PRESET skips 125/10");
+static_assert(radio_config_next_fit(1) == 2, "from leftover 125/10 -> 250/10");
+static_assert(radio_config_next_fit(2) == 3, "250/10 -> 500/10");
+static_assert(radio_config_next_fit(5) == 0, "wrap to 125/5");
+static_assert(radio_config_next_fit(kRadioConfigTableSize) == 0,
+              "unknown current -> first fitting row");
 
 } // namespace rc
 

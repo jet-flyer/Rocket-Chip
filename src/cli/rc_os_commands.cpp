@@ -85,7 +85,12 @@ static void cmd_radio_config_cycle() {
     // On first press we don't know what the vehicle is on — start at index 0
     // (the default config) and advance from there.
     static size_t g_cycleIdx = 0;
-    g_cycleIdx = (g_cycleIdx + 1) % rc::kRadioConfigTableSize;
+    const uint8_t next = rc::radio_config_next_fit(g_cycleIdx);
+    if (next == rc::kRadioConfigNoIndex) {
+        rc::rc_log("[CMD] SET_RADIO_CONFIG: no catalog row fits nav ToA\n");
+        return;
+    }
+    g_cycleIdx = next;
     const auto& target = rc::kRadioConfigTable[g_cycleIdx];
 
     rc::rc_log("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",

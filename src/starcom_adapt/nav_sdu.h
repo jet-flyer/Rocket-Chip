@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Nav user-data pack for the Starcom Space Packet SDU.
 // Full packed TelemetryState (45 B), including met_ms and flags.
-// Not the STOP-GAP 54 B CCSDS frame (primary + MET secondary + 42 B prefix).
+// Not the pre-Starcom 54 B CCSDS frame (primary + MET secondary + 42 B prefix).
 
 #ifndef ROCKETCHIP_NAV_SDU_H
 #define ROCKETCHIP_NAV_SDU_H

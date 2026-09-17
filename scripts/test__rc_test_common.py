@@ -500,14 +500,13 @@ def test_pre_commit_matrix_triggers() -> None:
     ft_f, st_f = match(['src/flight_director/flight_director.cpp'])
     check('flight_critical', ft_f and not st_f)
 
-    # Station-only path: NOW triggers flight (it's still firmware,
-    # all firmware is flight code per the policy) AND triggers station.
+    # Station-role-only: station bench, not vehicle COM5.
     ft_s, st_s = match(['src/station/main.cpp'])
-    check('station_only_triggers_both', ft_s and st_s)
+    check('station_only_station_bench', (not ft_s) and st_s)
 
-    # Dashboard: both scopes.
+    # Dashboard is station-role-only (pad ANSI), not vehicle ELF behavior.
     ft_d, st_d = match(['src/cli/rc_os_dashboard.cpp'])
-    check('dashboard both scopes', ft_d and st_d)
+    check('dashboard station_only', (not ft_d) and st_d)
 
     # rc_os_commands.cpp: flight (anything in src/ is firmware).
     ft_os, _ = match(['src/cli/rc_os_commands.cpp'])

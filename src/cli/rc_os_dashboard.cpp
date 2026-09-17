@@ -448,7 +448,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     rc::strbuf_printf(&sb,
         "Alt:  %7.1f m            Max: %.1f m%s\n"
         "Vvel: %+6.1f m/s          Spd: %.1f m/s%s\n"
-        "Baro: %7.1f m            GPS: %s (%usat)%s\n"
+        "Baro: %7.1f m            GPS (veh): %s (%usat)%s\n"
         "-------------------------------------------%s\n",
         static_cast<double>(d.alt_m),
         static_cast<double>(g_maxAltM), kClrEol,

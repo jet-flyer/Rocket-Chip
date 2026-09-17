@@ -248,8 +248,8 @@ static constexpr uint16_t kMavCmdArmDisarm = 400;
 //   - Added 'a' / 'D' per the "operator-commands-from-dashboard" UX
 //     decision. ABORT intentionally omitted (NAR High Power Safety
 //     Code §6: in-flight recovery is onboard-sensor driven; range
-//     commands are ground-side only, not in-flight). STOP-GAP pending
-//     full CCSDS-compliant command layer.
+//     commands are ground-side only, not in-flight). ARM/DISARM ride
+//     Starcom cmd SDU; pad ABORT is not a dashboard binding.
 //   - Skips input entirely while ARM-confirm state machine is active
 //     so rc_os_update() can consume A/R/M chars.
 static void poll_dashboard_keys() {

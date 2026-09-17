@@ -76,34 +76,34 @@ FIXTURES = [
     ('cli/rc_os core',
      ['src/cli/rc_os.cpp'], True, False),
 
-    # ----- Known-good: SHOULD fire station gate -----
+    # ----- Station-role-only: station bench, NOT vehicle COM5 -----
     ('station subdirectory',
      ['src/station/something.cpp'], False, True),
-    # rc_os_dashboard matches BOTH regexes: the flight prefix `src/cli/rc_os`
-    # catches anything starting with rc_os (including _dashboard), and the
-    # station regex names rc_os_dashboard explicitly. Both gates fire — by
-    # design, since station-side changes that touch the dashboard module
-    # also touch the CLI core path.
-    ('cli/rc_os_dashboard (matches both regexes)',
-     ['src/cli/rc_os_dashboard.cpp'], True, True),
-    ('ao_rcos',
-     ['src/active_objects/ao_rcos.cpp'], False, True),
-    ('ao_telemetry',
-     ['src/active_objects/ao_telemetry.cpp'], False, True),
-    ('ao_radio',
-     ['src/active_objects/ao_radio.cpp'], False, True),
-    ('health_monitor',
-     ['src/safety/health_monitor.cpp'], False, True),
-    ('mcu_temp driver',
-     ['src/drivers/mcu_temp.cpp'], False, True),
+    ('cli/rc_os_dashboard station-only',
+     ['src/cli/rc_os_dashboard.cpp'], False, True),
     ('board_fruit_jam header',
      ['include/rocketchip/board_fruit_jam.h'], False, True),
+    ('station-only mix (idle tick + Fruit Jam board)',
+     ['src/station/station_idle_tick.cpp',
+      'include/rocketchip/board_fruit_jam.h'], False, True),
+
+    # ----- Shared TUs: vehicle ELF + station scope → BOTH -----
+    ('ao_rcos (vehicle CLI + station)',
+     ['src/active_objects/ao_rcos.cpp'], True, True),
+    ('ao_telemetry',
+     ['src/active_objects/ao_telemetry.cpp'], True, True),
+    ('ao_radio',
+     ['src/active_objects/ao_radio.cpp'], True, True),
+    ('health_monitor',
+     ['src/safety/health_monitor.cpp'], True, True),
+    ('mcu_temp driver (both roles)',
+     ['src/drivers/mcu_temp.cpp'], True, True),
 
     # ----- Known-good: SHOULD fire BOTH gates (path mix) -----
     ('flight + station paths combined',
      ['src/flight_director/flight_director.cpp',
       'src/active_objects/ao_radio.cpp'], True, True),
-    ('rc_os core + dashboard (both rc_os* -> flight; dashboard -> station)',
+    ('rc_os core + dashboard (shared CLI + station-only dash → both)',
      ['src/cli/rc_os.cpp', 'src/cli/rc_os_dashboard.cpp'], True, True),
 
     # ----- Known-bad / no-fire: SHOULD NOT fire either gate -----
@@ -117,12 +117,15 @@ FIXTURES = [
      ['docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md'], False, False),
     ('test file only',
      ['test/test_command_handler.cpp'], False, False),
-    ('build script only',
-     ['CMakeLists.txt'], False, False),
-    ('host-only sensor seqlock header',
-     ['include/rocketchip/sensor_seqlock.h'], False, False),
-    ('unrelated driver',
-     ['src/drivers/icm20948.cpp'], False, False),
+    ('CMakeLists changes vehicle ELF',
+     ['CMakeLists.txt'], True, False),
+    ('sensor seqlock header (vehicle Core1)',
+     ['include/rocketchip/sensor_seqlock.h'], True, False),
+    ('icm20948 driver (vehicle IMU)',
+     ['src/drivers/icm20948.cpp'], True, False),
+    ('station-only + vehicle driver → both',
+     ['src/station/station_idle_tick.cpp',
+      'src/drivers/icm20948.cpp'], True, True),
     ('audit-tooling script',
      ['scripts/audit/pre_commit_fixture_test.py'], False, False),
     ('empty staged paths',
@@ -141,9 +144,6 @@ FIXTURES = [
     ('ao_logger header (same prefix)',
      ['src/active_objects/ao_logger.h'], True, False),
 
-    # rc_os* covers rc_os_commands.cpp, rc_os_dashboard.cpp, etc. The first
-    # two go to flight; rc_os_dashboard goes to station explicitly (station
-    # regex is also matched). Document overlap.
     ('rc_os_commands -> flight only',
      ['src/cli/rc_os_commands.cpp'], True, False),
 ]

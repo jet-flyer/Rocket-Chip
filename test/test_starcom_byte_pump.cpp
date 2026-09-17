@@ -6,6 +6,7 @@
 
 #include "starcom_adapt/byte_pump.h"
 #include "starcom_adapt/nav_sdu.h"
+#include "rocketchip/radio_config_table.h"
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/space_packet.hpp"
 #include "starcom/version.hpp"
@@ -345,6 +346,9 @@ TEST(StarcomBytePump, CommChangeCatalogToA) {
     EXPECT_FALSE(pump_catalog_fits(1));  // 125/10 SF7
     EXPECT_TRUE(pump_catalog_fits(2));   // 250/10
     EXPECT_TRUE(pump_catalog_fits(3));   // 500/10
+    EXPECT_EQ(rc::radio_config_next_fit(0), 2u);  // skip leftover 125/10
+    EXPECT_EQ(rc::radio_config_next_fit(1), 2u);
+    EXPECT_EQ(rc::radio_config_next_fit(5), 0u);  // wrap to 125/5
     static BytePump p{};
     pump_init(p, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     EXPECT_EQ(p.hail_catalog_idx, 2u);
