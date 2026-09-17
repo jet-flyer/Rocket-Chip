@@ -53,7 +53,7 @@ Each configuration item has its own product line. Do not hang RCOS or Starcom as
 |---|---|---|---|
 | **Rocket-Chip flight firmware** | IVP numbered Stage.sub-stage (as of 2026-08-26: `0.16.3-dev`) | repo-root `RC_VERSION` | always, plus git identity |
 | **RCOS** | Own epoch, **not** Stage 16. Source still open (not `docs/IVP.md`). | to be named when the epoch is picked; never a second literal on `RC_VERSION` | not until that file exists (no fake `0.5.0`) |
-| **Starcom library** | Own epoch. Not an IVP stage. | `starcom/` VERSIONING stub (library SSOT) | only when `Starcom::starcom` is linked; otherwise the banner says stop-gap/absent, not a fake Starcom version |
+| **Starcom library** | Own epoch. Not an IVP stage. | `starcom/` VERSIONING stub (library SSOT) | always linked; banner identity is `starcom-v*` from `STARCOM_VERSION`, not a second RC tuple |
 
 The old `kRcOsVersion = "0.5.0"` failed because it was a second RC tuple that never ticked. Separate CI, separate tick, or it will rot again.
 

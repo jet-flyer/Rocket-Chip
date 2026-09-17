@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation, tooling
+
+**Hygiene sitting: PR queue empty, WB dated leftovers gone, Starcom-owned rows on the Starcom board.** Closed R-27/30/31/32/10b (`docs/PROBLEM_REPORTS.md`; USER_GUIDE keys in `1ba4e22`). Starcom WB now holds FSK / station readiness bit / SDLS (`starcom/CHANGELOG.md` 2026-09-17-001). Living consumer docs no longer call RC air STOP-GAP (frozen CHANGELOG/plans/audits left as history). Catalog ToA skip + role-aware pre-commit remain unstaged (no CMSIS-DAP/COM5 this sitting). Next: pad `Air:` COP-P lock + ARM ACK.
+
 ### 2026-09-16-001 | Grok 4.6 (Build CLI) | hardware, feature, documentation
 
 **Station Fruit Jam bar follows live RX, not COP-P.** Solid RSSI while Starcom heard in the last 2 s; red Cylon after a live drop until packets return; dim red only if never heard this boot; yellow Cylon still = config-apply. Table: `docs/USER_GUIDE.md` Station (RX mode). `1d79865`. Next sitting: pad `Air:` COP-P lock (`waiting peer PLCW` while TRACK is live) and ARM ACK (vehicle RX 0). Verified: host 919/919; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; owner desk unplug/replug on the bar.

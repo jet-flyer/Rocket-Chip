@@ -54,5 +54,5 @@ Do not casually free PIO2 SMs without a profile gate; do not use that as an excu
 
 ## Related
 
-- WB: Early-impl table *Fault beacon (last-gasp)*; research row *PIO beacon + SPI last-gasp*.
+- WB: *Fault beacon last-gasp (HELD)*; research row *PIO beacon + SPI last-gasp*.
 - `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md` (PIO backup-timer KEEP).

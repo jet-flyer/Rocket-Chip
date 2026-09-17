@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation
+
+**Whiteboard: Starcom-owned leftovers live here.** Moved from RC `AGENT_WHITEBOARD.md`: FSK bitstream bearer, station readiness bit on air, SDLS 355.0. Hail / SET OTA / CFDP / FPGA PHY already on this board. RC air is always COP-P (no dual-build flag). Living consumer docs no longer say default-OFF / STOP-GAP air. No version bump. No tag.
+
+Verified: docs only, no firmware path, no HW reseat required.
+
 ### 2026-09-11-001 | Grok 4.6 (Build CLI) | documentation
 
 **Blue Book clause coverage ledger.** New living `docs/COVERAGE.md`: section-grain walk of the eight shelf books (status, CONFORMANCE claim, test pointer, neighbors). 211.2 PICS Idle (item 2, M) is 0 in the core; 211.0 timing / segment reassembly / Type-1 SPDUs other than SET V(R) are M-not-in-core; 232.1 is not “§5 Full” (E30–E34 / E41–E46 still 0); two SET V(R)s (Prox-1 B1.5 vs COP-1 BC) are cross-linked. CONFORMANCE stays the published tick. Agent recipe in COVERAGE + WORKING_HERE Dos/Don’ts (no PDF graphify ingest; no CONFORMANCE retcon). Pointers from README, ICD, SAD, glossary, `src/ccsds/README.md`. No version bump. No tag.

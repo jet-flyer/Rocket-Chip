@@ -117,8 +117,7 @@ cycling is kMenu-only now. ABORT is deliberately not bound from the
 dashboard — NAR High Power Safety Code §6 treats the rocket as a
 ballistic object post-ignition, so there is no in-flight ABORT channel
 exposed in the fast-access UX. (An advanced / debug-menu ABORT path
-remains for pre-launch safety.) STOP-GAP pending full CCSDS command
-layer.
+remains for pre-launch safety.) ARM/DISARM ride Starcom cmd SDU.
 
 Only these keys are accepted; all others are silently dropped:
 

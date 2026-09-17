@@ -64,7 +64,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 10: COP-1 S4/S5 BC-init (E24/E25/E27) + E29 terminate. Unlock/Set V(R) on the wire.
 - Increment 11: `coppInitUslp` — COP-P on Version-4 VC/MAP; PLCW still SPDU. V-3 path unchanged.
 - Increment 12: caller-owned `PltuRepeatQ` / `enqueuePltu` / `dequeuePltu`. No invented depth.
-- IVP sequence through increment 25 (rest of the stack). No Starcom stop-gap. RC `telemetry_encoder` is RC firmware until increment 22.
+- IVP sequence through increment 25 (rest of the stack). No temporary retry layer in the library. RC LoRa air is COP-P (increment 22); `telemetry_encoder` is USB/host only.
 - Increment 13: full §6 MAC (`mac.hpp` / `mac.cpp`). SET V(R) persistent. Simplex S71/S72.
 - Increment 14: V-3 DFC `11` user-defined (`encodeV3UserDefined`, `coppSubmitUserDefined`). Opaque octets, no reassembly. Not Annex F4.
 - Increment 15: host file replay + UDP (`replayPltuFile`, `udp_*`). Sockets only in `adapters/host`. No Starcom service port.
@@ -72,7 +72,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 17: PIO bit pipe (`pioShiftOut` / `pioShiftIn`). Host fake PIO, 0+1 PLTU octets. Not 211.1 PM.
 - Increment 18: `PhyDecl` tiers. Uncoded host path. `compliant` / FPGA HDL not offered this sitting.
 - Increment 19: conv encode (211.2 §3.4.3) + LDPC (2048,1024) encode + CSM + codeword randomize. Decode deferred. Uncoded 18 unchanged.
-- Increment 20: RC host `addSubdirectory(starcom)` when `ROCKETCHIP_USE_STARCOM=ON`; `Starcom::starcom` linked from host PLTU round-trip / STOP-GAP reject-as-PLTU. Nested `STARCOM_BUILD_TESTS=OFF`. Pico link is 21. Product stays `0.19.0-dev`.
+- Increment 20: RC host `addSubdirectory(starcom)`; `Starcom::starcom` linked from host PLTU round-trip / pre-Starcom 54 B reject-as-PLTU. Nested `STARCOM_BUILD_TESTS=OFF`. Pico link is 21. (Land-time dual-build flag is gone; RC air is always COP-P.)
 - Increment 23: **initial** pass only — public-verb camelBack + gated tidy subset (size/cognitive/unused-return/reserved-id) on `starcom/src/ccsds` + adapters. Not a full house-bar walk. `kCoppHold`/`kCop1Hold` stay host-loop caps (64). No Starcom row in `ACCEPTED_STANDARDS_DEVIATIONS.md`. `#pragma once` is the existing project exception.
 - Increment 24: WSL ASan+UBSan `starcom.unit` PASS; fuzz to book-max PLTU envelope + golden mutate + COP receive; sizeof `CoppEndpoint=19544` / `Cop1Endpoint=19664`; Pico `libstarcom.a` `.text` 22270 `.bss` 4096. Detail: `docs/IVP.md`.
 - Increment 10 remainder: FOP-1 Resume/setup/LLIF + TT=1 suspend (232.1 Table 5-1 E18/E30–E46). Product tuple `0.24.0-dev`.

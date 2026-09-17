@@ -91,7 +91,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 ### Boundary violations (most common failure mode)
 
 - **Don't** add Rocket-Chip concepts to the core: `rocketchip::`, `AO_*`, `RadioScheduler`, `Mission Profile`, `QF_*`, board headers, GPIO pin constants.
-- **Don't** move or refactor RC's pre-Starcom `telemetry_encoder` into the core as-is — research explicitly says it is **not** the design base. Replace it at IVP increment 22 via adapter + COP. Do not mint a Starcom stop-gap or temporary retry layer.
+- **Don't** move or refactor RC's `telemetry_encoder` into the core as-is — research explicitly says it is **not** the design base. Increment 22 put COP-P on LoRa; that encoder is USB/host only. Do not mint a temporary retry layer in the library.
 - **Don't** let Rocket-Chip's root `CMakeLists.txt` become the only way to build or test Starcom.
 - **Don't** create reverse dependencies (Starcom linking against firmware targets).
 
@@ -153,7 +153,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`AGENT_WHITEBOARD.md`](../../AGENT_WHITEBOARD.md) | RC firmware flags. Starcom-only items belong on [`starcom/AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md); the root board keeps a **pointer row**, not a copy. |
 | [`docs/PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md) | RC phase/blockers. Starcom progress does not belong here except "RC blocked on Starcom MVP". |
 | [`docs/IVP.md`](../../docs/IVP.md) | RC verification plan (board bring-up checklist). Starcom’s plan is [`docs/IVP.md`](IVP.md), not a clone. |
-| [`docs/decisions/*`](../../docs/decisions/) | RC architectural decisions (STOP-GAP retry map, Stage T, etc.). Not Starcom library decisions. |
+| [`docs/decisions/*`](../../docs/decisions/) | RC architectural decisions (Stage T, historical retry map, etc.). Not Starcom library decisions. |
 
 ### Not needed yet (add at Phase 0 / extraction)
 

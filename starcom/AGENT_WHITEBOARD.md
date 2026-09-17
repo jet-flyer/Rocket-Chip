@@ -18,15 +18,33 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
+## FSK bitstream bearer (WANTED) (2026-09-02)
+
+Moved from RC board. SX1276 FSK (packet and/or continuous bitstream) as a Best-effort bearer — not 211.1. Not hail. Not a license to mint LoRa SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot. STATUS.md future line already names this. Not a license this sitting.
+
+---
+
+## Station readiness bit on air (WANTED)
+
+Moved from RC board. Council A3: one bit the vehicle GO/NO-GO can consume (station ready). Today the channel is command-only; no periodic TM-back. COP-P is the air; do not invent a second ARQ. Not IVP 0–25. Not a license this sitting.
+
+---
+
+## SDLS 355.0 telecommand auth (WANTED)
+
+Moved from RC board. CCSDS 355.0 for the Rocket profile — frame auth, not CFDP checksum. Library increment when scheduled, above `starcom::ccsds`. Not IVP 0–25. Not a license this sitting.
+
+---
+
 ## Radio settings OTA (WANTED) (2026-08-31)
 
 Owner-wanted. Next RC consumer feature: apply `RadioConfig` (SF / BW /
 CR / power / nav rate) over Starcom ON air as a cmd SDU (IVP 22
-`cmd_sdu`, APID 0x003). STOP-GAP already has `SET_RADIO_CONFIG`
-(MAVLink COMMAND_LONG + `kRadioConfigTable`). RC's implementation of
-Starcom — not a new library increment or air dialect. Not IVP 0–25.
-Not CFDP. Not a license to start this sitting. Desk: two-board ON soak,
-legal table row, ACK + reconfig, link stays up.
+`cmd_sdu`, APID 0x003). USB/local `SET_RADIO_CONFIG` already exists
+(MAVLink COMMAND_LONG + `kRadioConfigTable` + ToA gate). RC's
+implementation of Starcom — not a new library increment or air dialect.
+Not IVP 0–25. Not CFDP. Not a license to start this sitting. Desk:
+two-board ON soak, legal table row, ACK + reconfig, link stays up.
 
 ---
 

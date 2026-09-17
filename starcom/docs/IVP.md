@@ -7,7 +7,7 @@ Order we prove CONFORMANCE claims, and the pass criteria. Shape follows IEEE 101
 
 Living rule: the **full stack sequence is listed**. The next increment is detailed enough to code against. Later increments name the book, the CONFORMANCE row, and the gate shape; they do not invent MIB values, buffer depths, or pin numbers. Expand signatures in this file in the same commit as the code.
 
-No Starcom stop-gap and no temporary command/retry layer. RC's pre-Starcom `telemetry_encoder` is firmware, not a Starcom deliverable. It is replaced at increment 22 by COP — not by another band-aid.
+No temporary command/retry layer in the library. RC LoRa air is COP-P (increment 22). `telemetry_encoder` is USB/host firmware, not a Starcom deliverable.
 
 Pass criteria that restate wire formats are working copies. If a vector here disagrees with the cited Blue Book, the book wins.
 
@@ -321,7 +321,7 @@ Result<std::size_t> ldpcEncodeStream(std::span<std::byte> out, std::span<const s
 
 Landed on `grok/sc-dev`. RC `addSubdirectory(starcom)` when `ROCKETCHIP_USE_STARCOM=ON` (host `BUILD_TESTS`) with `STARCOM_BUILD_TESTS=OFF` for the nested build. Host tests see `starcom/version.hpp`, round-trip a PLTU (v3-header-only and nav SDU 18+N), and reject STOP-GAP 54 B frames as PLTUs (`decodePltu` → `bad_asm`). Default OFF does not addSubdirectory and does not link Starcom. Dependency remains **RC → Starcom**. Pico `targetLinkLibraries(rocketchip Starcom::starcom)` is increment 21. Not a firmware-pin sitting. Product stays `0.19.0-dev`.
 
-**Gate:** host ctest consumer case; Starcom still builds and tests independently; inspection: Starcom does not include RC headers. Tests: `test/test_telemetry_encoder.cpp` (`StarcomHostLink.*`, `CcsdsEncoderTest.StopGapFrameIsNotPltuAsm`). Do not mint SC-NNN.
+**Gate:** host ctest consumer case; Starcom still builds and tests independently; inspection: Starcom does not include RC headers. Tests: `test/test_telemetry_encoder.cpp` (`StarcomHostLink.*`, `CcsdsEncoderTest.LegacyCcsdsFrameIsNotPltuAsm`). Do not mint SC-NNN.
 
 ### Increment 21 — Pico link + first AO byte pump
 
