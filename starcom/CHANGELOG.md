@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-11-001 | Grok 4.6 (Build CLI) | documentation
+
+**Blue Book clause coverage ledger.** New living `docs/COVERAGE.md`: section-grain walk of the eight shelf books (status, CONFORMANCE claim, test pointer, neighbors). 211.2 PICS Idle (item 2, M) is 0 in the core; 211.0 timing / segment reassembly / Type-1 SPDUs other than SET V(R) are M-not-in-core; 232.1 is not “§5 Full” (E30–E34 / E41–E46 still 0); two SET V(R)s (Prox-1 B1.5 vs COP-1 BC) are cross-linked. CONFORMANCE stays the published tick. Agent recipe in COVERAGE + WORKING_HERE Dos/Don’ts (no PDF graphify ingest; no CONFORMANCE retcon). Pointers from README, ICD, SAD, glossary, `src/ccsds/README.md`. No version bump. No tag.
+
+Verified: docs only, no firmware path, no HW reseat required.
+
 ### 2026-09-03-001 | Grok 4.6 (Build CLI) | hardware, documentation
 
 **Two-board ON Pass A pre-soak: A1/A2 scored; A3–A5 blocked on station image.** Consumer `ROCKETCHIP_USE_STARCOM=ON`, 45 B nav SDU, desk Class A, 2 dBm. A1: COP-P lock, CRC 0, ~4.6 Hz, ARM leftover FAIL (seq-nav+PLCW TX-busy, paper ~82% of 200 ms). A2 10 Hz FAIL as expected. Live Jam still `flight-2f7096d` SET pwr=20 vs vehicle 2 dBm; SET ±6 dB gate + no leftover → PHY stayed BW125. 2 dBm station UF2 built, not flashed. Dual-board picotool targeting parked (owner: solved months ago; flash with the other board unplugged). Resume: `logs/soak/2026-09-03_HANDOFF.md`. Completed A/B scores are RC `docs/RADIO_SOAK_PASS_AB_2026-09-03.md` (root CHANGELOG `2026-09-03-002`). Verified: COM5 CFG BW=125/5/2 dBm RegVersion 0x12 Hardware 13/13; COM7 banner `flight-2f7096d`; no new Starcom library code in this row.

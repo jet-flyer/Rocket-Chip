@@ -52,12 +52,13 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 ### Documentation
 
 - **Do** treat the CCSDS Blue Books (and other named primary sources) as the authority. SAD / ICD / DESIGN field tables are working copies. Open the cited book first; if they disagree, the book wins.
+- **Do** open [`COVERAGE.md`](COVERAGE.md) when implementing or changing a Blue Book clause: find the row, walk **Neighbors**, then the PDF. Update that row in the same commit as the TU. Full still needs a test pointer. CONFORMANCE is the published tick — do not retcon it from the matrix.
 - **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
 - **Do** read in this order when onboarding:
   1. this file (agents); `USER_GUIDE.md` (consumers)
   2. `DESIGN.md` (locks)
-  3. `SAD.md` (map + codec field maps), `ICD.md` (handshake), `CONFORMANCE.md` (claims)
+  3. `SAD.md` (map + codec field maps), `ICD.md` (handshake), `CONFORMANCE.md` (claims), `COVERAGE.md` (clause walk + neighbors)
   4. `STATUS.md` (phase), `IVP.md` (order of proof; Closed log when gates pass), `TESTING.md` (how we write and run host tests)
   5. [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md) — Starcom-only open flags
   6. `comparison.md` / research pair as needed (historical)
@@ -105,6 +106,8 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ### Documentation mistakes
 
+- **Don't** ingest Blue Book PDFs (`standards/starcom/ccsds/`) into graphify. Clause walk and neighbors live in [`COVERAGE.md`](COVERAGE.md); the PDF stays the authority.
+- **Don't** retcon a CONFORMANCE Level to Full because a `COVERAGE.md` row looks done. CONFORMANCE is the published tick; Full there still needs a test pointer.
 - **Don't** scatter new Starcom library docs under `docs/research/` at repo root — they belong in `starcom/docs/`.
 - **Don't** edit `DESIGN.md` substantively until the condensation session merges the six research artifacts into one canonical record.
 - **Don't** delete historical comparison entries when facts change — append `Status:` lines per `comparison.md` convention.
@@ -113,7 +116,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ### Process mistakes
 
-- **Don't** implement large features against stale `comparison.md` D-1…D-5 text. Living locks are SAD / ICD / CONFORMANCE / STATUS. `comparison.md` is historical; append Status lines, do not rewrite entries.
+- **Don't** implement large features against stale `comparison.md` D-1…D-5 text. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. `comparison.md` is historical; append Status lines, do not rewrite entries.
 - **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; 131.0-B-5 is current TM-only. See `DESIGN.md` pin.
 
 ---
@@ -130,12 +133,13 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`VERSIONING.md`](../VERSIONING.md) | SemVer + `STARCOM_VERSION` SSOT. Generated `version.hpp`. | Live 2026-08-27 |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
-| [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / STATUS / CONFORMANCE. | Historical |
+| [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. | Historical |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Historical — DESIGN.md is the freeze |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
 | [`docs/SAD.md`](SAD.md) | Architecture map (views + on-the-wire figure + increment 0+1 field maps). | Draft 2026-08-25; field maps 2026-08-27 |
 | [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
-| [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table. | Draft 2026-08-25 |
+| [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table (published PICS tick). | Draft 2026-08-25 |
+| [`docs/COVERAGE.md`](COVERAGE.md) | Clause walk: implemented vs unread, plus neighbors. Not a second PICS. | Living 2026-09-11 |
 | [`docs/IVP.md`](IVP.md) | Integration/verification plan (IEEE 1012 + ECSS methods). Closed log IDs when gates pass. | Living 2026-08-25 |
 | [`docs/GLOSSARY.md`](GLOSSARY.md) | Terms and Blue Book section cites. README holds the short list. | Living 2026-08-27 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |

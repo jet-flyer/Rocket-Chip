@@ -27,4 +27,4 @@ Consumers' only search path. Core is `starcom::ccsds` (no Rocket-Chip types, no 
 | `ccsds/ldpc.hpp` | LDPC (2048,1024) encode, CSM, 211.2 randomizer |
 | `adapters/phy.hpp` | PHY tiers (`none` / `best_effort` / `compliant`); uncoded PLTU |
 
-Handshake: `docs/ICD.md`.
+Handshake: `docs/ICD.md`. Clause walk: `docs/COVERAGE.md`.

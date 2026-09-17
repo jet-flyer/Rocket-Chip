@@ -394,6 +394,12 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
         m.persistence = true;
         notify(m, MacNotify::comm_change_apply_rx);
       }
+      // E65 is NoFramesPending in S50. E38 (send_duration) clears y, so a
+      // one-modem hop cannot wait out the contact — queue COMM_CHANGE now.
+      if (m.y == 2) {
+        applyState(m, MacState::s56);
+        queueCommChangeSpdus(m);
+      }
       break;
     case MacState::s58:
       if (m.y == 2) {  // E67
@@ -594,7 +600,8 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     applyState(m, MacState::s60);
     return;
   }
-  if (m.state == MacState::s61 && m.y == 3) {  // E68
+  if ((m.state == MacState::s61 || m.state == MacState::s62) &&
+      m.y == 3) {  // E68 — S62 is the receive wait after E67
     m.y = 0;
     m.persistence = false;
     applyState(m, MacState::s60);
@@ -603,6 +610,10 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
       m.pending_cv_valid = false;
     }
     notify(m, MacNotify::comm_change_ok);
+    return;
+  }
+  if (m.state == MacState::s62) {
+    applyState(m, MacState::s60);
   }
 }
 
@@ -616,6 +627,30 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
   }
   if (m.state == MacState::s13) {  // E34
     applyState(m, MacState::s14);
+    loadWait(m, m.mib.tail_idle_duration);
+    return;
+  }
+  if (m.state == MacState::s56) {
+    m.mac_frame_pending = false;
+    m.mac_queue_len = 0;
+    if (m.y == 2) {  // E66
+      applyState(m, MacState::s58);
+      loadWait(m, m.mib.tail_idle_duration);
+      return;
+    }
+    if (m.y == 0) {  // E42
+      applyState(m, MacState::s58);
+      loadWait(m, m.mib.tail_idle_duration);
+      ++m.token_fail_n;
+      return;
+    }
+  }
+  // Echo queued while still in S50 (not S56): one-shot then receive, else
+  // mac_frame_pending sticks and COMM_CHANGE repeats every drain.
+  if (m.state == MacState::s50 && m.y == 2) {
+    m.mac_frame_pending = false;
+    m.mac_queue_len = 0;
+    applyState(m, MacState::s58);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
@@ -761,6 +796,8 @@ void macOnRemoteCommChange(MacSession& m, Tick now) noexcept {
   if (m.duplex == MacDuplex::half &&
       (m.state == MacState::s60 || m.state == MacState::s61)) {  // E69
     applyState(m, MacState::s51);
+    m.y = 2;
+    m.persistence = true;
     m.need_plcw = true;
     loadWait(m, m.mib.carrier_only_duration);
   }

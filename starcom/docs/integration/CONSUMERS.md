@@ -19,7 +19,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | PLTU repeater | Anyone with bytes in/out | `repeatPltu`; buffered `enqueuePltu` / `dequeuePltu` (caller-owned slots) | — |
 | Version | Anyone | `#include "starcom/version.hpp"` | Annotated tag (25) |
 
-**Rocket-Chip specifically:** host CMake `addSubdirectory(starcom)` and links `Starcom::starcom` when `ROCKETCHIP_USE_STARCOM=ON` (20). Pico + `byte_pump` (21). COP-P on the ON air path (22). Default OFF stays STOP-GAP. RadioScheduler / SX1276 stay in RC. No RC types in `include/starcom`.
+**Rocket-Chip specifically:** host and Pico always `addSubdirectory(starcom)` and link `Starcom::starcom`. COP-P air via `byte_pump`. SX1276 stays in RC. No RC types in `include/starcom`.
 
 **Others (cubesat / HAB / GCS):** same library. They bring their own event loop and radio port. No RC types required.
 
