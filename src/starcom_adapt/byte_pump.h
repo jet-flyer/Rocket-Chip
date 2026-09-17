@@ -46,6 +46,8 @@ struct BytePump {
   bool remote_apply_now = false;
   bool peer_comm_change = false;
   bool local_comm_change = false;
+  bool air_heard = false;
+  starcom::ccsds::Tick last_air_tick = 0;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,

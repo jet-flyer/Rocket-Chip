@@ -230,7 +230,15 @@ bool tickDec(Tick& t, Tick dt) noexcept {
 }
 
 void macTickPlcw(MacSession& m, Tick dt) noexcept {
-  if (m.plcw_left != 0 && tickDec(m.plcw_left, dt)) {
+  if (m.mode == MacMode::inactive || m.mib.plcw_repeat_interval == 0) {
+    return;
+  }
+  // applyTable66 leaves plcw_left at 0, so the MIB interval never armed.
+  if (m.plcw_left == 0) {
+    m.plcw_left = m.mib.plcw_repeat_interval;
+    return;
+  }
+  if (tickDec(m.plcw_left, dt)) {
     m.need_plcw = true;
     m.plcw_left = m.mib.plcw_repeat_interval;
   }

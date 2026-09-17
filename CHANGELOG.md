@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-17-003 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
+
+**Pad `Air:` COP-P lock.** P-frame PLCW (Format ID 1) was classified as SET TX when V(R)=0, so `plcw_heard` never set. `macTickPlcw` now arms the MIB interval; PLCW repeat is 4× nav. Port of `f19ae96` classify/timer only (not the RSSI-bar rewrite). Host `StationReinitLocksOnVehiclePlcw`. Desk: `COP-P lock  N(R)=0 V(S)=0  nav` TRACK ~7.5/10 Hz. ARM ACK still FAIL (`V(S)=1`, no ACK in 3840 ms).
+
 ### 2026-09-17-002 | Grok 4.6 (Build CLI) | tooling, bugfix, documentation
 
 **Catalog ToA skip + role-aware pre-commit.** NAV_PRESET/`SET` skip leftover 125/10 via `radio_config_next_fit`. Station-only diffs (`src/station/`, Fruit Jam board, dashboard) run `station_bench_sim` only. Pad `GPS (veh):`. Tiny/Pico2 `board_led_set` honors `kLedActiveHigh`. Living STOP-GAP comments retargeted to pre-Starcom 54 B / COP-P air.

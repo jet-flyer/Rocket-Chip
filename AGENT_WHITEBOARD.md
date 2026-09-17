@@ -54,14 +54,11 @@ WIP untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`
 
 ---
 
-## Next sitting — COP-P pad lock + ARM ACK (2026-09-16)
+## Next sitting — ARM ACK (2026-09-16)
 
-Station bar (live RSSI / red Cylon LOS) closed `1d79865`; USER_GUIDE Station RX. **Do next:**
+Pad `Air:` COP-P lock landed this sitting (PLCW Format ID 1 not SET TX; `macTickPlcw` arms; 4× nav PLCW). Desk: `Air: starcom  COP-P lock  N(R)=0 V(S)=0  nav` TRACK ~7.5/10 Hz.
 
-1. **Pad `Air:` COP-P lock** — desk still `waiting peer PLCW` while TRACK ~7.5/10 Hz and the bar is solid. `plcw_heard` never sets (P-frame PLCW vs SET TX classify; f19ae96 did not land on this tip). Bar is RX freshness, not COP-P.
-2. **ARM ACK** — pad CMD aired (`V(S)` moved) but scored FAIL; vehicle `rx_crc_ok=0` / deaf to Jam. Seq-cmd vs periodic PLCW steal was an uncommitted pump fix on a deleted worktree — not in `1d79865`. Do not fire pyro.
-
-Pad dashboard `RSSI:` / `Pkts:` still last-FIFO leftovers (bar is Starcom-heard freshness).
+**Still open:** ARM ACK. Desk after lock: `ARM sent`, `V(S)=1`, `CMD: ARM/DISARM Try 1/9`, then `pending cleared (no ACK in 3840 ms)` / FAILED. Station still TRACK. Do not fire pyro. Pad `RSSI:` / `Pkts:` still last-FIFO leftovers.
 
 ---
 

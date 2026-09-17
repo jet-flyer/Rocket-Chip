@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-17-002 | Grok 4.6 (Build CLI) | bugfix
+
+**`macTickPlcw` arms `plcw_left` from the MIB interval.** `applyTable66` left `plcw_left` at 0 so the repeat timer never fired. Host `test_plcw_repeat_arms`. No version bump. No tag.
+
+Verified: `starcom.unit` / host MAC tests; RC consumer classify is the root changelog.
+
 ### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation
 
 **Whiteboard: Starcom-owned leftovers live here.** Moved from RC `AGENT_WHITEBOARD.md`: FSK bitstream bearer, station readiness bit on air, SDLS 355.0. Hail / SET OTA / CFDP / FPGA PHY already on this board. RC air is always COP-P (no dual-build flag). Living consumer docs no longer say default-OFF / STOP-GAP air. No version bump. No tag.

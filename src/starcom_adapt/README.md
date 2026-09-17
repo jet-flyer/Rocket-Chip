@@ -24,3 +24,7 @@ the SPDU. No E68 in `receive_duration` reverts to hail/boot 250/10.
 `radio_config_nav_fits_hz` refuses 125/10 SF7 nav ToA. NAV_PRESET `n`
 skips that leftover via `radio_config_next_fit`. SET_RADIO_CONFIG uses
 the same ToA gate.
+
+P-frame PLCW (211.0 Fig 3-5 Format ID 1) is not SET TX: V(R)=0 makes
+`spduDirectiveType` look like type 0. MAC `plcw_repeat_interval` is 4×
+nav so FARM PLCW does not starve a queued ARM SDU.
