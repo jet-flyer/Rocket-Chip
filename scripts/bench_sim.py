@@ -19,9 +19,14 @@ never picks a bare COM by string alone). Overrides with ``--port`` are still
 banner-classified; station firmware is rejected. Connection uses
 ``open_classified_port`` for a post-open re-classify guard.
 
+Refuses leftover firmware: banner ``flight-<sha>`` must match the ELF
+``kGitHash``, the ELF must match this tree, and
+``rocketchip.elf.flashed.json`` must record this ELF's sha256. A PASS
+on last week's image is a failed gate (HW_GATE_DISCIPLINE Rule 5).
+
 Exit codes:
     0 = both tests pass
-    1 = one or more test failures
+    1 = one or more test failures (including leftover / unflashed image)
     2 = could not connect to target or tool self-check failed
 """
 
@@ -32,15 +37,18 @@ import serial
 import sys
 import threading
 import time
+from pathlib import Path
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 from _rc_test_common import (  # noqa: E402
     Banner,
+    banner_matches_elf_error,
     find_target_port,
     open_classified_port,
     rc_test,
+    refuse_stale_tree_and_elf,
     TARGET_VEHICLE_ANY,
 )
 
@@ -265,6 +273,13 @@ def main():
     # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
     _start_watchdog(args.max_runtime)
 
+    repo = Path(_SCRIPTS_DIR).resolve().parent
+    expected, ident_err = refuse_stale_tree_and_elf(repo, 'vehicle')
+    if ident_err or expected is None:
+        print('ERROR: leftover / unflashed image would make this gate a lie.')
+        print(f'  {ident_err}')
+        sys.exit(1)
+
     # --- Port detection + connect ---
     port_name, meta = find_target_port(
         TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose)
@@ -279,7 +294,14 @@ def main():
         print('ERROR: internal: expected Banner from find_target_port')
         sys.exit(2)
 
+    banner_err = banner_matches_elf_error(meta, expected)
+    if banner_err:
+        print('ERROR: leftover / unflashed image would make this gate a lie.')
+        print(f'  {banner_err}')
+        sys.exit(1)
+
     print(f'Using {port_name} ({meta.short_summary()})')
+    print(f'  image: flight-{expected.git_hash} sha256={expected.sha256[:12]}…')
 
     try:
         # find_target_port already classified. A second CDC open with the

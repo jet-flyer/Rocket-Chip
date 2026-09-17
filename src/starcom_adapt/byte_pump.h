@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// AO byte pump (IVP 21–22). RC-owned. RadioScheduler / SX1276 stay in RC.
-// No Starcom default pin map. Soak SCIDs are RC IDs, not a Starcom MIB.
-// IVP 22: air path is COP-P (submit_sdu / bytes_to_send / receive_bytes).
+// AO byte pump. RC-owned. SX1276 stays in RC. No Starcom default pin map.
+// Soak SCIDs are RC IDs, not a Starcom MIB.
+// Air path is 211.0 §6 MAC (DUPLEX=half) + COP-P inside a send contact.
+// pump_bytes_to_send is still raw COP-P (host loopback). Firmware drain
+// uses pump_air_to_send (table 6-14 FIFO).
 
 #ifndef ROCKETCHIP_STARCOM_BYTE_PUMP_H
 #define ROCKETCHIP_STARCOM_BYTE_PUMP_H
 
-#ifdef ROCKETCHIP_USE_STARCOM
 
 #include "starcom/ccsds/copp.hpp"
+#include "starcom/ccsds/mac.hpp"
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/space_packet.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -35,8 +37,15 @@ inline constexpr starcom::ccsds::PortId kSoakPort{1};
 
 struct BytePump {
   starcom::ccsds::CoppEndpoint copp{};
+  starcom::ccsds::MacSession mac{};
   starcom::ccsds::Scid local_scid{};
   starcom::ccsds::Scid remote_scid{};
+  std::uint8_t hail_catalog_idx = 0;
+  std::uint8_t pending_catalog_idx = 0;
+  bool pending_catalog_valid = false;
+  bool remote_apply_now = false;
+  bool peer_comm_change = false;
+  bool local_comm_change = false;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
@@ -64,11 +73,27 @@ starcom::ccsds::Result<std::size_t> pump_submit_sdu(
 starcom::ccsds::Result<std::size_t> pump_bytes_to_send(
     BytePump& p, std::span<std::byte> out) noexcept;
 void pump_receive_bytes(BytePump& p, std::span<const std::byte> octets) noexcept;
+void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept;
 starcom::ccsds::Result<std::size_t> pump_take_sdu(
     BytePump& p, std::span<std::byte> out) noexcept;
 void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept;
+void pump_start_session(BytePump& p, bool caller,
+                        starcom::ccsds::Tick now) noexcept;
+starcom::ccsds::Result<std::size_t> pump_air_to_send(
+    BytePump& p, std::span<std::byte> out) noexcept;
+starcom::ccsds::MacPhy pump_mac_phy(BytePump const& p) noexcept;
+starcom::ccsds::MacFifoSource pump_fifo_source(BytePump const& p) noexcept;
+starcom::ccsds::MacNotify pump_poll_mac_notify(BytePump& p) noexcept;
+
+// Catalog idx packed in SET PL EXTENSIONS (consumer LoRa, not 211.1).
+starcom::ccsds::MacCommValue pump_comm_value_for_catalog(
+    std::uint8_t idx) noexcept;
+bool pump_catalog_fits(std::uint8_t idx) noexcept;
+bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
+                            starcom::ccsds::Tick now) noexcept;
+std::uint8_t pump_catalog_from_pl(
+    starcom::ccsds::MacPlExt const& pl) noexcept;
 
 }  // namespace rc::starcom_adapt
 
-#endif  // ROCKETCHIP_USE_STARCOM
 #endif  // ROCKETCHIP_STARCOM_BYTE_PUMP_H

@@ -11,14 +11,17 @@
 #include "rc_os_dashboard.h"
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
-#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "diag/radio_rate_counters.h"
+#include "safety/health_monitor.h"
 #include "active_objects/ao_radio.h"
-#include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
+#include "active_objects/ao_telemetry.h"
+#include "active_objects/station_bar_mode.h"
 #include "starcom_adapt/sc_air.h"
-#include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
+#include "active_objects/ao_rf_manager.h"
 #include "flight_director/flight_state.h"
 #include <string.h>
 #include <stdint.h>
+#include <cstdint>
 #include <math.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -137,7 +140,7 @@ struct DisplayFields {
     const char* rssi_clr;
     const char* fix_str;
     char bar[16];
-    // Stage T IVP-T5.5 sub 2f — radio config row.
+    // Radio config row (station vs last vehicle echo).
     uint16_t stn_bw;  uint8_t stn_nav;  uint8_t stn_sf;  uint8_t stn_cr;
     uint16_t veh_bw;  uint8_t veh_nav;  uint8_t veh_sf;  uint8_t veh_cr;
     bool     veh_cfg_known;    // false -> dashboard shows "?" for vehicle
@@ -194,6 +197,14 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.phase_clr = flight_phase_color(t.flight_state);
     d.sig_clr   = signal_age_color(d.age_ms);
     d.rssi_clr  = rssi_color(rs->last_rx_rssi);
+    {
+        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        const StationBarMode bar = station_bar_mode(
+            sc.nav_sdu || sc.peer_plcw, rs->rx_count, d.age_ms);
+        if (bar == StationBarMode::Waiting) {
+            d.rssi_clr = kYellow;
+        }
+    }
 
     d.met_s  = met_ms / 1000;
     d.met_ds = (met_ms % 1000) / 100;
@@ -210,8 +221,7 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     else if (d.fix == 2) d.fix_str = "2D";
 }
 
-// Stage T IVP-T5.5 sub 2f — format the "Radio:" row content (no ANSI colour
-// wrappers; caller wraps). Uses "?" for vehicle cfg when not yet known.
+// "Radio:" row (no ANSI colour; caller wraps). "?" until vehicle cfg known.
 // Returns number of chars written, not including the trailing kClrEol.
 static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
     if (!d.veh_cfg_known) {
@@ -235,37 +245,92 @@ static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
         d.cfg_just_changed ? " [CHANGED]" : "");
 }
 
-// IVP-T14: RF Link glance indicator — green/yellow/red block that matches
-// the FD pre-arm threshold (kTrack + LQ>=65 = green, kTrackDegraded OR
-// LQ<65 in any tracking state = yellow, kAcq/kTentative/no RX = red).
+// R-32 R0: soak captures the ANSI dashboard, not CLI `t` (dashboard
+// poll_dashboard_keys eats t/q/d). Same RATE: tokens as radio_rate_counters_dump.
+static int format_rate_row(char* out, size_t n) {
+    const RadioRateCounters& c = g_radioRateCounters;
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t window_ms = 0;
+#endif
+    return rc::rc_snprintf(
+        out, n,
+        "RATE: window_ms=%lu nav_submit=%lu pltu_post=%lu tx_start=%lu "
+        "tx_done=%lu tx_busy_drop=%lu tx_hold_replace=%lu "
+        "rx_crc_ok=%lu rx_crc_fail=%lu station_tx=%lu",
+        (unsigned long)window_ms,
+        (unsigned long)c.nav_submit_n,
+        (unsigned long)c.pltu_post_n,
+        (unsigned long)c.tx_start_n,
+        (unsigned long)c.tx_done_n,
+        (unsigned long)c.tx_busy_drop_n,
+        (unsigned long)c.tx_hold_replace_n,
+        (unsigned long)c.rx_crc_ok_n,
+        (unsigned long)c.rx_crc_fail_n,
+        (unsigned long)c.station_tx_n);
+}
+
+// CRC-good RX Hz tenths — same formula as radio_rate_counters dump_hz_field.
+static void format_rx_hz_token(char* out, size_t n, uint8_t desired_hz) {
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t window_ms = 0;
+#endif
+    if (window_ms < 1000U) {
+        rc::rc_snprintf(out, n, "RX --/%u Hz",
+                        static_cast<unsigned>(desired_hz));
+        return;
+    }
+    const uint32_t window_s = window_ms / 1000U;
+    const uint32_t hz10 = static_cast<uint32_t>(
+        (static_cast<uint64_t>(g_radioRateCounters.rx_crc_ok_n) * 10U) /
+        window_s);
+    rc::rc_snprintf(out, n, "RX %lu.%lu/%u Hz",
+                    (unsigned long)(hz10 / 10U),
+                    (unsigned long)(hz10 % 10U),
+                    static_cast<unsigned>(desired_hz));
+}
+
+// RF Link glance — same thresholds as FD pre-arm (kTrack + LQ>=65 green;
+// kTrackDegraded or LQ<65 yellow; kAcq/kTentative/no RX red).
 // Returns pair (color, row text) via out parameters.
-static void format_rf_link_row(char* out, size_t n, const char*& colour) {
+static void format_rf_link_row(char* out, size_t n, const char*& colour,
+                               const DisplayFields& d) {
+    // Denom is CFG nav_rate_hz; vehicle echo is the TM command rate.
+    uint8_t desired = d.stn_nav;
+    if (d.veh_cfg_known && d.veh_nav != 0) {
+        desired = d.veh_nav;
+    }
+    char rxhz[24];
+    format_rx_hz_token(rxhz, sizeof(rxhz), desired);
+
     const rc::RfManagerState* rf = rc::AO_RfManager_get_state();
     if (rf == nullptr || !rf->anchor_valid) {
         colour = kRed;
-        rc::rc_snprintf(out, n, "RF Link: NO RX YET                 [  ]");
+        rc::rc_snprintf(out, n, "RF Link: NO RX YET %s [!!]", rxhz);
         return;
     }
     const uint8_t lq  = rf->lq_pct;
     const int     st  = static_cast<int>(rf->state);
     const char*   st_name = rc::link_state_name(rf->state);
+    const char* tag = "[!!]";
     // kTrack=2, kTrackDegraded=3
     if (st == 2 && lq >= 65U) {
         colour = kGreen;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [OK]",
-                        st_name, static_cast<unsigned>(lq));
+        tag = "[OK]";
     } else if (st == 2 || st == 3) {
         colour = kYellow;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [--]",
-                        st_name, static_cast<unsigned>(lq));
+        tag = "[--]";
     } else {
         colour = kRed;
-        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [!!]",
-                        st_name, static_cast<unsigned>(lq));
     }
+    rc::rc_snprintf(out, n, "RF Link: %s LQ %u%% %s %s",
+                    st_name, static_cast<unsigned>(lq), rxhz, tag);
 }
 
-// IVP-T14c: short command name for dashboard row. Stable across retries.
+// Short command name for the CMD row. Stable across retries.
 static const char* cmd_id_short_name(uint16_t cmd_id) {
     switch (cmd_id) {
     case 400:   return "ARM/DISARM";
@@ -277,7 +342,7 @@ static const char* cmd_id_short_name(uint16_t cmd_id) {
     }
 }
 
-// IVP-T14c: dashboard CMD row. Three display states:
+// CMD row. Three display states:
 //  - pending: "CMD: ARM/DISARM  Try 3/8" (yellow while retrying, reset color on initial send)
 //  - ACK:     "CMD: ARM/DISARM  ACK 180ms" (green, held ~3s after ACK)
 //  - FAIL:    "CMD: ARM/DISARM  FAILED"    (red, held ~5s after exhaustion)
@@ -348,19 +413,19 @@ static void format_starcom_row(char* out, int n, const char*& colour) {
 
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
-    // Sub 2f — build radio row with colour bracket if mismatched or just-changed.
+    // Radio row colour: cyan one frame after a change, yellow if mismatch.
     char radio_row[96];
     format_radio_row(radio_row, sizeof(radio_row), d);
     const char* radio_clr = kReset;
     if (d.cfg_just_changed)      { radio_clr = kCyan;   }
     else if (d.cfg_mismatch)     { radio_clr = kYellow; }
 
-    // IVP-T14: RF Link row with glance indicator (pre-arm parity).
-    char rflink_row[80];
+    // RF Link row (pre-arm parity).
+    char rflink_row[96];
     const char* rflink_clr = kReset;
-    format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr);
+    format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr, d);
 
-    // IVP-T14c: CMD row — pending/ACK/FAIL status with auto-clear.
+    // CMD row — pending/ACK/FAIL with auto-clear.
     char cmd_row[80];
     const char* cmd_clr = kReset;
     format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
@@ -404,6 +469,9 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         radio_clr, radio_row, kReset, kClrEol);
+    char rate_row[256];
+    format_rate_row(rate_row, sizeof(rate_row));
+    rc::strbuf_printf(&sb, "%s%s\n", rate_row, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         rflink_clr, rflink_row, kReset, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
@@ -431,17 +499,17 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     return static_cast<int>(rc::strbuf_len(&sb));
 }
 
-// IVP-122: Dashboard pause for ARM confirm flow
+// Pause render so ARM confirm text is not overwritten.
 static bool g_dashboardPaused = false;
 
-void rc_os_dashboard_pause()  { g_dashboardPaused = true; }
-void rc_os_dashboard_resume() { g_dashboardPaused = false; }
+void ansi_dashboard_pause()  { g_dashboardPaused = true; }
+void ansi_dashboard_resume() { g_dashboardPaused = false; }
 
 void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,
                             uint32_t met_ms, uint16_t seq, bool valid,
                             const RxTelemSnapshot* rx) {
-    if (g_dashboardPaused) return;  // IVP-122: suppress during ARM confirm
+    if (g_dashboardPaused) return;
 
     if (!valid) {
         ansi_dashboard_render_waiting(rs);
@@ -451,7 +519,7 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
     DisplayFields d = {};
     decode_telem_fields(t, rs, met_ms, seq, d);
 
-    // Stage T IVP-T5.5 sub 2f — populate radio config row.
+    // Populate radio config row.
     d.stn_bw  = rs->runtime_config.bandwidth_khz;
     d.stn_nav = rs->runtime_config.nav_rate_hz;
     d.stn_sf  = rs->runtime_config.spreading_factor;
@@ -486,6 +554,8 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
     char sc_row[80];
     const char* sc_clr = kReset;
     format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
+    char rate_row[256];
+    format_rate_row(rate_row, sizeof(rate_row));
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
@@ -493,6 +563,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         "%s%s%s%s\n"
         "-------------------------------------------%s\n"
         "RX: %lu pkts  CRC err: %lu%s\n"
+        "%s%s\n"
         "Uptime: %lus%s\n"
         "%s\n"
         "'a' ARM  'D' DISARM  'x' menu%s\n",
@@ -502,6 +573,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         sc_clr, sc_row, kReset, kClrEol,
         kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors, kClrEol,
+        rate_row, kClrEol,
         (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);

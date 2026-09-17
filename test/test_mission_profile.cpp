@@ -30,6 +30,8 @@ TEST(MissionProfileRocket, NameIsRocket) {
 
 TEST(MissionProfileRocket, HasPyro) {
     EXPECT_TRUE(rc::kDefaultRocketProfile.has_pyro);
+    EXPECT_TRUE(rc::kDefaultRocketProfile.usb_arm_inhibit);
+    EXPECT_TRUE(rc::kDefaultRocketProfile.usb_config_en);
 }
 
 TEST(MissionProfileRocket, AbortDoesNotFireDrogueByDefault) {

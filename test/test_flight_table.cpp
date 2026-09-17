@@ -378,20 +378,22 @@ TEST(FlightTable, EntryCrcCoversAllFields) {
     rc::flight_entry_compute_crc(&entry);
     uint32_t original_crc = entry.crc32;
 
-    // Change each major field and verify CRC changes
-    auto test_field = [&](auto& field) {
-        auto saved = field;
-        field ^= 1;  // Flip least significant bit
+    // Change each major field and verify CRC changes. Copy out of the
+    // packed struct — g++ will not bind a packed field to a generic
+    // lambda `auto&`.
+    auto test_u32 = [&](uint32_t saved, auto restore) {
+        restore(saved ^ 1U);
         rc::flight_entry_compute_crc(&entry);
         EXPECT_NE(entry.crc32, original_crc);
-        field = saved;
+        restore(saved);
         rc::flight_entry_compute_crc(&entry);
     };
-
-    test_field(entry.start_sector);
-    test_field(entry.sector_count);
-    test_field(entry.frame_count);
-    test_field(entry.log_rate_hz);
+    test_u32(entry.start_sector, [&](uint32_t v) { entry.start_sector = v; });
+    test_u32(entry.sector_count, [&](uint32_t v) { entry.sector_count = v; });
+    test_u32(entry.frame_count, [&](uint32_t v) { entry.frame_count = v; });
+    test_u32(entry.log_rate_hz, [&](uint32_t v) {
+        entry.log_rate_hz = static_cast<uint8_t>(v);
+    });
 }
 
 // ============================================================================

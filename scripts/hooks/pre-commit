@@ -73,6 +73,7 @@ fi
 HOST_BUILD="${REPO_ROOT}/build_host"
 if [[ -d "${HOST_BUILD}" ]] && [[ -f "${HOST_BUILD}/CTestTestfile.cmake" ]]; then
     echo "pre-commit: running host tests..."
+    cmake --build "${HOST_BUILD}"
     (cd "${HOST_BUILD}" && ctest --output-on-failure)
     CTEST_RC=$?
     if [[ ${CTEST_RC} -ne 0 ]]; then

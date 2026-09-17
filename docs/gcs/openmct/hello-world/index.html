@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Rocket Chip Open MCT — Master Dashboard</title>
+<style>
+  html,body{margin:0;height:100%;background:#2c2c2c;color:#eee;font:14px/1.4 system-ui,sans-serif}
+  /* Master-caution Summary Widgets: readable labels in Flexible Layout frames */
+  .c-sw, .c-summary-widget, .w-summary-widget {
+    font-size: 18px !important;
+    letter-spacing: 0.04em !important;
+    font-weight: 700 !important;
+  }
+  .c-sw__label, .c-summary-widget__label, .c-sw__text {
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    transform: none !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  #boot-error{display:none;padding:16px;white-space:pre-wrap;background:#400;color:#fcc}
+
+  /* Master-caution: Summary Widgets need room + normal tracking in layouts */
+  .l-layout .c-sw,
+  .l-layout .c-summary-widget,
+  .c-so-view .c-sw,
+  .c-so-view .c-summary-widget {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 4em !important;
+    box-sizing: border-box !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    letter-spacing: normal !important;
+    padding: 8px 12px !important;
+  }
+  .l-layout .c-sw__label,
+  .l-layout .c-summary-widget__label,
+  .c-so-view .c-sw__label {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.08em !important;
+    transform: none !important;
+    max-width: none !important;
+  }
+</style>
+<script src="node_modules/openmct/dist/openmct.js"></script>
+<script src="../plugins/rc-csv-dictionary.js"></script>
+<script src="../plugins/rc-csv-historical.js"></script>
+<script src="../plugins/rc-realtime.js"></script>
+</head><body>
+<div id="boot-error"></div>
+<script>
+(function () {
+  function fail(err) {
+    var el = document.getElementById('boot-error');
+    el.style.display = 'block';
+    el.textContent = 'Open MCT boot failed:\n' + (err && err.stack ? err.stack : String(err));
+    console.error(err);
+  }
+  try {
+    if (typeof openmct === 'undefined') throw new Error('openmct global missing');
+    var params = new URLSearchParams(window.location.search);
+    var csvUrl = params.get('csv') || '../fixtures/omct_big_daddy_fidelity.csv';
+    var assetPath = new URL('node_modules/openmct/dist/', window.location.href).href;
+    openmct.setAssetPath(assetPath);
+    openmct.install(openmct.plugins.LocalStorage());
+    openmct.install(openmct.plugins.MyItems());
+    openmct.install(openmct.plugins.UTCTimeSystem());
+    openmct.install(openmct.plugins.Espresso());
+    openmct.install(openmct.plugins.Plot());
+    if (openmct.plugins.TelemetryTable) openmct.install(openmct.plugins.TelemetryTable());
+    if (openmct.plugins.Gauge) openmct.install(openmct.plugins.Gauge());
+    if (openmct.plugins.SummaryWidget) openmct.install(openmct.plugins.SummaryWidget());
+    if (openmct.plugins.LADTable) openmct.install(openmct.plugins.LADTable());
+    if (openmct.plugins.FlexibleLayout) openmct.install(openmct.plugins.FlexibleLayout());
+    if (openmct.plugins.Condition) openmct.install(openmct.plugins.Condition());
+    if (openmct.plugins.ConditionWidget) openmct.install(openmct.plugins.ConditionWidget());
+    if (openmct.plugins.Conductor) {
+      openmct.install(openmct.plugins.Conductor({
+        menuOptions: [{
+          name: 'Fixed',
+          timeSystem: 'utc',
+          bounds: { start: Date.now() - 60000, end: Date.now() }
+        }]
+      }));
+    }
+    if (openmct.plugins.DisplayLayout) {
+      openmct.install(openmct.plugins.DisplayLayout({ showAsView: ['summary-widget', 'gauge'] }));
+    }
+    openmct.time.setTimeSystem('utc');
+    openmct.time.setClock('local');
+    openmct.time.setClockOffsets({ start: -30 * 1000, end: 5 * 1000 });
+    try {
+      openmct.install(RcCsvDictionaryPlugin());
+      openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
+      openmct.install(RcRealtimePlugin({ wsUrl: 'ws://localhost:8091/' }));
+    } catch (pluginErr) {
+      fail(pluginErr);
+      return;
+    }
+    function boot() {
+      try { openmct.start(); }
+      catch (e) { fail(e); }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+  } catch (e) { fail(e); }
+})();
+</script>
+</body></html>

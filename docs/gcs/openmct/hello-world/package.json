@@ -1,0 +1,8 @@
+{
+  "name": "rocketchip-openmct-hello",
+  "private": true,
+  "description": "Desk-PC hello-world Open MCT shell",
+  "dependencies": {
+    "openmct": "^4.1.0"
+  }
+}

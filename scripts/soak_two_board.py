@@ -23,7 +23,10 @@ VEH_SER = "02FBDDB8E1CA1281"
 STN_SER = "BEC71B8EDC6AEBD1"
 
 # Strip ANSI for scoring (dashboard is color + home/clear).
-_ANSI_RE = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07")
+# Allow CSI '?' private modes and OSC; soak station logs are 90% CSI.
+_ANSI_RE = re.compile(
+    rb"\x1b\[[?0-9;]*[A-Za-z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]"
+)
 
 
 def open_cdc(port: str) -> serial.Serial:
@@ -126,6 +129,24 @@ def last_str(text: str, pattern: str) -> str | None:
     return hits[-1].group(1)
 
 
+def strip_ansi_text(text: str) -> str:
+    blob = text.encode("utf-8", errors="replace")
+    return _ANSI_RE.sub(b"", blob).decode("utf-8", errors="replace")
+
+
+def last_rate(text: str, key: str) -> int | None:
+    # Dashboard RATE sits on a CSI-wrapped line. Strip first, then take
+    # the last RATE: line's token so home/clear refreshes don't glue keys.
+    clean = strip_ansi_text(text)
+    return last_int(clean, rf"RATE:[^\n]*\b{re.escape(key)}\s*=\s*(\d+)")
+
+
+def rate_hz(count: int | None, window_ms: int | None) -> str | None:
+    if count is None or window_ms is None or window_ms < 1000:
+        return None
+    return f"{count / (window_ms / 1000.0):.2f}"
+
+
 LAYOUT_BLURB = {
     "A": "A (station on metal PC, ~1.5 m, antennas up)",
     "B": "B (vehicle on floor behind chassis, no LOS, antennas orthogonal)",
@@ -166,6 +187,22 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
     add("paper_nav_toa_ms", paper.get("nav_ms"))
     add("paper_plcw_toa_ms", paper.get("plcw_ms"))
     add("paper_duty_5hz_pct", paper.get("duty_pct"))
+
+    veh_win = last_rate(veh, "window_ms")
+    stn_win = last_rate(stn, "window_ms")
+    add("veh_rate_window_ms", veh_win)
+    add("stn_rate_window_ms", stn_win)
+    for key in (
+        "nav_submit", "pltu_post", "tx_start", "tx_done",
+        "tx_busy_drop", "tx_hold_replace", "rx_crc_ok", "rx_crc_fail",
+        "station_tx",
+    ):
+        vn = last_rate(veh, key)
+        sn = last_rate(stn, key)
+        add(f"veh_{key}_n", vn)
+        add(f"stn_{key}_n", sn)
+        add(f"veh_{key}_hz", rate_hz(vn, veh_win))
+        add(f"stn_{key}_hz", rate_hz(sn, stn_win))
 
     tx = last_int(veh, r"TX:\s+(\d+)\s+sent")
     rx = last_int(stn, r"Pkts:\s+(\d+)") or last_int(stn, r"RX:\s+(\d+)\s+pkts")
@@ -296,8 +333,10 @@ def main() -> int:
 
             if not cfg_sent and elapsed >= 4.0:
                 veh.send(b"t")
+                # Station stays on ANSI dash here so `a`/`D` ARM still work.
+                # RATE is on the dashboard frame (poll_dashboard_keys eats `t`).
                 cfg_sent = True
-                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG)")
+                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG); stn RATE via dash")
 
             if not diag_sent and elapsed >= 8.0:
                 veh.send(b"q")
@@ -306,7 +345,7 @@ def main() -> int:
                 time.sleep(0.6)
                 veh.send(b"z")
                 diag_sent = True
-                log(f"  t={elapsed:.0f}s vehicle debug d (RegVersion)")
+                log(f"  t={elapsed:.0f}s vehicle debug d (RegVersion + RATE)")
 
             if not t10_checked and elapsed >= 12.0:
                 vtxt = veh.snapshot_text()
@@ -339,9 +378,22 @@ def main() -> int:
                 disarmed = True
 
             if not cfg2_sent and elapsed >= args.duration - 8.0:
-                veh.send(b"t")
+                try:
+                    veh.send(b"t")
+                    if stn is not None:
+                        # After ARM/DISARM: exit dash once (`x`), then `z`/`t`/`s`.
+                        # Do not send `x` again (main-menu `x` is flight-erase).
+                        stn.send(b"x")
+                        time.sleep(0.4)
+                        stn.send(b"z")
+                        time.sleep(0.25)
+                        stn.send(b"t")
+                        time.sleep(0.35)
+                        stn.send(b"s")
+                    log(f"  t={elapsed:.0f}s CLI t (end CFG + RATE) veh+stn")
+                except Exception as e:
+                    log(f"  t={elapsed:.0f}s end-CLI soft-fail ({e!r}) — continue to score")
                 cfg2_sent = True
-                log(f"  t={elapsed:.0f}s vehicle CLI t (end CFG)")
 
             time.sleep(0.2)
     finally:

@@ -38,6 +38,8 @@ void AO_Telemetry_set_rate(uint8_t rate_hz);
 // coppInit in place (byte_pump). Both roles. Desk 2026-09-03: SET changed
 // vehicle CFG but lock died (hear ≠ PLCW).
 void AO_Telemetry_on_radio_phy_applied();
+// 211.0 table 6-11. idx is kRadioConfigTable. False if ToA does not fit.
+bool AO_Telemetry_request_comm_change(uint8_t catalog_idx);
 
 // Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
 // Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for
@@ -77,8 +79,7 @@ struct RxTelemSnapshot {
 };
 const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 
-// COP-P peer lock (valid PLCW heard) and nav SDU accept. All-false when
-// ROCKETCHIP_USE_STARCOM is off.
+// COP-P peer lock (valid PLCW heard) and nav SDU accept.
 struct StarcomLinkStatus {
     bool on = false;
     bool peer_plcw = false;
@@ -87,6 +88,10 @@ struct StarcomLinkStatus {
     uint8_t nn_r = 0;
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
+
+// After TxDone/timeout the radio is idle. Drain one queued seq cmd/ACK
+// (or station PLCW) into SIG_RADIO_TX. True if a PLTU was posted.
+bool AO_Telemetry_drain_after_tx();
 
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
 void AO_Telemetry_notify_gcs_heartbeat();

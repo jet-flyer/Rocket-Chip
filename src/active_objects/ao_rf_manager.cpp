@@ -7,8 +7,7 @@
 //   AO_Radio posts SIG_RADIO_RX on every valid RX → AO_RfManager handles,
 //   updates per-RX state (LQ, anchor_estimate, consec counters, state-machine
 //   transitions).
-//   10 Hz internal tick drives deadman + idle-drift + forced-ACQ checks that
-//   fire on absence of RX, not on RX events.
+//   10 Hz internal tick drives forced-ACQ / miss accounting on RX absence.
 //
 // Design: docs/plans/STAGE_T_T14_DESIGN.md
 //============================================================================
@@ -17,6 +16,7 @@
 #include "safety/rf_link_health.h"  // pure state-machine helpers (host-testable)
 #include "rocketchip/ao_signals.h"  // rc::RadioRxEvt, rc::SIG_RADIO_RX
 #include "rocketchip/job.h"         // job::kRole
+#include "rocketchip/rc_log.h"
 #include "ao_notify.h"              // IVP-T14 #10: vehicle-lost/found posts
 #include <string.h>
 
@@ -57,6 +57,7 @@ struct RfManager {
     // per RX event (slot = 1, displaces oldest).
     uint16_t lq_window;           // uses low kLqWindowSize bits
     uint8_t  lq_window_count;     // valid bits in window (0..kLqWindowSize)
+    uint32_t next_miss_due_ms;    // 0 = none; one miss per nav slot
 };
 
 static RfManager g_rf;
@@ -190,6 +191,7 @@ static void handle_valid_rx(RfManager * const me, const RadioRxEvt * const rx) {
 
         s.last_rx_us = now_us;
         s.last_rx_ms = now_ms;
+        me->next_miss_due_ms = now_ms + me->nav_period_ms;
         s.last_rx_rssi_dbm = rx->rssi;
         s.last_rx_snr_db = rx->snr;
         s.consec_good_rx++;
@@ -215,17 +217,17 @@ static void handle_tick(RfManager * const me) {
     RfManagerState& s = me->state;
     uint32_t now_ms = now_ms_impl();
 
-    // Have we missed a nav frame since last tick?
-    // Detect by time since last RX. If > 1.5 × nav_period, count as missed.
+    // Missed nav slot: 2 × period grace, then one charge per period.
     // Only accumulate when state != kAcq (kAcq has no expected cadence).
     if (s.state != LinkState::kAcq && s.anchor_valid) {
         uint32_t since_rx_ms = now_ms - s.last_rx_ms;
         uint32_t nav_period_ms = me->nav_period_ms;
         if (nav_period_ms == 0) { nav_period_ms = 200U; }  // sanity
 
-        if (since_rx_ms > (nav_period_ms * 15U / 10U)) {
-            // Time has passed longer than 1.5 nav periods — tally missing
-            // slot. Advance window with a miss.
+        if (rf_charge_miss_slot(now_ms, s.last_rx_ms, nav_period_ms,
+                                &me->next_miss_due_ms)) {
+            // One missed nav slot. 10 Hz tick must not charge 10 Hz air
+            // against a 2 Hz COMM_CHANGE catalog.
             lq_window_push(me, 0U);
             s.consec_missed_rx++;
             s.consec_good_rx = 0;
@@ -303,6 +305,7 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init) {
     g_rf.alpha_scaled = kRfAlphaInit;
     g_rf.lq_window = 0;
     g_rf.lq_window_count = 0;
+    g_rf.next_miss_due_ms = 0;
 
     QActive_ctor(&g_rf.super, Q_STATE_CAST(&rf_initial));
     QTimeEvt_ctorX(&g_rf.tick_timer, &g_rf.super, SIG_RFMGR_TICK, 0U);
@@ -322,45 +325,20 @@ const RfManagerState* AO_RfManager_get_state() {
     return &g_rf.state;
 }
 
-uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
-    const RfManagerState& s = g_rf.state;
-
-    // No anchor yet → no window.
-    if (!s.anchor_valid || s.state == LinkState::kAcq) {
-        return 0;
-    }
-
-    // Deadman check: anchor stale? Delegates to shared helper.
-    uint32_t elapsed_us = now_us - s.last_rx_us;
-    if (rf_deadman_fired(elapsed_us, g_rf.nav_period_ms)) {
-        return 0;  // Deadman fired — hold TX, wait for re-sync.
-    }
-
-    // Window math: next vehicle TX is expected at last_rx_us + nav_period.
-    // Safe station-TX window opens at last_rx_us + small settle (2 ms) and
-    // closes at next_vehicle_tx - guard_us.
-    //
-    // Skeleton: return "next safe moment" simply as last_rx_us + small offset.
-    // Full window arithmetic per design §6 lands in a follow-up commit alongside
-    // airtime-aware guard computation (needs airtime-formula integration into
-    // this AO — currently only AO_Radio knows airtime).
-    //
-    // For now, return last_rx_us + 2 ms as a conservative "after vehicle
-    // settles, before next period" window opener.
-    return s.last_rx_us + 2000U;
-}
-
-bool AO_RfManager_ok_to_retry() {
-    const RfManagerState& s = g_rf.state;
-    // Don't retry in kAcq (no point TXing blind).
-    // Permit retries in kTentative (builds up link) + kTrack + kTrackDegraded.
-    return s.state != LinkState::kAcq;
-}
-
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms) {
     if (nav_period_ms == 0) { nav_period_ms = 200U; }
     if (nav_period_ms > 5000U) { nav_period_ms = 5000U; }  // sanity cap
+    if (g_rf.nav_period_ms == nav_period_ms) {
+        return;
+    }
     g_rf.nav_period_ms = nav_period_ms;
+    // Old 10 Hz miss bits would keep TRACK_DEGRADED after a 10->2 Hz hop.
+    g_rf.lq_window = 0;
+    g_rf.lq_window_count = 0;
+    g_rf.next_miss_due_ms = 0;
+    g_rf.state.consec_missed_rx = 0;
+    rc::rc_log("[RF] nav period %u ms\n",
+               static_cast<unsigned>(nav_period_ms));
 }
 
 const char* link_state_name(LinkState s) {

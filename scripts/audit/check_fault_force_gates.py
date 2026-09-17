@@ -246,9 +246,14 @@ def check_debug_menu_gates(src_path: str) -> Tuple[int, int, List[str]]:
         r"\s*if\s*\(\s*!\s*rc::test_mode_active\s*\(\s*\)\s*\)",
         re.MULTILINE,
     )
+    led_present = re.search(r"case\s+'l'\s*:", text) is not None
     if led_branch_re.search(text):
         findings.append("  [GATED]    case 'l'/'L' — LED test")
         n_ok_led = 1
+        n_violation_led = 0
+    elif not led_present:
+        findings.append("  [OMITTED]  case 'l'/'L' — LED test not in ELF")
+        n_ok_led = 0
         n_violation_led = 0
     else:
         msgs.append("rc_os_debug.cpp: case 'l'/'L' (LED test) does not call "
@@ -265,9 +270,14 @@ def check_debug_menu_gates(src_path: str) -> Tuple[int, int, List[str]]:
         r"\s*if\s*\(\s*!\s*rc::test_mode_active\s*\(\s*\)\s*\)",
         re.MULTILINE,
     )
+    cfg_present = re.search(r"case\s+'0'\s*:", text) is not None
     if cfg_branch_re.search(text):
         findings.append("  [GATED]    case '0'..'5' — local radio config set")
         n_ok_cfg = 1
+        n_violation_cfg = 0
+    elif not cfg_present:
+        findings.append("  [OMITTED]  case '0'..'5' — radio config set not in ELF")
+        n_ok_cfg = 0
         n_violation_cfg = 0
     else:
         msgs.append("rc_os_debug.cpp: case '0'..'5' (radio config set) does not "

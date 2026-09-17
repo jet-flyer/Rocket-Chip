@@ -96,6 +96,10 @@ struct MissionProfile {
     // --- Pyro ---
     bool has_pyro;                      // Profile includes pyro channels
 
+    // --- USB console (sitting 5). Locked from catalog SET. ---
+    bool usb_arm_inhibit;               // PX4-style: refuse USB ARM when true
+    bool usb_config_en;                 // USB console config allowed (profile)
+
     // --- PIO backup deployment timers ---
     float drogue_timer_s;               // Backup drogue timer (seconds from ARM, 0=disabled)
     float main_timer_s;                 // Backup main timer (seconds from ARM, 0=disabled)

@@ -58,15 +58,19 @@ import time
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
+from pathlib import Path
+
 from _rc_test_common import (  # noqa: E402
     Banner,
     Role,
+    banner_matches_elf_error,
     classify_banner,
     ensure_station_in_dashboard_state,
     find_target_port,
     open_classified_port,
     peek_banner,
     rc_test,
+    refuse_stale_tree_and_elf,
     ROCKETCHIP_USB_PID,
     ROCKETCHIP_USB_VID,
     TARGET_STATION_ANY,  # R-25-exec step 7: bench/flight collapsed, accept either
@@ -412,6 +416,24 @@ def main():
             print('ERROR: internal: expected Banner from find_target_port')
             sys.exit(2)
         meta = reason
+
+        repo = Path(_SCRIPTS_DIR).resolve().parent
+        expected, ident_err = refuse_stale_tree_and_elf(repo, 'station')
+        if ident_err:
+            print('ERROR: leftover / unflashed image would make this gate a lie.')
+            print(f'  {ident_err}')
+            sys.exit(1)
+        if meta.git_hash:
+            banner_err = banner_matches_elf_error(meta, expected)
+            if banner_err:
+                print('ERROR: leftover / unflashed image would make this gate a lie.')
+                print(f'  {banner_err}')
+                sys.exit(1)
+            print(f'  image: flight-{expected.git_hash} '
+                  f'sha256={expected.sha256[:12]}…')
+        else:
+            print('  dashboard peek has no flight-<sha>; ELF flash record is '
+                  'the attribution until kmenu (VERSIONING.md SWE-084)')
 
     print(f'using station port: {port_name}')
     if meta.is_known():

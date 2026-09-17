@@ -18,7 +18,14 @@ constexpr uint8_t kImuBurst = 14;
 constexpr uint8_t kMagBurst = 9;
 constexpr uint8_t kMagDivider = 10;
 constexpr uint8_t kUnknownBank = 0xFF;
-constexpr uint8_t kFsSelMask = 0xF9;
+constexpr uint8_t kFsSelMask = 0xF9;  // clear ACCEL/GYRO_FS_SEL bits [2:1]
+constexpr uint8_t kFsSelShift = 1;
+constexpr uint8_t kFsSelField = 0x03U;
+// I2C ACK is not proof a bank-2 write took. POR is ACCEL_FS=0 ±2g /
+// 16384 LSB/g (DS-000189 Table 2). Software ±4g is 8192 LSB/g — a stuck
+// POR with a 4g scale reports ~2g at rest (|A|≈19.6) and ESKF refuses
+// stationary init. Same retry class as kMagWiaTries.
+constexpr uint8_t kFsWriteTries = 5;
 constexpr uint8_t kMagWiaTries = 10;
 constexpr uint8_t kPwrMgmt2On = 0x00;
 constexpr float kTempSensitivity = 333.87F;  // DS-000189
@@ -114,6 +121,66 @@ static bool read_bank(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t* val) 
     return i2c_master_read_reg(dev->addr, reg, val, kXferUs) == 0;
 }
 
+static uint8_t fs_sel_bits(uint8_t cfg) {
+    return static_cast<uint8_t>((cfg >> kFsSelShift) & kFsSelField);
+}
+
+static bool write_and_verify_fs(icm20948_t* dev, uint8_t reg, uint8_t desired) {
+    for (uint8_t i = 0; i < kFsWriteTries; i++) {
+        uint8_t cfg = 0;
+        if (!read_bank(dev, 2, reg, &cfg)) {
+            sleep_ms(kStepDelayMs);
+            continue;
+        }
+        cfg = static_cast<uint8_t>(
+            (cfg & kFsSelMask) | static_cast<uint8_t>(desired << kFsSelShift));
+        if (!write_bank(dev, 2, reg, cfg)) {
+            sleep_ms(kStepDelayMs);
+            continue;
+        }
+        // Cache can say bank 2 while the chip is not — force BANK_SEL.
+        dev->current_bank = kUnknownBank;
+        sleep_ms(kStepDelayMs);
+        uint8_t got = 0;
+        if (read_bank(dev, 2, reg, &got) && fs_sel_bits(got) == desired) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool load_accel_scale_from_chip(icm20948_t* dev) {
+    uint8_t cfg = 0;
+    if (!read_bank(dev, 2, bank2::kAccelConfig, &cfg)) {
+        return false;
+    }
+    const uint8_t actual = fs_sel_bits(cfg);
+    dev->accel_fs = static_cast<icm20948_accel_fs_t>(actual);
+    dev->accel_scale = kAccelScale[actual];
+    return true;
+}
+
+static bool load_gyro_scale_from_chip(icm20948_t* dev) {
+    uint8_t cfg = 0;
+    if (!read_bank(dev, 2, bank2::kGyroConfig1, &cfg)) {
+        return false;
+    }
+    const uint8_t actual = fs_sel_bits(cfg);
+    dev->gyro_fs = static_cast<icm20948_gyro_fs_t>(actual);
+    dev->gyro_scale = kGyroScale[actual];
+    return true;
+}
+
+static bool apply_accel_fs(icm20948_t* dev, icm20948_accel_fs_t fs) {
+    (void)write_and_verify_fs(dev, bank2::kAccelConfig, static_cast<uint8_t>(fs));
+    return load_accel_scale_from_chip(dev);
+}
+
+static bool apply_gyro_fs(icm20948_t* dev, icm20948_gyro_fs_t fs) {
+    (void)write_and_verify_fs(dev, bank2::kGyroConfig1, static_cast<uint8_t>(fs));
+    return load_gyro_scale_from_chip(dev);
+}
+
 static bool enable_bypass(icm20948_t* dev) {
     // Write known-good USER_CTRL (I2C_IF_DIS=0). RMW of a 0xFF bus-error
     // byte can still leave SPI-only mode until VDD POR (DS-000189).
@@ -191,28 +258,12 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     if (!reset_and_wake(dev)) {
         return false;
     }
-    dev->accel_fs = ICM20948_ACCEL_FS_4G;
-    dev->gyro_fs = ICM20948_GYRO_FS_500DPS;
-    uint8_t accel_cfg = 0;
-    if (!read_bank(dev, 2, bank2::kAccelConfig, &accel_cfg)) {
+    if (!apply_accel_fs(dev, ICM20948_ACCEL_FS_4G)) {
         return false;
     }
-    accel_cfg = static_cast<uint8_t>((accel_cfg & kFsSelMask) |
-                                     static_cast<uint8_t>(dev->accel_fs << 1));
-    if (!write_bank(dev, 2, bank2::kAccelConfig, accel_cfg)) {
+    if (!apply_gyro_fs(dev, ICM20948_GYRO_FS_500DPS)) {
         return false;
     }
-    dev->accel_scale = kAccelScale[dev->accel_fs];
-    uint8_t gyro_cfg = 0;
-    if (!read_bank(dev, 2, bank2::kGyroConfig1, &gyro_cfg)) {
-        return false;
-    }
-    gyro_cfg = static_cast<uint8_t>((gyro_cfg & kFsSelMask) |
-                                    static_cast<uint8_t>(dev->gyro_fs << 1));
-    if (!write_bank(dev, 2, bank2::kGyroConfig1, gyro_cfg)) {
-        return false;
-    }
-    dev->gyro_scale = kGyroScale[dev->gyro_fs];
     (void)init_mag(dev);
     dev->initialized = true;
     return true;
@@ -288,7 +339,12 @@ bool icm20948_ensure_awake(icm20948_t* dev) {
     if (!write_bank(dev, 0, bank0::kPwrMgmt2, kPwrMgmt2On)) {
         return false;
     }
-    return enable_bypass(dev);
+    if (!enable_bypass(dev)) {
+        return false;
+    }
+    // Sleep/wake does not reset FS, but a bank-desynced recover can.
+    return apply_accel_fs(dev, ICM20948_ACCEL_FS_4G) &&
+           apply_gyro_fs(dev, ICM20948_GYRO_FS_500DPS);
 }
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {

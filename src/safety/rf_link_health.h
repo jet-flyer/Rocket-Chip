@@ -98,6 +98,37 @@ inline uint8_t rf_lq_compute_pct(uint16_t window, uint8_t count) {
     return static_cast<uint8_t>((100U * good) / count);
 }
 
+// 2 × nav_period. T14 §2 skip-every-other is 2×; 1.5× false-fired on 2 Hz
+// HD (one send contact ~1 period off-air). Tick may be 10 Hz while nav is 2 Hz.
+inline uint32_t rf_miss_grace_ms(uint32_t period_ms) {
+    if (period_ms == 0) {
+        period_ms = 200U;
+    }
+    return period_ms * 2U;
+}
+
+// One missed nav slot, not one per 10 Hz tick. next_due_ms is 0 until the
+// first miss; after a miss it is now+period so the next slot is not
+// charged until that time.
+inline bool rf_charge_miss_slot(uint32_t now_ms, uint32_t last_rx_ms,
+                                uint32_t period_ms,
+                                uint32_t* next_due_ms) {
+    if (next_due_ms == nullptr) {
+        return false;
+    }
+    if (period_ms == 0) {
+        period_ms = 200U;
+    }
+    if (now_ms - last_rx_ms <= rf_miss_grace_ms(period_ms)) {
+        return false;
+    }
+    if (*next_due_ms != 0U && now_ms < *next_due_ms) {
+        return false;
+    }
+    *next_due_ms = now_ms + period_ms;
+    return true;
+}
+
 // ============================================================================
 // State transition — pure function.
 //

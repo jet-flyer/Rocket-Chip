@@ -112,10 +112,7 @@ gtest_discover_tests(test_eskf_reset)
 
 # IVP-58: Telemetry encoder (CCSDS + MAVLink)
 add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
-target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)
-if(ROCKETCHIP_USE_STARCOM)
-    target_link_libraries(test_telemetry_encoder PRIVATE Starcom::starcom)
-endif()
+target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry Starcom::starcom GTest::gtest_main)
 gtest_discover_tests(test_telemetry_encoder)
 
 # Starcom consumer prep: nav SDU packer (no mavlink / encoder)
@@ -130,6 +127,16 @@ target_include_directories(test_nav_sdu PRIVATE
 )
 gtest_discover_tests(test_nav_sdu)
 
+add_executable(test_station_bar_mode
+    test_station_bar_mode.cpp
+)
+target_link_libraries(test_station_bar_mode PRIVATE GTest::gtest_main)
+target_include_directories(test_station_bar_mode PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_station_bar_mode)
+
 add_executable(test_cmd_sdu
     test_cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
@@ -141,20 +148,18 @@ target_include_directories(test_cmd_sdu PRIVATE
 )
 gtest_discover_tests(test_cmd_sdu)
 
-if(ROCKETCHIP_USE_STARCOM)
-    add_executable(test_starcom_byte_pump
-        test_starcom_byte_pump.cpp
-        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
-        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
-        ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
-    )
-    target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
-    target_include_directories(test_starcom_byte_pump PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/src
-    )
-    gtest_discover_tests(test_starcom_byte_pump)
-endif()
+add_executable(test_starcom_byte_pump
+    test_starcom_byte_pump.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+)
+target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
+target_include_directories(test_starcom_byte_pump PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_starcom_byte_pump)
 
 # IVP-62b: MAVLink RX parser
 add_executable(test_mavlink_rx test_mavlink_rx.cpp)
@@ -279,6 +284,36 @@ file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}" _rc_repo_root)
 target_compile_definitions(test_version PRIVATE
     RC_REPO_ROOT="${_rc_repo_root}")
 gtest_discover_tests(test_version)
+
+# RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
+add_executable(test_cli_keymap test_cli_keymap.cpp)
+target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_keymap PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_keymap)
+
+add_executable(test_cli_engine test_cli_engine.cpp)
+target_link_libraries(test_cli_engine PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_engine PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_engine PRIVATE ROCKETCHIP_DEV_MODE=1)
+gtest_discover_tests(test_cli_engine)
+
+add_executable(test_cli_engine_field test_cli_engine.cpp)
+target_link_libraries(test_cli_engine_field PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_engine_field PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_engine_field)
+
+add_executable(test_cli_catalog test_cli_catalog.cpp)
+target_link_libraries(test_cli_catalog PRIVATE GTest::gtest_main)
+target_include_directories(test_cli_catalog PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_cli_catalog)
 
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
 add_executable(test_prearm_fail_ticks test_prearm_fail_ticks.cpp)

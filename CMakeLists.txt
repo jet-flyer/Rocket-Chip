@@ -10,12 +10,15 @@
 cmake_minimum_required(VERSION 3.25)
 
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
+option(ROCKETCHIP_DEV_MODE
+    "Compile inject, cal-reset, and runtime DEV_MODE toggle into the ELF (OFF for field images)"
+    ON)
 
-# Dual-build soak for the Starcom consumer. Default OFF = today's STOP-GAP
-# air path. ON: add_subdirectory(starcom) and link Starcom::starcom on host
-# tests and the Pico image (IVP 21). Dies at ops cutover.
-# See docs/plans/SC_DEV_RC_TEST_PREP.md.
-option(ROCKETCHIP_USE_STARCOM "Link Starcom on host and Pico; default OFF is STOP-GAP air" OFF)
+# Starcom is core RC air (COP-P + nav/cmd/ACK SDUs). Always nested.
+# Nested ctest stays in the library tree. Host adapters (UDP/file) are
+# not required for the consumer link (MSVC CRT fopen is -Werror there).
+set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
+set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "RC consumer does not need UDP/file" FORCE)
 
 if(BUILD_TESTS)
     # ========================================================================
@@ -31,17 +34,8 @@ if(BUILD_TESTS)
     # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
 
-    if(ROCKETCHIP_USE_STARCOM)
-        add_compile_definitions(ROCKETCHIP_USE_STARCOM=1)
-        # Nested consumer: Starcom's own ctest stays in the library tree (IVP 20).
-        # Do not enable STARCOM_SANITIZE here — this host has no libasan.
-        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
-        # Host PLTU round-trip does not need UDP/file. Skip adapters_host
-        # (MSVC CRT fopen deprecation is -Werror in the Starcom host adapter).
-        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 20 does not need UDP/file" FORCE)
-        add_subdirectory(starcom)
-        message(STATUS "Starcom consumer: ON (host; linking Starcom::starcom)")
-    endif()
+    add_subdirectory(starcom)
+    message(STATUS "Starcom consumer: host linking Starcom::starcom")
 
     # Google Test (pinned v1.14.0)
     include(FetchContent)
@@ -140,9 +134,7 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink
     )
-    if(ROCKETCHIP_USE_STARCOM)
-        target_link_libraries(rc_telemetry PUBLIC Starcom::starcom)
-    endif()
+    target_link_libraries(rc_telemetry PUBLIC Starcom::starcom)
 
     # ------------------------------------------------------------------
     # QEP library (IVP-67, vendored QP/C 8.1.3 HSM dispatch engine)
@@ -258,12 +250,8 @@ else()
     # Product + git identity -> generated/rocketchip/version.h (standards/VERSIONING.md)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/rc_version.cmake)
 
-    if(ROCKETCHIP_USE_STARCOM)
-        set(STARCOM_BUILD_TESTS OFF CACHE BOOL "Nested Starcom: RC owns ctest" FORCE)
-        set(STARCOM_BUILD_HOST_ADAPTERS OFF CACHE BOOL "IVP 21 Pico: no UDP/file" FORCE)
-        add_subdirectory(starcom)
-        message(STATUS "Starcom nested for Pico (Starcom::starcom)")
-    endif()
+    add_subdirectory(starcom)
+    message(STATUS "Starcom nested for Pico (Starcom::starcom)")
 
     # ============================================================================
     # Build Configuration
@@ -392,6 +380,7 @@ else()
 
         # IVP-18: RC_OS CLI
         src/cli/rc_os.cpp
+        src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
@@ -406,6 +395,7 @@ else()
         #   src/dev/replay_inject.{cpp,h}
         #   src/dev/station_replay.{cpp,h}
         src/diag/diag_stats.cpp
+        src/diag/radio_rate_counters.cpp  # R-32 R0: increment-only rate counters
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -519,7 +509,7 @@ else()
         src/active_objects/ao_logger.cpp
         src/active_objects/ao_telemetry.cpp
         src/active_objects/ao_radio.cpp
-        src/active_objects/ao_rcos.cpp
+        src/active_objects/ao_rcos.cpp  # target-only; not in host CMake (WN-290)
 
         # -------------------------------------------------------------------------
         # Stage 16C: Station Runtime Decoupling (IVP-140+)
@@ -573,10 +563,11 @@ else()
         src/logging/flash_flush.cpp
         src/logging/psram_init.cpp
         src/cli/rc_os.cpp
+        src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
-        src/active_objects/ao_rcos.cpp
+        src/active_objects/ao_rcos.cpp          # target-only; not in host rc_flight_director (WN-290)
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
         src/active_objects/ao_led_engine.cpp        # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)
@@ -586,6 +577,7 @@ else()
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
         src/diag/diag_stats.cpp                     # R-25-exec step 4
+        src/diag/radio_rate_counters.cpp            # R-32 R0: increment-only rate counters
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -782,6 +774,13 @@ else()
         message(STATUS "Job: VEHICLE (default)")
     endif()
 
+    if(ROCKETCHIP_DEV_MODE)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_DEV_MODE=1)
+        message(STATUS "ROCKETCHIP_DEV_MODE: ON (inject/cal-reset in ELF; runtime v toggle)")
+    else()
+        message(STATUS "ROCKETCHIP_DEV_MODE: OFF (field: inject/cal-reset omitted)")
+    endif()
+
     # Single flight binary per role. Test affordances (fault_force_*, debug
     # submenu state-mutating commands) live in the same binary, gated at entry
     # by rc::test_mode_active() — runtime-partitioning per SWE-133. See
@@ -815,11 +814,10 @@ else()
         if(ROCKETCHIP_STAGE_ARCHIVE)
             message(STATUS "Stage archive: UNLOCKED (individual stage flags available, still opt-in per flag)")
 
-            # Stage T — RadioScheduler timing diagnostics (IVP-T1)
+            # Stage T — radio TX/RX timing diagnostics (IVP-T1)
             # Emits [STAGE_T] state-transition and per-RX metadata lines on vehicle.
-            # Use when replaying Stage T RadioScheduler investigation.
             # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
-            option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
+            option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T radio TX/RX diagnostics" OFF)
             if(ROCKETCHIP_STAGE_T_LOGGING)
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
                 message(STATUS "Stage T diagnostics: ENABLED")
@@ -854,11 +852,8 @@ else()
     # Firmware identity is cmake/rc_version.cmake -> generated/rocketchip/version.h.
     # Do not add a second GIT_HASH compile-definition mechanism.
 
-    if(ROCKETCHIP_USE_STARCOM)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_USE_STARCOM=1)
-        target_link_libraries(rocketchip Starcom::starcom)
-        message(STATUS "Starcom consumer: ON (Pico linking Starcom::starcom)")
-    endif()
+    target_link_libraries(rocketchip Starcom::starcom)
+    message(STATUS "Starcom consumer: Pico linking Starcom::starcom")
 
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
@@ -878,6 +873,7 @@ else()
     message(STATUS "Board: ${PICO_BOARD}")
     message(STATUS "Platform: ${PICO_PLATFORM}")
     message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "ROCKETCHIP_DEV_MODE: ${ROCKETCHIP_DEV_MODE}")
     message(STATUS "Platform: Bare-metal Pico SDK")
     message(STATUS "")
 

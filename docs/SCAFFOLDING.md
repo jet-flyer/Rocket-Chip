@@ -132,7 +132,6 @@ rocketchip/
 │       ├── rc_debug.h             # DBG_* macros
 │       ├── rc_log.h               # Log channel (rc_log) + buffer formatter (rc_snprintf) + strbuf (R-5, 2026-05-17)
 │       ├── ao_signals.h           # System-wide AO signal catalog + event structs
-│       ├── radio_scheduler.h      # Half-duplex TX-priority state machine
 │       ├── radio_config.h         # RadioConfig struct (from Mission Profile .cfg)
 │       ├── telemetry_state.h      # 45-byte packed wire format
 │       ├── telemetry_encoder.h    # CCSDS + MAVLink encoder API
@@ -356,7 +355,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
 | **calibration_storage** | Dual-sector flash persistence for calibration data |
 | **rc_os** | CLI command handlers — "local GCS" translating keystrokes to commands |
-| **ao_radio** | AO priority 8 — RadioScheduler, non-blocking TX, RX polling, RSSI bar, relay |
+| **ao_radio** | AO priority 8 — RFM95W, tx_active lock, RX polling, RSSI bar, relay |
 | **ao_flight_director** | AO priority 7 — HSM: IDLE→ARMED→BOOST→...→LANDED, pyro commands |
 | **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
 | **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio); Stage L adds beacon overlay, pre-arm-fail + boot-init visuals |
@@ -364,7 +363,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **ao_telemetry** | AO priority 3 — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
 | **ao_led_engine** | AO priority 2 — NeoPixel animation rendering (Vehicle only) |
 | **ao_rcos** | AO priority 1 — CLI dispatch, USB CDC poll, serial I/O |
-| **radio_scheduler** | Half-duplex TX-priority state machine (protocol-agnostic) |
+| **starcom_adapt** | RC Starcom consumer — byte_pump, nav/cmd/ACK SDUs, COP-P air |
 
 ## Execution Architecture
 

@@ -3,9 +3,9 @@
 //============================================================================
 // AO_Radio — Radio Hardware Active Object
 //
-// Owns RFM95W radio driver + RadioScheduler half-duplex state machine.
-// Protocol-agnostic: receives encoded packets via SIG_RADIO_TX, posts
-// raw received bytes via SIG_RADIO_RX. Never inspects packet contents.
+// Owns RFM95W radio driver. Protocol-agnostic: receives encoded packets
+// via SIG_RADIO_TX, posts raw received bytes via SIG_RADIO_RX.
+// tx_active is chip-busy (do not start a second send). COP-P owns retry.
 //============================================================================
 #ifndef ROCKETCHIP_AO_RADIO_H
 #define ROCKETCHIP_AO_RADIO_H
@@ -14,7 +14,6 @@ extern "C" {
 #include "qp_port.h"
 }
 
-#include "rocketchip/radio_scheduler.h"
 #include "rocketchip/radio_config.h"
 #include "drivers/rfm95w.h"
 
@@ -26,7 +25,7 @@ void AO_Radio_start(uint8_t prio, bool spi_ok);
 // CLI access — safe under QV cooperative scheduling (no preemption on Core 0)
 struct RadioAoState {
     rfm95w_t           radio;
-    rc::RadioScheduler scheduler;
+    bool               tx_active;    // send in flight; RX polled when false
     bool               initialized;
     uint8_t            tx_consec_fail;   // TX failure escalation counter
     uint8_t            tx_bw_mode;       // 0=BW125, 1=BW250, 2=BW500
@@ -68,6 +67,15 @@ struct RadioAoState {
 
 const RadioAoState* AO_Radio_get_state();
 
+// True while a send is in flight. Telemetry must not drain a COP-P AD
+// that Radio would then be unable to start.
+bool AO_Radio_tx_active();
+
+// MAC view from macPhy() (COMM_CHANGE apply-RX). The modem listens
+// whenever a send is not in flight; SIG_RADIO_TX is not gated on transmit.
+void AO_Radio_set_mac_dir(bool receive, bool transmit);
+bool AO_Radio_mac_receive();
+
 // Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
 // after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.
 // immediately after the ACK packet has physically left the antenna.
@@ -75,6 +83,8 @@ const RadioAoState* AO_Radio_get_state();
 // A ~200 ms backstop timer guards against TxDone never firing.
 // Caller is responsible for validating the config BEFORE calling this.
 void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
+// 6-11 receive-wait / revert: retune now. Does not reinit COP-P/MAC.
+void AO_Radio_apply_config_now(const rc::RadioConfig& cfg);
 
 // Stage T IVP-T5.5: read-only access to the AO's current runtime config.
 // Used by SET dispatch to compute power-delta for the +/-6 dB gate.

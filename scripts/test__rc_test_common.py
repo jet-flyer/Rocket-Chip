@@ -20,6 +20,7 @@ Council-required tests (2026-04-27 review):
   8. find_vehicle_and_station_ports rejects conflicting dual overrides (mocked).
   9. find_vehicle_and_station_ports assigns station then vehicle from mock scan.
   10. pre_commit_matrix matches staged path prefixes like the pre-commit hook.
+  11. leftover banner flight-<sha> and rebuilt-unflashed ELF sha fail closed.
 
 Exit code: 0 if all tests pass, 1 if any fail.
 """
@@ -42,6 +43,8 @@ from _rc_test_common import (  # noqa: E402
     TARGET_STATION_ANY, TARGET_STATION_FLIGHT,
     TARGET_EITHER_ANY,
     classify_banner, passive_dump_needs_help, rc_test,
+    ExpectedImage, banner_matches_elf_error, elf_sha256,
+    flash_stamp_error, record_flashed_elf,
 )
 
 
@@ -141,6 +144,7 @@ def test_classify_vehicle_flight() -> None:
     check('is_vehicle()',     b.is_vehicle())
     check('is_station() False', not b.is_station())
     check('is_known()',       b.is_known())
+    check('git_hash captured', b.git_hash == 'deadbe', f'got {b.git_hash!r}')
 
 
 def test_classify_station_kmenu() -> None:
@@ -529,6 +533,10 @@ def test_pre_commit_matrix_triggers() -> None:
     check('matrix_self_rot', ft_m)
     ft_b, _ = match(['scripts/bench_sim.py'])
     check('bench_sim_self_rot', ft_b)
+    ft_rc, _ = match(['scripts/_rc_test_common.py'])
+    check('rc_test_common_self_rot', ft_rc)
+    ft_fl, _ = match(['scripts/flash_elf_halt_write.py'])
+    check('flash_elf_self_rot', ft_fl)
 
     # Tests are exempt (host-ctest gate covers them).
     ft_t, st_t = match(['test/test_command_handler.cpp'])
@@ -538,6 +546,67 @@ def test_pre_commit_matrix_triggers() -> None:
     ft_pd, st_pd = match(['docs/PROJECT_STATUS.md', 'CHANGELOG.md',
                           'AGENT_WHITEBOARD.md'])
     check('pure_doc_exempt', not ft_pd and not st_pd)
+
+
+def test_banner_refuses_leftover_git_hash() -> None:
+    print('test_banner_refuses_leftover_git_hash')
+    from pathlib import Path
+
+    b = classify_banner(VEHICLE_FLIGHT_BANNER)
+    expected = ExpectedImage(
+        role='vehicle',
+        elf=Path('rocketchip.elf'),
+        version_header=Path('version.h'),
+        git_hash='c93019d',
+        build_identity='x',
+        sha256='ab',
+    )
+    err = banner_matches_elf_error(b, expected)
+    check('leftover hash is an error', err is not None and 'leftover' in err,
+          repr(err))
+    match = ExpectedImage(
+        role='vehicle',
+        elf=Path('rocketchip.elf'),
+        version_header=Path('version.h'),
+        git_hash='deadbe',
+        build_identity='x',
+        sha256='ab',
+    )
+    check('matching hash is ok', banner_matches_elf_error(b, match) is None)
+    dash = classify_banner(STATION_DASHBOARD_BANNER)
+    check('dashboard has no git_hash', dash.git_hash is None)
+
+
+def test_flash_stamp_refuses_rebuilt_elf() -> None:
+    print('test_flash_stamp_refuses_rebuilt_elf')
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as td:
+        elf = Path(td) / 'rocketchip.elf'
+        elf.write_bytes(b'image-v1')
+        record_flashed_elf(elf)
+        v1 = ExpectedImage(
+            role='vehicle',
+            elf=elf,
+            version_header=Path(td) / 'version.h',
+            git_hash='deadbe',
+            build_identity='x',
+            sha256=elf_sha256(elf),
+        )
+        check('stamp matches flashed bytes', flash_stamp_error(v1) is None)
+        elf.write_bytes(b'image-v2-rebuilt')
+        v2 = ExpectedImage(
+            role='vehicle',
+            elf=elf,
+            version_header=Path(td) / 'version.h',
+            git_hash='deadbe',
+            build_identity='x',
+            sha256=elf_sha256(elf),
+        )
+        err = flash_stamp_error(v2)
+        check('rebuilt ELF without flash is an error',
+              err is not None and 'not flashed' in err, repr(err))
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +638,8 @@ def main() -> int:
         test_find_vehicle_and_station_rejects_same_port,
         test_find_vehicle_and_station_discovers_pair,
         test_pre_commit_matrix_triggers,
+        test_banner_refuses_leftover_git_hash,
+        test_flash_stamp_refuses_rebuilt_elf,
     ]
 
     print(f'=== _rc_test_common.py host tests ===')

@@ -59,8 +59,14 @@ extern gps_transport_t g_gpsTransport;
 // g_startSensorPhase; Core 1 reads at 1 kHz (may re-init on consecutive
 // fail). After handoff, Core 0 does not icm20948_read this handle:
 // CLI 's' uses the seqlock; HW-status config dump is skipped when
-// rc_os_i2c_scan_allowed is false (vehicle after Core 1 launch).
+// g_i2c_scan_allowed is false (vehicle after Core 1 launch).
 extern icm20948_t g_imu;
+
+// I2C bus policy (WN-315). Not CLI state — Core 1 / mag-cal / debug scan.
+// g_i2c_scan_allowed: false after vehicle Core 1 launch (LL 23).
+// g_mag_cal_active: Core 0 mag cal; Core 1 skips GPS while true (0x10 vs 0x0C).
+extern bool g_i2c_scan_allowed;
+extern std::atomic<bool> g_mag_cal_active;
 
 // Sensor phase flag. Core 0 write, Core 0 read (pause, ESKF tick, cal_hooks).
 extern bool g_sensorPhaseActive;

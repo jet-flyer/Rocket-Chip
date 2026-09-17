@@ -87,8 +87,10 @@ static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
 }
 
 static uint8_t* write_nav_payload_42(uint8_t* p, const TelemetryState& telem) {
-    const uint8_t n = pack_nav_sdu_user(p, ccsds::kNavPayloadLen, telem);
-    return p + n;
+    // STOP-GAP 54 B frame uses the 42 B prefix. pack_nav_sdu_user is the
+    // Starcom 45 B SDU (full TelemetryState) and refuses out_len < 45.
+    memcpy(p, &telem, ccsds::kNavPayloadLen);
+    return p + ccsds::kNavPayloadLen;
 }
 
 void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
@@ -389,9 +391,7 @@ bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                   static_cast<uint32_t>(buf[kSecHdrByte3]);
 
     memset(&telem, 0, sizeof(telem));
-    if (!unpack_nav_sdu_user(&buf[kPayloadIdx], ccsds::kNavPayloadLen, &telem)) {
-        return false;
-    }
+    memcpy(&telem, &buf[kPayloadIdx], ccsds::kNavPayloadLen);
     telem.met_ms = met_ms_out;
 
     // Config tail (only present in APID 0x004).

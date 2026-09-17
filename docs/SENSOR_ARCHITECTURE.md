@@ -88,6 +88,15 @@ gps_fn_update();
 
 **Detection order:** UART first (2-second timeout), then I2C. UART is preferred in production because it eliminates I2C bus contention entirely (LL Entry 20/24).
 
+
+### Bus physics and pack transport (standing rule)
+
+Shared-bus physics first, then pack capability:
+
+1. **Do not put an I2C GPS on the IMU/baro bus** until ICM bypass (or an equivalent isolation path) is up. That contention is LL Entry 20 territory; UART GPS is the production way to keep GPS off that bus entirely.
+2. **Prefer UART when the pack exposes it** (LL Entry 24). Else probe I2C (e.g. PA1010D Qwiic / STEMMA as a stress slave — never twist the QT 4-core; LL Entry 47).
+3. Detection order in firmware stays production-first: UART, then I2C (see GPS table above). This section is the standing *rule*; the table is the current map.
+
 ### IMU (Future)
 
 | File | Transport | Status |

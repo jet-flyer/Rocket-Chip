@@ -41,6 +41,9 @@ std::atomic<bool> g_core1LockoutReady{false};
 
 bool g_sensorPhaseActive = false;
 
+bool g_i2c_scan_allowed = true;
+std::atomic<bool> g_mag_cal_active{false};
+
 namespace rc {
 
 namespace {
