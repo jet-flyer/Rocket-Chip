@@ -17,39 +17,9 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Sitting 2026-09-10 — 211.0 half-duplex MAC (not leftover-ToA)
-
-**Sit on `C:\Users\pow-w\Documents\Rocket-Chip` (`main`).** Library: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`); copy MAC codec/queue edits into nested `starcom/` so RC links them. Not `docs/starcom-sad-draft`.
-
-Product boot **250/10 SF7 2 dBm**. 211.1 stays 0. Do **not** restore RfManager TX windows / RadioScheduler. Desk hop + miss-tick closed 2026-09-11 — plan `docs/plans/COMM_CHANGE_HOP_AND_MISS_TICK_2026-09-11.md`, CHANGELOG `2026-09-11-001`.
-
-### Legal catalog leftover vs commanded Hz
-
-COMM_CHANGE / NAV_PRESET refuse when nav ToA ≥ 1/nav_hz (`radio_config_nav_fits_hz`, 63 B nav PLTU). 125/10 SF7 is refused. **FPV scan** still needs the same check.
-
-### Also open (not blocking this sitting)
-FPV scan (after hail/MAC on known channel); oMCT live board; passive chute-detect.
-
-## Exact state (2026-09-05 evening wrap)
-Desk ahead pushed with this wrap. **LL/I2C stale-assumptions pass closed:** SUPERSEDE 20/21/24/22; legacy 28/31; REVISIT 27. FJ cold-boot erased PIO-backend + RP2350B bus-corruption WB rows (bus alive). Audit docs/audits/LL_STALE_ASSUMPTIONS_2026-09-05.md. CHANGELOG 2026-09-05-003. Prior same-day: oMCT Master Dashboard MVP on facsimile (2026-09-05-002); **live board USB/m -> glass still NEXT**. Residual GPS E / no-fix on FJ is a separate sitting. Untracked: local build_* dirs + Buzz soak helpers scripts/_ll22_rate.py / scripts/_fj_cold_gps_soak.py (not for commit).
-
-## Next after Pass A/B soak (OPEN) (2026-09-03; R-32 rate closed 2026-09-04)
-
-Scored. Report: [`docs/RADIO_SOAK_PASS_AB_2026-09-03.md`](docs/RADIO_SOAK_PASS_AB_2026-09-03.md). Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. **Product boot on `main`:** 250 kHz / 10 Hz SF7 expedited + sparse PLCW (R-32 closed; CHANGELOG `2026-09-04-002`). 125/10 does not fit paper ToA.
-
-Owner: Prefer MET + GPS on both ends; desk oMCT Master Dashboard is **MVP** on facsimile - live board pipe next; LCARS still open.
-
-**Next to address (fresh sitting):**
-
-1. Command AD / `V(S)=0` / SET hop - OTA radio settings still fiction.
-2. Class D outdoor - 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank.
-3. FSK (below).
-4. **FPV-style scan / find** (below) - first impl vs LoRa Hail; FPV scan won. Hail still coupled.
-5. Adaptive TX power.
-
 ## GCS glass: live board -> Master Dashboard (NEXT) (2026-09-05)
 
-Desk **Master Dashboard MVP** is up on facsimile (Flexible Layout + on-demand feeder). **Not verified:** piping a live board (station USB/`m` or flight) into the same glass path. That is the next glass sitting - confirm RSSI/baro/phase with real RF, not only Big Daddy CSV.
+Desk **Master Dashboard MVP** is up on facsimile (Flexible Layout + on-demand feeder). **Not verified:** piping a live board (station USB/`m` or flight) into the same glass path. That is the next glass sitting - confirm RSSI/baro/phase with real RF, not only Big Daddy CSV. Prefer MET + GPS on both ends for time-sync.
 
 Deferred polish (not blocking board-val): Condition Set + alphanumeric caution tiles (digits + color), LCARS, Zero static-nginx smoke.
 
@@ -76,7 +46,7 @@ Desk Open MCT hello-world is on Espresso with stacked RSSI/SNR/Baro + radio over
 
 Stashed as `wip phy-scan leds docs` with both in one Starcom row - split: **scan/find is RC (this board)**; hail write-up is Starcom.
 
-**Find axis = SF×BW at 915.0 / sync `0x12`.** Firmware-legal **6 SF × 3 BW = 18** cells (not hundreds; do not add US915 64-freq hop). CR/power/nav are not find axes. 18 is FPV-goggle sized (Fatshark ~40 ch).
+**Find axis = SF×BW at 915.0 / sync `0x12`.** Firmware-legal **6 SF × 3 BW = 18** cells (not hundreds; do not add US915 64-freq hop). CR/power/nav are not find axes. 18 is FPV-goggle sized (Fatshark ~40 ch). Lock/apply uses `radio_config_nav_fits_hz` (125/10 SF7 refused) — same gate as COMM_CHANGE / NAV_PRESET.
 
 **Dual-use (list stays small):** station tool = (1) find *our* vehicle (valid PLTU) (2) show which cells are occupied (RSSI/CAD) like goggles. Prior art: Hertz-Hunter, MikyM0use OLED-scanner / JAFaR (RX5808 RSSI sweep + autoscan), PortaPack FPV Detect (40-ch AutoScan). Pattern: finite table, RSSI bar per cell, lock strongest / first match. Extra vs analog FPV: CRC’d PLTU vs raw energy. **RX-only while sweeping.**
 
@@ -96,6 +66,18 @@ Station bar (live RSSI / red Cylon LOS) closed `1d79865`; USER_GUIDE Station RX.
 ## FSK mode (WANTED) (2026-09-02)
 
 Owner-wanted after LoRa Pass A. SX1276 FSK (packet and/or continuous bitstream - IVP-63 / ADVANCED_SETTINGS placeholder). Not tonight's LoRa SF/BW matrix. Not hail. Not a license to mint SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot.
+
+---
+
+## Class D outdoor BW rank (WANTED) (2026-09-03)
+
+125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank. Desk stays 2 dBm. Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Report: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. Not a license this sitting.
+
+---
+
+## Adaptive TX power (WANTED) (2026-09-03)
+
+Owner-wanted after LoRa Pass A. Not hail. Not FSK. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot.
 
 ---
 
@@ -126,7 +108,7 @@ Starcom-only flags live on [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBO
 
 ## Station RSSI LEDs vs Starcom (OPEN) (2026-08-28)
 
-Station/relay NeoPixel bar (`ao_radio.cpp` `handle_rssi_bar` -> `ws2812_set_rssi_bar`) is **last LoRa FIFO RSSI**, any payload. ON air is COP-P / PLTU. Rewire so the bar (and “no signal”) is gated on **decoded CCSDS/Starcom** - a COP-P lock or accepted nav SDU - not raw radio ticks. Dashboard `RSSI:` / `Pkts:` have the same leftover. Not this dashboard-counter sitting.
+Sep 16 (`1d79865`): NeoPixel bar is **Starcom-heard RX freshness** (`nav_sdu || peer_plcw`, 2 s hold) — solid RSSI while live, red Cylon after a drop, dim red if never heard this boot. Yellow Cylon = config-apply. **Not COP-P lock** (`plcw_heard`). Pad `Air:` COP-P is the 2026-09-16 sitting. Dashboard `RSSI:` / `Pkts:` still last-FIFO leftovers.
 
 ---
 
@@ -154,18 +136,7 @@ AO_Notify + `led_patterns.h` + AO_LedEngine need a dedicated sitting, not more o
 
 **Known split to keep:** Stage L ARMED is **red solid** (APM2 LED A / traffic-light “motors live”). Pixhawk RGB standard is **solid green** with GPS 3D / **solid blue** without. Do not flip ARMED to green in overlay remediates.
 
-Also in that sitting: USER_GUIDE Armed still says yellow; `kLedPhaseFault` dropped (`347f0a4`) - 28 is AP pre-arm yellow double-flash only; failsafe/EKF stay Notify `FaultIntent`.
-
----
-
-## L2-P5 leftover sittings (OPEN) (2026-08-24)
-
-Homes for rem WB rows that had no other project-WB row. Erase a bullet when that sitting lands.
-
-- **HAB `EMERG_DEPLOY`** - unread flag removed. When HAB is scheduled: profile bit **and** combinator lockout skip (rocket still locked; HAB skip tested).
-- **PIO WDT** - not Tier 1 Go/No-Go. Dedicated sitting: role vs ARM, CLI, whether a PIO WDT fault is pad-blocking.
-- **Estes vs station ARM** - Go/No-Go is station pad control. Vehicle USB ARM is bring-up, not the Estes wire-arm procedure.
-- **Tiny 2350 pin map (GWF-038 / GWF-039)** - I2C SCL and PSRAM CS both GPIO 21; `board_led_set` ignores polarity. Live hazard gated. Legal QMI CS1: 0 / 8 / 19 / 47. Do not invent a pin.
+Also in that sitting: `kLedPhaseFault` dropped (`347f0a4`) - 28 is AP pre-arm yellow double-flash only; failsafe/EKF stay Notify `FaultIntent`. USER_GUIDE ARMED is red solid (R-30).
 
 ---
 
@@ -235,8 +206,7 @@ Sittings 0–5 **did** land (branch `grok/rcos-rework`): table-driven console, p
 - Digit-RF `0..5` compile-out + `ROCKETCHIP_DEV_MODE` CMake field preset
 - Who may SET over radio (locked until SDLS; `DEV_MODE` / `USB_ARM_INH` never over radio)
 - WN-325 dashboard maps
-- Estes pad ARM vs USB ARM vs station pad ARM (`USER_GUIDE`)
-- Stale docs vs new trees: `docs/ROCKETCHIP_OS.md`, `docs/USER_GUIDE.md`, `docs/ADVANCED_SETTINGS.md`, `docs/SCAFFOLDING.md` CLI tree
+- Stale docs vs new trees: `docs/ROCKETCHIP_OS.md`, `docs/ADVANCED_SETTINGS.md`, `docs/SCAFFOLDING.md` CLI tree (USER_GUIDE keys closed R-30)
 - First-class screens: who-am-I, cal status, legal radio cap
 - Catalog metadata: range, units, reboot-required
 - Station GPS-push `p` (still dead; not main preflight)
@@ -290,8 +260,6 @@ Trimming `L2P5_MANUAL_WALK_GUIDE.md` down to human-judgment-only lenses (on bran
 ---
 
 ## High priority
-
-- **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** - the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 - address before closing R-27.
 
 - **Four-cycle plan - Cycle 4:** L2-P5 walk + remediates + CLA/RBM on `main`. **L2-P5 and L2-P10 closed 2026-08-24** in `PROBLEM_REPORTS.md`. Cycles 1-3 closed. Catchup doc never written as a separate `AUDIT_COVERAGE_CATCHUP_*.md` - evidence lives in the walk pack, CLA snapshot, and `docs/RBM/`.
 

@@ -10,15 +10,12 @@
 1. **Power on** — USB-C or LiPo. Wait for LED to start blinking blue (~2s).
 2. **Connect serial** — 115200 baud, any terminal. Banner prints on connect.
 3. **Check LED color** — see LED Reference below. Target: solid green (3D GPS fix).
-4. **Check sensor status** — press `s`. Verify:
-   - IMU: reading (non-zero accel)
-   - Baro: reading (pressure ~1013 hPa at sea level)
-   - GPS: fix type 3 (3D) with satellites > 4
-   - ESKF: initialized, healthy
-5. **Check health** — press `P` (station) or look for fault LED patterns.
-   All subsystems should show OK.
-6. **Arm** — station: press `a`, type `ARM`, press Enter. Wait for ACK.
-   Vehicle LED changes to armed pattern.
+4. **Check sensors** — vehicle: `q` then `s` (main `s` is settings, not sensors).
+   Verify IMU/baro reading, GPS 3D with >4 sats if used, ESKF healthy.
+5. **Check health** — vehicle/station menu `p` (Go/No-Go). Station pad GPS
+   digits are **vehicle telem**, not Fruit Jam’s local fix (`x` then `g`).
+6. **Arm** — station **pad**: `a`, type `ARM`, Enter. Wait for ACK.
+   Vehicle LED goes **red solid** (ARMED). Pad DISARM is `D`; menu DISARM is `X`.
 
 ---
 
@@ -90,17 +87,17 @@ Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel
 2. Type `ARM` (case-sensitive, 3 characters)
 3. Press Enter — command sent with ACK tracking
 4. Wait for `ARM ACK'd` message (up to 3 retries, 3s each)
-5. Vehicle LED changes to armed pattern (yellow solid)
+5. Vehicle LED changes to armed pattern (**red solid**, Stage L / APM2)
 
 **Typo/timeout:** If you mistype or wait >10s, the confirm is cancelled.
 
 ### DISARM (station)
 
-1. Press `X` (capital X) — sends DISARM immediately
+1. **Pad:** press `D`. **Menu** (after `x`): press `X`.
 2. Wait for `DISARM ACK'd` message
 3. Vehicle returns to idle LED pattern
 
-**Note:** Lowercase `x` is erase-all-flights on vehicle, not DISARM.
+**Note:** Vehicle main `x` is erase-all-flights, not DISARM. Station pad `x` opens the menu.
 
 ### Vehicle-only (no station)
 
@@ -247,31 +244,40 @@ abort, you go back and check, you don't just try again.
 
 ## Serial Commands — Vehicle
 
+Live help is SSOT (`src/cli/cli_menus.h`). Main:
+
 | Key | Action |
 |-----|--------|
-| `h` | Help |
-| `s` | Sensor status |
-| `e` | ESKF live stream (any key to stop) |
-| `b` | Boot summary |
+| `h` / `?` | Help |
+| `p` | Preflight Go/No-Go |
 | `c` | Calibration menu |
-| `l` | Flush log to flash |
-| `f` | List flights |
-| `d` | Download flight |
-| `x` | Erase all flights |
+| `f` | Flight director (ARM / LAUNCH) — **not** list flights |
+| `q` | Debug (`s` sensors, `e` ESKF live, `b` boot/HW) |
+| `s` | Settings (`l` catalog, `n` next radio preset) |
+| `b` | Find-me beacon |
 | `t` | Radio status |
-| `r` | Cycle TX rate (2/5/10 Hz) |
-| `m` | Toggle MAVLink output |
+| `g` | List flights |
+| `d` | Download flight |
+| `l` | Flush log to flash |
+| `x` | Erase all flights |
 
 ## Serial Commands — Station
 
+**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Pad `GPS (veh):` is vehicle telem.
+
+**Menu** (after `x`):
+
 | Key | Action |
 |-----|--------|
-| `a` | ARM (confirm flow) |
+| `h` / `?` | Help |
+| `p` | Preflight Go/No-Go |
+| `t` | Radio status |
+| `g` | Station-local GPS (Fruit Jam PA1010D) |
+| `d` | Distance (needs station GPS fix) |
+| `a` | ARM confirm |
 | `X` | DISARM |
-| `d` | Distance to rocket |
-| `p` | Push station GPS to vehicle |
-| `P` | Preflight health check |
-| `h` | Help |
+| `s` | Settings (`n` next radio preset) |
+| `z` | Back to pad |
 
 ---
 
