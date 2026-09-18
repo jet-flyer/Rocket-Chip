@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
+
+**Pad ARM/DISARM ACK on desk COP-P.** Half-duplex Prox-1 session (211.0 6-10/6-12/6-14, 8.2.1 e `N(R)` notify; Format ID 1 PLCW not SET TX/CONTROL/RX). `f79f7dc`. Pad `CMD: ARM/DISARM ACK` + `State: ARMED` then DISARM ACK + IDLE (`N(R)=2`). USER_GUIDE station bar: green flash = RF no lock, solid RSSI = COP-P lock; ARM/DISARM wait on `CMD:` / `State:`. Verified: host 937/937; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; desk ACK 630 ms / 981 ms.
+
 ### 2026-09-17-003 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
 
 **Pad `Air:` COP-P lock.** P-frame PLCW (Format ID 1) was classified as SET TX when V(R)=0, so `plcw_heard` never set. `macTickPlcw` now arms the MIB interval; PLCW repeat is 4× nav. Port of `f19ae96` classify/timer only (not the RSSI-bar rewrite). Host `StationReinitLocksOnVehiclePlcw`. Desk: `COP-P lock  N(R)=0 V(S)=0  nav` TRACK ~7.5/10 Hz. ARM ACK still FAIL (`V(S)=1`, no ACK in 3840 ms).

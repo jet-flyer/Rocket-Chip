@@ -68,13 +68,14 @@
 
 ### Station (RX mode)
 
-Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel / `AO_LedEngine`. Gated on decoded Starcom (nav SDU or peer PLCW), not raw LoRa FIFO. Pad `Air:` COP-P lock vs waiting peer PLCW is a separate protocol row.
+Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel / `AO_LedEngine`. RF-on-band is raw LoRa RX (pad `Last:` / `Pkts:`). COP-P lock is pad `Air:` `COP-P lock` (FOP-P `plcw_heard`). Solid RSSI is lock, not merely Starcom nav.
 
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| RSSI green→red | Solid bar | Vehicle heard in the last 2 s (same 2 s hold as RF Link gap) |
-| Red | Cylon (one pixel walking the bar) | Had a live link, now LOS — keeps sweeping until packets return |
-| Dim red | Pixel 0 only | Never heard Starcom this boot |
+| Green | All 5 flash (~2 Hz) | RF on the right band (CRC-ok LoRa in the last 2 s), no COP-P lock |
+| RSSI green→red | Solid bar | COP-P lock and RF in the last 2 s (same 2 s hold as RF Link gap) |
+| Red | Cylon (one pixel walking the bar) | Had RF, now LOS — keeps sweeping until packets return |
+| Dim red | Pixel 0 only | Never heard RF this boot |
 | Yellow | Cylon | Radio config apply in flight (`apply_in_progress`); not LOS |
 
 ---
@@ -86,7 +87,7 @@ Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel
 1. Press `a` — prompt appears: `Type ARM to confirm:`
 2. Type `ARM` (case-sensitive, 3 characters)
 3. Press Enter — command sent with ACK tracking
-4. Wait for `ARM ACK'd` message (up to 3 retries, 3s each)
+4. Wait for pad `CMD: ARM/DISARM ACK` and `State: ARMED` (`[CMD] ACK'd` on COP-P `N(R)` catch)
 5. Vehicle LED changes to armed pattern (**red solid**, Stage L / APM2)
 
 **Typo/timeout:** If you mistype or wait >10s, the confirm is cancelled.
@@ -94,7 +95,7 @@ Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel
 ### DISARM (station)
 
 1. **Pad:** press `D`. **Menu** (after `x`): press `X`.
-2. Wait for `DISARM ACK'd` message
+2. Wait for pad `CMD: ARM/DISARM ACK` and `State: IDLE`
 3. Vehicle returns to idle LED pattern
 
 **Note:** Vehicle main `x` is erase-all-flights, not DISARM. Station pad `x` opens the menu.
