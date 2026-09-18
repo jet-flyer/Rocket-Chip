@@ -71,9 +71,8 @@ const RadioAoState* AO_Radio_get_state();
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();
 
-// MAC view from macPhy() (COMM_CHANGE apply-RX). The modem listens
-// whenever a send is not in flight; SIG_RADIO_TX is not gated on transmit.
-void AO_Radio_set_mac_dir(bool receive, bool transmit);
+// MAC view from macPhy() (211.0 6.5 / 211.1 T3-3). session_active = MacMode::active.
+void AO_Radio_set_mac_dir(bool receive, bool transmit, bool session_active);
 bool AO_Radio_mac_receive();
 
 // Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio

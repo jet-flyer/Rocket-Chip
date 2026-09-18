@@ -219,6 +219,15 @@ void ws2812_set_sweep_bar(ws2812_rgb_t color) {
         static_cast<int>(g_pos) + static_cast<int>(g_dir));
 }
 
+void ws2812_set_flash_bar(ws2812_rgb_t color, bool lit) {
+    if (!g_state.initialized) { return; }
+    const ws2812_rgb_t c = lit ? color : kColorOff;
+    for (uint8_t i = 0; i < g_state.numLeds; ++i) {
+        g_state.pixels[i] = c;
+    }
+    ws2812_show();
+}
+
 static ws2812_rgb_t apply_brightness(ws2812_rgb_t color, float scale) {
     ws2812_rgb_t result;
     result.r = static_cast<uint8_t>(static_cast<float>(color.r) * scale);

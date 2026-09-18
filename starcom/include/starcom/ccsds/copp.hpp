@@ -134,6 +134,7 @@ struct CoppEndpoint {
 
 void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
                Scid remote, PortId port) noexcept;
+void coppReset(CoppEndpoint& e) noexcept;  // 211.0 7.2.3 SE0 / 7.3.1 RE0
 void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept;
 void coppTick(CoppEndpoint& e, Tick now) noexcept;

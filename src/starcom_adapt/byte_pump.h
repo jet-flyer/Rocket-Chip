@@ -48,6 +48,9 @@ struct BytePump {
   bool local_comm_change = false;
   bool air_heard = false;
   starcom::ccsds::Tick last_air_tick = 0;
+  // 211.0 6.3.2.3: FIFO empty after PHY TxDone. Host tests empty at post.
+  bool defer_spdu_fifo_empty = false;
+  bool spdu_on_air = false;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
@@ -83,6 +86,8 @@ void pump_start_session(BytePump& p, bool caller,
                         starcom::ccsds::Tick now) noexcept;
 starcom::ccsds::Result<std::size_t> pump_air_to_send(
     BytePump& p, std::span<std::byte> out) noexcept;
+void pump_spdu_air_complete(BytePump& p,
+                            starcom::ccsds::Tick now) noexcept;
 starcom::ccsds::MacPhy pump_mac_phy(BytePump const& p) noexcept;
 starcom::ccsds::MacFifoSource pump_fifo_source(BytePump const& p) noexcept;
 starcom::ccsds::MacNotify pump_poll_mac_notify(BytePump& p) noexcept;

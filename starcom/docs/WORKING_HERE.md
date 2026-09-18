@@ -52,6 +52,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 ### Documentation
 
 - **Do** treat the CCSDS Blue Books (and other named primary sources) as the authority. SAD / ICD / DESIGN field tables are working copies. Open the cited book first; if they disagree, the book wins.
+- **Do** open the cited PDF under `standards/starcom/ccsds/` **before** writing a MAC / COP-P / C&S / PHY workaround. Walk [`COVERAGE.md`](COVERAGE.md) **Neighbors**. If table 6-12, 6-14, or §7 already names the event, implement that event — do not mint a dwell, a second retry layer, or a token substitute. Desk 2026-09-17: leftover hail FIFO and a sticky `Carrier_Loss_Timer` were invented; 211.0 E34 / 6.5.2 / E48 already specified the behavior.
 - **Do** open [`COVERAGE.md`](COVERAGE.md) when implementing or changing a Blue Book clause: find the row, walk **Neighbors**, then the PDF. Update that row in the same commit as the TU. Full still needs a test pointer. CONFORMANCE is the published tick — do not retcon it from the matrix.
 - **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
@@ -116,6 +117,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ### Process mistakes
 
+- **Don't** invent a half-duplex dwell, COP-P retry, or FIFO bypass when 211.0 (or the other shelf book) already has the event. Open the PDF first. If you cannot cite a table/section, stop and ask — that is the failure mode, not a license to improvise.
 - **Don't** implement large features against stale `comparison.md` D-1…D-5 text. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. `comparison.md` is historical; append Status lines, do not rewrite entries.
 - **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; 131.0-B-5 is current TM-only. See `DESIGN.md` pin.
 

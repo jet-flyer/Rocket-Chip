@@ -86,6 +86,9 @@ struct StarcomLinkStatus {
     bool nav_sdu = false;
     uint8_t v_s = 0;
     uint8_t nn_r = 0;
+    uint8_t farm_vr = 0;
+    uint8_t mac_mode = 0;   // MacMode
+    uint8_t mac_state = 0;  // MacState S-number
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
 

@@ -28,17 +28,17 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   m.acquisition_idle_duration = 10;
   m.tail_idle_duration = 10;
   m.send_duration = nav_ms;
-  m.receive_duration = nav_ms;
+  // 211.0 6.2.4.18: Receive_Duration covers S51–S58, not Send_Duration alone.
+  m.receive_duration = static_cast<starcom::ccsds::Tick>(
+      nav_ms + m.carrier_only_duration + m.acquisition_idle_duration +
+      m.tail_idle_duration);
   m.hail_wait_duration = nav_ms + 20U;
-  // 0 = no abort (211.0 6.2.4.14.2). Station radio is up ~0.6 s; vehicle
-  // ~2.8 s. 10x hail_wait (~1.2 s) expired into S1 before the vehicle
-  // was listening.
-  m.hail_lifetime = 0;
+  m.hail_lifetime = 0;  // 211.0 6.2.4.14.2: 0 = no abort
   m.drop_carrier_duration = 20;
+  m.maximum_failed_token_passes = 4;  // 211.0 table 6-12 E83; 0 = unlimited
   // Two missed sparse PLCWs (R-32 station_tx ~ nav/4) before S60→S2.
   m.carrier_loss_timer_duration =
       static_cast<starcom::ccsds::Tick>(8U * nav_ms);
-  // Sparse PLCW ~ nav/4. Every-nav PLCW ate ARM leftover.
   m.plcw_repeat_interval = static_cast<starcom::ccsds::Tick>(4U * nav_ms);
   m.local_scid = local;
   m.local_pcid = kSoakPcid;
@@ -101,6 +101,11 @@ void on_comm_change_spdu(BytePump& p, starcom::ccsds::Tick now,
     starcom::ccsds::macOnHailReceived(p.mac, now);
   } else if (st == starcom::ccsds::MacState::s60 ||
              st == starcom::ccsds::MacState::s61) {
+    // 211.0 table 6-11 E69 is COMM_CHANGE, not a repeat of the hail catalog.
+    if (p.pending_catalog_valid &&
+        p.pending_catalog_idx == p.hail_catalog_idx) {
+      return;
+    }
     starcom::ccsds::macOnRemoteCommChange(p.mac, now);
     p.remote_apply_now = p.pending_catalog_valid;
   } else if (st == starcom::ccsds::MacState::s62) {
@@ -114,11 +119,23 @@ bool p_frame_is_mac_spdu(std::span<const std::byte> data) noexcept {
   }
   const unsigned hi = std::to_integer<unsigned>(data[0]);
   const auto spdu_t = starcom::ccsds::spduDirectiveType(data);
-  const bool plcw = (hi & 0x80u) != 0u;
+  // 211.0 Fig 3-5 Format ID 1 (octet0 bit7) + report_value in octet[1]
+  // is PLCW. V(R)=0 looks like SET TX (type 0); V(R)=1 looks like SET
+  // CONTROL (type 001). Annex B Type-1 SET PL/RX also use bit7 as a
+  // field (mode_select / modulation) — those stay MAC.
+  const bool format1 = (hi & 0x80u) != 0u;
+  // 211.0 Fig 3-5 PLCW: V(R) is octet[1], so V(R)&7 collides with Type-1
+  // 0/1/2 (SET TX / CONTROL / RX). SET PL (type 6) stays MAC.
+  if (format1 &&
+      (spdu_t == starcom::ccsds::kSetTxDirectiveType ||
+       spdu_t == starcom::ccsds::kSetControlDirectiveType ||
+       spdu_t == starcom::ccsds::kSetRxDirectiveType)) {
+    return false;
+  }
   return spdu_t == starcom::ccsds::kSetPlExtDirectiveType ||
          spdu_t == starcom::ccsds::kSetControlDirectiveType ||
          spdu_t == starcom::ccsds::kSetRxDirectiveType ||
-         (spdu_t == starcom::ccsds::kSetTxDirectiveType && !plcw);
+         spdu_t == starcom::ccsds::kSetTxDirectiveType;
 }
 
 bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
@@ -175,6 +192,8 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
   p.local_comm_change = false;
   p.air_heard = false;
   p.last_air_tick = 0;
+  p.defer_spdu_fifo_empty = false;
+  p.spdu_on_air = false;
   starcom::ccsds::CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 0;
@@ -197,6 +216,9 @@ void pump_init_for_this_job(BytePump& p) noexcept {
   pump_init(p, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
 #else
   pump_init(p, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+#endif
+#ifndef ROCKETCHIP_HOST_TEST
+  p.defer_spdu_fifo_empty = true;
 #endif
 }
 
@@ -328,8 +350,9 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
   p.air_heard = true;
   p.last_air_tick = now;
   if (v3->fields.p_frame && !v3->data.empty()) {
-    // PLCW Format ID 1 (octet0 bit7). V(R)=0 looks like SET TX (type 0).
-    if (p_frame_is_mac_spdu(v3->data) &&
+    // 211.0 table 6-10 E30: hail is SET TX/RX/PL chunks, not a whole-P-frame type.
+    const bool s2_hail = (p.mac.state == starcom::ccsds::MacState::s2);
+    if ((s2_hail || p_frame_is_mac_spdu(v3->data)) &&
         dispatch_p_frame_spdu(p, v3->data, now)) {
       if (comm_wait) {
         p.peer_comm_change = true;
@@ -346,16 +369,32 @@ starcom::ccsds::Result<std::size_t> pump_take_sdu(
 }
 
 void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept {
-  const auto loss = p.mac.mib.carrier_loss_timer_duration;
-  if (p.air_heard && loss != 0 && now > p.last_air_tick &&
-      (now - p.last_air_tick) >= loss) {
-    starcom::ccsds::macSetCarrierAcquired(p.mac, false, now);
+  // 211.0 6.5.2: CARRIER_ACQUIRED follows the PHY, not a hold timer.
+  if (p.mac.carrier_acquired) {
+    const starcom::ccsds::Tick gap =
+        (now > p.last_air_tick) ? (now - p.last_air_tick)
+                                : starcom::ccsds::Tick{0};
+    const starcom::ccsds::Tick hold =
+        (p.mac.mib.tail_idle_duration != 0)
+            ? p.mac.mib.tail_idle_duration
+            : starcom::ccsds::Tick{1};
+    if (gap >= hold) {
+      starcom::ccsds::macSetCarrierAcquired(p.mac, false, now);
+      p.air_heard = false;
+    }
   }
   starcom::ccsds::macTick(p.mac, now);
+  // 211.0 table 6-12 E38→E39: persistence + empty MAC queue => token.
+  if (p.mac.mode == starcom::ccsds::MacMode::active && p.mac.persistence &&
+      !p.mac.mac_frame_pending) {
+    starcom::ccsds::macOnNoFramesPending(p.mac, now);
+  }
 }
 
 void pump_start_session(BytePump& p, bool caller,
                         starcom::ccsds::Tick now) noexcept {
+  starcom::ccsds::macSetMode(p.mac, starcom::ccsds::MacMode::inactive, now);
+  starcom::ccsds::coppReset(p.copp);
   starcom::ccsds::macSetMode(
       p.mac,
       caller ? starcom::ccsds::MacMode::connecting_t
@@ -363,13 +402,40 @@ void pump_start_session(BytePump& p, bool caller,
       now);
 }
 
+static bool pump_copp_blocked(BytePump& p,
+                              starcom::ccsds::MacPhy const& phy,
+                              starcom::ccsds::MacFifoSource src) noexcept {
+  if (p.mac.mode == starcom::ccsds::MacMode::connecting_l ||
+      p.mac.mode == starcom::ccsds::MacMode::connecting_t) {
+    return true;
+  }
+  if (p.mac.mode == starcom::ccsds::MacMode::active && !phy.transmit) {
+    return true;
+  }
+  const bool active = p.mac.mode == starcom::ccsds::MacMode::active;
+  if (active && (p.mac.persistence ||
+                 src == starcom::ccsds::MacFifoSource::none ||
+                 src == starcom::ccsds::MacFifoSource::idle ||
+                 src == starcom::ccsds::MacFifoSource::carrier_only)) {
+    if (p.mac.persistence && !p.mac.mac_frame_pending) {
+      starcom::ccsds::macOnNoFramesPending(p.mac, p.mac.last_now);
+    }
+    return true;
+  }
+  return false;
+}
+
 starcom::ccsds::Result<std::size_t> pump_air_to_send(
     BytePump& p, std::span<std::byte> out) noexcept {
   const bool sdu_pending =
       p.copp.exp_full || p.copp.seq_n != 0;
   starcom::ccsds::macSetSduPending(p.mac, sdu_pending);
+  const auto phy = starcom::ccsds::macPhy(p.mac);
   const auto src = starcom::ccsds::macFifoSource(p.mac);
   if (src == starcom::ccsds::MacFifoSource::spdu) {
+    if (p.spdu_on_air) {
+      return std::size_t{0};
+    }
     std::array<std::byte, starcom::ccsds::kMacQueueCap> spdu{};
     const auto n = starcom::ccsds::macCopySpdu(p.mac, spdu);
     if (!n || *n == 0) {
@@ -378,27 +444,46 @@ starcom::ccsds::Result<std::size_t> pump_air_to_send(
     const auto pltu = wrap_mac_p_frame(
         p, out, std::span<const std::byte>(spdu.data(), *n));
     if (pltu && *pltu > 0) {
-      starcom::ccsds::macOnFifoEmpty(p.mac, p.mac.last_now);
+      p.spdu_on_air = true;
+      if (!p.defer_spdu_fifo_empty) {
+        p.spdu_on_air = false;
+        starcom::ccsds::macOnFifoEmpty(p.mac, p.mac.last_now);
+      }
     }
     return pltu;
   }
-  // 97c9413 always-on COP-P: nav/PLCW air even while MAC is in hail or
-  // receive (fifo none/idle). Table 6-14 alone stalled vehicle TX at 1.
-  // MAC need_plcw is table 6-14; coppBytesToSend only emits on FARM.
+  // 211.0 6.5.1 / table 6-14: COP-P only in an active send contact.
+  if (pump_copp_blocked(p, phy, src)) {
+    return std::size_t{0};
+  }
+  const bool seq_busy =
+      p.copp.seq_n != 0 ||
+      starcom::ccsds::seqLt(p.copp.fop.nn_r, p.copp.fop.v_s);
+  const bool fop_busy = sdu_pending || seq_busy;
+  // 211.0 table 6-14 / 7.2.2 h: NEED_PLCW is independent of FOP seq.
   if (p.mac.need_plcw) {
     p.copp.farm.need_plcw = true;
   }
   if (src == starcom::ccsds::MacFifoSource::plcw ||
       src == starcom::ccsds::MacFifoSource::sdu ||
-      sdu_pending || p.copp.farm.need_plcw) {
+      sdu_pending || p.copp.farm.need_plcw || fop_busy) {
     const bool want_plcw = p.copp.farm.need_plcw;
     const auto n = starcom::ccsds::coppBytesToSend(p.copp, out);
-    if (want_plcw && n && *n > 0) {
+    if (want_plcw && !p.copp.farm.need_plcw) {
       p.mac.need_plcw = false;
     }
     return n;
   }
   return std::size_t{0};
+}
+
+void pump_spdu_air_complete(BytePump& p,
+                            starcom::ccsds::Tick now) noexcept {
+  if (!p.spdu_on_air) {
+    return;
+  }
+  p.spdu_on_air = false;
+  starcom::ccsds::macOnFifoEmpty(p.mac, now);
 }
 
 starcom::ccsds::MacPhy pump_mac_phy(BytePump const& p) noexcept {
@@ -444,7 +529,7 @@ bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
   p.remote_apply_now = false;
   p.peer_comm_change = false;
   starcom::ccsds::macLocalCommChange(p.mac, now);
-  // E65 queues COMM_CHANGE SPDUs. S50 wait expiry (E38) clears y.
+  // Table 6-11 E65: NoFramesPending in S50 Y=2 queues COMM_CHANGE this contact.
   starcom::ccsds::macOnNoFramesPending(p.mac, now);
   return true;
 }

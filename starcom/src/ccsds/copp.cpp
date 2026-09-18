@@ -236,6 +236,10 @@ void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
   fopPInit(e.fop, mib);
 }
 
+void coppReset(CoppEndpoint& e) noexcept {
+  coppInit(e, e.fop.mib, e.pcid, e.local_scid, e.remote_scid, e.port_id);
+}
+
 void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept {
   coppClear(e);
@@ -346,6 +350,14 @@ void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {
   ++e.rx_n;
 }
 
+bool dest_is_local(CoppEndpoint const& e, bool destination,
+                   std::uint16_t scid) noexcept {
+  if (!destination) {
+    return true;
+  }
+  return scid == static_cast<std::uint16_t>(e.local_scid);
+}
+
 void coppReceiveUslp(CoppEndpoint& e, PltuView const& pltu) noexcept {
   const auto u = decodeUslp(pltu.frame);
   if (!u) {
@@ -374,6 +386,10 @@ void coppReceiveV3(CoppEndpoint& e, PltuView const& pltu) noexcept {
   const auto v3 = decodeV3(pltu.frame);
   if (!v3) {
     (void)farmPOnFrame(e.farm, false, false, 0);
+    return;
+  }
+  if (!dest_is_local(e, v3->fields.destination,
+                     static_cast<std::uint16_t>(v3->fields.scid))) {
     return;
   }
   if (v3->fields.p_frame) {
@@ -512,6 +528,7 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
 
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
                                        std::span<std::byte> out) noexcept {
+  // 211.0 table 6-14: NEED_PLCW before any SDU. §7.2.3 SE1 fills the SDU slot.
   if (e.farm.need_plcw) {
     return coppSendPlcw(e, out);
   }

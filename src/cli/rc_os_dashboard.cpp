@@ -200,9 +200,11 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         const StationBarMode bar = station_bar_mode(
-            sc.nav_sdu || sc.peer_plcw, rs->rx_count, d.age_ms);
+            sc.peer_plcw, rs->rx_count, d.age_ms);
         if (bar == StationBarMode::Waiting) {
             d.rssi_clr = kYellow;
+        } else if (bar == StationBarMode::RfHeard) {
+            d.rssi_clr = kCyan;
         }
     }
 
@@ -398,17 +400,31 @@ static void format_starcom_row(char* out, int n, const char*& colour) {
         rc::rc_snprintf(out, n, "Air: %s", rc::kAirDialect);
         return;
     }
-    if (sc.peer_plcw) {
+    static const char* kMacMode = "ILTA";
+    const char mc = (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+    const RadioAoState* rs = AO_Radio_get_state();
+    uint32_t gap = kStationBarHoldMs;
+    uint32_t rxn = 0;
+    if (rs != nullptr) {
+        rxn = rs->rx_count;
+#ifndef ROCKETCHIP_HOST_TEST
+        gap = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
+#endif
+    }
+    const bool rf_live = (rxn > 0U) && (gap < kStationBarHoldMs);
+    if (sc.peer_plcw && rf_live) {
         colour = kGreen;
-        rc::rc_snprintf(out, n, "Air: %s  COP-P lock  N(R)=%u V(S)=%u%s",
+        rc::rc_snprintf(out, n, "Air: %s  COP-P lock  N(R)=%u V(S)=%u  MAC %c/s%u%s",
                         rc::kAirDialect,
                         static_cast<unsigned>(sc.nn_r),
                         static_cast<unsigned>(sc.v_s),
+                        mc, static_cast<unsigned>(sc.mac_state),
                         sc.nav_sdu ? "  nav" : "");
         return;
     }
     colour = kYellow;
-    rc::rc_snprintf(out, n, "Air: %s  COP-P waiting peer PLCW", rc::kAirDialect);
+    rc::rc_snprintf(out, n, "Air: %s  COP-P waiting  MAC %c/s%u",
+                    rc::kAirDialect, mc, static_cast<unsigned>(sc.mac_state));
 }
 
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,

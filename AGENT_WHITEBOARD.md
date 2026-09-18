@@ -54,14 +54,6 @@ WIP untracked: `src/safety/station_phy_scan.h`, `test/test_station_phy_scan.cpp`
 
 ---
 
-## Next sitting — ARM ACK (2026-09-16)
-
-Pad `Air:` COP-P lock landed this sitting (PLCW Format ID 1 not SET TX; `macTickPlcw` arms; 4× nav PLCW). Desk: `Air: starcom  COP-P lock  N(R)=0 V(S)=0  nav` TRACK ~7.5/10 Hz.
-
-**Still open:** ARM ACK. Desk after lock: `ARM sent`, `V(S)=1`, `CMD: ARM/DISARM Try 1/9`, then `pending cleared (no ACK in 3840 ms)` / FAILED. Station still TRACK. Do not fire pyro. Pad `RSSI:` / `Pkts:` still last-FIFO leftovers.
-
----
-
 ## Class D outdoor BW rank (WANTED) (2026-09-03)
 
 125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank. Desk stays 2 dBm. Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Report: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. Not a license this sitting.

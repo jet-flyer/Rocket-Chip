@@ -8,7 +8,10 @@
 #include "starcom_adapt/nav_sdu.h"
 #include "rocketchip/radio_config_table.h"
 #include "starcom/ccsds/pltu.hpp"
+#include "starcom/ccsds/v3.hpp"
 #include "starcom/ccsds/space_packet.hpp"
+#include "starcom/ccsds/mac.hpp"
+#include "starcom/ccsds/plcw.hpp"
 #include "starcom/version.hpp"
 
 #include <algorithm>
@@ -28,6 +31,7 @@ using rc::starcom_adapt::pump_take_sdu;
 using rc::starcom_adapt::pump_tick;
 using rc::starcom_adapt::pump_start_session;
 using rc::starcom_adapt::pump_air_to_send;
+using rc::starcom_adapt::pump_spdu_air_complete;
 using rc::starcom_adapt::pump_handle_air;
 using rc::starcom_adapt::pump_begin_comm_change;
 using rc::starcom_adapt::pump_catalog_fits;
@@ -245,6 +249,332 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     ASSERT_EQ(*tn, *cn);
 }
 
+// 211.0 table 6-14: NEED_PLCW before SDU. One contact can emit both.
+TEST(StarcomBytePump, PlcwThenSeqInOneContact) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    station, std::span<const std::byte>(cmd.data(), *cn), false)
+                    .has_value());
+    station.copp.farm.need_plcw = true;
+    station.mac.need_plcw = true;
+
+    std::array<std::byte, 255> wire{};
+    const auto n = pump_air_to_send(station, wire);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_GT(*n, 0u);
+    const auto pltu = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n));
+    ASSERT_TRUE(pltu.has_value());
+    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+    ASSERT_TRUE(v3.has_value());
+    EXPECT_TRUE(v3->fields.p_frame);
+    EXPECT_FALSE(station.copp.farm.need_plcw);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *n));
+    EXPECT_TRUE(vehicle.copp.fop.plcw_heard);
+
+    const auto n2 = pump_air_to_send(station, wire);
+    ASSERT_TRUE(n2.has_value());
+    ASSERT_GT(*n2, 0u);
+    const auto pltu2 = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n2));
+    ASSERT_TRUE(pltu2.has_value());
+    const auto v32 = starcom::ccsds::decodeV3(pltu2->frame);
+    ASSERT_TRUE(v32.has_value());
+    EXPECT_FALSE(v32->fields.p_frame);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *n2));
+    EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
+    std::array<std::byte, 64> sdu{};
+    const auto tn = pump_take_sdu(vehicle, sdu);
+    ASSERT_TRUE(tn.has_value());
+    ASSERT_EQ(*tn, *cn);
+
+    station.copp.farm.need_plcw = false;
+    station.mac.need_plcw = false;
+    const auto n3 = pump_air_to_send(station, wire);
+    ASSERT_TRUE(n3.has_value());
+    ASSERT_GT(*n3, 0u);
+}
+
+// 211.0 table 6-14: first S50 air is PLCW even with no nav submitted.
+TEST(StarcomBytePump, SendContactEmitsPlcwWithoutNav) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    std::array<std::byte, 255> wire{};
+    bool saw_plcw = false;
+    for (starcom::ccsds::Tick t = 10; t <= 400; t += 10) {
+        pump_tick(vehicle, t);
+        (void)pump_poll_mac_notify(vehicle);
+        if (vehicle.mac.state != starcom::ccsds::MacState::s50) {
+            continue;
+        }
+        if (vehicle.mac.persistence) {
+            break;
+        }
+        vehicle.copp.farm.need_plcw = true;
+        vehicle.mac.need_plcw = true;
+        const auto n = pump_air_to_send(vehicle, wire);
+        if (!n.has_value() || *n == 0) {
+            continue;
+        }
+        const auto pltu = starcom::ccsds::decodePltu(
+            std::span<const std::byte>(wire.data(), *n));
+        ASSERT_TRUE(pltu.has_value());
+        const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+        ASSERT_TRUE(v3.has_value());
+        EXPECT_TRUE(v3->fields.p_frame);
+        EXPECT_FALSE(vehicle.copp.farm.need_plcw);
+        saw_plcw = true;
+        break;
+    }
+    EXPECT_TRUE(saw_plcw);
+}
+
+// 211.0 table 6-14 + 7.3.1 RE3: NEED_PLCW then expedited ACK U-frame.
+TEST(StarcomBytePump, PlcwThenExpAckInOneContact) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_id = 400;
+    ack.cmd_seq = 0;
+    ack.result = 0;
+    std::array<std::byte, 64> pkt{};
+    const auto n = pump_pack_ack_packet(pkt, ack);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *n), true)
+                    .has_value());
+    vehicle.copp.farm.need_plcw = true;
+    vehicle.mac.need_plcw = true;
+
+    std::array<std::byte, 255> wire{};
+    const auto n1 = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(n1.has_value());
+    ASSERT_GT(*n1, 0u);
+    const auto pltu1 = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n1));
+    ASSERT_TRUE(pltu1.has_value());
+    const auto v31 = starcom::ccsds::decodeV3(pltu1->frame);
+    ASSERT_TRUE(v31.has_value());
+    EXPECT_TRUE(v31->fields.p_frame);
+    EXPECT_FALSE(vehicle.copp.farm.need_plcw);
+    EXPECT_TRUE(vehicle.copp.exp_full);
+
+    const auto n2 = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(n2.has_value());
+    ASSERT_GT(*n2, 0u);
+    const auto pltu2 = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n2));
+    ASSERT_TRUE(pltu2.has_value());
+    const auto v32 = starcom::ccsds::decodeV3(pltu2->frame);
+    ASSERT_TRUE(v32.has_value());
+    EXPECT_FALSE(v32->fields.p_frame);
+    EXPECT_TRUE(v32->fields.qos_expedited);
+    EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
+    EXPECT_FALSE(vehicle.copp.exp_full);
+}
+
+// 211.0 7.3.1 RE3: command ACK is expedited (does not consume V(S)).
+TEST(StarcomBytePump, CmdAckIsExpedited) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_id = 400;
+    ack.result = 0;
+    std::array<std::byte, 64> pkt{};
+    const auto n = pump_pack_ack_packet(pkt, ack);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *n), true)
+                    .has_value());
+    vehicle.copp.farm.need_plcw = false;
+    vehicle.mac.need_plcw = false;
+    std::array<std::byte, 255> wire{};
+    const auto air = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(air.has_value());
+    ASSERT_GT(*air, 0u);
+    const auto pltu = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *air));
+    ASSERT_TRUE(pltu.has_value());
+    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+    ASSERT_TRUE(v3.has_value());
+    EXPECT_TRUE(v3->fields.qos_expedited);
+    EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
+}
+
+// Expedited nav must not starve FARM NEED_PLCW.
+TEST(StarcomBytePump, NavDoesNotStarveFarmPlcw) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_nav_packet(pkt, telem);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
+                    .has_value());
+    vehicle.copp.farm.need_plcw = true;
+    vehicle.mac.need_plcw = true;
+
+    std::array<std::byte, 255> wire{};
+    const auto n = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_GT(*n, 0u);
+    const auto pltu = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n));
+    ASSERT_TRUE(pltu.has_value());
+    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+    ASSERT_TRUE(v3.has_value());
+    EXPECT_TRUE(v3->fields.p_frame);
+    EXPECT_FALSE(vehicle.copp.farm.need_plcw);
+
+    const auto n2 = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(n2.has_value());
+    ASSERT_GT(*n2, 0u);
+    const auto pltu2 = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *n2));
+    ASSERT_TRUE(pltu2.has_value());
+    const auto v32 = starcom::ccsds::decodeV3(pltu2->frame);
+    ASSERT_TRUE(v32.has_value());
+    EXPECT_FALSE(v32->fields.p_frame);
+}
+
+// 211.0 table 6-10 S2: connecting-L TRANSMIT off. Nav in S2 lets the
+// caller E37 on vehicle TM while the vehicle never sees hail (E30).
+TEST(StarcomBytePump, ConnectingLDoesNotRadiate) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    EXPECT_EQ(vehicle.mac.mode, starcom::ccsds::MacMode::connecting_l);
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+    EXPECT_TRUE(pump_mac_phy(vehicle).receive);
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_nav_packet(pkt, telem);
+    ASSERT_TRUE(pn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
+                    .has_value());
+    vehicle.copp.farm.need_plcw = true;
+    std::array<std::byte, 255> wire{};
+    const auto n = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(n.has_value());
+    EXPECT_EQ(*n, 0u);
+}
+
+// 211.0 E30: SET TRANSMITTER first (modulation bit7 == PLCW Format ID 1)
+// must still hail. Whole-buffer p_frame_is_mac_spdu used to skip it.
+TEST(StarcomBytePump, HailSetTxFirstStillE30) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::MacPhyParams phy{};
+    phy.encoding = starcom::ccsds::kPhyEncodingBypass;
+    phy.modulation = 1;
+    std::array<std::byte, 4> spdu{};
+    ASSERT_TRUE(starcom::ccsds::encodeSetPhy(
+                    std::span<std::byte>(spdu.data(), 2), phy, true)
+                    .has_value());
+    ASSERT_TRUE(starcom::ccsds::encodeSetPhy(
+                    std::span<std::byte>(spdu.data() + 2, 2), phy, false)
+                    .has_value());
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.local_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    const auto vn = starcom::ccsds::encodeV3(frame, hdr, spdu);
+    ASSERT_TRUE(vn.has_value());
+    std::array<std::byte, 255> wire{};
+    const auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
+}
+
+TEST(StarcomBytePump, HailCatalogIsNotE69) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    for (starcom::ccsds::Tick t = 10; t <= 300; t += 10) {
+        pump_tick(vehicle, t);
+        std::array<std::byte, 255> dump{};
+        (void)pump_air_to_send(vehicle, dump);
+        if (pump_mac_phy(vehicle).receive) {
+            break;
+        }
+    }
+    ASSERT_TRUE(pump_mac_phy(vehicle).receive);
+    std::array<std::byte, 2> pl{};
+    ASSERT_TRUE(starcom::ccsds::encodeSetPlExt(
+                    pl, rc::starcom_adapt::pump_comm_value_for_catalog(
+                            vehicle.hail_catalog_idx)
+                            .pl_tx)
+                    .has_value());
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.local_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    const auto vn = starcom::ccsds::encodeV3(frame, hdr, pl);
+    ASSERT_TRUE(vn.has_value());
+    std::array<std::byte, 255> wire{};
+    const auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_NE(vehicle.mac.state, starcom::ccsds::MacState::s51);
+    EXPECT_EQ(vehicle.mac.y, 0u);
+}
+
+TEST(StarcomBytePump, ConnectingTDoesNotLeakSeq) {
+    static BytePump station{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_start_session(station, true, 0);
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    station, std::span<const std::byte>(cmd.data(), *cn), false)
+                    .has_value());
+    std::array<std::byte, 255> wire{};
+    const auto n = pump_air_to_send(station, wire);
+    ASSERT_TRUE(n.has_value());
+    EXPECT_EQ(*n, 0u);
+    pump_tick(station, 10);
+    pump_tick(station, 20);
+    const auto hail = pump_air_to_send(station, wire);
+    ASSERT_TRUE(hail.has_value());
+    ASSERT_GT(*hail, 0u);
+    const auto pltu = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *hail));
+    ASSERT_TRUE(pltu.has_value());
+    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+    ASSERT_TRUE(v3.has_value());
+    EXPECT_TRUE(v3->fields.p_frame);
+}
+
 TEST(StarcomBytePump, MacHalfDuplexHailFifo) {
     static BytePump station{};
     static BytePump vehicle{};
@@ -269,10 +599,77 @@ TEST(StarcomBytePump, MacHalfDuplexHailFifo) {
     const auto n = pump_air_to_send(station, wire);
     ASSERT_TRUE(n.has_value());
     ASSERT_GT(*n, 0u);
+    EXPECT_EQ(station.mac.mac_queue_len, 0u);
+    EXPECT_FALSE(station.mac.mac_frame_pending);
     pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *n));
     EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
     EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
     EXPECT_FALSE(pump_mac_phy(vehicle).receive);
+}
+
+// 211.0 Fig 3-5 Format ID 1 is PLCW. V(R)=1 in octet[1] looks like Annex B
+// SET CONTROL type 001 and must not E49 or skip FOP.
+TEST(StarcomBytePump, FormatId1PlcwIsNotSetControl) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+    pump_tick(station, 10);
+    pump_tick(station, 20);
+    std::array<std::byte, 255> wire{};
+    const auto hail = pump_air_to_send(station, wire);
+    ASSERT_TRUE(hail.has_value());
+    ASSERT_GT(*hail, 0u);
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *hail));
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    for (starcom::ccsds::Tick t = 30; t <= 200; t += 10) {
+        pump_tick(vehicle, t);
+        (void)pump_air_to_send(vehicle, wire);
+        const auto phy = pump_mac_phy(vehicle);
+        if (phy.receive && !phy.transmit) {
+            break;
+        }
+    }
+    ASSERT_TRUE(pump_mac_phy(vehicle).receive);
+    ASSERT_FALSE(pump_mac_phy(vehicle).transmit);
+    vehicle.copp.fop.v_s = 1;
+    vehicle.copp.fop.vv_s = 1;
+
+    starcom::ccsds::Plcw16 plcw{};
+    plcw.report_value = 1;
+    std::array<std::byte, 2> raw{};
+    ASSERT_TRUE(starcom::ccsds::encodePlcw(raw, plcw).has_value());
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.local_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    const auto vn = starcom::ccsds::encodeV3(frame, hdr, raw);
+    ASSERT_TRUE(vn.has_value());
+    const auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_TRUE(vehicle.copp.fop.plcw_heard);
+    EXPECT_EQ(vehicle.copp.fop.n_r, 1u);
+    EXPECT_NE(vehicle.mac.state, starcom::ccsds::MacState::s51);
+
+    vehicle.copp.fop.v_s = 2;
+    vehicle.copp.fop.vv_s = 2;
+    plcw.report_value = 2;
+    ASSERT_TRUE(starcom::ccsds::encodePlcw(raw, plcw).has_value());
+    const auto vn2 = starcom::ccsds::encodeV3(frame, hdr, raw);
+    ASSERT_TRUE(vn2.has_value());
+    const auto pn2 = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn2));
+    ASSERT_TRUE(pn2.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn2));
+    EXPECT_EQ(vehicle.copp.fop.n_r, 2u);
+    EXPECT_NE(vehicle.mac.state, starcom::ccsds::MacState::s51);
 }
 
 TEST(StarcomBytePump, HailLifetimeZeroKeepsCalling) {
@@ -301,6 +698,7 @@ TEST(StarcomBytePump, HailThenNavReachesStation) {
     std::array<std::byte, 255> veh_wire{};
     int vehicle_air = 0;
     int station_rx = 0;
+    bool saw_receive = false;
 
     for (starcom::ccsds::Tick t = 10; t <= 2000; t += 10) {
         pump_tick(station, t);
@@ -337,9 +735,171 @@ TEST(StarcomBytePump, HailThenNavReachesStation) {
             (void)pump_poll_mac_notify(station);
             ++station_rx;
         }
+        const auto vphy = pump_mac_phy(vehicle);
+        if (vehicle.mac.mode == starcom::ccsds::MacMode::active &&
+            vphy.receive && !vphy.transmit) {
+            saw_receive = true;
+        }
     }
-    EXPECT_GT(vehicle_air, 5);
-    EXPECT_GT(station_rx, 5);
+    EXPECT_GT(vehicle_air, 2);
+    EXPECT_GT(station_rx, 0);
+    EXPECT_TRUE(saw_receive);
+}
+
+// 211.0 6.2.4.17–18 / table 6-12 E38–E43: after hail, Send_Duration then
+// Receive_Duration. Vehicle must stop radiating so the station seq AD fits.
+TEST(StarcomBytePump, HalfDuplexReceiveWindowAfterSendDuration) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> pkt{};
+    const auto pn = pump_pack_nav_packet(pkt, telem);
+    ASSERT_TRUE(pn.has_value());
+    std::array<std::byte, 255> wire{};
+    bool saw_receive = false;
+    for (starcom::ccsds::Tick t = 10; t <= 800; t += 10) {
+        (void)pump_submit_sdu(
+            vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
+        pump_tick(vehicle, t);
+        (void)pump_poll_mac_notify(vehicle);
+        const auto phy = pump_mac_phy(vehicle);
+        const auto n = pump_air_to_send(vehicle, wire);
+        const bool aired = n.has_value() && *n > 0;
+        if (vehicle.mac.mode == starcom::ccsds::MacMode::active &&
+            phy.receive && !phy.transmit) {
+            EXPECT_FALSE(aired);
+            saw_receive = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_receive);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
+}
+
+// 211.0 6.3.2.3: FIFO empty after the PHY has the bits. E43 must not
+// open receive while the token is still on the air.
+TEST(StarcomBytePump, DeferredFifoEmptyHoldsUntilComplete) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    vehicle.defer_spdu_fifo_empty = true;
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    std::array<std::byte, 255> wire{};
+    bool posted_spdu = false;
+    for (starcom::ccsds::Tick t = 10; t <= 400; t += 10) {
+        pump_tick(vehicle, t);
+        (void)pump_poll_mac_notify(vehicle);
+        const auto n = pump_air_to_send(vehicle, wire);
+        if (n.has_value() && *n > 0 && vehicle.spdu_on_air) {
+            posted_spdu = true;
+            EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s56);
+            EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
+            pump_tick(vehicle, t + 5);
+            EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s56);
+            pump_spdu_air_complete(vehicle, t + 5);
+            EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s58);
+            break;
+        }
+    }
+    EXPECT_TRUE(posted_spdu);
+}
+
+// 211.0 table 6-12 E39–E49: SET CONTROL token, then station seq AD.
+TEST(StarcomBytePump, TokenPassThenStationSeqAd) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    bool cmd_queued = false;
+    bool saw_token = false;
+    bool station_send = false;
+    bool farm_ok = false;
+    std::array<std::byte, 255> stn_wire{};
+    std::array<std::byte, 255> veh_wire{};
+
+    const auto p_frame_type = [](std::span<const std::byte> octets)
+        -> std::uint8_t {
+        const auto pltu = starcom::ccsds::decodePltu(octets);
+        if (!pltu) {
+            return 0xFF;
+        }
+        const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+        if (!v3 || !v3->fields.p_frame || v3->data.size() < 2) {
+            return 0xFF;
+        }
+        return starcom::ccsds::spduDirectiveType(v3->data.subspan(0, 2));
+    };
+
+    for (starcom::ccsds::Tick t = 10; t <= 2500; t += 10) {
+        pump_tick(station, t);
+        pump_tick(vehicle, t);
+        (void)pump_poll_mac_notify(station);
+        (void)pump_poll_mac_notify(vehicle);
+
+        if (!cmd_queued && station.mac.mode == starcom::ccsds::MacMode::active) {
+            ASSERT_TRUE(pump_submit_sdu(
+                            station,
+                            std::span<const std::byte>(cmd.data(), *cn), false)
+                            .has_value());
+            cmd_queued = true;
+        }
+        if ((t % 100) == 0) {
+            std::array<std::byte, 64> pkt{};
+            const auto pn = pump_pack_nav_packet(pkt, telem);
+            ASSERT_TRUE(pn.has_value());
+            (void)pump_submit_sdu(
+                vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
+        }
+
+        const auto sn = pump_air_to_send(station, stn_wire);
+        const auto vn = pump_air_to_send(vehicle, veh_wire);
+        const bool stn_tx = sn.has_value() && *sn > 0;
+        const bool veh_tx = vn.has_value() && *vn > 0;
+        if (stn_tx && veh_tx) {
+            continue;
+        }
+        if (veh_tx && !stn_tx) {
+            if (p_frame_type(std::span<const std::byte>(veh_wire.data(), *vn)) ==
+                starcom::ccsds::kSetControlDirectiveType) {
+                saw_token = true;
+            }
+            pump_handle_air(
+                station, std::span<const std::byte>(veh_wire.data(), *vn));
+            (void)pump_poll_mac_notify(station);
+        }
+        if (stn_tx && !veh_tx) {
+            pump_handle_air(
+                vehicle, std::span<const std::byte>(stn_wire.data(), *sn));
+            (void)pump_poll_mac_notify(vehicle);
+            if (vehicle.copp.farm.v_r == 1u) {
+                farm_ok = true;
+                break;
+            }
+        }
+        const auto sphy = pump_mac_phy(station);
+        if (station.mac.mode == starcom::ccsds::MacMode::active &&
+            sphy.transmit) {
+            station_send = true;
+        }
+    }
+    EXPECT_TRUE(saw_token);
+    EXPECT_TRUE(station_send);
+    EXPECT_TRUE(farm_ok);
+    EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
 }
 
 TEST(StarcomBytePump, CommChangeCatalogToA) {
@@ -484,27 +1044,203 @@ TEST(StarcomBytePump, StationReinitLocksOnVehiclePlcw) {
     pump_handle_air(station, std::span<const std::byte>(wire.data(), *nav));
 
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
-    pump_start_session(station, true, 50);
     EXPECT_FALSE(station.copp.fop.plcw_heard);
 
     int plcw_rx = 0;
-    for (starcom::ccsds::Tick t = 100; t <= 1600; t += 100) {
+    for (starcom::ccsds::Tick t = 50; t <= 1600; t += 10) {
         pump_tick(vehicle, t);
-        pump_tick(station, t);
         (void)pump_poll_mac_notify(vehicle);
-        (void)pump_poll_mac_notify(station);
-        const auto vn = pump_air_to_send(vehicle, wire);
+        (void)pump_submit_sdu(
+            vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
+        const auto phy = pump_mac_phy(vehicle);
+        if (phy.transmit && !vehicle.mac.persistence) {
+            vehicle.copp.farm.need_plcw = true;
+        }
+        std::array<std::byte, 255> vwire{};
+        const auto vn = pump_air_to_send(vehicle, vwire);
         if (vn.has_value() && *vn > 0) {
             pump_handle_air(
-                station, std::span<const std::byte>(wire.data(), *vn));
+                station, std::span<const std::byte>(vwire.data(), *vn));
             ++plcw_rx;
-        }
-        const auto sn = pump_air_to_send(station, wire);
-        if (sn.has_value() && *sn > 0) {
-            pump_handle_air(
-                vehicle, std::span<const std::byte>(wire.data(), *sn));
+            if (station.copp.fop.plcw_heard) {
+                break;
+            }
         }
     }
     EXPECT_GT(plcw_rx, 0);
     EXPECT_TRUE(station.copp.fop.plcw_heard);
+}
+
+// Seq AD after lock must advance FARM V(R) via pump_handle_air.
+TEST(StarcomBytePump, FarmSeqCmdAfterLockViaHandleAir) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+
+    rc::TelemetryState telem{};
+    telem.q_w = 32767;
+    std::array<std::byte, 64> nav{};
+    const auto nn = pump_pack_nav_packet(nav, telem);
+    ASSERT_TRUE(nn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    vehicle, std::span<const std::byte>(nav.data(), *nn), true)
+                    .has_value());
+    std::array<std::byte, 255> wire{};
+    const auto vnav = pump_air_to_send(vehicle, wire);
+    ASSERT_TRUE(vnav.has_value());
+    ASSERT_GT(*vnav, 0u);
+    pump_handle_air(station, std::span<const std::byte>(wire.data(), *vnav));
+
+    station.copp.farm.need_plcw = true;
+    const auto splcw = pump_air_to_send(station, wire);
+    ASSERT_TRUE(splcw.has_value());
+    ASSERT_GT(*splcw, 0u);
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *splcw));
+    EXPECT_TRUE(vehicle.copp.fop.plcw_heard);
+    EXPECT_EQ(vehicle.copp.farm.v_r, 0u);
+
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    ASSERT_TRUE(pump_submit_sdu(
+                    station, std::span<const std::byte>(cmd.data(), *cn), false)
+                    .has_value());
+    const auto s_cmd = pump_air_to_send(station, wire);
+    ASSERT_TRUE(s_cmd.has_value());
+    ASSERT_GT(*s_cmd, 0u);
+    const auto pltu = starcom::ccsds::decodePltu(
+        std::span<const std::byte>(wire.data(), *s_cmd));
+    ASSERT_TRUE(pltu.has_value());
+    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+    ASSERT_TRUE(v3.has_value());
+    EXPECT_FALSE(v3->fields.p_frame);
+    EXPECT_FALSE(v3->fields.qos_expedited);
+    EXPECT_EQ(v3->fields.fsn, 0u);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *s_cmd));
+    EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
+    std::array<std::byte, 64> sdu{};
+    const auto tn = pump_take_sdu(vehicle, sdu);
+    ASSERT_TRUE(tn.has_value());
+    ASSERT_EQ(*tn, *cn);
+
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *vnav));
+    EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
+}
+
+// 211.0 table 6-10 through 7.3.1 RE3: hail, first S50 PLCW, caller E37,
+// seq AD, expedited ACK. Instant PHY; one side airs per step.
+TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(station, true, 0);
+    pump_start_session(vehicle, false, 0);
+
+    std::array<std::byte, 64> cmd{};
+    const auto cn = pump_pack_cmd_packet(cmd, 400, 0, 1.0F, 0, 0, 0, 0);
+    ASSERT_TRUE(cn.has_value());
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_id = 400;
+    ack.cmd_seq = 0;
+    ack.result = 0;
+    std::array<std::byte, 64> ack_pkt{};
+    const auto an = pump_pack_ack_packet(ack_pkt, ack);
+    ASSERT_TRUE(an.has_value());
+
+    std::array<std::byte, 255> stn_wire{};
+    std::array<std::byte, 255> veh_wire{};
+    bool veh_hail = false;
+    bool stn_hail = false;
+    bool first_plcw = false;
+    bool cmd_queued = false;
+    bool ack_queued = false;
+    bool farm_ok = false;
+    bool ack_rx = false;
+
+    for (starcom::ccsds::Tick t = 10; t <= 4000; t += 10) {
+        pump_tick(station, t);
+        pump_tick(vehicle, t);
+        if (pump_poll_mac_notify(vehicle) ==
+            starcom::ccsds::MacNotify::hail_ok) {
+            veh_hail = true;
+        }
+        if (pump_poll_mac_notify(station) ==
+            starcom::ccsds::MacNotify::hail_ok) {
+            stn_hail = true;
+        }
+
+        if (veh_hail && stn_hail &&
+            station.mac.mode == starcom::ccsds::MacMode::active &&
+            !cmd_queued) {
+            ASSERT_TRUE(pump_submit_sdu(
+                            station,
+                            std::span<const std::byte>(cmd.data(), *cn), false)
+                            .has_value());
+            cmd_queued = true;
+        }
+        if (farm_ok && !ack_queued) {
+            ASSERT_TRUE(pump_submit_sdu(
+                            vehicle,
+                            std::span<const std::byte>(ack_pkt.data(), *an),
+                            true)
+                            .has_value());
+            ack_queued = true;
+        }
+
+        const auto sn = pump_air_to_send(station, stn_wire);
+        const auto vn = pump_air_to_send(vehicle, veh_wire);
+        const bool stn_tx = sn.has_value() && *sn > 0;
+        const bool veh_tx = vn.has_value() && *vn > 0;
+        if (stn_tx && veh_tx) {
+            continue;
+        }
+        if (veh_tx && !stn_tx) {
+            if (veh_hail && !first_plcw &&
+                vehicle.mac.state == starcom::ccsds::MacState::s50 &&
+                !vehicle.mac.persistence) {
+                const auto pltu = starcom::ccsds::decodePltu(
+                    std::span<const std::byte>(veh_wire.data(), *vn));
+                if (pltu) {
+                    const auto v3 = starcom::ccsds::decodeV3(pltu->frame);
+                    if (v3 && v3->fields.p_frame) {
+                        const auto plcw = starcom::ccsds::decodePlcw(v3->data);
+                        if (plcw) {
+                            first_plcw = true;
+                        }
+                    }
+                }
+            }
+            pump_handle_air(
+                station, std::span<const std::byte>(veh_wire.data(), *vn));
+            if (ack_queued) {
+                std::array<std::byte, 64> sdu{};
+                const auto tn = pump_take_sdu(station, sdu);
+                if (tn.has_value() && *tn == *an) {
+                    ack_rx = true;
+                    break;
+                }
+            }
+        }
+        if (stn_tx && !veh_tx) {
+            pump_handle_air(
+                vehicle, std::span<const std::byte>(stn_wire.data(), *sn));
+            if (cmd_queued && !farm_ok) {
+                std::array<std::byte, 64> sdu{};
+                const auto tn = pump_take_sdu(vehicle, sdu);
+                if (tn.has_value() && *tn == *cn) {
+                    farm_ok = true;
+                }
+            }
+        }
+    }
+    EXPECT_TRUE(veh_hail);
+    EXPECT_TRUE(stn_hail);
+    EXPECT_TRUE(first_plcw);
+    EXPECT_TRUE(farm_ok);
+    EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
+    EXPECT_TRUE(ack_rx);
+    EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
 }

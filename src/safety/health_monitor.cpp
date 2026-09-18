@@ -699,7 +699,10 @@ bool health_monitor_critical_fault() {
     // critical condition — they're threshold-bound and don't benefit
     // from persistence smoothing. Keeps preflight/LED/log visibility
     // identical regardless of phase.
-    if (g_health.critical != 0) {
+    // Live MCU over-temp only. Prior-hardfault / brownout bits stay on
+    // the critical byte for preflight; they must not auto-DISARM (desk:
+    // halt-write looks like a crash record, ARM then instant IDLE).
+    if ((g_health.critical & kHealthCriticalMcu) != 0) {
         return true;
     }
 

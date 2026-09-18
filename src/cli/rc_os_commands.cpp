@@ -913,10 +913,15 @@ void cli_print_boot_summary() {
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         if (sc.on) {
-            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u%s\n",
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
                        sc.peer_plcw ? "lock" : "waiting peer PLCW",
                        static_cast<unsigned>(sc.nn_r),
                        static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
                        sc.nav_sdu ? "  nav" : "");
         }
     }
@@ -1065,10 +1070,15 @@ void cli_print_station_status() {
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         if (sc.on) {
-            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u%s\n",
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
                        sc.peer_plcw ? "lock" : "waiting peer PLCW",
                        static_cast<unsigned>(sc.nn_r),
                        static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
                        sc.nav_sdu ? "  nav" : "");
         }
     }
@@ -1349,6 +1359,22 @@ void cmd_radio_status() {
                (unsigned long)rs->tx_count,
                static_cast<unsigned>(rs->tx_consec_fail),
                rs->tx_active ? "busy" : "idle");
+        rc::rc_log("RX: %lu pkts  %lu CRC err\n",
+               (unsigned long)rs->rx_count,
+               (unsigned long)rs->rx_crc_errors);
+        {
+            const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
+                       sc.peer_plcw ? "lock" : "waiting peer PLCW",
+                       static_cast<unsigned>(sc.nn_r),
+                       static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
+                       sc.nav_sdu ? "  nav" : "");
+        }
     }
 
     rc::rc_log("CFG: BW=%u SF=%u CR=%u nav=%uHz pwr=%udBm\n",

@@ -40,6 +40,7 @@
 - Never silently modify another agent's work.
 - Coding standards are mandatory — no deviations without explicit approval (see `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`).
 - **Prior art research required** before implementing hardware interfaces or novel functionality (see CODING_STANDARDS.md).
+- **CCSDS Blue Books first** for Starcom / MAC / COP-P / air: open the cited PDF in `standards/starcom/ccsds/` and `starcom/docs/COVERAGE.md` neighbors **before** writing a workaround. Do not invent a dwell, token substitute, or retry layer when the book names the event. Detail: `starcom/docs/WORKING_HERE.md`.
 - Repository files are authoritative. When a discrepancy between agent memory and repo content is flagged, the repository is almost always the correct, double check with user to update your memory.
 
 ---

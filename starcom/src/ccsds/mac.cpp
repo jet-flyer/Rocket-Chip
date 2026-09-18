@@ -154,6 +154,12 @@ bool appendQueue(MacSession& m, std::span<const std::byte> src) noexcept {
   return true;
 }
 
+void clearMacQueue(MacSession& m) noexcept {
+  m.mac_queue_len = 0;
+  m.mac_frame_pending = false;
+  m.fifo_empty = true;
+}
+
 void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept {
   m.mac_queue_len = 0;
   std::array<std::byte, 2> buf{};
@@ -284,7 +290,10 @@ bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept {
     m.transmit_on = false;
     return true;
   }
-  if (m.duplex == MacDuplex::half && m.state == MacState::s60) {  // E85
+  // 211.0 table 6-12 E85 is the *responder's* carrier-loss, S60→S2.
+  // Caller in S60 must not become connecting-L (both listen, no hail).
+  if (m.duplex == MacDuplex::half && m.state == MacState::s60 &&
+      m.role == MacRole::responder) {  // E85
     applyState(m, MacState::s2);
     m.transmit_on = false;
     return true;
@@ -359,6 +368,7 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
       }
       m.persistence = true;
       m.transmit_on = true;
+      m.token_fail_n = 0;
       loadWait(m, m.mib.carrier_only_duration);
       startHailLife(m);
       break;
@@ -385,9 +395,34 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
 
 void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
   switch (m.state) {
-    case MacState::s50:  // E38
-      m.persistence = true;
-      m.y = 0;
+    case MacState::s50:  // E38 211.0 table 6-12 (from S50 Y=0)
+      // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
+      if (m.mib.maximum_failed_token_passes != 0 &&
+          m.token_fail_n >= m.mib.maximum_failed_token_passes) {
+        m.transmit_on = false;
+        if (m.role == MacRole::caller) {
+          applyState(m, MacState::s80);
+          loadWait(m, m.mib.drop_carrier_duration);
+        } else {
+          applyState(m, MacState::s2);
+          m.need_plcw = true;
+          m.persistence = false;
+          m.token_fail_n = 0;
+        }
+        break;
+      }
+      // 211.0 table 6-12 E38: PERSISTENCE only. E39 still needs NEED_PLCW
+      // already false (PLCW sent during Send_Duration).
+      if (m.y == 0) {
+        // 211.0 6.2.4.17: Send_Duration ends when data is sent. NEED_PLCW
+        // means the PLCW has not gone out — stay in S50 and keep sending.
+        if (m.need_plcw) {
+          ++m.token_fail_n;
+          loadWait(m, m.mib.send_duration);
+        } else {
+          m.persistence = true;
+        }
+      }
       break;
     case MacState::s51:  // E40
       applyState(m, MacState::s52);
@@ -402,8 +437,8 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
         m.persistence = true;
         notify(m, MacNotify::comm_change_apply_rx);
       }
-      // E65 is NoFramesPending in S50. E38 (send_duration) clears y, so a
-      // one-modem hop cannot wait out the contact — queue COMM_CHANGE now.
+      // Table 6-11 E65: NoFramesPending in S50 Y=2. Queue this contact
+      // rather than waiting out Send_Duration (E38 does not apply at Y=2).
       if (m.y == 2) {
         applyState(m, MacState::s56);
         queueCommChangeSpdus(m);
@@ -572,6 +607,7 @@ void macOnHailReceived(MacSession& m, Tick now) noexcept {
   if (m.state == MacState::s2 && m.duplex == MacDuplex::half) {
     applyState(m, MacState::s51);  // E30
     m.transmit_on = true;
+    clearMacQueue(m);
     loadWait(m, m.mib.carrier_only_duration);
     notify(m, MacNotify::hail_ok);
   }
@@ -579,6 +615,10 @@ void macOnHailReceived(MacSession& m, Tick now) noexcept {
 
 void macOnValidFrame(MacSession& m, Tick now) noexcept {
   (void)now;
+  // Token pass succeeded if the peer radiated. E83 counts failures only.
+  if (m.mode == MacMode::active) {
+    m.token_fail_n = 0;
+  }
   if (m.state == MacState::s35) {  // E9
     applyState(m, MacState::s41);
     m.modulation = false;
@@ -590,6 +630,7 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
   if (m.state == MacState::s36) {  // E37
     applyState(m, MacState::s60);
     m.persistence = false;
+    clearMacQueue(m);  // 6.3.2: hail SPDUs already left the FIFO (E34)
     loadWait(m, m.mib.receive_duration);
     notify(m, MacNotify::hail_ok);
     return;
@@ -629,11 +670,16 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
   (void)now;
   m.fifo_empty = true;
   if (m.state == MacState::s33) {  // E6
+    clearMacQueue(m);
     applyState(m, MacState::s34);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
   if (m.state == MacState::s13) {  // E34
+    // 6.3.2.3: FIFO empty + hail SPDUs radiated. Leaving mac_frame_pending
+    // re-sends SET TX/RX/PL on the first data-services send contact, which
+    // the peer (S60/S61) treats as E69 COMM_CHANGE (table 6-11).
+    clearMacQueue(m);
     applyState(m, MacState::s14);
     loadWait(m, m.mib.tail_idle_duration);
     return;
@@ -869,10 +915,17 @@ void macTick(MacSession& m, Tick now) noexcept {
   if (!m.wait_armed || m.wait_left == 0) {
     if (m.mib.maximum_failed_token_passes != 0 &&
         m.token_fail_n >= m.mib.maximum_failed_token_passes &&
-        m.state == MacState::s50) {  // E83
-      applyState(m, MacState::s80);
-      loadWait(m, m.mib.drop_carrier_duration);
+        m.state == MacState::s50) {  // E83 caller only
       m.transmit_on = false;
+      if (m.role == MacRole::caller) {
+        applyState(m, MacState::s80);
+        loadWait(m, m.mib.drop_carrier_duration);
+      } else {
+        applyState(m, MacState::s2);
+        m.need_plcw = true;
+        m.persistence = false;
+        m.token_fail_n = 0;
+      }
     }
     return;
   }

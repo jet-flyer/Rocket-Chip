@@ -72,6 +72,9 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
 // Position + direction persist in file-scope statics.
 void ws2812_set_sweep_bar(ws2812_rgb_t color);
 
+// All pixels on `color` when lit, all off when not. Caller toggles.
+void ws2812_set_flash_bar(ws2812_rgb_t color, bool lit);
+
 // ============================================================================
 // Pattern Modes
 // ============================================================================

@@ -98,6 +98,7 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e);
 static QState radio_ao_running(RadioAo * const me, QEvt const * const e);
 static void ao_radio_apply_runtime_config(RadioAoState& s);
 static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
+static void handle_rx_poll(RadioAo* me);
 #if defined(ROCKETCHIP_RADIO_PERSIST)
 static void ao_radio_revert_to_prev_config(RadioAoState& s);      // T5.5 sub 2d
 #endif
@@ -157,12 +158,10 @@ static uint8_t g_heldTx[sizeof(rc::RadioTxEvt::buf)];
 static uint8_t g_heldTxLen = 0;
 static bool g_macReceive = true;
 static bool g_macTransmit = false;
+static bool g_macSessionActive = false;
 
-// One modem: poll RX whenever a send is not in flight. b9fd73b gated RX
-// on macPhy().receive and dropped SIG_RADIO_TX unless macPhy().transmit;
-// hail S1 / send-contact S50 left the station bar red and vehicle TX=1.
-// Desk 97c9413 (always-on) is the working air. COMM_CHANGE still reads
-// macPhy via AO_Telemetry; these flags are the MAC view, not the modem.
+// Hail: always-on. Active: 211.0 table 6-12 send then receive; 211.1 T3-3
+// RX off while TX.
 
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
@@ -181,9 +180,18 @@ static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
 static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     RadioAoState& s = me->state;
 
-    // One-deep hold: desk 2026-09-03 dropped 12/14 B ACK/PLCW while nav
-    // occupied the radio, so SET never completed. Drop only if already
-    // holding.
+    // 211.0 E43 / 211.1 T3-3: receive contact — do not start a send.
+    if (g_macSessionActive && !g_macTransmit) {
+        if (g_heldTxLen == 0 && tx_evt->len > 0) {
+            memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
+            g_heldTxLen = tx_evt->len;
+        } else if (tx_evt->len > 0) {
+            radio_rate_inc_tx_busy_drop();
+        }
+        return;
+    }
+
+    // One-deep hold while TX is in flight. Drop only if already holding.
     if (s.tx_active) {
         if (g_heldTxLen == 0 && tx_evt->len > 0) {
             memcpy(g_heldTx, tx_evt->buf, tx_evt->len);
@@ -199,10 +207,13 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
         return;
     }
 
+    // Shared FIFO: read RxDone before send_start or station ARM is lost.
+    handle_rx_poll(me);
     (void)radio_start_tx(s, tx_evt->buf, tx_evt->len);
 }
 
-static void handle_tx_done(RadioAoState& s) {
+static void handle_tx_done(RadioAo* me) {
+    RadioAoState& s = me->state;
     radio_rate_inc_tx_done();
     s.tx_consec_fail = 0;
     s.tx_count++;
@@ -213,6 +224,8 @@ static void handle_tx_done(RadioAoState& s) {
     if (s.apply_in_progress) {
         s.tx_since_apply++;
     }
+    // Shared FIFO: poll RxDone before the next send_start.
+    handle_rx_poll(me);
     if (g_heldTxLen > 0) {
         const uint8_t n = g_heldTxLen;
         g_heldTxLen = 0;
@@ -220,8 +233,12 @@ static void handle_tx_done(RadioAoState& s) {
             return;
         }
     }
-    // Leftover air: seq cmd/ACK (or station PLCW) after this nav ToA.
+    // 211.0 6.5.1 / 211.1 T3-3: TRANSMIT on until E43. Do not open RX
+    // in the send contact; table 6-14 fills the FIFO on empty.
     if (AO_Telemetry_drain_after_tx()) {
+        return;
+    }
+    if (g_macSessionActive && g_macTransmit) {
         return;
     }
     rfm95w_start_rx(&s.radio);
@@ -247,6 +264,9 @@ static void handle_tx_timeout(RadioAoState& s) {
     if (AO_Telemetry_drain_after_tx()) {
         return;
     }
+    if (g_macSessionActive && g_macTransmit) {
+        return;
+    }
     rfm95w_start_rx(&s.radio);
 }
 
@@ -257,7 +277,7 @@ static void handle_tx_poll(RadioAo* me) {
         stage_t_log_tx_done(result);
     }
     if (result == TxPollResult::kDone) {
-        handle_tx_done(s);
+        handle_tx_done(me);
     } else if (result == TxPollResult::kTimeout) {
         handle_tx_timeout(s);
     }
@@ -481,7 +501,10 @@ static void handle_rx_poll(RadioAo* me) {
 
     uint8_t buf[128];
     uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
-    if (len == 0) { return; }
+    if (len == 0) {
+        s.rx_crc_errors++;  // empty/CRC-fail RxDone is not counted by the driver
+        return;
+    }
 
     // Stage T — capture state at arrival BEFORE validate (we want CRC errors).
     bool state_at_rx = s.tx_active;
@@ -614,54 +637,54 @@ static void handle_link_quality(RadioAo* me) {
     }
 }
 
+static void show_station_bar(StationBarMode mode, const RadioAoState& s) {
+    static StationBarMode g_prevBar = StationBarMode::NoSignal;
+    static uint8_t g_rssiDiv = 0;
+    static uint8_t g_waitSweep = 0;
+    static uint8_t g_flashDiv = 0;
+    static bool g_flashOn = true;
+    const bool entered = (mode != g_prevBar);
+    g_prevBar = mode;
+
+    if (mode == StationBarMode::Waiting) {
+        if (entered || ++g_waitSweep >= 5) {
+            g_waitSweep = 0;
+            ws2812_set_sweep_bar(kColorRed);
+        }
+        return;
+    }
+    g_waitSweep = 0;
+    if (mode == StationBarMode::RfHeard) {
+        if (entered || ++g_flashDiv >= 25) {
+            g_flashDiv = 0;
+            g_flashOn = entered ? true : !g_flashOn;
+            ws2812_set_flash_bar(kColorGreen, g_flashOn);
+        }
+        return;
+    }
+    if (!entered && ++g_rssiDiv < 50) {
+        return;
+    }
+    g_rssiDiv = 0;
+    ws2812_set_rssi_bar(s.last_rx_rssi, mode == StationBarMode::NoSignal);
+}
+
 static void handle_rssi_bar(RadioAo* me) {
     // Station/relay only — vehicle's AO_LedEngine owns the NeoPixel.
     if constexpr (job::kRole != job::DeviceRole::kVehicle) {
         RadioAoState& s = me->state;
-        // Sub 2g: while LOS-watchdog is armed (apply_in_progress), show
-        // a KITT sweep at ~20Hz in yellow so the operator sees that a
-        // config change is in flight. Drop back to the normal RSSI bar
-        // (~2Hz) once the watchdog clears.
         if (s.apply_in_progress) {
             static uint8_t g_sweepDiv = 0;
-            if (++g_sweepDiv >= 5) {  // 100Hz tick / 5 = 20Hz sweep
+            if (++g_sweepDiv >= 5) {
                 g_sweepDiv = 0;
-                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};  // dim yellow
+                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};
                 ws2812_set_sweep_bar(kSweepColor);
             }
             return;
         }
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
-        const uint32_t now = now_ms();
-        const uint32_t gap = now - s.last_rx_ms;
-        const bool starcom_heard = sc.nav_sdu || sc.peer_plcw;
-        const StationBarMode mode = station_bar_mode(
-            starcom_heard, s.rx_count, gap);
-
-        static StationBarMode g_prevBar = StationBarMode::NoSignal;
-        static uint8_t g_rssiDiv = 0;
-        static uint8_t g_waitSweep = 0;
-        const bool entered = (mode != g_prevBar);
-        g_prevBar = mode;
-
-        if (mode == StationBarMode::Waiting) {
-            // 20 Hz KITT in kColorRed (LOS). Config-apply sweep stays yellow.
-            if (entered || ++g_waitSweep >= 5) {
-                g_waitSweep = 0;
-                ws2812_set_sweep_bar(kColorRed);
-            }
-            return;
-        }
-        g_waitSweep = 0;
-        if (!entered && ++g_rssiDiv < 50) {
-            return;
-        }
-        g_rssiDiv = 0;
-        if (mode == StationBarMode::NoSignal) {
-            ws2812_set_rssi_bar(s.last_rx_rssi, true);
-        } else {
-            ws2812_set_rssi_bar(s.last_rx_rssi, false);
-        }
+        const uint32_t gap = now_ms() - s.last_rx_ms;
+        show_station_bar(station_bar_mode(sc.peer_plcw, s.rx_count, gap), s);
     } else {
         (void)me;
     }
@@ -759,11 +782,17 @@ static void handle_radio_tick(RadioAo* me) {
 
     if (s.tx_active) {
         handle_tx_poll(me);
-    } else {
+    } else if (!(g_macSessionActive && g_macTransmit)) {
+        // 211.1 Table 3-3: receiver off while TRANSMIT on (send contact).
+        if (s.radio.mode != rfm95w::mode::kRxContinuous) {
+            rfm95w_start_rx(&s.radio);
+        }
+        handle_rx_poll(me);
         handle_rx_poll(me);
     }
 
-    if (g_heldTxLen > 0 && !s.tx_active) {
+    if (g_heldTxLen > 0 && !s.tx_active &&
+        !(g_macSessionActive && !g_macTransmit)) {
         const uint8_t n = g_heldTxLen;
         g_heldTxLen = 0;
         (void)radio_start_tx(s, g_heldTx, n);
@@ -813,9 +842,10 @@ bool AO_Radio_tx_active() {
     return g_radioAo.state.tx_active;
 }
 
-void AO_Radio_set_mac_dir(bool receive, bool transmit) {
+void AO_Radio_set_mac_dir(bool receive, bool transmit, bool session_active) {
     g_macReceive = receive;
     g_macTransmit = transmit;
+    g_macSessionActive = session_active;
 }
 
 bool AO_Radio_mac_receive() {

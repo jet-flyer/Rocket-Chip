@@ -38,6 +38,7 @@ using starcom::ccsds::macOnNoFramesPending;
 using starcom::ccsds::macOnPlcw;
 using starcom::ccsds::macOnRemoteCommChange;
 using starcom::ccsds::macOnSetVrDirective;
+using starcom::ccsds::macOnToken;
 using starcom::ccsds::macOnValidFrame;
 using starcom::ccsds::macPhy;
 using starcom::ccsds::macPollNotify;
@@ -188,6 +189,8 @@ void test_half_and_simplex() {
   CHECK(s.state == MacState::s13);
   macOnFifoEmpty(s, 4);
   CHECK(s.state == MacState::s14);
+  CHECK(!s.mac_frame_pending);
+  CHECK(s.mac_queue_len == 0);
   macTick(s, 6);
   CHECK(s.state == MacState::s36);
   macOnValidFrame(s, 6);
@@ -341,6 +344,95 @@ void test_half_hail_octets() {
   CHECK(*n == 4);
 }
 
+void test_half_e48_e49_carrier() {
+  // 211.0 table 6-12: E49 token swap; E48 missed-token backup; E44
+  // sender-overran only while CARRIER_ACQUIRED (6.5.2) is still true.
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  CHECK(s.state == MacState::s36);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.mac_queue_len == 0);
+  macOnToken(s, 7);
+  CHECK(s.state == MacState::s51);  // E49
+
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  macSetCarrierAcquired(s, false, 6);
+  macTick(s, 11);  // receive_duration = 5
+  CHECK(s.state == MacState::s51);  // E48
+
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  macSetCarrierAcquired(s, true, 6);
+  macTick(s, 11);
+  CHECK(s.state == MacState::s60);  // E44
+  CHECK(macPollNotify(s) == MacNotify::sender_overran);
+}
+
+void test_half_e83_rehail() {
+  MacMib mb = test_mib();
+  mb.maximum_failed_token_passes = 2;
+  mb.drop_carrier_duration = 2;
+  MacSession s{};
+  macInit(s, mb, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  s.role = starcom::ccsds::MacRole::caller;
+  s.token_fail_n = 2;
+  macSetCarrierAcquired(s, false, 6);
+  macTick(s, 11);  // E48 S51
+  CHECK(s.state == MacState::s51);
+  macTick(s, 13);
+  macTick(s, 15);
+  CHECK(s.state == MacState::s50);
+  macTick(s, 20);  // E83 not E38
+  CHECK(s.state == MacState::s80);
+  macTick(s, 22);  // E84
+  CHECK(s.state == MacState::s11);
+  CHECK(s.mode == MacMode::connecting_t);
+}
+
+void test_half_e83_responder_listens() {
+  MacMib mb = test_mib();
+  mb.maximum_failed_token_passes = 2;
+  MacSession s{};
+  macInit(s, mb, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.role == starcom::ccsds::MacRole::responder);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  s.token_fail_n = 2;
+  macTick(s, 10);
+  CHECK(s.state == MacState::s2);
+  CHECK(s.mode == MacMode::connecting_l);
+  CHECK(!s.transmit_on);
+}
+
 void test_half_token_octets() {
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -351,8 +443,14 @@ void test_half_token_octets() {
   CHECK(s.state == MacState::s52);
   macTick(s, 5);
   CHECK(s.state == MacState::s50);
+  macTick(s, 10);  // Send_Duration, NEED_PLCW still set — keep sending
+  CHECK(!s.persistence);
+  CHECK(s.need_plcw);
+  CHECK(s.state == MacState::s50);
   s.need_plcw = false;
-  macOnNoFramesPending(s, 5);
+  macTick(s, 15);  // E38 PERSISTENCE after PLCW
+  CHECK(s.persistence);
+  macOnNoFramesPending(s, 15);
   CHECK(s.state == MacState::s56);
   CHECK(s.mac_queue_len == 2);
   CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data(), 2)) ==
@@ -523,6 +621,9 @@ int run_mac_tests() {
   test_carrier_loss_caller();
   test_annex_b_codecs();
   test_half_hail_octets();
+  test_half_e48_e49_carrier();
+  test_half_e83_rehail();
+  test_half_e83_responder_listens();
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
