@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix
+
+**Half-duplex MAC/COP-P: E38, E83 role, `coppReset`.** Table 6-12 E38 keeps S50 (reload `Send_Duration`) while `NEED_PLCW` is set; PERSISTENCE only after the PLCW. E83 reconnect hail is caller-only; responder failed-token returns S2. `coppReset` is SE0/RE0 (re-init FOP/FARM, keep SCIDs). Tests: `test_half_e83_responder_listens`, E38 keep-send in `test_half_token_octets`. No version bump. No tag.
+
+RC pad ARM/DISARM ACK and PHY/AO wiring are root `CHANGELOG.md` 2026-09-18-001 (`f79f7dc`), not this row.
+
+Verified: `starcom.unit` / host MAC tests; desk ACK is the root entry.
+
 ### 2026-09-17-002 | Grok 4.6 (Build CLI) | bugfix
 
 **`macTickPlcw` arms `plcw_left` from the MIB interval.** `applyTable66` left `plcw_left` at 0 so the repeat timer never fired. Host `test_plcw_repeat_arms`. No version bump. No tag.
