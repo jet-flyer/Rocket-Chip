@@ -17,6 +17,31 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## QGC COM7: comm lost/regained + 0 ATTITUDE (NEXT) (2026-09-19)
+
+Start here. Not “press m”. Not FOP K.
+
+**Symptom now:** QGC auto-connects (operator never used `m`). Then 0 HUD data. Then **communication lost → back a few seconds → lost again**, all morning. USB/heartbeat drop.
+
+**QGC 5.1.4** installed ~1:15 AM 19 Sep (`C:\Program Files\QGroundControl`). Last good tlogs with thousands of ATTITUDE: **00:40–01:11**. After that, `10-29-28.tlog` is heartbeat/params and **zero ATTITUDE**. Config-tasks popup is 5.1.4 InitialConnect (`REQUEST_MESSAGE` 280 gimbal). Last night’s tlogs already had those 280s *and* IMU; 5.1.4 surfaces them when IMU never arrives. User: a QGC bump should not kill the HUD.
+
+**Git describe lies on a dirty tree.** `469337c` is an **empty** commit (same tree as `d687ad9`). Banner still says `d687ad9` while compiling handshake. Identify flash by **ELF SHA-256**. Handshake USB was **never committed**; last night’s station ELF was overwritten.
+
+**Last night’s working pair:** handshake USB on Fruit Jam (auto `0xFD`) + **committed air on the vehicle**. Handshake on **both** is not that pair. **Any firmware change → flash both boards.** Picotool `load -x -f --bus/--address` only — never OpenOCD `program`.
+
+**Do not retune LoRa/COP-P/PLCW for QGC.** Hitch was already on clean `d687ad9`. Failed guesses (revert before the next try): PLCW-every-nav, RE4-immediate PLCW, FOP K=11, USB hold-last ATTITUDE. Nav SDUs are **expedited** (`pump_submit_sdu(..., true)`); **K does not gate HUD**. Blue Books do **not** say K=N.
+
+**Hardware:** Fruit Jam station COM7 `BEC71B8EDC6AEBD1`; vehicle Feather COM5 `02FBDDB8E1CA1281`. Do not open COM7 while QGC holds it. Evidence: `Documents\QGroundControl\Telemetry\*.tlog` and `%TEMP%\FlightData*.mavlink`. Last vehicle peek: COP-P lock, `nav_submit=6.5 Hz`. Empty HUD with live air = COM7/QGC. Do **not** `picotool save` into BOOTSEL without immediately `load -x`.
+
+**Likely USB loop (not flashed):** `rc_os_update` drops `kMavlink`→`kAnsi` on first `!stdio_usb_connected()` (QGC DTR blip). Pico still has **1200-baud BOOTSEL reset** (`PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE`). QGC 5.1.4 config tasks reopen CDC. Next USB fix: disable baud reset, `PICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1`, debounce disconnect before leaving MAVLink.
+
+**WIP:** handshake still **uncommitted** in the working tree. MP COM7 failed; stay QGC. No CHANGELOG (handoff ≠ wrap).
+
+Also local: oMCT Master Dashboard QGC-style ring `d687ad9` (docs/gcs only). Live oMCT board pipe still NEXT.
+
+
+---
+
 ## GCS glass: live board -> Master Dashboard (NEXT) (2026-09-05)
 
 Desk **Master Dashboard MVP** is up on facsimile (Flexible Layout + on-demand feeder). **Not verified:** piping a live board (station USB/`m` or flight) into the same glass path. That is the next glass sitting - confirm RSSI/baro/phase with real RF, not only Big Daddy CSV. Prefer MET + GPS on both ends for time-sync.
@@ -220,3 +245,6 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 **Stage 16: Field Tuning** - All VALIDATE parameters. Needs flight data.
 
 **Stage 17: Field Testing** - IVP-135, 136, 137, 138. Airframe integration, ground test, flight test, exit gate. Needs hardware access and weather. IVP-134 (pre-flight checklist) already committed.
+
+## Exact state (2026-09-19 bed handover)
+main local ahead of origin (**no push**). Tip: oMCT ring d687ad9 + QGCS/MAVLink USB bridge WIP commit (**UNVERIFIED** — WB handover row). Restored MavlinkEncoder msg.seq = seq++ after pack_chan (SequenceMonotonic). Next: verify sitting before push. Live oMCT board pipe still NEXT.
