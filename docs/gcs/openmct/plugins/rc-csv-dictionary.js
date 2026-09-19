@@ -1,7 +1,7 @@
 /**
- * Rocket Chip Master Dashboard — Flexible Layout home (MCS-style).
- * Discrete → LAD; limits → gauges; trends → plots (dual Y for RSSI/SNR);
- * master-caution Summary Widgets along the bottom.
+ * Rocket Chip Master Dashboard — QGC/Mission Planner-style instrument ring.
+ * Primary pane = trajectory (map stays small/secondary for rocketry).
+ * Ring = phase LAD + vehicle/link gauges; plots = drill-down; caution strip bottom.
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
@@ -200,6 +200,9 @@
   const G_BATT = gauge('batt_v', 'Battery gauge', 3.0, 4.2, 3.3, 4.1);
   const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
   const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
+  const G_BARO = gauge('baro_alt_m', 'Baro AGL gauge', -50, 4000, 0, 3500);
+  const G_VVEL = gauge('vvel_mps', 'VVel gauge', -100, 100, -80, 80);
+  const G_SPEED = gauge('speed_mps', 'Speed gauge', 0, 400, 0, 350);
 
   const SW_RSSI = caution('sw-rssi', 'RSSI', 'rssi', 'lessThan', -100, 'LO', '#990000');
   const SW_LQ = caution('sw-lq', 'LQ', 'lq_pct', 'lessThan', 40, 'LO', '#990000');
@@ -252,6 +255,9 @@
       idFor('link-overlay-traj'),
       idFor('link-overlay-dyn'),
       idFor('link-overlay-radio'),
+      idFor('gauge-baro_alt_m'),
+      idFor('gauge-vvel_mps'),
+      idFor('gauge-speed_mps'),
       idFor('gauge-rssi'),
       idFor('gauge-lq_pct'),
       idFor('gauge-batt_v'),
@@ -267,30 +273,33 @@
       containers: [
         {
           id: 'rc-c-phase',
-          size: 18,
+          size: 14,
           frames: [frame('rc-f-phase', 'master-phase', 100)]
         },
         {
-          id: 'rc-c-plots',
-          size: 36,
+          id: 'rc-c-ring',
+          size: 48,
           frames: [
-            frame('rc-f-traj', 'link-overlay-traj', 55),
-            frame('rc-f-dyn', 'link-overlay-dyn', 45)
+            frame('rc-f-baro', 'gauge-baro_alt_m', 10),
+            frame('rc-f-vvel', 'gauge-vvel_mps', 10),
+            frame('rc-f-speed', 'gauge-speed_mps', 10),
+            frame('rc-f-traj', 'link-overlay-traj', 40),
+            frame('rc-f-rssi', 'gauge-rssi', 10),
+            frame('rc-f-lq', 'gauge-lq_pct', 10),
+            frame('rc-f-batt', 'gauge-batt_v', 10)
           ]
         },
         {
-          id: 'rc-c-link',
-          size: 26,
+          id: 'rc-c-drill',
+          size: 22,
           frames: [
-            frame('rc-f-radio', 'link-overlay-radio', 40),
-            frame('rc-f-rssi', 'gauge-rssi', 20),
-            frame('rc-f-lq', 'gauge-lq_pct', 20),
-            frame('rc-f-batt', 'gauge-batt_v', 20)
+            frame('rc-f-dyn', 'link-overlay-dyn', 50),
+            frame('rc-f-radio', 'link-overlay-radio', 50)
           ]
         },
         {
           id: 'rc-c-caution',
-          size: 20,
+          size: 16,
           frames: [
             frame('rc-f-caution', 'master-caution', 100, true)
           ]
@@ -308,6 +317,9 @@
     'gauge-batt_v': G_BATT,
     'gauge-rssi': G_RSSI,
     'gauge-lq_pct': G_LQ,
+    'gauge-baro_alt_m': G_BARO,
+    'gauge-vvel_mps': G_VVEL,
+    'gauge-speed_mps': G_SPEED,
     'master-caution': MASTER_CAUTION,
     'sw-rssi': SW_RSSI,
     'sw-lq': SW_LQ,
