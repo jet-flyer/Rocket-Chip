@@ -2,8 +2,8 @@
 
 **Purpose:** Track the current `shared_sensor_data_t` struct layout as it evolves. The original council-approved design is in `docs/decisions/SEQLOCK_DESIGN.md` (124 bytes). This document reflects the current implementation.
 
-**Last Updated:** 2026-02-10 (wizard-7)
-**Current Size:** 140 bytes (static_assert in main.cpp)
+**Last Updated:** 2026-09-18 (pad Zulu)
+**Current Size:** 160 bytes (`kSharedSensorDataBytes` in `sensor_seqlock.h`)
 
 ---
 
@@ -41,7 +41,7 @@ struct shared_sensor_data_t {
     bool baro_valid;
     uint8_t _pad_baro[3];
 
-    // --- GPS (36 bytes, IVP-31 PA1010D on Core 1) ---
+    // --- GPS (48 bytes, IVP-31 PA1010D on Core 1 + pad Zulu) ---
     int32_t gps_lat_1e7;        // Latitude * 1e7 (ArduPilot convention)
     int32_t gps_lon_1e7;        // Longitude * 1e7
     float gps_alt_msl_m;        // Altitude MSL in meters
@@ -56,14 +56,23 @@ struct shared_sensor_data_t {
     uint8_t gps_gsa_fix_mode;   // GSA fix mode (1=none, 2=2D, 3=3D)
     bool gps_rmc_valid;         // RMC status ('A')
     uint8_t _pad_gps[2];
+    float gps_hdop;
+    float gps_vdop;
+    uint8_t gps_hour;           // NMEA UTC (Zulu)
+    uint8_t gps_minute;
+    uint8_t gps_second;
+    bool gps_time_valid;        // can be true before a 2D/3D fix
 
     // --- Health (16 bytes, cumulative, never reset during flight) ---
     uint32_t imu_error_count;
     uint32_t baro_error_count;
     uint32_t gps_error_count;
     uint32_t core1_loop_count;  // Monotonic, Core 1 main loop iterations
+
+    float mcu_die_temp_c;
+    uint32_t mcu_temp_read_count;
 };
-// Total: 140 bytes
+// Total: 160 bytes
 ```
 
 ## Changes From Original Design (124 bytes)
@@ -72,7 +81,8 @@ struct shared_sensor_data_t {
 |--------|-----------|------|-----|
 | GPS diagnostic fields (`gps_gga_fix`, `gps_gsa_fix_mode`, `gps_rmc_valid`, extra pad) | +4 bytes | IVP-31 | Debug GPS fix detection — raw lwGPS fields visible in CLI |
 | Raw mag fields (`mag_raw_x/y/z`) | +12 bytes | wizard-7 | Ellipsoid solver needs uncorrected data for recalibration |
+| NMEA UTC (`gps_hour/minute/second`, `gps_time_valid`) | +4 bytes | 2026-09-18 | Pad Zulu from station GPS; time can latch before a 2D/3D fix |
 
 ## Seqlock Copy Budget
 
-At 140 bytes, `memcpy` cost is ~35 cycles on Cortex-M33 (4 bytes/cycle). Well within the 1kHz Core 1 budget. No concern until struct exceeds ~512 bytes.
+At 160 bytes, `memcpy` cost is ~40 cycles on Cortex-M33 (4 bytes/cycle). Well within the 1kHz Core 1 budget. No concern until struct exceeds ~512 bytes.

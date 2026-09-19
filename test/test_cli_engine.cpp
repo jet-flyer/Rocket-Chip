@@ -123,6 +123,8 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
     EXPECT_EQ(top(s), MenuId::kDebug);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'i').act,
               ActionId::kDebugI2cScan);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'r').act,
+              ActionId::kDebugRfRates);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
 }
 

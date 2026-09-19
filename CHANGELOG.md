@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-18-002 | Grok 4.6 (Build CLI) | bugfix, feature, documentation
+
+**Pad glance matches HD air; RATE off the operator pad.** RF Link is COP-P lock + CRC-ok LQ + heard RX Hz (not RfManager 10 Hz miss slots / Lost). MET from nav SDU; `Air:` includes `V(R)`; RATE dump is `x` `q` `r` / `t`. Asymmetric HD MIB: vehicle `Send_Duration` N=11 nav slots, station one PLTU ToA (211.0 6.2.4.17–18). Table: `src/starcom_adapt/README.md`; book MIB in `starcom/docs/USER_GUIDE.md` (RC example labeled not universal). Starcom GLOSSARY/USER_GUIDE: `starcom/CHANGELOG.md` 2026-09-18-002. Verified: host DashFormat+StarcomBytePump+CliEngine 54/54; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; pad `RF Link: COP-P LQ 100% RX 7.2 Hz [OK]` CRC 0 `Last: 0.0s`.
+
 ### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
 
 **Pad ARM/DISARM ACK on desk COP-P.** Half-duplex Prox-1 session (211.0 6-10/6-12/6-14, 8.2.1 e `N(R)` notify; Format ID 1 PLCW not SET TX/CONTROL/RX). `f79f7dc`. Pad `CMD: ARM/DISARM ACK` + `State: ARMED` then DISARM ACK + IDLE (`N(R)=2`). USER_GUIDE station bar: green flash = RF no lock, solid RSSI = COP-P lock; ARM/DISARM wait on `CMD:` / `State:`. Library MAC/COP-P (E38, E83, `coppReset`) is `starcom/CHANGELOG.md` 2026-09-18-001, not duplicated here. Verified: host 937/937; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; desk ACK 630 ms / 981 ms.

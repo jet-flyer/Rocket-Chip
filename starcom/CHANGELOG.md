@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-18-002 | Grok 4.6 (Build CLI) | documentation
+
+**Half-duplex MIB is consumer-owned.** USER_GUIDE + GLOSSARY: `Send_Duration` / `Receive_Duration` / E39 token are book; N and wait-vs-RX Hz are not Starcom defaults. Rocket-Chip example table labeled **not universal**. RC product numbers: root `CHANGELOG.md` 2026-09-18-002 / `src/starcom_adapt/README.md`. No version bump. No tag.
+
+Verified: docs only, no firmware path in this tree.
+
 ### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix
 
 **Half-duplex MAC/COP-P: E38, E83 role, `coppReset`.** Table 6-12 E38 keeps S50 (reload `Send_Duration`) while `NEED_PLCW` is set; PERSISTENCE only after the PLCW. E83 reconnect hail is caller-only; responder failed-token returns S2. `coppReset` is SE0/RE0 (re-init FOP/FARM, keep SCIDs). Tests: `test_half_e83_responder_listens`, E38 keep-send in `test_half_token_octets`. No version bump. No tag.

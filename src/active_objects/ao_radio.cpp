@@ -684,7 +684,8 @@ static void handle_rssi_bar(RadioAo* me) {
         }
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         const uint32_t gap = now_ms() - s.last_rx_ms;
-        show_station_bar(station_bar_mode(sc.peer_plcw, s.rx_count, gap), s);
+        const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U);
+        show_station_bar(station_bar_mode(copp_lock, s.rx_count, gap), s);
     } else {
         (void)me;
     }

@@ -37,31 +37,36 @@ static void dump_hz_field(const char* name, uint32_t count, uint32_t window_s) {
 void radio_rate_counters_dump() {
     const RadioRateCounters& c = g_radioRateCounters;
     const uint32_t window_ms = window_ms_now();
-    rc::rc_log(
-        "RATE: window_ms=%lu nav_submit=%lu pltu_post=%lu tx_start=%lu "
-        "tx_done=%lu tx_busy_drop=%lu tx_hold_replace=%lu "
-        "rx_crc_ok=%lu rx_crc_fail=%lu station_tx=%lu\n",
-        (unsigned long)window_ms,
-        (unsigned long)c.nav_submit_n,
-        (unsigned long)c.pltu_post_n,
-        (unsigned long)c.tx_start_n,
-        (unsigned long)c.tx_done_n,
-        (unsigned long)c.tx_busy_drop_n,
-        (unsigned long)c.tx_hold_replace_n,
-        (unsigned long)c.rx_crc_ok_n,
-        (unsigned long)c.rx_crc_fail_n,
-        (unsigned long)c.station_tx_n);
+    rc::rc_log("RATE window_ms=%lu (boot-relative)\n",
+               (unsigned long)window_ms);
+    rc::rc_log("  nav_submit=%lu  pltu_post=%lu\n",
+               (unsigned long)c.nav_submit_n,
+               (unsigned long)c.pltu_post_n);
+    rc::rc_log("  tx_start=%lu  tx_done=%lu\n",
+               (unsigned long)c.tx_start_n,
+               (unsigned long)c.tx_done_n);
+    rc::rc_log("  tx_busy_drop=%lu  tx_hold_replace=%lu\n",
+               (unsigned long)c.tx_busy_drop_n,
+               (unsigned long)c.tx_hold_replace_n);
+    rc::rc_log("  rx_crc_ok=%lu  rx_crc_fail=%lu  station_tx=%lu\n",
+               (unsigned long)c.rx_crc_ok_n,
+               (unsigned long)c.rx_crc_fail_n,
+               (unsigned long)c.station_tx_n);
     if (window_ms < 1000U) {
-        rc::rc_log("RATE_HZ: window_s<1 (counts only; Hz = n / window_s)\n");
+        rc::rc_log("RATE_HZ window_s<1 (counts only)\n");
         return;
     }
     const uint32_t window_s = window_ms / 1000U;
-    rc::rc_log("RATE_HZ: window_s=%lu", (unsigned long)window_s);
+    rc::rc_log("RATE_HZ window_s=%lu (Hz = n / window_s)\n",
+               (unsigned long)window_s);
+    rc::rc_log(" ");
     dump_hz_field("nav_submit", c.nav_submit_n, window_s);
     dump_hz_field("pltu_post", c.pltu_post_n, window_s);
+    rc::rc_log("\n ");
     dump_hz_field("tx_start", c.tx_start_n, window_s);
     dump_hz_field("tx_done", c.tx_done_n, window_s);
+    rc::rc_log("\n ");
     dump_hz_field("rx_crc_ok", c.rx_crc_ok_n, window_s);
     dump_hz_field("station_tx", c.station_tx_n, window_s);
-    rc::rc_log("  (Hz = n / window_s since boot)\n");
+    rc::rc_log("\n");
 }

@@ -40,6 +40,32 @@ Desk Open MCT hello-world is on Espresso with stacked RSSI/SNR/Baro + radio over
 
 ---
 
+## RC_OS / station pad UX (WANTED) (2026-09-18)
+
+Station pad is the Fruit Jam ANSI dashboard (`src/cli/rc_os_dashboard.cpp`); console after `x` is `cli_menus.h`. Not Open MCT.
+
+**Dashboard configurator.** Host tool so the user can lay out the pad (which rows, order) without a firmware sitting each time. **Drag-and-drop belongs on the configurator**, not the USB ANSI pad; the pad just consumes a saved layout. Default **operator pad stays one layout.** Not a license this sitting.
+
+**Named views** (configurator presets, not extra firmware products): flight-only, RF-only, IMU, and a **raw-data / workbench lab** dash (full counters, unscaled fields, RATE-class dumps). Lab view is for the bench, not the range pad.
+
+**ASCII attitude indicator.** Wanted if USB CDC + redraw latency stay acceptable (pad is 1 Hz idle / per-RX). 80-col / ~18-row glass may be the limiter, not the quaternion. Gate on a desk latency/readability check before keeping it. Not a license this sitting.
+
+**GPS → Local timezone.** Pad already shows Zulu from NMEA UTC; Local is `kPadLocalUtcOffsetMin` (0 today). Wanted: derive Local from GPS position so the operator does not set an offset. Open question is compactness — full IANA tzdb + DST is not an RP2350 fit; later sitting should look for a small lat/lon→offset table or host-configurator offset. Not a license this sitting.
+
+---
+
+## Hobby secondary link (BT / Wi‑Fi) (WANTED) (2026-09-18)
+
+CCSDS-style split: high-rate TM stays on the Prox-1 LoRa air; a **second physical path** for low-latency ground commands (pad ARM/DISARM, settings) and other short important traffic. Hobby-grade Bluetooth or Wi‑Fi, not a second Starcom MAC. FTS/abort stays onboard. LoRa remains the book range link. Not a license this sitting; PHY/chip TBD.
+
+---
+
+## HD token N: user-facing preset (WANTED) (2026-09-18)
+
+Table and default N=11 live in `src/starcom_adapt/README.md` (RC product). Book MIB/token is `starcom/docs/USER_GUIDE.md` + GLOSSARY. Later configurator or radio preset; do not silent-retune `flight_mac_mib()`. Other latency cut: hobby secondary link row.
+
+---
+
 ## FPV-style scan / find (WANTED) (2026-09-02, restated 2026-09-03)
 
 **Coupled with LoRa Hail** (Prox-1 §6 / Best-effort hail - `starcom/AGENT_WHITEBOARD.md`). Same first-impl slot: station has to acquire a vehicle that is already on some PHY. **Either/or for first implementation; FPV scan won.** Hail is not cancelled - it stays the book/MAC path after find, or if scan is not enough.

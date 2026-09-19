@@ -55,7 +55,7 @@ struct shared_sensor_data_t {
     bool baro_valid;
     uint8_t _pad_baro[3];
 
-    // GPS (32 bytes)
+    // GPS (48 bytes: position + diagnostics + NMEA UTC)
     int32_t gps_lat_1e7;
     int32_t gps_lon_1e7;
     float gps_alt_msl_m;
@@ -73,6 +73,11 @@ struct shared_sensor_data_t {
     uint8_t _pad_gps[2];
     float gps_hdop;            // Horizontal DOP (0 = unknown)
     float gps_vdop;            // Vertical DOP (0 = unknown)
+    // NMEA UTC (Zulu). time_valid can be true before a 2D/3D fix.
+    uint8_t gps_hour;
+    uint8_t gps_minute;
+    uint8_t gps_second;
+    bool gps_time_valid;
 
     // Health (16 bytes)
     uint32_t imu_error_count;
@@ -86,8 +91,8 @@ struct shared_sensor_data_t {
     uint32_t mcu_temp_read_count;           // Monotonic for soak gates
 };
 
-// Live sizeof of the struct above (SEQLOCK_STRUCT_LAYOUT.md is stale at 140).
-static constexpr uint32_t kSharedSensorDataBytes = 156U;
+// Live sizeof of the struct above (SEQLOCK_STRUCT_LAYOUT.md tracks this).
+static constexpr uint32_t kSharedSensorDataBytes = 160U;
 static_assert(sizeof(shared_sensor_data_t) == kSharedSensorDataBytes,
               "shared_sensor_data_t size changed — update kSharedSensorDataBytes");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0,

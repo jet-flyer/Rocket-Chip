@@ -515,7 +515,9 @@ TEST(StarcomBytePump, HailCatalogIsNotE69) {
     pump_start_session(vehicle, false, 0);
     starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
     ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
-    for (starcom::ccsds::Tick t = 10; t <= 300; t += 10) {
+    const starcom::ccsds::Tick t_end =
+        vehicle.mac.mib.send_duration + 200;
+    for (starcom::ccsds::Tick t = 10; t <= t_end; t += 10) {
         pump_tick(vehicle, t);
         std::array<std::byte, 255> dump{};
         (void)pump_air_to_send(vehicle, dump);
@@ -624,7 +626,9 @@ TEST(StarcomBytePump, FormatId1PlcwIsNotSetControl) {
     ASSERT_GT(*hail, 0u);
     pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *hail));
     ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
-    for (starcom::ccsds::Tick t = 30; t <= 200; t += 10) {
+    const starcom::ccsds::Tick t_end =
+        vehicle.mac.mib.send_duration + 200;
+    for (starcom::ccsds::Tick t = 30; t <= t_end; t += 10) {
         pump_tick(vehicle, t);
         (void)pump_air_to_send(vehicle, wire);
         const auto phy = pump_mac_phy(vehicle);
@@ -762,7 +766,9 @@ TEST(StarcomBytePump, HalfDuplexReceiveWindowAfterSendDuration) {
     ASSERT_TRUE(pn.has_value());
     std::array<std::byte, 255> wire{};
     bool saw_receive = false;
-    for (starcom::ccsds::Tick t = 10; t <= 800; t += 10) {
+    const starcom::ccsds::Tick t_end =
+        vehicle.mac.mib.send_duration + 200;
+    for (starcom::ccsds::Tick t = 10; t <= t_end; t += 10) {
         (void)pump_submit_sdu(
             vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
         pump_tick(vehicle, t);
@@ -792,7 +798,9 @@ TEST(StarcomBytePump, DeferredFifoEmptyHoldsUntilComplete) {
     ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
     std::array<std::byte, 255> wire{};
     bool posted_spdu = false;
-    for (starcom::ccsds::Tick t = 10; t <= 400; t += 10) {
+    const starcom::ccsds::Tick t_end =
+        vehicle.mac.mib.send_duration + 200;
+    for (starcom::ccsds::Tick t = 10; t <= t_end; t += 10) {
         pump_tick(vehicle, t);
         (void)pump_poll_mac_notify(vehicle);
         const auto n = pump_air_to_send(vehicle, wire);
@@ -1243,4 +1251,21 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     EXPECT_EQ(vehicle.copp.farm.v_r, 1u);
     EXPECT_TRUE(ack_rx);
     EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
+}
+
+// 211.0 6.2.4.17–18: vehicle data-services Send_Duration > station
+// status/token. Receive_Duration covers the peer's S51–S58 turn.
+TEST(StarcomBytePump, AsymmetricHdSendDuration) {
+    static BytePump station{};
+    static BytePump vehicle{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    const auto turn = station.mac.mib.carrier_only_duration +
+                      station.mac.mib.acquisition_idle_duration +
+                      station.mac.mib.tail_idle_duration;
+    EXPECT_GT(vehicle.mac.mib.send_duration, station.mac.mib.send_duration);
+    EXPECT_EQ(station.mac.mib.receive_duration,
+              vehicle.mac.mib.send_duration + turn);
+    EXPECT_EQ(vehicle.mac.mib.receive_duration,
+              station.mac.mib.send_duration + turn);
 }

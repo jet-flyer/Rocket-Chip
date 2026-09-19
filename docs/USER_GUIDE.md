@@ -14,8 +14,10 @@
    Verify IMU/baro reading, GPS 3D with >4 sats if used, ESKF healthy.
 5. **Check health** — vehicle/station menu `p` (Go/No-Go). Station pad GPS
    digits are **vehicle telem**, not Fruit Jam’s local fix (`x` then `g`).
-6. **Arm** — station **pad**: `a`, type `ARM`, Enter. Wait for ACK.
-   Vehicle LED goes **red solid** (ARMED). Pad DISARM is `D`; menu DISARM is `X`.
+6. **Arm** — station **pad**: `a`, type `ARM`, Enter. Wait for ACK
+   (half-duplex token; typically ~1 s, not instant). Vehicle LED goes
+   **red solid** (ARMED). Pad DISARM is `D`; menu DISARM is `X`.
+   Wait-vs-downlink table: `src/starcom_adapt/README.md`.
 
 ---
 
@@ -264,7 +266,7 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 
 ## Serial Commands — Station
 
-**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Pad `GPS (veh):` is vehicle telem.
+**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Header is `State` + `MET` + `Zulu` + `Local` (one line, 80 col). `GPS (veh):` is vehicle telem. `Zulu`/`Local` are station GPS NMEA UTC (Fruit Jam PA1010D); Local uses `kPadLocalUtcOffsetMin` (0 = same as Zulu). `RSSI` is SX1276 packet RSSI (dBm). Pad `Air:` includes `N(R)` `V(S)` `V(R)`. `RF Link` is COP-P lock + CRC-ok LQ + actual RX Hz (not 10 Hz miss slots). `CRC:` is CRC-fail count, not RfManager Lost. RATE counters are not on the pad.
 
 **Menu** (after `x`):
 
@@ -272,11 +274,12 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 |-----|--------|
 | `h` / `?` | Help |
 | `p` | Preflight Go/No-Go |
-| `t` | Radio status |
+| `t` | Radio status (CFG, RSSI, COP-P, RATE dump) |
 | `g` | Station-local GPS (Fruit Jam PA1010D) |
 | `d` | Distance (needs station GPS fix) |
 | `a` | ARM confirm |
 | `X` | DISARM |
+| `q` | Debug (`r` RF rates) |
 | `s` | Settings (`n` next radio preset) |
 | `z` | Back to pad |
 

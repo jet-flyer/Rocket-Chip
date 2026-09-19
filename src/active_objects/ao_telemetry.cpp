@@ -796,7 +796,8 @@ static void dispatch_nav_output(TelemAo* me,
 }
 #endif
 
-static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data) {
+static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data,
+                                   uint16_t seq) {
     rc::TelemetryState telem = {};
     uint8_t user[rc::kNavSduUserBytes];
     if (data.size() != rc::kNavSduUserBytes) {
@@ -809,6 +810,8 @@ static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data)
         return false;
     }
     me->rx_snapshot.telem = telem;
+    me->rx_snapshot.met_ms = telem.met_ms;
+    me->rx_snapshot.seq = seq;
     me->rx_snapshot.valid = true;
     me->starcom_nav_sdu = true;
     return true;
@@ -851,7 +854,7 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
         return false;
     }
     if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
-        return starcom_handle_nav_sdu(me, pkt->data);
+        return starcom_handle_nav_sdu(me, pkt->data, pkt->fields.seq_count);
     }
     if (pkt->fields.apid != rc::starcom_adapt::kCmdApid) {
         return false;

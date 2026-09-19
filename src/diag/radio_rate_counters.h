@@ -2,7 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
 // R-32 R0: increment-only radio rate counters. No TX policy, hold depth,
-// or SF/BW change. Dump via CLI `t` and debug `d`.
+// or SF/BW change. Dump via CLI `t` (radio status) and debug `r`.
+// Not on the pad dashboard.
 #ifndef ROCKETCHIP_DIAG_RADIO_RATE_COUNTERS_H
 #define ROCKETCHIP_DIAG_RADIO_RATE_COUNTERS_H
 

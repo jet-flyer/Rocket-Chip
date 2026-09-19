@@ -26,6 +26,7 @@
 #include "pico/stdio_usb.h"
 #include "tusb.h"
 #include "diag/diag_stats.h"
+#include "diag/radio_rate_counters.h"
 #include "safety/pyro_edge_logger.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/mission_profile.h"
@@ -347,6 +348,9 @@ void run_action(ActionId act) {
             break;
         case ActionId::kDebugDiag:
             diag_stats_dump();
+            break;
+        case ActionId::kDebugRfRates:
+            radio_rate_counters_dump();
             break;
         case ActionId::kCatalogList:
             catalog_list();

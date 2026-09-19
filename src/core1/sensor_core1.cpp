@@ -335,6 +335,17 @@ static void poll_i2c_gps_sidecar() {
     g_i2cGpsSidecar.valid = true;
 }
 
+static void apply_gps_nmea_utc(shared_sensor_data_t* local_data,
+                               const gps_data_t& d) {
+    if (!d.timeValid) {
+        return;
+    }
+    local_data->gps_hour = d.hour;
+    local_data->gps_minute = d.minute;
+    local_data->gps_second = d.second;
+    local_data->gps_time_valid = true;
+}
+
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
 void core1_read_gps(shared_sensor_data_t* local_data,
                     uint32_t* last_gps_read_us) {
@@ -376,6 +387,8 @@ void core1_read_gps(shared_sensor_data_t* local_data,
         local_data->gps_hdop = d.hdop;
         local_data->gps_vdop = d.vdop;
     }
+
+    apply_gps_nmea_utc(local_data, d);
 
     // Always update diagnostic fields (satellites, fix type, raw sentence flags)
     local_data->gps_fix_type = static_cast<uint8_t>(d.fix);

@@ -26,6 +26,16 @@ If a verb is not in that list, you own it.
 
 - Event loop and clock (`now` in the same unit as MIB timeouts).
 - Radio. Apply `macPhy()` (TRANSMIT vs receive). Pull `coppBytesToSend` only when `macFifoSource` is `plcw` or `sdu`. Drain **one** PLTU per TX opportunity or COP resend floods a small FIFO. Settings hops are local COMM_CHANGE (table 6-11), not a second command dialect. Confirm is a valid frame on the new RX (E68); no confirm within `receive_duration` reverts to hail PHY.
+- **Half-duplex MIB.** `MacMib.send_duration` / `receive_duration` are **yours**. The core runs table 6-10: E38 ends the send contact, E39 loads the token (SET CONTROL) when NEED_PLCW is false, then the peer's send. Each side may use a different Send_Duration (6.2.4.17 is local). Receive_Duration must cover the **peer's** transmit interval including S51–S58 (6.2.4.18). How many nav slots fit in Send_Duration, command wait, and downlink Hz are **consumer policy, not Starcom defaults** (not universal).
+
+**Rocket-Chip example (not universal).** Product boot 250 kHz / SF7 / 10 Hz. Vehicle send `N × nav_ms`, station send = one nav PLTU ToA. Default **N=11**. Table and code: RC `src/starcom_adapt/README.md`, `flight_mac_mib()`.
+
+| N | Vehicle send | Command wait | Heard RX (approx) |
+|---|---|---|---|
+| **11** | 1.1 s | ~1.2 s | **~9 Hz** |
+| 5 | 0.5 s | ~0.6 s | ~7.4 Hz |
+| 3 | 0.3 s | ~0.4 s | ~6.0 Hz |
+| 1 | 0.1 s | ~0.2 s | ~2.5 Hz |
 - Space Packet **user field** (IMU/nav/commands). Starcom does not pack application data. CCSDS 133.0 stops at the 6-octet header.
 - SCIDs, APIDs, air MTU. Book max transfer frame is `kTransferFrameMax` (2048, 11-bit). That is not your radio MTU (SX1276 FIFO is 255).
 - Storage: one `CoppEndpoint` / `Cop1Endpoint` in **BSS/static**. Pico Core 0 stack is 4 KiB. Host sizeof (MinGW): `CoppEndpoint` ~10 KiB, `Cop1Endpoint` ~19 KiB (`kFop1SentCap` 255). `coppInit` / `cop1Init` / `fopPInit` / `fop1Init` memset in place — never `e = CoppEndpoint{}` or `f = Fop1{}`. Encode scratch is file-scope (`g_tfScratch`), not an automatic. GNU `-Wstack-usage=1024` is on the library.

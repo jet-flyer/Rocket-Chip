@@ -27,19 +27,36 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   m.carrier_only_duration = 10;
   m.acquisition_idle_duration = 10;
   m.tail_idle_duration = 10;
-  m.send_duration = nav_ms;
-  // 211.0 6.2.4.18: Receive_Duration covers S51–S58, not Send_Duration alone.
-  m.receive_duration = static_cast<starcom::ccsds::Tick>(
-      nav_ms + m.carrier_only_duration + m.acquisition_idle_duration +
-      m.tail_idle_duration);
+  const starcom::ccsds::Tick turn_ms =
+      m.carrier_only_duration + m.acquisition_idle_duration +
+      m.tail_idle_duration;
+  const uint32_t toa_us = rc::radio_config_nav_airtime_us(
+      rc::kDefaultRocketRadioConfig.spreading_factor,
+      rc::kDefaultRocketRadioConfig.bandwidth_khz,
+      rc::kRadioConfigNavPltuBytes);
+  const starcom::ccsds::Tick toa_ms =
+      static_cast<starcom::ccsds::Tick>((toa_us + 999U) / 1000U);
+  // 211.0 6.2.4.17–18 / table 6-10: each side's Send_Duration is local.
+  // N=11 (~90% packing). Table: starcom_adapt/README.md. Later user preset.
+  const starcom::ccsds::Tick stn_send = toa_ms;
+  const starcom::ccsds::Tick tax_ms = stn_send + (2U * turn_ms);
+  const starcom::ccsds::Tick veh_send =
+      ((9U * tax_ms) + (nav_ms - 1U)) / nav_ms * nav_ms;
+  const bool station = (local == starcom::ccsds::Scid{2});
+  if (station) {
+    m.send_duration = stn_send;
+    m.receive_duration = veh_send + turn_ms;
+  } else {
+    m.send_duration = veh_send;
+    m.receive_duration = stn_send + turn_ms;
+  }
   m.hail_wait_duration = nav_ms + 20U;
   m.hail_lifetime = 0;  // 211.0 6.2.4.14.2: 0 = no abort
   m.drop_carrier_duration = 20;
   m.maximum_failed_token_passes = 4;  // 211.0 table 6-12 E83; 0 = unlimited
-  // Two missed sparse PLCWs (R-32 station_tx ~ nav/4) before S60→S2.
-  m.carrier_loss_timer_duration =
-      static_cast<starcom::ccsds::Tick>(8U * nav_ms);
-  m.plcw_repeat_interval = static_cast<starcom::ccsds::Tick>(4U * nav_ms);
+  // Cover one peer data-services contact (not 8*nav from symmetric MIB).
+  m.carrier_loss_timer_duration = veh_send + turn_ms;
+  m.plcw_repeat_interval = veh_send;
   m.local_scid = local;
   m.local_pcid = kSoakPcid;
   return m;

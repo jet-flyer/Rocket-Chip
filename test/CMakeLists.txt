@@ -137,6 +137,16 @@ target_include_directories(test_station_bar_mode PRIVATE
 )
 gtest_discover_tests(test_station_bar_mode)
 
+add_executable(test_rc_os_dashboard_format
+    test_rc_os_dashboard_format.cpp
+)
+target_link_libraries(test_rc_os_dashboard_format PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_rc_os_dashboard_format PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_rc_os_dashboard_format)
+
 add_executable(test_cmd_sdu
     test_cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
