@@ -27,7 +27,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117); populates GoNoGoInput RF link fields from AO_RfManager (Stage T IVP-T14) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
 | AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14), beacon overlay + pre-arm fail + boot-init rainbow (Stage L) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE, SIG_BEACON_MANUAL |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
-| AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | Starcom COP-P byte_pump (nav/cmd/ACK SDUs), USB MAVLink, TelemetryState snapshot | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
+| AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | Starcom COP-P byte_pump (nav/cmd/ACK SDUs), station `gcs_mavlink` USB GCS, TelemetryState snapshot | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
 | AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor (Fault/Notify/Idle), Core1 vitality fallback (A1) | (none) | SIG_LED_PATTERN |
 | AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch, cal intent posting | SIG_CLI_COMMAND | (none) |
 
@@ -44,6 +44,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | led_patterns | `include/rocketchip/led_patterns.h` | Pattern constants, LedLayer enum | AO_LedEngine, rc_os.cpp, flight_actions.h | kCalNeo*, kRxNeo*, kFdNeo* constants |
 | cal_hooks | `src/calibration/cal_hooks.cpp` | `cal_pre_hook()`, `cal_post_hook()` | rc_os.cpp callbacks | Cross-core I2C pause/resume, mag read |
 | cli_commands | `src/cli/cli_commands.cpp` | `handle_unhandled_key()`, `print_*()`, `cmd_*()` | AO_RCOS, rc_os.cpp | CLI command handlers, display formatters |
+| gcs_mavlink | `src/station/gcs_mavlink.cpp` | `gcs_mavlink_tick()`, `gcs_mavlink_on_nav()` | AO_Telemetry (station USB) | HEARTBEAT/SYS_STATUS 1 Hz, ATTITUDE+GLOBAL_POSITION_INT per nav SDU |
 
 ---
 

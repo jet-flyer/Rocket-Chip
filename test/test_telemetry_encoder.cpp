@@ -348,6 +348,28 @@ TEST_F(MavlinkEncoderTest, Attitude45DegRoll) {
     }
 }
 
+TEST_F(MavlinkEncoderTest, AttitudeClampsAsinDomain) {
+    telem.q_w = 32767;
+    telem.q_x = 0;
+    telem.q_y = 32767;
+    telem.q_z = 0;
+    uint16_t len = enc.encode_attitude(telem, 1000, frame);
+    mavlink_message_t msg;
+    mavlink_status_t status;
+    bool parsed = false;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_2, frame[i], &msg, &status) == 0) {
+            continue;
+        }
+        parsed = true;
+        mavlink_attitude_t att;
+        mavlink_msg_attitude_decode(&msg, &att);
+        EXPECT_FALSE(isnan(att.pitch));
+        EXPECT_NEAR(att.pitch, 3.14159265F / 2.0F, 0.02F);
+    }
+    EXPECT_TRUE(parsed);
+}
+
 TEST_F(MavlinkEncoderTest, AttitudeWireFormat) {
     uint16_t len = enc.encode_attitude(telem, 1000, frame);
     EXPECT_GT(len, 0);
@@ -365,7 +387,7 @@ TEST_F(MavlinkEncoderTest, GlobalPosIntWireFormat) {
 }
 
 TEST_F(MavlinkEncoderTest, GlobalPosNoGps) {
-    // No GPS fix → hdg=UINT16_MAX, lat/lon=0
+    // No GPS fix → hdg=UINT16_MAX, lat/lon/MSL=0; baro AGL and fusion vel stay
     telem.gps_fix_sats = 0x0C;  // fix=0, sats=12
     uint16_t len = enc.encode_global_pos(telem, 1000, frame);
 
@@ -377,9 +399,68 @@ TEST_F(MavlinkEncoderTest, GlobalPosNoGps) {
             mavlink_msg_global_position_int_decode(&msg, &pos);
             EXPECT_EQ(pos.lat, 0);
             EXPECT_EQ(pos.lon, 0);
+            EXPECT_EQ(pos.alt, 0);
+            EXPECT_EQ(pos.relative_alt, telem.baro_alt_mm);
+            EXPECT_EQ(pos.vx, telem.vel_n_cms);
             EXPECT_EQ(pos.hdg, UINT16_MAX);
         }
     }
+}
+
+TEST_F(MavlinkEncoderTest, SysStatusUnknownBattery) {
+    telem.battery_mv = 0;
+    uint16_t len = enc.encode_sys_status(telem, frame);
+    mavlink_message_t msg{};
+    mavlink_status_t status{};
+    bool parsed = false;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_3, frame[i], &msg, &status) != 0) {
+            mavlink_sys_status_t sys{};
+            mavlink_msg_sys_status_decode(&msg, &sys);
+            EXPECT_EQ(sys.voltage_battery, UINT16_MAX);
+            EXPECT_EQ(sys.current_battery, -1);
+            EXPECT_EQ(sys.battery_remaining, -1);
+            parsed = true;
+        }
+    }
+    EXPECT_TRUE(parsed);
+}
+
+TEST_F(MavlinkEncoderTest, HeartbeatArmedFlag) {
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = enc.encode_heartbeat(1, buf);  // ARMED
+    mavlink_message_t msg{};
+    mavlink_status_t status{};
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_0, buf[i], &msg, &status) != 0) {
+            mavlink_heartbeat_t hb{};
+            mavlink_msg_heartbeat_decode(&msg, &hb);
+            EXPECT_NE((hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED), 0);
+        }
+    }
+}
+
+TEST_F(MavlinkEncoderTest, GpsRawUnknownFields) {
+    uint16_t len = enc.encode_gps_raw(telem, 1000, frame);
+    mavlink_message_t msg{};
+    mavlink_status_t status{};
+    bool parsed = false;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_1, frame[i], &msg, &status) != 0) {
+            mavlink_gps_raw_int_t gps{};
+            mavlink_msg_gps_raw_int_decode(&msg, &gps);
+            EXPECT_EQ(gps.fix_type, 3);
+            EXPECT_EQ(gps.lat, telem.lat_1e7);
+            EXPECT_EQ(gps.eph, UINT16_MAX);
+            EXPECT_EQ(gps.epv, UINT16_MAX);
+            EXPECT_EQ(gps.cog, UINT16_MAX);
+            EXPECT_EQ(gps.vel, telem.gps_speed_cms);
+            EXPECT_EQ(gps.satellites_visible, 12);
+            EXPECT_EQ(gps.yaw, 0);
+            parsed = true;
+        }
+    }
+    EXPECT_TRUE(parsed);
 }
 
 TEST_F(MavlinkEncoderTest, SequenceMonotonic) {

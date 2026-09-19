@@ -161,7 +161,8 @@ rocketchip/
 │   │   └── sensor_core1.cpp/.h    # IMU/baro/GPS reads, seqlock write, cal feed
 │   │
 │   ├── station/                   # Station-role idle-bridge path (Stage 16C)
-│   │   └── station_idle_tick.cpp/.h  # Core 0 idle-bridge GPS poll + MCU temp capture (IVP-140/141/142a)
+│   │   ├── station_idle_tick.cpp/.h  # Core 0 idle-bridge GPS poll + MCU temp capture (IVP-140/141/142a)
+│   │   └── gcs_mavlink.cpp/.h        # USB MAVLink for QGC / Mission Planner (Starcom air stays COP-P)
 │   │
 │   ├── fusion/                    # Sensor Fusion (Stage 5 + Stage 13)
 │   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
@@ -204,7 +205,8 @@ rocketchip/
 │   │   └── rc_log.cpp             # rc::rc_log + rc_snprintf + strbuf parser (rc_log.h)
 │   │
 │   ├── telemetry/                 # Telemetry (Stage 7 + 12A)
-│   │   └── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
+│   │   ├── telemetry_encoder.cpp/.h  # CCSDS packers (legacy/host) + MAVLink v2 packers
+│   │   └── mavlink_rx.cpp            # USB MAVLink command ACK factory (header in include/rocketchip)
 │   │
 │   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A + 13 + 14)
 │   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz, prio 7)
@@ -360,7 +362,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
 | **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio); Stage L adds beacon overlay, pre-arm-fail + boot-init visuals |
 | **ao_logger** | AO priority 4 — PSRAM buffer → flash page flush, flight log lifecycle |
-| **ao_telemetry** | AO priority 3 — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
+| **ao_telemetry** | AO priority 3 — Starcom COP-P air; station USB GCS via gcs_mavlink |
 | **ao_led_engine** | AO priority 2 — NeoPixel animation rendering (Vehicle only) |
 | **ao_rcos** | AO priority 1 — CLI dispatch, USB CDC poll, serial I/O |
 | **starcom_adapt** | RC Starcom consumer — byte_pump, nav/cmd/ACK SDUs, COP-P air |

@@ -16,6 +16,7 @@
 #include "rocketchip/job.h"
 #include "rocketchip/rc_log.h"
 #include "rocketchip/station_output_mode.h"
+#include "station/gcs_mavlink.h"
 #include "calibration/calibration_manager.h"
 #include "ao_flight_director.h"
 #include "pico/stdlib.h"
@@ -24,13 +25,19 @@
 constexpr uint8_t  kUsbSettlePolls      = 5;
 constexpr uint32_t kArmConfirmTimeoutMs = 5000;
 constexpr uint8_t  kMavlinkV2Stx        = 0xFDU;
+constexpr uint8_t  kMavlinkV1Stx        = 0xFEU;
 constexpr uint16_t kMavCmdArmDisarm     = 400;
+
+static bool is_mavlink_stx(uint8_t b) {
+    return (b == kMavlinkV2Stx) || (b == kMavlinkV1Stx);
+}
 
 static rc::cli::Engine g_eng{};
 static bool g_wasConnected  = false;
 static bool g_bannerPrinted = false;
 static uint8_t g_settleCount = 0;
 static bool g_mavlinkDetected = false;
+static uint32_t g_usbDisconnectSinceMs = 0;
 
 static bool g_armConfirmActive = false;
 static char g_armBuf[4] = {};
@@ -64,6 +71,7 @@ void rc_os_init() {
     rc::cli::init(g_eng);
     g_wasConnected  = false;
     g_bannerPrinted = false;
+    g_usbDisconnectSinceMs = 0;
 #if defined(ROCKETCHIP_DEV_MODE)
     g_devModeRuntime = false;
 #endif
@@ -116,54 +124,73 @@ void rc_os_start_arm_confirm() {
 #endif
 }
 
-static bool handle_mavlink_lockout(int c) {
-    if (static_cast<uint8_t>(c) == kMavlinkV2Stx) {
-        g_mavlinkDetected = true;
+static void enter_gcs_exclusive() {
+    g_mavlinkDetected = true;
+    g_settleCount = 0;
+    AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
+}
+
+static bool drain_gcs_exclusive() {
+    int c = getchar_timeout_us(0);
+    while (c != PICO_ERROR_TIMEOUT) {
+        AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
+        c = getchar_timeout_us(0);
     }
-    if (g_mavlinkDetected ||
-        AO_Telemetry_is_gcs_connected() ||
-        AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
-        if (c == rc::cli::kEsc) {
-            g_mavlinkDetected = false;
-            AO_RCOS_set_output_mode(StationOutputMode::kMenu);
-            rc::rc_log("\n[GCS mode exited]\n");
-            show_prompt();
+    return true;
+}
+
+// First MAVLink STX takes USB. Pad/CLI stay off until disconnect.
+static bool sniff_gcs_stx() {
+    if (AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+        return drain_gcs_exclusive();
+    }
+    int c;
+    bool mav = false;
+    while ((c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+        const uint8_t b = static_cast<uint8_t>(c);
+        if (is_mavlink_stx(b)) { mav = true; }
+        if (mav) {
+            AO_Telemetry_feed_usb_byte(b);
         }
+    }
+    if (mav) {
+        enter_gcs_exclusive();
         return true;
     }
     return false;
 }
 
-static bool handle_mavlink_input(int c) {
-    if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) {
-        return false;
-    }
-    if (rc::cli::top(g_eng) != rc::cli::MenuId::kMain) {
-        return false;
-    }
-    if (c == 'm' || c == 'M') {
-        AO_RCOS_set_output_mode(StationOutputMode::kMenu);
-        rc::rc_log("\nMAVLink mode off. CLI active.\n");
-        show_prompt();
+static bool handle_mavlink_lockout(int c) {
+    if (is_mavlink_stx(static_cast<uint8_t>(c))) {
+        enter_gcs_exclusive();
         return true;
     }
-    AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
-    return true;
+    if (g_mavlinkDetected ||
+        AO_Telemetry_is_gcs_connected() ||
+        AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+        AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
+        return true;
+    }
+    return false;
 }
 
 static bool handle_usb_connect() {
     if (!g_wasConnected) {
         g_settleCount = 1;
         g_wasConnected = true;
-        return false;
     }
-    if (g_settleCount > 0 && g_settleCount < kUsbSettlePolls) {
-        g_settleCount++;
-        return false;
-    }
-    if (g_settleCount == kUsbSettlePolls) {
+    if (g_settleCount > 0) {
+        if (sniff_gcs_stx()) {
+            return true;
+        }
+        if (g_settleCount < kUsbSettlePolls) {
+            g_settleCount++;
+            return false;
+        }
         g_settleCount = 0;
-        while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+        if (AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+            return true;
+        }
         cli_print_boot_summary();
         if (!g_bannerPrinted) {
             rc::rc_log("\n");
@@ -244,12 +271,23 @@ static void dispatch_key(int c) {
 }
 
 bool rc_os_update() {
-    if (!stdio_usb_connected()) {
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    if (rc::gcs_usb_disconnect_expired(stdio_usb_connected(), now_ms,
+                                       &g_usbDisconnectSinceMs)) {
 #if defined(ROCKETCHIP_DEV_MODE)
         g_devModeRuntime = false;
 #endif
         g_wasConnected  = false;
         g_bannerPrinted = false;
+        g_mavlinkDetected = false;
+        if constexpr (job::kRadioModeRx) {
+            if (AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+                AO_RCOS_set_output_mode(StationOutputMode::kAnsi);
+            }
+        }
+        return false;
+    }
+    if (!stdio_usb_connected()) {
         return false;
     }
     if (!handle_usb_connect()) {
@@ -271,22 +309,25 @@ bool rc_os_update() {
         return false;
     }
 
+    if (AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+        return drain_gcs_exclusive();
+    }
+
     const int c = getchar_timeout_us(0);
     if (c == PICO_ERROR_TIMEOUT) {
         return false;
     }
 
-    AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
-
     if (handle_mavlink_lockout(c)) {
-        return true;
-    }
-    if (handle_mavlink_input(c)) {
-        return true;
+        return drain_gcs_exclusive();
     }
 
     dispatch_key(c);
     return true;
+}
+
+bool rc_os_usb_settling() {
+    return g_settleCount > 0;
 }
 
 bool rc_os_is_connected() {

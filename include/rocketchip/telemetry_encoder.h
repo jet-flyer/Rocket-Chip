@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Telemetry encoders — CCSDS Space Packet (primary) and MAVLink v2.
-// Mission profile selects at boot; both compiled, one active.
-// CCSDS: 6B primary + 4B MET + 42B nav + 2B CRC-16-CCITT = 54B
-// (CCSDS 133.0-B-2 S4.1.1). MAVLink: HEARTBEAT + SYS_STATUS +
-// ATTITUDE + GLOBAL_POSITION_INT.
+// Telemetry encoders — CCSDS Space Packet packers (host/legacy) and
+// MAVLink v2 packers. Air TX is Starcom COP-P, not EncoderType.
+// Station USB GCS uses src/station/gcs_mavlink.cpp.
 
 #ifndef ROCKETCHIP_TELEMETRY_ENCODER_H
 #define ROCKETCHIP_TELEMETRY_ENCODER_H
@@ -24,8 +22,8 @@ struct RadioConfig;
 // ============================================================================
 
 enum class EncoderType : uint8_t {
-    kCcsds   = 0,    // CCSDS Space Packet — 54 bytes, primary
-    kMavlink = 1,    // MAVLink v2 3-message set — ~105 bytes, secondary
+    kCcsds   = 0,    // legacy field; air TX is Starcom COP-P
+    kMavlink = 1,    // not used on air; station USB GCS is gcs_mavlink
 };
 
 // ============================================================================
@@ -200,13 +198,17 @@ struct MavlinkEncoder {
     uint16_t encode_global_pos(const TelemetryState& telem, uint32_t boot_ms,
                                uint8_t* buf);
 
+    // GPS_RAW_INT. Unknown HDOP/VDOP/COG/acc = UINT16_MAX / 0 per mavlink.
+    // buf Output buffer (must be >= 64 bytes)
+    uint16_t encode_gps_raw(const TelemetryState& telem, uint32_t boot_ms,
+                            uint8_t* buf);
+
     // result Output buffer and length (all 4 frames concatenated)
     // /
     void encode_nav(const TelemetryState& telem, uint32_t met_ms,
                     EncodeResult& result);
 
-    // Max single frame: HEARTBEAT=21, SYS_STATUS=43, ATTITUDE=40, GLOBAL_POSITION_INT=40
-    // Total 4 frames: ~144 bytes
+    // Max single frame: GPS_RAW_INT v2 is 64 B. encode_nav is still 4 frames.
     static constexpr uint8_t max_packet_size() { return 144; }
 };
 

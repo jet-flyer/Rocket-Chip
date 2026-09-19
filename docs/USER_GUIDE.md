@@ -279,9 +279,12 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 | `d` | Distance (needs station GPS fix) |
 | `a` | ARM confirm |
 | `X` | DISARM |
+| `m` | Cycle output: ANSI → CSV → MAVLink (QGC / Mission Planner) |
 | `q` | Debug (`r` RF rates) |
 | `s` | Settings (`n` next radio preset) |
 | `z` | Back to pad |
+
+**QGC / Mission Planner:** connect the GCS to the **station** USB COM port (MAVLink v2 serial, 115200). Do not point those programs at LoRa or FSK. Starcom stays on the air; the station re-encodes USB MAVLink. First MAVLink byte (`0xFD`/`0xFE`) takes USB exclusively — pad/CLI off. Open QGC on that COM; `m` is only needed from the station menu if auto-switch missed. HUD follows heard nav (~7–10 Hz). ARM from the pad, not from QGC yet. Disconnect QGC (or unplug USB) to return to the pad — do not type in that COM while QGC owns it.
 
 ---
 

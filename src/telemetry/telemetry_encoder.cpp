@@ -184,6 +184,52 @@ uint8_t flight_state_to_mav_state(uint8_t flight_state) {
     }
 }
 
+static constexpr uint8_t kGpsFixNibbleMask = 0x0F;
+
+static uint8_t gps_fix_nibble(const TelemetryState& telem) {
+    return static_cast<uint8_t>((telem.gps_fix_sats >> 4) & kGpsFixNibbleMask);
+}
+
+static uint8_t gps_sats_nibble(const TelemetryState& telem) {
+    return static_cast<uint8_t>(telem.gps_fix_sats & kGpsFixNibbleMask);
+}
+
+static bool gps_has_position(const TelemetryState& telem) {
+    return gps_fix_nibble(telem) >= 2U;  // GPS_FIX_2D / GPS_FIX_3D
+}
+
+static bool health_operational(HealthLevel lvl) {
+    return (lvl == kHealthOk) || (lvl == kHealthDegraded);
+}
+
+static uint8_t mav_base_mode(uint8_t flight_state) {
+    uint8_t mode = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
+    if ((flight_state >= 1U) && (flight_state <= 4U)) {
+        mode = static_cast<uint8_t>(mode | MAV_MODE_FLAG_SAFETY_ARMED);
+    }
+    return mode;
+}
+
+static float yaw_rad_from_q15(const TelemetryState& telem) {
+    const float qw = static_cast<float>(telem.q_w) / kQ15Scale;
+    const float qx = static_cast<float>(telem.q_x) / kQ15Scale;
+    const float qy = static_cast<float>(telem.q_y) / kQ15Scale;
+    const float qz = static_cast<float>(telem.q_z) / kQ15Scale;
+    return atan2f(2.0F * (qw * qz + qx * qy),
+                  1.0F - 2.0F * (qy * qy + qz * qz));
+}
+
+static uint16_t yaw_cdeg(const TelemetryState& telem) {
+    float yaw_deg = yaw_rad_from_q15(telem) * kRadToDeg;
+    if (yaw_deg < 0.0F) {
+        yaw_deg += kFullCircleDeg;
+    }
+    return static_cast<uint16_t>(yaw_deg * kCdegPerDeg);
+}
+
+// USB TX channel. USB RX parse is COMM_0; sharing it corrupts CRC.
+static constexpr uint8_t kMavUsbTxChan = MAVLINK_COMM_3;
+
 void MavlinkEncoder::init(uint8_t sysid, uint8_t compid) {
     system_id    = sysid;
     component_id = compid;
@@ -192,11 +238,11 @@ void MavlinkEncoder::init(uint8_t sysid, uint8_t compid) {
 
 uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
     mavlink_message_t msg;
-    mavlink_msg_heartbeat_pack(
-        system_id, component_id, &msg,
-        MAV_TYPE_GENERIC,  // QGC handles GENERIC better than ROCKET (type 37)
+    mavlink_msg_heartbeat_pack_chan(
+        system_id, component_id, kMavUsbTxChan, &msg,
+        MAV_TYPE_GENERIC,
         MAV_AUTOPILOT_GENERIC,
-        MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        mav_base_mode(flight_state),
         static_cast<uint32_t>(flight_state),
         flight_state_to_mav_state(flight_state));
     msg.seq = seq++;
@@ -205,35 +251,44 @@ uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
 
 uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
                                             uint8_t* buf) {
-    // Sensor present/enabled/health bitmasks — per-sensor from 2-bit encoding
-    uint32_t sensors = MAV_SYS_STATUS_SENSOR_3D_ACCEL
+    const uint32_t sensors = MAV_SYS_STATUS_SENSOR_3D_ACCEL
                      | MAV_SYS_STATUS_SENSOR_3D_GYRO
                      | MAV_SYS_STATUS_SENSOR_3D_MAG
-                     | MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+                     | MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE
+                     | MAV_SYS_STATUS_SENSOR_GPS
+                     | MAV_SYS_STATUS_AHRS;
     uint32_t health = 0;
-    // IMU health → accel + gyro + mag (same physical device: ICM-20948)
-    if (rc::health_imu(telem.health) != rc::kHealthFault) {
+    if (health_operational(rc::health_imu(telem.health))) {
         health |= MAV_SYS_STATUS_SENSOR_3D_ACCEL
                 | MAV_SYS_STATUS_SENSOR_3D_GYRO
                 | MAV_SYS_STATUS_SENSOR_3D_MAG;
     }
-    // Baro health → absolute pressure
-    if (rc::health_baro(telem.health) != rc::kHealthFault) {
+    if (health_operational(rc::health_baro(telem.health))) {
         health |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
     }
+    if (health_operational(rc::health_gps(telem.health))) {
+        health |= MAV_SYS_STATUS_SENSOR_GPS;
+    }
+    if (health_operational(rc::health_eskf(telem.health))) {
+        health |= MAV_SYS_STATUS_AHRS;
+    }
+
+    // voltage_battery UINT16_MAX = not sent (mavlink SYS_STATUS). 0 mV is
+    // "not measured" on TelemetryState, not a dead pack.
+    const uint16_t voltage = (telem.battery_mv == 0)
+        ? static_cast<uint16_t>(UINT16_MAX)
+        : telem.battery_mv;
 
     mavlink_message_t msg;
-    mavlink_msg_sys_status_pack(
-        system_id, component_id, &msg,
-        sensors,        // onboard_control_sensors_present
-        sensors,        // onboard_control_sensors_enabled
-        health,         // onboard_control_sensors_health
-        0,              // load (0 = unknown)
-        static_cast<uint16_t>(telem.battery_mv),  // voltage_battery (mV)
-        -1,             // current_battery (-1 = unknown)
-        -1,             // battery_remaining (-1 = unknown)
-        0, 0, 0, 0, 0, 0,  // drop/error rates (unused)
-        0, 0, 0);       // extended sensor fields (unused)
+    mavlink_msg_sys_status_pack_chan(
+        system_id, component_id, kMavUsbTxChan, &msg,
+        sensors, sensors, health,
+        0,              // load d%; no unknown sentinel in the spec
+        voltage,
+        -1,             // current_battery: not sent
+        -1,             // battery_remaining: not sent
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0);
     msg.seq = seq++;
     return mavlink_msg_to_send_buffer(buf, &msg);
 }
@@ -248,75 +303,85 @@ uint16_t MavlinkEncoder::encode_attitude(const TelemetryState& telem,
 
     float roll  = atan2f(2.0F * (qw * qx + qy * qz),
                          1.0F - 2.0F * (qx * qx + qy * qy));
-    float pitch = asinf(2.0F * (qw * qy - qz * qx));
+    // Q15 quat can push this outside [-1,1]; asinf then returns NaN
+    // and QGC drops ATTITUDE (HUD frozen).
+    float sin_p = 2.0F * (qw * qy - qz * qx);
+    if (sin_p > 1.0F) {
+        sin_p = 1.0F;
+    } else if (sin_p < -1.0F) {
+        sin_p = -1.0F;
+    }
+    float pitch = asinf(sin_p);
     float yaw   = atan2f(2.0F * (qw * qz + qx * qy),
                          1.0F - 2.0F * (qy * qy + qz * qz));
 
     mavlink_message_t msg;
-    mavlink_msg_attitude_pack(
-        system_id, component_id, &msg,
-        boot_ms,    // time_boot_ms
-        roll,       // roll (rad)
-        pitch,      // pitch (rad)
-        yaw,        // yaw (rad)
-        0.0F,       // rollspeed (not available from TelemetryState)
-        0.0F,       // pitchspeed
-        0.0F);      // yawspeed
+    mavlink_msg_attitude_pack_chan(
+        system_id, component_id, kMavUsbTxChan, &msg,
+        boot_ms,
+        roll, pitch, yaw,
+        0.0F, 0.0F, 0.0F);  // rad/s not on nav SDU; spec has no unknown sentinel
     msg.seq = seq++;
     return mavlink_msg_to_send_buffer(buf, &msg);
 }
 
 uint16_t MavlinkEncoder::encode_global_pos(const TelemetryState& telem,
                                             uint32_t boot_ms, uint8_t* buf) {
-    // GPS fix type from upper nibble of gps_fix_sats
-    static constexpr uint8_t kGpsFixNibbleMask = 0x0F;  // upper nibble after shift
-    uint8_t fix_type = (telem.gps_fix_sats >> 4) & kGpsFixNibbleMask;
-
     int32_t lat = telem.lat_1e7;
     int32_t lon = telem.lon_1e7;
     int32_t alt = telem.alt_mm;
-    int32_t relative_alt = telem.baro_alt_mm;
-    int16_t vx = telem.vel_n_cms;   // cm/s — matches MAVLink units
-    int16_t vy = telem.vel_e_cms;
-    int16_t vz = telem.vel_d_cms;
-    // Heading: compute from velocity if GPS has fix, else UINT16_MAX
-    uint16_t hdg;
-    if (fix_type == 0) {
-        // No GPS fix — send invalid heading, zero position
+    uint16_t hdg = UINT16_MAX;
+    if (!gps_has_position(telem)) {
         lat = 0;
         lon = 0;
         alt = 0;
-        relative_alt = 0;
-        vx = 0;
-        vy = 0;
-        vz = 0;
-        hdg = UINT16_MAX;
     } else {
-        // Heading from yaw (same Euler conversion as ATTITUDE)
-        float qw = static_cast<float>(telem.q_w) / kQ15Scale;
-        float qx = static_cast<float>(telem.q_x) / kQ15Scale;
-        float qy = static_cast<float>(telem.q_y) / kQ15Scale;
-        float qz = static_cast<float>(telem.q_z) / kQ15Scale;
-        float yaw = atan2f(2.0F * (qw * qz + qx * qy),
-                           1.0F - 2.0F * (qy * qy + qz * qz));
-        // Convert rad to centidegrees (0-36000), wrap to positive
-        float yaw_deg = yaw * kRadToDeg;
-        if (yaw_deg < 0.0F) { yaw_deg += kFullCircleDeg; }
-        hdg = static_cast<uint16_t>(yaw_deg * kCdegPerDeg);
+        hdg = yaw_cdeg(telem);
     }
 
     mavlink_message_t msg;
-    mavlink_msg_global_position_int_pack(
-        system_id, component_id, &msg,
-        boot_ms,        // time_boot_ms
-        lat,            // lat (degE7)
-        lon,            // lon (degE7)
-        alt,            // alt (mm MSL)
-        relative_alt,   // relative_alt (mm AGL)
-        vx,             // vx (cm/s north)
-        vy,             // vy (cm/s east)
-        vz,             // vz (cm/s down)
-        hdg);           // hdg (cdeg, UINT16_MAX if unknown)
+    mavlink_msg_global_position_int_pack_chan(
+        system_id, component_id, kMavUsbTxChan, &msg,
+        boot_ms,
+        lat, lon, alt,
+        telem.baro_alt_mm,   // relative_alt mm AGL (baro; valid without GPS)
+        telem.vel_n_cms,     // cm/s NED — fusion, not GPS-only
+        telem.vel_e_cms,
+        telem.vel_d_cms,
+        hdg);                // UINT16_MAX if unknown
+    msg.seq = seq++;
+    return mavlink_msg_to_send_buffer(buf, &msg);
+}
+
+uint16_t MavlinkEncoder::encode_gps_raw(const TelemetryState& telem,
+                                         uint32_t boot_ms, uint8_t* buf) {
+    uint8_t fix = gps_fix_nibble(telem);
+    if (fix == 0U) {
+        fix = GPS_FIX_TYPE_NO_FIX;  // GPS is on the vehicle; 0 = no position
+    }
+    int32_t lat = 0;
+    int32_t lon = 0;
+    int32_t alt = 0;
+    uint16_t vel = UINT16_MAX;
+    if (gps_has_position(telem)) {
+        lat = telem.lat_1e7;
+        lon = telem.lon_1e7;
+        alt = telem.alt_mm;
+        vel = telem.gps_speed_cms;
+    }
+
+    mavlink_message_t msg;
+    mavlink_msg_gps_raw_int_pack_chan(
+        system_id, component_id, kMavUsbTxChan, &msg,
+        static_cast<uint64_t>(boot_ms) * 1000ULL,
+        fix, lat, lon, alt,
+        UINT16_MAX,          // eph: HDOP not on nav SDU
+        UINT16_MAX,          // epv
+        vel,
+        UINT16_MAX,          // cog: course not on nav SDU
+        gps_sats_nibble(telem),
+        0, 0, 0, 0, 0,       // ellipsoid/acc unknown (optional fields)
+        0);                  // yaw: GPS does not provide yaw
     msg.seq = seq++;
     return mavlink_msg_to_send_buffer(buf, &msg);
 }

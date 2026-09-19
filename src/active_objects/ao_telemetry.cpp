@@ -3,9 +3,9 @@
 //============================================================================
 // AO_Telemetry — Telemetry Protocol Active Object
 //
-// Protocol-only: CCSDS/MAVLink encoding, APID mux, rate dividers.
+// Air: Starcom COP-P (nav/cmd/ACK SDUs). USB GCS: station gcs_mavlink.
 // No radio hardware references. Posts SIG_RADIO_TX to AO_Radio.
-// Receives SIG_RADIO_RX for decode + output.
+// Receives SIG_RADIO_RX for decode + station USB re-encode.
 //============================================================================
 
 #include "ao_telemetry.h"
@@ -31,6 +31,8 @@
 #include "starcom_adapt/byte_pump.h"
 #include "starcom_adapt/nav_sdu.h"
 #include "starcom_adapt/cmd_sdu.h"
+#include "station/gcs_mavlink.h"
+#include "rocketchip/sensor_seqlock.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
 #ifdef ROCKETCHIP_JOB_STATION
@@ -39,7 +41,7 @@
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
-#include "pico/stdio_usb.h"
+#include "pico/stdio.h"
 #include "tusb.h"
 #endif
 
@@ -59,14 +61,13 @@ enum : uint16_t {
 // AO State
 // ============================================================================
 
-// GCS connection state
+// GCS connection state (USB lockout). Stream policy is gcs_mavlink.
 enum class GcsState : uint8_t {
-    kWaitingForGcs = 0,  // Send heartbeat only — no full telemetry
-    kGcsConnected  = 1,  // GCS detected — full telemetry streaming
-    kGcsLost       = 2,  // GCS heartbeat timeout — back to heartbeat-only
+    kWaitingForGcs = 0,
+    kGcsConnected  = 1,
+    kGcsLost       = 2,
 };
 
-static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat → lost
 
 // Airtime-scaled tracked-command retry timeout. AO_Radio pushes a value
 // from {SF, BW, max payload} on every SET_RADIO_CONFIG apply. Seed 250 ms
@@ -81,21 +82,20 @@ struct TelemAo {
 
     // Protocol state (USB MAVLink is separate from LoRa Starcom)
     rc::MavlinkEncoder  mav_encoder;
+    rc::GcsMavlink      gcs;
     rc::TelemetryState  latest_telem;
     bool                telem_valid;
     uint8_t             rate_hz;
     uint32_t            interval_ms;
     uint32_t            last_tx_ms;
-    uint32_t            last_heartbeat_ms;
 
     // GCS connection tracking
     GcsState            gcs_state;
     uint32_t            last_gcs_heartbeat_ms;
 
-    // MAVLink RX parser
+    // MAVLink RX parser (USB command ACKs / GCS detect)
     rc::MavlinkRxState  mavlink_rx;
-    uint8_t             gcs_heartbeat_count;    // Consecutive GCS heartbeats seen [JPL-1]
-    int16_t             param_send_idx;         // >=0: send param at this index on next tick (-1=idle)
+    uint8_t             gcs_heartbeat_count;
 
     // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
@@ -108,8 +108,6 @@ static rc::starcom_adapt::BytePump g_pump;
 // TX/RX contacts; do not skip nav to fake leftover RX.
 static constexpr uint8_t kTelemTickHz = 100;
 static uint8_t g_navTickAcc = 0;
-
-static uint32_t g_lastMavlinkMs = 0;
 
 // Queue depth 8: non-blocking handlers (SIG_RADIO_TX posts, SIG_RADIO_RX decodes)
 static QEvtPtr g_telemAoQueue[8];
@@ -127,7 +125,9 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e);
 // Safe to call from AO tick handlers.
 static void usb_write_nonblocking(const uint8_t* buf, uint16_t len) {
 #ifndef ROCKETCHIP_HOST_TEST
-    if (!tud_cdc_connected()) { return; }
+    // tud_cdc_connected() is DTR; QGC 5.x blips DTR while CDC stays configured.
+    // Match pico-sdk CONNECTION_WITHOUT_DTR (tud_ready()).
+    if (!tud_ready()) { return; }
     if (tud_cdc_write_available() < len) { return; }  // Drop if won't fit
     tud_cdc_write(buf, len);
     // Don't call tud_cdc_write_flush() — it competes with stdio's tud_task().
@@ -143,6 +143,78 @@ static uint32_t now_ms() {
     return to_ms_since_boot(get_absolute_time());
 #else
     return 0;
+#endif
+}
+
+static void gcs_usb_write(const uint8_t* data, uint16_t len, void* ctx) {
+    (void)ctx;
+    usb_write_nonblocking(data, len);
+}
+
+static rc::GcsMavlinkSink gcs_usb_sink() {
+    rc::GcsMavlinkSink sink{};
+    sink.write = &gcs_usb_write;
+    sink.ctx = nullptr;
+    return sink;
+}
+
+static bool gcs_mode_active() {
+#ifndef ROCKETCHIP_HOST_TEST
+    return AO_RCOS_get_output_mode() == StationOutputMode::kMavlink;
+#else
+    return false;
+#endif
+}
+
+static void gcs_station_rx_drain() {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!gcs_mode_active()) { return; }
+    int c = getchar_timeout_us(0);
+    while (c != PICO_ERROR_TIMEOUT) {
+        AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
+        c = getchar_timeout_us(0);
+    }
+#endif
+}
+
+// Per decoded nav SDU. Same as old dispatch_nav_output kMavlink
+// (ATTITUDE + GLOBAL_POSITION_INT), plus GPS_RAW.
+static void dispatch_nav_mavlink(TelemAo* me, const rc::TelemetryState& telem) {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) {
+        return;
+    }
+    (void)rc::gcs_mavlink_on_nav(&me->gcs, telem, now_ms(), gcs_usb_sink());
+#else
+    (void)me;
+    (void)telem;
+#endif
+}
+
+static void gcs_station_tick(TelemAo* me) {
+    if constexpr (!job::kRadioModeRx) { return; }
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!gcs_mode_active()) { return; }
+    gcs_station_rx_drain();
+    const uint32_t t = now_ms();
+    if (me->rx_snapshot.valid) {
+        me->gcs.last_telem = me->rx_snapshot.telem;
+        me->gcs.telem_valid = true;
+    }
+    (void)rc::gcs_mavlink_tick(&me->gcs, t, gcs_usb_sink());
+    shared_sensor_data_t snap = {};
+    if (seqlock_read(&g_sensorSeqlock, &snap)) {
+        rc::GcsStationGps gps{};
+        gps.lat_1e7 = snap.gps_lat_1e7;
+        gps.lon_1e7 = snap.gps_lon_1e7;
+        gps.alt_mm = static_cast<int32_t>(lroundf(snap.gps_alt_msl_m * 1000.0F));
+        gps.speed_mps = snap.gps_ground_speed_mps;
+        gps.fix_type = snap.gps_fix_type;
+        gps.valid = snap.gps_valid;
+        (void)rc::gcs_mavlink_on_station_gps(&me->gcs, gps, t, gcs_usb_sink());
+    }
+#else
+    (void)me;
 #endif
 }
 
@@ -751,48 +823,15 @@ static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
     return true;
 }
 
-// Dispatch a decoded Nav packet to the station-side output mode (MAVLink,
-// CSV, ANSI, Menu). Extracted from handle_rx_packet for JSF AV rule 1
-// compliance. Host-test builds skip the switch entirely.
 #ifndef ROCKETCHIP_HOST_TEST
-static void dispatch_nav_output(TelemAo* me,
-                                 const rc::TelemetryState& telem,
-                                 const rc::RadioRxEvt* rx_evt,
-                                 uint16_t seq) {
-    switch (AO_RCOS_get_output_mode()) {
-    case StationOutputMode::kMavlink: {
-        // MAVLink binary output on USB
-        uint8_t frame[64];
-        uint16_t len = 0;
-        uint32_t t = now_ms();
-
-        // 1 Hz heartbeat + SYS_STATUS
-        if (t - me->last_heartbeat_ms >= 1000) {
-            me->last_heartbeat_ms = t;
-            len = me->mav_encoder.encode_heartbeat(telem.flight_state, frame);
-            usb_write_nonblocking(frame, len);
-            len = me->mav_encoder.encode_sys_status(telem, frame);
-            usb_write_nonblocking(frame, len);
-        }
-
-        // ATTITUDE + GLOBAL_POSITION_INT per packet
-        len = me->mav_encoder.encode_attitude(telem, t, frame);
-        usb_write_nonblocking(frame, len);
-        len = me->mav_encoder.encode_global_pos(telem, t, frame);
-        usb_write_nonblocking(frame, len);
-        break;
+static void dispatch_nav_csv(const rc::RadioRxEvt* rx_evt, uint16_t seq) {
+    if (AO_RCOS_get_output_mode() != StationOutputMode::kCsv) {
+        return;
     }
-    case StationOutputMode::kCsv:
-        rc::rc_log("RX,%u,%d,%d\n",
-                   static_cast<unsigned>(seq),
-                   static_cast<int>(rx_evt->rssi),
-                   static_cast<int>(rx_evt->snr));
-        break;
-    case StationOutputMode::kAnsi:
-    case StationOutputMode::kMenu:
-        // ANSI: rendered from main loop. Menu: output suppressed.
-        break;
-    }
+    rc::rc_log("RX,%u,%d,%d\n",
+               static_cast<unsigned>(seq),
+               static_cast<int>(rx_evt->rssi),
+               static_cast<int>(rx_evt->snr));
 }
 #endif
 
@@ -943,8 +982,8 @@ static void starcom_handle_rx(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
         }
         if (starcom_handle_sdu(me, std::span<const std::byte>(sdu, *got))) {
 #ifndef ROCKETCHIP_HOST_TEST
-            dispatch_nav_output(me, me->rx_snapshot.telem, rx_evt,
-                                me->rx_snapshot.seq);
+            dispatch_nav_mavlink(me, me->rx_snapshot.telem);
+            dispatch_nav_csv(rx_evt, me->rx_snapshot.seq);
 #else
             (void)me;
 #endif
@@ -961,77 +1000,6 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
     }
 #endif
     starcom_handle_rx(me, rx_evt);
-}
-
-// GCS connection state update
-static void update_gcs_state(TelemAo* me, uint32_t t) {
-    if (me->gcs_state == GcsState::kGcsConnected) {
-        if (t - me->last_gcs_heartbeat_ms > kGcsTimeoutMs) {
-            me->gcs_state = GcsState::kGcsLost;
-        }
-    }
-}
-
-// Direct USB MAVLink output (heartbeat-only until GCS detected)
-static void mavlink_direct_tick(TelemAo* me) {
-#ifndef ROCKETCHIP_HOST_TEST
-    if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return; }
-    if constexpr (job::kRadioModeRx) { return; }  // Station uses RX path
-    if (!me->telem_valid) { return; }
-    if (!stdio_usb_connected()) { return; }
-
-    uint8_t frame[64];
-    uint16_t len = 0;
-    uint32_t t = now_ms();
-
-    update_gcs_state(me, t);
-
-    // Send deferred params one per tick (spread load, no blocking)
-    if (me->param_send_idx >= 0 &&
-        me->param_send_idx < static_cast<int16_t>(rc::mavlink_rx_param_count())) {
-        const rc::MavParam* p = &rc::mavlink_rx_param_table()[me->param_send_idx];
-        mavlink_message_t pmsg;
-        mavlink_msg_param_value_pack(
-            me->mav_encoder.system_id, me->mav_encoder.component_id, &pmsg,
-            p->name, p->value, MAV_PARAM_TYPE_REAL32,
-            static_cast<uint16_t>(rc::mavlink_rx_param_count()),
-            static_cast<uint16_t>(me->param_send_idx));
-        uint8_t pbuf[MAVLINK_MAX_PACKET_LEN];
-        uint16_t plen = mavlink_msg_to_send_buffer(pbuf, &pmsg);
-        usb_write_nonblocking(pbuf, plen);
-        me->param_send_idx++;
-        if (me->param_send_idx >= static_cast<int16_t>(rc::mavlink_rx_param_count())) {
-            me->param_send_idx = -1;  // Done
-        }
-    }
-
-    // Always send heartbeat at 1Hz (even before GCS detection)
-    if (t - me->last_heartbeat_ms >= 1000) {
-        me->last_heartbeat_ms = t;
-        len = me->mav_encoder.encode_heartbeat(
-            me->latest_telem.flight_state, frame);
-        usb_write_nonblocking(frame, len);
-        len = me->mav_encoder.encode_sys_status(me->latest_telem, frame);
-        usb_write_nonblocking(frame, len);
-        // No flush here — single fflush at end of tick
-    }
-
-    // Full telemetry — always stream when in MAVLink mode
-
-    // USB MAVLink attitude stays 10 Hz; telem AO ticks at 100 Hz for RF dwell.
-    if (t - g_lastMavlinkMs < 100U) {
-        return;
-    }
-    g_lastMavlinkMs = t;
-    len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame);
-    usb_write_nonblocking(frame, len);
-    len = me->mav_encoder.encode_global_pos(me->latest_telem, t, frame);
-    usb_write_nonblocking(frame, len);
-    // No fflush — SDK background IRQ flushes CDC buffer automatically.
-    // fflush blocks inside AO handler → queue overflow crash (LL Entry 32).
-#else
-    (void)me;
-#endif
 }
 
 // ============================================================================
@@ -1051,12 +1019,11 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
     if (me->rate_hz == 0) { me->rate_hz = 5; }
     me->interval_ms = 1000U / me->rate_hz;
     me->last_tx_ms = 0;
-    me->last_heartbeat_ms = 0;
     me->gcs_state = GcsState::kWaitingForGcs;
     me->last_gcs_heartbeat_ms = 0;
     rc::mavlink_rx_init(&me->mavlink_rx, &me->mav_encoder);
+    rc::gcs_mavlink_init(&me->gcs);
     me->gcs_heartbeat_count = 0;
-    me->param_send_idx = -1;
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
@@ -1077,8 +1044,7 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
         if constexpr (!job::kRadioModeRx) {
             encode_and_send(me);
         }
-        // Vehicle direct USB MAVLink (no radio)
-        mavlink_direct_tick(me);
+        gcs_station_tick(me);
         return Q_HANDLED();
     }
 
@@ -1338,27 +1304,27 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
 #endif
 }
 
-// Feed USB input byte to MAVLink parser for GCS detection + commands.
-// Uses COMM_0 (dedicated to USB input) — not COMM_1 (mavlink_rx module) which
-// gets corrupted by CLI bytes. CRLF translation disabled so binary frames parse correctly.
+// USB MAVLink in (QGC / Mission Planner). Station does not execute ARM
+// on the pad MCU; pad ARM stays the operator path. QGC→Starcom commands
+// are a later sitting.
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 #ifndef ROCKETCHIP_HOST_TEST
     mavlink_message_t msg;
     mavlink_status_t status;
 
-    if (mavlink_parse_char(MAVLINK_COMM_0, byte, &msg, &status)) {
-        // GCS heartbeat detection
-        if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT && msg.sysid != 0) {
-            AO_Telemetry_notify_gcs_heartbeat();
-            g_telemAo.gcs_heartbeat_count++;
+    if (mavlink_parse_char(MAVLINK_COMM_0, byte, &msg, &status) == 0) {
+        return;
+    }
+    if ((msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) && (msg.sysid != 0)) {
+        AO_Telemetry_notify_gcs_heartbeat();
+        g_telemAo.gcs_heartbeat_count++;
+        if constexpr (job::kRadioModeRx) {
             AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
         }
-        // Param request — defer to tick handler
-        if (msg.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_LIST &&
-            g_telemAo.param_send_idx < 0) {
-            g_telemAo.param_send_idx = 0;
-        }
-        // Command dispatch (ARM/DISARM/ABORT from QGC)
+    }
+    (void)rc::gcs_mavlink_handle_usb_frame(
+        &g_telemAo.gcs, &msg, gcs_usb_sink());
+    if constexpr (!job::kRadioModeRx) {
         if (msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG) {
             mavlink_command_long_t cmd;
             mavlink_msg_command_long_decode(&msg, &cmd);

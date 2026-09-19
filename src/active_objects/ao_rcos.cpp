@@ -18,6 +18,7 @@
 #include "rocketchip/board.h"
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/job.h"
+#include "rocketchip/rc_log.h"
 #include "rocketchip/version.h"
 #include "starcom_adapt/sc_air.h"
 #include "rocketchip/led_patterns.h"
@@ -66,15 +67,18 @@ StationOutputMode AO_RCOS_get_output_mode() {
 
 void AO_RCOS_set_output_mode(StationOutputMode mode) {
     g_outputMode = mode;
+    rc_log_hold_cdc(mode == StationOutputMode::kMavlink ? 1 : 0);
 }
 
 void AO_RCOS_cycle_output_mode() {
+    StationOutputMode next = StationOutputMode::kAnsi;
     switch (g_outputMode) {
-    case StationOutputMode::kAnsi:    g_outputMode = StationOutputMode::kCsv;     break;
-    case StationOutputMode::kCsv:     g_outputMode = StationOutputMode::kMavlink;  break;
-    case StationOutputMode::kMavlink: g_outputMode = StationOutputMode::kAnsi;     break;
-    case StationOutputMode::kMenu:    g_outputMode = StationOutputMode::kAnsi;     break;
+    case StationOutputMode::kAnsi:    next = StationOutputMode::kCsv;     break;
+    case StationOutputMode::kCsv:     next = StationOutputMode::kMavlink;  break;
+    case StationOutputMode::kMavlink: next = StationOutputMode::kAnsi;     break;
+    case StationOutputMode::kMenu:    next = StationOutputMode::kAnsi;     break;
     }
+    AO_RCOS_set_output_mode(next);
 }
 
 // ============================================================================
@@ -257,6 +261,16 @@ static void poll_dashboard_keys() {
     if (rc_os_arm_confirm_active()) { return; }
     int ch;
     while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+        // First MAVLink STX takes USB. Dashboard keys stay off.
+        const uint8_t b = static_cast<uint8_t>(ch);
+        if ((b == 0xFDU) || (b == 0xFEU)) {
+            AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
+            AO_Telemetry_feed_usb_byte(b);
+            while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+                AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(ch));
+            }
+            return;
+        }
         if (ch == 'x' || ch == 'X') { enter_cli_menu(); return; }
         if constexpr (job::kRadioModeRx) {
             if (ch == 'a') {
@@ -264,8 +278,6 @@ static void poll_dashboard_keys() {
                 return;
             }
             if (ch == 'D') {
-                // DISARM — single key, no confirm, ACK-tracked.
-                // Reuses the same path as the kMenu 'X' binding.
                 AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
                 return;
             }
@@ -273,14 +285,13 @@ static void poll_dashboard_keys() {
     }
 }
 
-// CLI dispatch — handles keys in dashboard/MAVLink mode.
-// Menu/CSV modes: rc_os_update() called from AO tick (Phase D5).
+// Pad keys only while the ANSI dashboard owns USB. GCS exclusive
+// binary — QGC frames contain 'x'/'a'/'D' as payload. Settle sniffs
+// STX in rc_os_update so banner/keys do not run on a QGC open.
 static void cli_dispatch() {
-    auto mode = AO_RCOS_get_output_mode();
-
-    if (mode == StationOutputMode::kMavlink || mode == StationOutputMode::kAnsi) {
-        poll_dashboard_keys();
-    }
+    if (AO_RCOS_get_output_mode() != StationOutputMode::kAnsi) { return; }
+    if (rc_os_usb_settling()) { return; }
+    poll_dashboard_keys();
 }
 
 // ANSI dashboard render — event-driven on new RX packet or 1Hz idle
@@ -1026,13 +1037,10 @@ static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e) {
 static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RCOS_TICK: {
+        // USB first: GCS STX takes the port before pad paint/keys.
+        rc_os_update();
         cli_dispatch();
         ansi_render_tick(me);
-
-        // rc_os_update() handles USB connect detection, boot banner, and
-        // menu key dispatch. Called every tick regardless of output mode —
-        // USB connect/banner must work in ANSI mode too.
-        rc_os_update();
 
         // Calibration UI state machine
         cal_ui_tick(me);

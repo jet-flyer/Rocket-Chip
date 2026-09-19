@@ -171,6 +171,11 @@ target_include_directories(test_starcom_byte_pump PRIVATE
 )
 gtest_discover_tests(test_starcom_byte_pump)
 
+# Station USB GCS MAVLink (QGC / Mission Planner)
+add_executable(test_gcs_mavlink test_gcs_mavlink.cpp)
+target_link_libraries(test_gcs_mavlink PRIVATE rc_telemetry GTest::gtest_main)
+gtest_discover_tests(test_gcs_mavlink)
+
 # IVP-62b: MAVLink RX parser
 add_executable(test_mavlink_rx test_mavlink_rx.cpp)
 target_link_libraries(test_mavlink_rx PRIVATE rc_telemetry GTest::gtest_main)

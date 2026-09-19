@@ -124,6 +124,7 @@ if(BUILD_TESTS)
     add_library(rc_telemetry STATIC
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/station/gcs_mavlink.cpp
         src/starcom_adapt/nav_sdu.cpp
         src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
@@ -455,6 +456,7 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/station/gcs_mavlink.cpp
         src/starcom_adapt/nav_sdu.cpp
         src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
@@ -602,6 +604,7 @@ else()
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
+        src/station/gcs_mavlink.cpp
         src/starcom_adapt/nav_sdu.cpp
         src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
@@ -857,8 +860,12 @@ else()
 
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
+    # QGC 5.x CDC reopen: DTR blip + optional 1200 baud. SDK default
+    # RESET_VIA_BAUD_RATE=1 enters BOOTSEL; stdio_usb_connected() is DTR.
+    # pico-sdk stdio_usb.c: CONNECTION_WITHOUT_DTR → tud_ready().
     target_compile_definitions(rocketchip PRIVATE
-        PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1
+        PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=0
+        PICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1
     )
 
     # Generate UF2 file for easy flashing

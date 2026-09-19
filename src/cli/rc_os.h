@@ -55,6 +55,9 @@ void rc_os_start_arm_confirm(void);
 // consume those chars — rc_os_update owns the buffer.
 bool rc_os_arm_confirm_active(void);
 
+// USB just connected; banner/pad keys wait. GCS STX still sniffed here.
+bool rc_os_usb_settling(void);
+
 // Runtime DEV_MODE. Compile-time ROCKETCHIP_DEV_MODE must be on for the
 // toggle and inject/cal-reset rows to exist. Enable: USB + FD idle.
 // Stays on across ARM so inject can run; USB unplug clears it.
