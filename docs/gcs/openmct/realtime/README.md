@@ -6,6 +6,7 @@ Two host pipes into Open MCT (not Starcom):
 |--------|---------|
 | `stream_station.py` | Live USB/`m` ANSI scrape (COM7) |
 | `feed_facsimile.py` | Replay fidelity CSV as live WS points |
+| `stream_mavlink_station.py` | Live USB MAVLink (QGCS/kMavlink) -> same WS |
 
 ## Facsimile live feed (dashboard refine)
 
@@ -23,3 +24,11 @@ python docs/gcs/openmct/realtime/stream_station.py --port COM7 --ws-port 8091
 `
 
 Station scrape today is RF + baro-ish; IMU/quat/temps/Vbatt for glass come from facsimile (or vehicle telem) until those fields are on USB/`m`.
+
+## Station MAVLink USB (when kMavlink / STX lock)
+
+```
+python docs/gcs/openmct/realtime/stream_mavlink_station.py --port COM7 --ws-port 8091
+```
+
+Use when CDC is MAVLink v2 (not ANSI m dash). Publishes dict keys (baro_alt_m, alt_m, gps_sats, ...). ANSI scrape remains `stream_station.py`.

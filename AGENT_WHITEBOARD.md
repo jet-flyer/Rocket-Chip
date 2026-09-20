@@ -17,11 +17,13 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## GCS glass: live board -> Master Dashboard (NEXT) (2026-09-05)
+## GCS glass: live oMCT PoC (NEXT) (2026-09-20)
 
-Desk **Master Dashboard MVP** is up on facsimile (Flexible Layout + on-demand feeder). **Not verified:** piping a live board (station USB/`m` or flight) into the same glass path. That is the next glass sitting - confirm RSSI/baro/phase with real RF, not only Big Daddy CSV. Prefer MET + GPS on both ends for time-sync.
+**PoC proven (desk):** Master Dashboard QGC-style ring + facsimile OK; live Fruit Jam COM7 into Open MCT works via `stream_mavlink_station.py` (MAVLink USB) when station is in kMavlink. Facsimile: `feed_facsimile.py` + Play http://127.0.0.1:8092/. Serve from `docs/gcs/openmct/` (not hello-world alone) so `../plugins` resolve — URL http://localhost:5000/hello-world/.
 
-Deferred polish (not blocking board-val): Condition Set + alphanumeric caution tiles (digits + color), Zero static-nginx smoke. LCARS is its own row.
+**Still to work out (not done):** field mapping / which gauges light from station vs vehicle; RSSI/LQ/SNR on glass when only MAVLink USB (no RADIO_STATUS yet); ANSI `stream_station.py` path vs MAVLink path; layout tweaks Nathan noted.
+
+**Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`. Not a license this wrap.
 
 
 ---
@@ -221,5 +223,5 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 
 **Stage 17: Field Testing** - IVP-135, 136, 137, 138. Airframe integration, ground test, flight test, exit gate. Needs hardware access and weather. IVP-134 (pre-flight checklist) already committed.
 
-## Exact state (2026-09-19 bed handover)
-main local ahead of origin (**no push**). Tip: oMCT ring d687ad9 + QGCS/MAVLink USB bridge WIP commit (**UNVERIFIED** — WB handover row). Restored MavlinkEncoder msg.seq = seq++ after pack_chan (SequenceMonotonic). Next: verify sitting before push. Live oMCT board pipe still NEXT.
+## Exact state (2026-09-20 wrap)
+`main` tip after this wrap commit: oMCT Master Dashboard PoC (facsimile + live MAVLink bridge script) + prior station USB MAVLink/QGC work on origin. Live glass = PoC; STX toggle-only + field/RSSI specifics still NEXT (WB). Serve oMCT from `docs/gcs/openmct/`.

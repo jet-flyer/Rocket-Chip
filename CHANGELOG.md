@@ -43,6 +43,11 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-20-001 | Grok Hamilton (Grok Bot) | tooling, documentation, feature
+
+**oMCT Master Dashboard live PoC.** QGC-style instrument ring on facsimile; live Fruit Jam COM7 into the same WS glass via `docs/gcs/openmct/realtime/stream_mavlink_station.py` when USB is MAVLink (station STX lock). Serve parent `docs/gcs/openmct/` so plugins load (hello-world-only root 404'd RcCsvDictionaryPlugin). PoC only — field/RSSI mapping and MAVLink toggle-only (kill auto-STX) parked on WB. Layout notes: `docs/gcs/openmct/layouts/README.md`.
+
+
 ### 2026-09-19-001 | Grok 4.6 (Build CLI) | feature, bugfix, hardware
 
 **Station USB MAVLink for QGC (handshake + DTR overlay).** Overnight: first STX `0xFD`/`0xFE` takes exclusive CDC (no `m`); 1 Hz HEARTBEAT+SYS_STATUS; per-nav ATTITUDE+GLOBAL_POSITION_INT+GPS_RAW via `gcs_mavlink`; COMMAND_LONG ACKs. Morning QGC 5.1.4 comm-lost: `PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=0`, `CONNECTION_WITHOUT_DTR=1`, 1500 ms kMavlink debounce; USB writes use `tud_ready()`. Hitch worse when ATTITUDE `time_boot_ms` used vehicle `TelemetryState.met_ms` (boot-ms placeholder; launch T+ MET not implemented) — stamp station `now_ms`. Do not retune LoRa/COP-P/PLCW/K. Identify flash by ELF SHA-256. Verified: host GcsMavlink 17/17 twice; COM7 capture ATTITUDE 6.50 Hz / HEARTBEAT 1.17 Hz; user hitch ~1 Hz same as 00:40–01:11, live HUD, no comm-lost; vehicle `bench_sim` 2/2 COM5 Hardware 13/13 `[SC] hail ok` sensors healthy GO `d39bc710…`; station `bench_sim` 3/3 COM7 COP-P lock nav. Station ELF `12c820fd…` Fruit Jam `BEC71B8EDC6AEBD1`; vehicle `d39bc710…` Feather `02FBDDB8E1CA1281`. QGC 5.1.4 may not flush tlogs until process exit; `picotool -f` on the Feather can latch STEMMA (Hardware 11/13, `nav_submit=0`) until USB unplug.

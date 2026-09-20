@@ -36,3 +36,7 @@ Station scrape is RF + baro-ish today; full vehicle fields may still need facsim
 - [Multiple Y-axes (Overlay Plot)](https://www.rukminibose.com/multiple-y-axis)
 
 Hard-reload after dict changes (Ctrl+F5). Clear localhost LocalStorage if an old Master folder sticks.
+
+## Serve root
+
+Serve `docs/gcs/openmct/` (parent), open http://localhost:5000/hello-world/. Serving hello-world alone 404s `../plugins`.

@@ -1,5 +1,5 @@
 /**
- * Realtime provider — WebSocket feed of seq/rssi/snr.
+ * Realtime provider â€” WebSocket feed of seq/rssi/snr.
  * Keeps a short ring buffer so request()+subscribe both feed plots
  * (oMCT TelemetryCollection uses both under a realtime conductor).
  */
@@ -58,7 +58,7 @@
             try { socket.send('subscribe ' + id); } catch (e) {}
           });
           // Also subscribe all channels so buffers fill even before plot opens
-          ['seq', 'rssi', 'snr', 'baro'].forEach(function (id) {
+          ['seq', 'rssi', 'snr', 'baro', 'baro_alt_m', 'alt_m', 'batt_v', 'vvel_mps', 'speed_mps', 'gps_fix', 'gps_sats', 'flight_state', 'lq_pct', 'lat', 'lon'].forEach(function (id) {
             try { socket.send('subscribe ' + id); } catch (e) {}
           });
         };
