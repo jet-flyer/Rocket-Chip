@@ -596,6 +596,18 @@ void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept {
 
 void macOnHailReceived(MacSession& m, Tick now) noexcept {
   (void)now;
+  // 211.0 table 6-12 E85/E82: responder returns to S2 on peer loss, then
+  // E30 (table 6-10) accepts hail. Station reboot re-hails with the same
+  // catalog while the vehicle is still S50–S62; that is a new hail, not
+  // E69 COMM_CHANGE (same SET TX/RX as the first hail).
+  if (m.duplex == MacDuplex::half && m.role == MacRole::responder &&
+      m.mode == MacMode::active && m.state != MacState::s2) {
+    applyState(m, MacState::s2);
+    m.transmit_on = false;
+    m.persistence = false;
+    m.token_fail_n = 0;
+    m.need_plcw = true;
+  }
   if (m.state == MacState::s2 && m.duplex == MacDuplex::full) {
     applyState(m, MacState::s41);  // E3
     m.need_plcw = true;

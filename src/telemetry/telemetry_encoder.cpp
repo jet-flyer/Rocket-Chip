@@ -256,7 +256,8 @@ uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
                      | MAV_SYS_STATUS_SENSOR_3D_MAG
                      | MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE
                      | MAV_SYS_STATUS_SENSOR_GPS
-                     | MAV_SYS_STATUS_AHRS;
+                     | MAV_SYS_STATUS_AHRS
+                     | MAV_SYS_STATUS_PREARM_CHECK;
     uint32_t health = 0;
     if (health_operational(rc::health_imu(telem.health))) {
         health |= MAV_SYS_STATUS_SENSOR_3D_ACCEL
@@ -271,6 +272,10 @@ uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
     }
     if (health_operational(rc::health_eskf(telem.health))) {
         health |= MAV_SYS_STATUS_AHRS;
+    }
+    // QGC 5.x readyToFly uses enabled+health PREARM_CHECK (Vehicle::_handleSysStatus).
+    if ((health & MAV_SYS_STATUS_AHRS) != 0U) {
+        health |= MAV_SYS_STATUS_PREARM_CHECK;
     }
 
     // voltage_battery UINT16_MAX = not sent (mavlink SYS_STATUS). 0 mV is

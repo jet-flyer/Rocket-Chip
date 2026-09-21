@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix
+
+**Responder reconnect hail while active.** `macOnHailReceived`: half-duplex responder in data-services goes S2 then E30 (211.0 table 6-12 E82/E85, table 6-10 E30). Test `test_half_rehail_while_active`. No version bump. No tag.
+
+RC adapter (same-catalog hail vs E69) is root `CHANGELOG.md` 2026-09-21-001.
+
+Verified: `starcom.unit`.
+
 ### 2026-09-18-002 | Grok 4.6 (Build CLI) | documentation
 
 **Half-duplex MIB is consumer-owned.** USER_GUIDE + GLOSSARY: `Send_Duration` / `Receive_Duration` / E39 token are book; N and wait-vs-RX Hz are not Starcom defaults. Rocket-Chip example table labeled **not universal**. RC product numbers: root `CHANGELOG.md` 2026-09-18-002 / `src/starcom_adapt/README.md`. No version bump. No tag.

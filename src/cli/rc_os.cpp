@@ -22,6 +22,10 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 
+#ifndef ROCKETCHIP_HOST_TEST
+#include "tusb.h"
+#endif
+
 constexpr uint8_t  kUsbSettlePolls      = 5;
 constexpr uint32_t kArmConfirmTimeoutMs = 5000;
 constexpr uint8_t  kMavlinkV2Stx        = 0xFDU;
@@ -61,6 +65,17 @@ static constexpr size_t item_count() { return rc::cli::kVehicleItemCount; }
 
 static void show_help() {
     rc::cli::print_help(items(), item_count(), rc::cli::top(g_eng));
+}
+
+// Cable-up (tud_ready / CONNECTION_WITHOUT_DTR) is not a terminal session.
+// CLI banner follows DTR so a closed COM port can reconnect and reprint
+// flight-<sha> for host classify.
+static bool cli_terminal_connected() {
+#ifdef ROCKETCHIP_HOST_TEST
+    return stdio_usb_connected();
+#else
+    return tud_cdc_connected();
+#endif
 }
 
 static void show_prompt() {
@@ -288,6 +303,12 @@ bool rc_os_update() {
         return false;
     }
     if (!stdio_usb_connected()) {
+        return false;
+    }
+    if (!cli_terminal_connected()) {
+        g_wasConnected = false;
+        g_bannerPrinted = false;
+        g_settleCount = 0;
         return false;
     }
     if (!handle_usb_connect()) {

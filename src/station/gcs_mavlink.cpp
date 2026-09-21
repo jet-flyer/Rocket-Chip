@@ -18,7 +18,7 @@ extern "C" {
 
 namespace rc {
 
-static constexpr uint16_t kFrameCap = 80;  // GPS_RAW_INT v2 is 64 B
+static constexpr uint16_t kFrameCap = 128;  // COMPONENT_METADATA v2 is 108 B payload
 // USB TX. USB RX parse is COMM_0 — do not share it.
 static constexpr uint8_t kMavUsbTxChan = MAVLINK_COMM_3;
 
@@ -210,8 +210,30 @@ static bool handle_gcs_command(GcsMavlink* s, const mavlink_command_long_t& cmd,
         (void)emit_command_ack(s, cmd.command, MAV_RESULT_ACCEPTED, sink);
         return wrote;
     }
-    // QGC InitialConnect retries unanswered COMMAND_LONG ~3 s each
-    // (SET_MESSAGE_INTERVAL, AVAILABLE_MODES, COMPONENT_METADATA).
+    // QGC 5.1.4 InitialConnect StandardModes::request() needs ACCEPTED plus
+    // AVAILABLE_MODES (mode_index from 1). One MANUAL row ends the list.
+    if ((cmd.command == MAV_CMD_REQUEST_MESSAGE) &&
+        (req_id == MAVLINK_MSG_ID_AVAILABLE_MODES)) {
+        (void)emit_command_ack(s, cmd.command, MAV_RESULT_ACCEPTED, sink);
+        mavlink_message_t msg;
+        memset(&msg, 0, sizeof(msg));
+        mavlink_msg_available_modes_pack_chan(
+            s->encoder.system_id, s->encoder.component_id, kMavUsbTxChan, &msg,
+            1, 1, MAV_STANDARD_MODE_NON_STANDARD, 0, 0, "MANUAL");
+        return emit_packed(sink, &msg);
+    }
+    // CompInfo: ACCEPTED + empty URI skips HTTP/FTP (uri empty in
+    // RequestMetaDataTypeStateMachine::_requestFile).
+    if ((cmd.command == MAV_CMD_REQUEST_MESSAGE) &&
+        (req_id == MAVLINK_MSG_ID_COMPONENT_METADATA)) {
+        (void)emit_command_ack(s, cmd.command, MAV_RESULT_ACCEPTED, sink);
+        mavlink_message_t msg;
+        memset(&msg, 0, sizeof(msg));
+        mavlink_msg_component_metadata_pack_chan(
+            s->encoder.system_id, s->encoder.component_id, kMavUsbTxChan, &msg,
+            0, 0, "");
+        return emit_packed(sink, &msg);
+    }
     if (cmd.command == MAV_CMD_SET_MESSAGE_INTERVAL) {
         (void)emit_command_ack(s, cmd.command, MAV_RESULT_ACCEPTED, sink);
         return true;

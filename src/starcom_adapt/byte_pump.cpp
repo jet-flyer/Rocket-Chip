@@ -118,15 +118,27 @@ void on_comm_change_spdu(BytePump& p, starcom::ccsds::Tick now,
     starcom::ccsds::macOnHailReceived(p.mac, now);
   } else if (st == starcom::ccsds::MacState::s60 ||
              st == starcom::ccsds::MacState::s61) {
-    // 211.0 table 6-11 E69 is COMM_CHANGE, not a repeat of the hail catalog.
+    // Same catalog as the session hail is station reconnect (E81/E84),
+    // not E69 COMM_CHANGE. Accept via E85/E82 → S2 → E30.
     if (p.pending_catalog_valid &&
         p.pending_catalog_idx == p.hail_catalog_idx) {
+      starcom::ccsds::macOnHailReceived(p.mac, now);
       return;
     }
     starcom::ccsds::macOnRemoteCommChange(p.mac, now);
     p.remote_apply_now = p.pending_catalog_valid;
-  } else if (st == starcom::ccsds::MacState::s62) {
-    p.peer_comm_change = true;
+  } else if (st == starcom::ccsds::MacState::s62 ||
+             st == starcom::ccsds::MacState::s50 ||
+             st == starcom::ccsds::MacState::s51 ||
+             st == starcom::ccsds::MacState::s52) {
+    if (p.pending_catalog_valid &&
+        p.pending_catalog_idx == p.hail_catalog_idx) {
+      starcom::ccsds::macOnHailReceived(p.mac, now);
+      return;
+    }
+    if (st == starcom::ccsds::MacState::s62) {
+      p.peer_comm_change = true;
+    }
   }
 }
 
@@ -361,9 +373,6 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
   const auto now = p.mac.last_now;
   const bool comm_wait = (p.mac.state == starcom::ccsds::MacState::s62 &&
                           p.mac.y == 3);
-  starcom::ccsds::macOnValidFrame(p.mac, now);
-  starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
-  starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
   p.air_heard = true;
   p.last_air_tick = now;
   if (v3->fields.p_frame && !v3->data.empty()) {
@@ -371,12 +380,24 @@ void pump_handle_air(BytePump& p, std::span<const std::byte> octets) noexcept {
     const bool s2_hail = (p.mac.state == starcom::ccsds::MacState::s2);
     if ((s2_hail || p_frame_is_mac_spdu(v3->data)) &&
         dispatch_p_frame_spdu(p, v3->data, now)) {
+      starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
+      starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
       if (comm_wait) {
         p.peer_comm_change = true;
+      }
+      // COMM_CHANGE echo still needs E43 S62→S60. Reconnect hail (E30 S51)
+      // must not run macOnValidFrame (that reset token_fail and kept active).
+      if (p.mac.state == starcom::ccsds::MacState::s60 ||
+          p.mac.state == starcom::ccsds::MacState::s61 ||
+          p.mac.state == starcom::ccsds::MacState::s62) {
+        starcom::ccsds::macOnValidFrame(p.mac, now);
       }
       return;
     }
   }
+  starcom::ccsds::macOnValidFrame(p.mac, now);
+  starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
+  starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
   starcom::ccsds::coppReceiveBytes(p.copp, octets);
 }
 

@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix, hardware
+
+**QGC hard freeze after station reboot: vehicle accepts reconnect hail.** Same-catalog SET TX/RX while the responder was still S50–S62 was dropped as E69; 211.0 E82/E85 then E30 now drop to S2 and accept hail (`macOnHailReceived`, `byte_pump` hail before `macOnValidFrame`). Station USB also answers QGC 5.1.4 InitialConnect `AVAILABLE_MODES` (one MANUAL) and `COMPONENT_METADATA` (empty URI), and sets SYS_STATUS PREARM_CHECK when ESKF is healthy. USB hold-last / 5 Hz / AO flush were tried for the HUD hitch and reverted. Hitch leftover: ~500–800 ms ATTITUDE holes at the HD token. QGC 5.x “configuration tasks remain” on this desk is Generic Joystick + Keychron Q5 HE HID (host HidHide inverse blacklist), not firmware. Library row: `starcom/CHANGELOG.md` 2026-09-21-001. Verified: `starcom.unit`; host GcsMavlink+StarcomBytePump; station-only reflash while vehicle `A/s50` RATE window 646 s, COM7 ATTITUDE 6.43 Hz max gap 630 ms; QGC live HUD after Feather stayed up. Station ELF on Jam `BEC71B8EDC6AEBD1`; vehicle `02FBDDB8E1CA1281`.
+
 ### 2026-09-20-001 | Grok Hamilton (Grok Bot) | tooling, documentation, feature
 
 **oMCT Master Dashboard live PoC.** QGC-style instrument ring on facsimile; live Fruit Jam COM7 into the same WS glass via `docs/gcs/openmct/realtime/stream_mavlink_station.py` when USB is MAVLink (station STX lock). Serve parent `docs/gcs/openmct/` so plugins load (hello-world-only root 404'd RcCsvDictionaryPlugin). PoC only — field/RSSI mapping and MAVLink toggle-only (kill auto-STX) parked on WB. Layout notes: `docs/gcs/openmct/layouts/README.md`.

@@ -167,6 +167,36 @@ TEST(GcsMavlink, NavEmitsAttitudeAndGlobalPos) {
     EXPECT_EQ(s.last_telem.lat_1e7, telem.lat_1e7);
 }
 
+TEST(GcsMavlink, ZeroRateAttitudeIsShortUsbFsPacket) {
+    // USB 2.0 §5.5.3 FS bulk MPS = 64. MAVLink v2 zero-truncates the
+    // 0 rad/s rate fields, so TinyUSB will not start an IN xfer without
+    // an explicit flush (hathach/tinyusb #753).
+    GcsMavlink s{};
+    gcs_mavlink_init(&s);
+    Cap cap;
+    ASSERT_TRUE(gcs_mavlink_on_nav(&s, make_telem(), 250, make_sink(&cap)));
+    size_t i = 0;
+    bool found = false;
+    while ((i + 10U) < cap.bytes.size()) {
+        if (cap.bytes[i] != 0xFDU) {
+            i++;
+            continue;
+        }
+        const uint8_t plen = cap.bytes[i + 1U];
+        const uint32_t msgid = static_cast<uint32_t>(cap.bytes[i + 7U]) |
+                               (static_cast<uint32_t>(cap.bytes[i + 8U]) << 8) |
+                               (static_cast<uint32_t>(cap.bytes[i + 9U]) << 16);
+        const size_t flen = 10U + static_cast<size_t>(plen) + 2U;
+        if (msgid == MAVLINK_MSG_ID_ATTITUDE) {
+            EXPECT_LT(flen, 64U);
+            found = true;
+            break;
+        }
+        i += flen;
+    }
+    EXPECT_TRUE(found);
+}
+
 TEST(GcsMavlink, FramesAreMavlinkV2) {
     GcsMavlink s{};
     gcs_mavlink_init(&s);
@@ -289,7 +319,7 @@ bool find_command_ack(const std::vector<uint8_t>& bytes, uint8_t chan,
     return false;
 }
 
-TEST(GcsMavlink, UnansweredConnectCommandsAckUnsupported) {
+TEST(GcsMavlink, AvailableModesOnRequest) {
     GcsMavlink s{};
     gcs_mavlink_init(&s);
     mavlink_message_t cmd{};
@@ -301,9 +331,9 @@ TEST(GcsMavlink, UnansweredConnectCommandsAckUnsupported) {
     uint8_t result = 0xFF;
     ASSERT_TRUE(find_command_ack(cap.bytes, MAVLINK_COMM_2, MAV_CMD_REQUEST_MESSAGE,
                                  &result));
-    EXPECT_EQ(result, MAV_RESULT_UNSUPPORTED);
+    EXPECT_EQ(result, MAV_RESULT_ACCEPTED);
     EXPECT_EQ(count_id(parse_all(cap.bytes, MAVLINK_COMM_3),
-                       MAVLINK_MSG_ID_AVAILABLE_MODES), 0U);
+                       MAVLINK_MSG_ID_AVAILABLE_MODES), 1U);
 }
 
 TEST(GcsMavlink, SetMessageIntervalAcked) {
@@ -321,7 +351,7 @@ TEST(GcsMavlink, SetMessageIntervalAcked) {
     EXPECT_EQ(result, MAV_RESULT_ACCEPTED);
 }
 
-TEST(GcsMavlink, ComponentMetadataAckUnsupported) {
+TEST(GcsMavlink, ComponentMetadataEmptyUri) {
     GcsMavlink s{};
     gcs_mavlink_init(&s);
     mavlink_message_t cmd{};
@@ -333,7 +363,9 @@ TEST(GcsMavlink, ComponentMetadataAckUnsupported) {
     uint8_t result = 0xFF;
     ASSERT_TRUE(find_command_ack(cap.bytes, MAVLINK_COMM_1, MAV_CMD_REQUEST_MESSAGE,
                                  &result));
-    EXPECT_EQ(result, MAV_RESULT_UNSUPPORTED);
+    EXPECT_EQ(result, MAV_RESULT_ACCEPTED);
+    EXPECT_EQ(count_id(parse_all(cap.bytes, MAVLINK_COMM_2),
+                       MAVLINK_MSG_ID_COMPONENT_METADATA), 1U);
 }
 
 TEST(GcsMavlink, ParamListOnePerTick) {

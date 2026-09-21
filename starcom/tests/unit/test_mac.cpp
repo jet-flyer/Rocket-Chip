@@ -433,6 +433,26 @@ void test_half_e83_responder_listens() {
   CHECK(!s.transmit_on);
 }
 
+void test_half_rehail_while_active() {
+  // Station reboot hails again while the responder is still S50.
+  // 211.0 E85/E82 → S2, then E30 → S51 (not ignore / E69).
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  CHECK(s.state == MacState::s51);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  CHECK(s.role == starcom::ccsds::MacRole::responder);
+  CHECK(s.mode == MacMode::active);
+  (void)macPollNotify(s);
+  macOnHailReceived(s, 6);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.mode == MacMode::active);
+  CHECK(macPollNotify(s) == MacNotify::hail_ok);
+}
+
 void test_half_token_octets() {
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -624,6 +644,7 @@ int run_mac_tests() {
   test_half_e48_e49_carrier();
   test_half_e83_rehail();
   test_half_e83_responder_listens();
+  test_half_rehail_while_active();
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
