@@ -66,11 +66,11 @@ Held until **base-level verification on the FPGA board**. Not increment 19. Not 
 
 1. **`PhyTier::compliant` / 211.1 waveform / FPGA bitstream** (the 18 claim we did not make). HDL sim before bitstream (Researcher). Same codec vectors as the host uncoded path. No Electra / UT product claim.
 
-2. **Decode port.** Researcher 2026-08-27: projection, not P&R. Encode is tiny. Viterbi K=7 decode is the wrong class for Forgix T8 (~7.4k LE), let alone LDPC (2048,1024) decode. Snickerdoodle 7020 (~53k LUT) is the first fabric even in the decode ballpark. 7010 / Pluto is not.
+2. **Decode port.** Researcher 2026-08-27: projection, not P&R. Encode is tiny. Viterbi K=7 decode is the wrong class for Forgix T8 (~7.4k LE), let alone LDPC (2048,1024) decode. Snickerdoodle on hand is the one (~17.6k LUT). Same call as Pluto: not in the LDPC decode ballpark.
    - Honest default for this stack: **Pi as GCS decode** (can hang on HW Nathan already has, after encode goldens exist).
    - Hook the Snickerdoodle when we want a **real utilization number** for a decode port, not to close 19.
 
-**Board order (Nathan 2026-08-28):** Forgix first, Snickerdoodle later. Snickerdoodle was only in play because it is on hand. Forgix T8 is the encode / `PhyTier::compliant` vehicle (encode is tiny). Snickerdoodle 7020 remains the first fabric in the decode-P&R ballpark.
+**Board order (Nathan 2026-08-28):** Forgix first, Snickerdoodle later. Snickerdoodle was only in play because it is on hand (the one, ~17.6k LUT). Forgix T8 is the encode / `PhyTier::compliant` vehicle (encode is tiny).
 
 Owner split: Researcher FPGA / Blue Book / sim-before-bitstream. Hamilton decode as a later software port (Pi first). Buzz bench bring-up when Nathan says.
 

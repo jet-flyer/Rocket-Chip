@@ -90,6 +90,7 @@ Electrical: Forgix is RP2354+T8 on Teensy holes, **not** Teensy 4.0 pin function
 | **Oak Lattice FeatherWing** | iCE5LP4K (no MCU on the wing) | FeatherWing | True Feather pin functions on the carrier (mechanical **and** electrical). | Same iCE5LP4K | Most practical FPGA add-on on the current Feather stack. |
 | **Galaxia** | Certus-NX LFD2NX-40 + Pico | Bench / space-dev board (not Teensy / Pico / Feather / rocket FC). | Edge 2x6 90 deg plugs **are** real Digilent PMOD 2x6 (80 I/O = ten ports: 8 I/O + 3.3 V + GND each). | 40k LUTs, 2.5 Mbit BRAM, 56 DSP 18x18 | ~$988 bench/space-dev. Not a rocket FC. |
 | **UPduino v3.1** | iCE40 UP5K only (FTDI programmer; no RP) | Custom DIP stick ~2.2 cm x 6.2 cm. Two **single** 0.1" rows, one on each long edge (~Pico-like **row spacing**, not 0.1" dual-row). Not Teensy/Pico/Feather/PMOD 2x6. Tindie $36, quantity only; bag of two unsoldered 24-pin 0.1" headers. **No PMOD SKU on Tindie.** | UP5K GPIO on those DIP holes. "PMOD compatible" is pin **order** on a 1x6 (27/26/25/23/GND/3V3), not Teensy/Pico/Feather/Digilent 2x6. | UP5K 1 Mbit SPRAM + 120 kbit DPRAM, 8x MAC16 | FPGA-only eval, not Feather/Pico/Teensy drop-in. |
+| **snickerdoodle one** | Xilinx Zynq-7010 (dual Cortex-A9 + Artix-7, 17,600 LUT-6) | 2.0" × 3.5" SoM. Not Feather / Teensy / Pico. | Not a Feather pinout. Schematic: [krtkl/open-source-schematics](https://github.com/krtkl/open-source-schematics) `snickerdoodle/snickerdoodle-schematic-r4p1.pdf`. krtkl docs page also lists rev 4.11. | — | On desk. |
 
 ### Forgix - RP2354 + T8
 
@@ -138,6 +139,10 @@ Tindie listing (verified this sitting): **no PMOD SKU**. Quantity only, $36. The
 The board is a custom DIP stick ~2.2 cm x 6.2 cm with **two single 0.1" rows**, one on each long edge. Row spacing is ~Pico-like (the two rows face each other across the stick). It is **not** a 0.1" dual-row connector. A Digilent PMOD is 2x6 with 0.1" **between** rows. There is no hidden 2x6 PMOD footprint on this board.
 
 **Electrical:** UP5K GPIO on those DIP holes. "PMOD compatible" means the **pin order** on a 1x6 of those holes (27, 26, 25, 23, GND, 3V3), so you can jumper to a PMOD accessory — not Teensy/Pico/Feather/PMOD 2x6. tinyVision's own shop (not Tindie) will solder a 6-pin PMOD for a fee. That is a shop service, not a Tindie option.
+
+### snickerdoodle one (on desk) and the Gryphon baseboard
+
+Gryphon was the ArduPilot baseboard krtkl announced with the October 2015 Crowd Supply campaign and then withdrew before it was sold (50-unit gate, then removed 17 October 2015). Ryan said a cheaper babyGryphon would be posted with its schematic. That schematic is not in [krtkl/open-source-schematics](https://github.com/krtkl/open-source-schematics). The folders there are the SoM plus breakyBreaky, piSmasher, shieldBuddy, giggleBits, and whiteRhino. Specs Ryan posted for Gryphon itself, never shipped: TI TMS570LS0714 lockstep Cortex-R4F, Lattice MachXO2-7000 CSI-2 bridge, u-blox EVA-M8M, three MPU-9250, two MS5611, and the Samtec TFM stack that mates the snickerdoodle. Source: [drones-discuss, 6–17 October 2015](https://groups.google.com/g/drones-discuss/c/pnhlsQX3giY).
 
 ---
 
