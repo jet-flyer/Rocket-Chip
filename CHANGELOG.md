@@ -45,7 +45,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation, hardware
 
-**On-desk krtkl module is snickerdoodle one (~17.6k LUT).** `docs/hardware/FPGA/README.md`, `starcom/docs/DESIGN.md`, and `starcom/AGENT_WHITEBOARD.md` had been counting the black module's ~53k LUT. Encode stays the small Forgix T8 job. LDPC decode stays Pi/GCS software; this fabric is the size already classed out of that place-and-route. Gryphon, the 2015 ArduPilot baseboard, was withdrawn before sale; its schematic is not in krtkl/open-source-schematics.
+**On-desk krtkl module is snickerdoodle one (~17.6k LUT).** `docs/hardware/FPGA/README.md`, `starcom/docs/DESIGN.md`, and `starcom/AGENT_WHITEBOARD.md` had been counting the black module's ~53k LUT. Encode stays the small Forgix T8 job. LDPC decode stays Pi/GCS software; this fabric is the size already classed out of that place-and-route. Gryphon, the 2015 ArduPilot baseboard, was withdrawn before sale; its schematic is not in krtkl/open-source-schematics. Starcom row: `starcom/CHANGELOG.md` 2026-09-23-001.
 
 ### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix, hardware
 

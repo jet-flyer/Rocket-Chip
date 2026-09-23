@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation
+
+**On-hand fabric figure is snickerdoodle one (~17.6k LUT).** `docs/DESIGN.md` and `AGENT_WHITEBOARD.md` had been counting ~53k LUT. Encode stays the small job. LDPC decode stays Pi/GCS software. No version bump. No tag.
+
+RC hardware inventory is root `CHANGELOG.md` 2026-09-23-001.
+
+Verified: docs only, no firmware path in this tree.
+
 ### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix
 
 **Responder reconnect hail while active.** `macOnHailReceived`: half-duplex responder in data-services goes S2 then E30 (211.0 table 6-12 E82/E85, table 6-10 E30). Test `test_half_rehail_while_active`. No version bump. No tag.
