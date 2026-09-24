@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import csv
 import json
+import math
 import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -39,6 +40,49 @@ PUBLISH_KEYS = [
 def load_rows(path: Path) -> List[dict]:
     lines = [L for L in path.read_text(encoding="utf-8").splitlines() if L.strip() and not L.strip().startswith("#")]
     return list(csv.DictReader(lines))
+
+
+def make_pad_rows(rows: List[dict], pad_s: float, dip: bool) -> List[dict]:
+    """Prepend pad_s of ARMED-on-pad rows at 10 Hz (negative met_ms = T-minus).
+
+    With dip, the link sags through amber then red mid-pad and recovers, so the
+    RSSI/SNR/LQ alphas visibly change colour (the flight itself stays green).
+    Pad values are synthetic, not from a real flight.
+    """
+    n = int(round(pad_s * 10))
+    if n <= 0 or not rows:
+        return rows
+    base = rows[0]
+    pad: List[dict] = []
+    for i in range(n):
+        t = i / 10.0
+        rssi = -56.0 + 2.0 * math.sin(i * 0.7) + ((i * 37) % 5 - 2) * 0.5
+        snr = 8.8 + 0.6 * math.sin(i * 0.9)
+        lq = 100.0
+        if dip and pad_s >= 6:
+            # 0..1..0 sag between 35% and 75% of the pad window
+            a, b = 0.35 * pad_s, 0.75 * pad_s
+            if a <= t <= b:
+                k = math.sin(math.pi * (t - a) / (b - a))
+                rssi += k * (-118.0 - rssi)
+                snr += k * (-6.5 - snr)
+                lq += k * (30.0 - lq)
+        r = dict(base)
+        r.update({
+            "met_ms": str(-(n - i) * 100), "seq": str(i), "phase_event": "",
+            "chute_detected": "0", "alt_m": f"{0.05 * math.sin(i * 1.3):.2f}",
+            "baro_alt_m": f"{0.2 * math.sin(i * 0.5):.2f}", "max_alt_m": "0.0",
+            "vvel_mps": f"{0.1 * math.sin(i * 1.1):.2f}", "speed_mps": "0.0",
+            "rssi": f"{round(rssi)}", "rssi_dbm": f"{round(rssi)}",
+            "snr": f"{snr:.1f}", "snr_db": f"{snr:.1f}", "lq_pct": f"{round(lq)}",
+        })
+        pad.append(r)
+    for r in rows:
+        try:
+            r["seq"] = str(int(float(r.get("seq") or 0)) + n)
+        except ValueError:
+            pass
+    return pad + rows
 
 
 class Hub:
@@ -261,6 +305,9 @@ async def main_async(args: argparse.Namespace) -> None:
         raise SystemExit(f"missing csv: {csv_path}")
     rows = load_rows(csv_path)
     print(f"[feed] {len(rows)} rows from {csv_path}", flush=True)
+    if args.pad_s > 0:
+        rows = make_pad_rows(rows, args.pad_s, dip=not args.pad_flat)
+        print(f"[feed] +{args.pad_s:g}s pad before launch (dip={'off' if args.pad_flat else 'on'})", flush=True)
     hub = Hub()
     hub.loop = asyncio.get_running_loop()
     start_http(hub, args.http_port)
@@ -298,6 +345,8 @@ def main() -> None:
     p.add_argument("--bind", default="127.0.0.1")
     p.add_argument("--rate", type=float, default=1.0)
     p.add_argument("--loop", action="store_true", help="After play finishes, play again until stop")
+    p.add_argument("--pad-s", type=float, default=10.0, help="Seconds of synthetic ARMED-on-pad data before launch (0 = off)")
+    p.add_argument("--pad-flat", action="store_true", help="Pad link stays nominal (no amber/red sag)")
     p.add_argument("--autoplay", action="store_true", help="Start playing immediately (legacy)")
     args = p.parse_args()
     asyncio.run(main_async(args))

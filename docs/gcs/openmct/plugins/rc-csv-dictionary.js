@@ -1,7 +1,8 @@
 /**
  * Rocket Chip Master Dashboard — QGC/Mission Planner-style instrument ring.
- * Primary pane = trajectory (map stays small/secondary for rocketry).
- * Ring = phase LAD + vehicle/link gauges; plots = drill-down; caution strip bottom.
+ * Primary pane = trajectory; ring = phase LAD + vehicle gauges + Condition Set
+ * alphanumerics for link/power; drill-down = dynamics. Radio overlay kept in
+ * dict for a later dedicated RF page (not on home — plots barely move vs alt/VSI).
  */
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
@@ -89,49 +90,188 @@
     };
   }
 
-  function swRule(id, label, bg, conditions) {
-    return {
-      name: label,
-      label: label,
-      message: '',
-      id: id,
-      icon: ' ',
-      style: {
-        color: '#ffffff',
-        'background-color': bg,
-        'border-color': 'rgba(0,0,0,0)'
-      },
-      description: label,
-      conditions: conditions,
-      jsCondition: '',
-      trigger: 'any',
-      expanded: 'true'
-    };
-  }
-
-  function caution(key, title, telemKey, alarmOp, alarmVal, alarmLabel, alarmBg) {
-    const telem = KS(telemKey);
+  /** Guide-style Condition Set: alarm → warn → default (first match wins). */
+  function conditionSet(key, title, telemKey, alarmOp, alarmVal, warnOp, warnVal) {
+    const telemKs = KS(telemKey);
+    const alarmId = key + '-alarm';
+    const warnId = key + '-warn';
+    const okId = key + '-ok';
+    const staleId = key + '-stale';
     return {
       identifier: idFor(key),
       name: title,
-      type: 'summary-widget',
+      type: 'conditionSet',
       location: NAMESPACE + ':master',
       composition: [idFor(telemKey)],
-      openNewTab: 'thisTab',
-      telemetry: {},
       configuration: {
-        ruleOrder: ['default', 'alarm'],
-        ruleConfigById: {
-          default: swRule('default', 'OK', '#38761d', []),
-          alarm: swRule('alarm', alarmLabel, alarmBg, [{
-            object: telem,
-            key: 'value',
-            operation: alarmOp,
-            values: [String(alarmVal)]
-          }])
+        conditionCollection: [
+          {
+            // First, so a silent link never shows its last good (green) value.
+            id: staleId,
+            configuration: {
+              name: 'NO DATA',
+              output: 'NO DATA',
+              trigger: 'all',
+              criteria: [{
+                id: staleId + '-c0',
+                telemetry: telemKs,
+                operation: 'isStale',
+                input: [String(STALE_S)],
+                metadata: 'dataReceived'
+              }]
+            },
+            summary: title + ' no data (no update for ' + STALE_S + ' s)'
+          },
+          {
+            id: alarmId,
+            configuration: {
+              name: 'LO',
+              output: 'LO',
+              trigger: 'all',
+              criteria: [{
+                id: alarmId + '-c0',
+                telemetry: telemKs,
+                operation: alarmOp,
+                input: [String(alarmVal)],
+                metadata: 'value'
+              }]
+            },
+            summary: title + ' alarm'
+          },
+          {
+            id: warnId,
+            configuration: {
+              name: 'WARN',
+              output: 'WARN',
+              trigger: 'all',
+              criteria: [{
+                id: warnId + '-c0',
+                telemetry: telemKs,
+                operation: warnOp,
+                input: [String(warnVal)],
+                metadata: 'value'
+              }]
+            },
+            summary: title + ' warn'
+          },
+          {
+            isDefault: true,
+            id: okId,
+            configuration: {
+              name: 'OK',
+              output: 'OK',
+              trigger: 'all',
+              criteria: []
+            },
+            summary: 'Default'
+          }
+        ]
+      },
+      telemetry: {}
+    };
+  }
+
+  // NO DATA: no update for this long X-es the box out (grey, white X, dimmed text), like the
+  // avionics "X through a field not receiving valid data". Also the state before any data
+  // arrives. Station link is ~10 Hz; 3 s leaves room for a slower USB dash scrape.
+  const STALE_S = 3;
+  const X_LINE = 'transparent calc(50% - 1.5px), #ffffff calc(50% - 1.5px), #ffffff calc(50% + 1.5px), transparent calc(50% + 1.5px)';
+  const S_XOUT = {
+    backgroundColor: '#4d4d4d', border: '1px solid #9e9e9e', color: 'rgba(255,255,255,0.35)',
+    backgroundImage: 'linear-gradient(to top right, ' + X_LINE + '), linear-gradient(to bottom right, ' + X_LINE + ')'
+  };
+  const S_OK = { backgroundColor: '#38761d', border: 'rgba(0,0,0,0)', color: '#ffffff', backgroundImage: 'none' };
+  const S_WARN = { backgroundColor: '#b45f06', border: 'rgba(0,0,0,0)', color: '#ffffff', backgroundImage: 'none' };
+  const S_ALARM = { backgroundColor: '#990000', border: 'rgba(0,0,0,0)', color: '#ffffff', backgroundImage: 'none' };
+
+  /** objectStyles block: entries = [[conditionId, output, style], ...]; last entry is the default. */
+  function styleBlock(csKey, entries) {
+    const def = entries[entries.length - 1];
+    return {
+      conditionSetIdentifier: idFor(csKey),
+      selectedConditionId: '',
+      defaultConditionId: def[0],
+      staticStyle: { style: Object.assign({}, S_XOUT) },
+      styles: entries.map(function (e) {
+        return { conditionId: e[0], style: Object.assign({ output: e[1] }, e[2]) };
+      })
+    };
+  }
+
+  function alphaStyle(csKey, alarmId, warnId, okId) {
+    return styleBlock(csKey, [
+      [csKey + '-stale', 'NO DATA', S_XOUT],
+      [alarmId, 'LO', S_ALARM],
+      [warnId, 'WARN', S_WARN],
+      [okId, 'OK', S_OK]
+    ]);
+  }
+
+  /**
+   * Status Condition Set for a labelled caution box: NO DATA first, then rules in order
+   * ({ id, output, op, val }), then the default output.
+   */
+  function statusSet(key, title, telemKey, rules, defOutput) {
+    const telemKs = KS(telemKey);
+    const coll = [{
+      id: key + '-stale',
+      configuration: {
+        name: 'NO DATA', output: title, trigger: 'all',
+        criteria: [{ id: key + '-stale-c0', telemetry: telemKs, operation: 'isStale',
+          input: [String(STALE_S)], metadata: 'dataReceived' }]
+      },
+      summary: title + ' no data'
+    }];
+    rules.forEach(function (r) {
+      coll.push({
+        id: key + '-' + r.id,
+        configuration: {
+          name: r.output, output: r.output, trigger: 'all',
+          criteria: [{ id: key + '-' + r.id + '-c0', telemetry: telemKs, operation: r.op,
+            input: [String(r.val)], metadata: 'value' }]
         },
-        testDataConfig: [{ object: '', key: '', value: '' }]
-      }
+        summary: r.output
+      });
+    });
+    coll.push({
+      isDefault: true, id: key + '-ok',
+      configuration: { name: defOutput, output: defOutput, trigger: 'all', criteria: [] },
+      summary: 'Default'
+    });
+    return {
+      identifier: idFor(key), name: title + ' conditions', type: 'conditionSet',
+      location: NAMESPACE + ':master', composition: [idFor(telemKey)],
+      configuration: { conditionCollection: coll }, telemetry: {}
+    };
+  }
+
+  /** Condition Widget whose label is the Condition Set output, styled per condition. */
+  function statusWidget(key, title, csKey, entries) {
+    return {
+      identifier: idFor(key), name: title, type: 'conditionWidget',
+      location: NAMESPACE + ':master', label: title,
+      configuration: { useConditionSetOutputAsLabel: true, objectStyles: styleBlock(csKey, entries) }
+    };
+  }
+
+  // 2x2 grid sized to the ~40-cell-wide Link / Power frame (grid cell = 10 px).
+  function alphaItem(id, telemKey, x, y) {
+    return {
+      id: id,
+      type: 'telemetry-view',
+      identifier: idFor(telemKey),
+      x: x,
+      y: y,
+      width: 18,
+      height: 7,
+      displayMode: 'all',
+      value: 'value',
+      stroke: '',
+      fill: '',
+      color: '',
+      fontSize: '16px',
+      font: 'default',
+      showUnits: true
     };
   }
 
@@ -178,7 +318,7 @@
     }
   };
 
-  /** RSSI left axis (dBm), SNR right axis (dB) — like alt vs VSI. */
+  /** Parked for dedicated RF page — not on Master home (Nathan 2026-09-23). */
   const RADIO = {
     identifier: idFor('link-overlay-radio'),
     name: 'Radio (RSSI | SNR)',
@@ -197,19 +337,60 @@
     }
   };
 
-  const G_BATT = gauge('batt_v', 'Battery gauge', 3.0, 4.2, 3.3, 4.1);
-  const G_RSSI = gauge('rssi', 'RSSI gauge', -120, -20, -100, -40);
-  const G_LQ = gauge('lq_pct', 'LQ gauge', 0, 100, 40, 90);
   const G_BARO = gauge('baro_alt_m', 'Baro AGL gauge', -50, 4000, 0, 3500);
   const G_VVEL = gauge('vvel_mps', 'VVel gauge', -100, 100, -80, 80);
   const G_SPEED = gauge('speed_mps', 'Speed gauge', 0, 400, 0, 350);
 
-  const SW_RSSI = caution('sw-rssi', 'RSSI', 'rssi', 'lessThan', -100, 'LO', '#990000');
-  const SW_LQ = caution('sw-lq', 'LQ', 'lq_pct', 'lessThan', 40, 'LO', '#990000');
-  const SW_BATT = caution('sw-batt', 'BATT', 'batt_v', 'lessThan', 3.5, 'LO', '#990000');
-  const SW_CHUTE = caution('sw-chute', 'CHUTE', 'chute_detected', 'equalTo', 1, 'YES', '#b45f06');
-  const SW_GPS = caution('sw-gps', 'GPS', 'gps_fix', 'lessThan', 3, 'NO FIX', '#990000');
+  const CS_CHUTE = statusSet('cs-chute', 'CHUTE', 'chute_detected',
+    [{ id: 'out', output: 'CHUTE DEPLOYED', op: 'equalTo', val: 1 }], 'CHUTE STOWED');
+  const CS_GPS = statusSet('cs-gps', 'GPS', 'gps_fix',
+    [{ id: 'nofix', output: 'GPS NO FIX', op: 'lessThan', val: 2 },
+     { id: '2d', output: 'GPS 2D FIX', op: 'lessThan', val: 3 }], 'GPS 3D FIX');
+  const CW_CHUTE = statusWidget('cw-chute', 'CHUTE', 'cs-chute', [
+    ['cs-chute-stale', 'CHUTE', S_XOUT],
+    ['cs-chute-out', 'CHUTE DEPLOYED', S_WARN],
+    ['cs-chute-ok', 'CHUTE STOWED', S_OK]
+  ]);
+  const CW_GPS = statusWidget('cw-gps', 'GPS', 'cs-gps', [
+    ['cs-gps-stale', 'GPS', S_XOUT],
+    ['cs-gps-nofix', 'GPS NO FIX', S_ALARM],
+    ['cs-gps-2d', 'GPS 2D FIX', S_WARN],
+    ['cs-gps-ok', 'GPS 3D FIX', S_OK]
+  ]);
 
+  // SNR limits assume LoRa SF7 (default radio_config.h; demod floor ~-7.5 dB):
+  // red ~2.5 dB above floor, amber 5 dB above red. RSSI: SF7/BW125 sensitivity ~-123 dBm,
+  // red ~8 dB above, amber 10 dB above red. Retune both if SF/BW changes; FSK needs its own.
+  const CS_RSSI = conditionSet('cs-rssi', 'RSSI conditions', 'rssi', 'lessThan', -115, 'lessThan', -105);
+  const CS_SNR = conditionSet('cs-snr', 'SNR conditions', 'snr', 'lessThan', -5, 'lessThan', 0);
+  const CS_LQ = conditionSet('cs-lq', 'LQ conditions', 'lq_pct', 'lessThan', 40, 'lessThan', 60);
+  const CS_BATT = conditionSet('cs-batt', 'Battery conditions', 'batt_v', 'lessThan', 3.5, 'lessThan', 3.7);
+
+  const LINK_ALPHA = {
+    identifier: idFor('master-link-alpha'),
+    name: 'Link / Power (alphas)',
+    type: 'layout',
+    location: NAMESPACE + ':master',
+    composition: [
+      idFor('rssi'), idFor('snr'), idFor('lq_pct'), idFor('batt_v'),
+      idFor('cs-rssi'), idFor('cs-snr'), idFor('cs-lq'), idFor('cs-batt')
+    ],
+    configuration: {
+      layoutGrid: [10, 10],
+      items: [
+        alphaItem('li-alpha-rssi', 'rssi', 1, 1),
+        alphaItem('li-alpha-snr', 'snr', 20, 1),
+        alphaItem('li-alpha-lq', 'lq_pct', 1, 9),
+        alphaItem('li-alpha-batt', 'batt_v', 20, 9)
+      ],
+      objectStyles: {
+        'li-alpha-rssi': alphaStyle('cs-rssi', 'cs-rssi-alarm', 'cs-rssi-warn', 'cs-rssi-ok'),
+        'li-alpha-snr': alphaStyle('cs-snr', 'cs-snr-alarm', 'cs-snr-warn', 'cs-snr-ok'),
+        'li-alpha-lq': alphaStyle('cs-lq', 'cs-lq-alarm', 'cs-lq-warn', 'cs-lq-ok'),
+        'li-alpha-batt': alphaStyle('cs-batt', 'cs-batt-alarm', 'cs-batt-warn', 'cs-batt-ok')
+      }
+    }
+  };
 
   function layoutItem(id, key, x, width) {
     return {
@@ -219,7 +400,7 @@
       x: x,
       y: 1,
       width: width,
-      height: 8,
+      height: 5,
       hasFrame: false
     };
   }
@@ -230,17 +411,13 @@
     type: 'layout',
     location: NAMESPACE + ':master',
     composition: [
-      idFor('sw-rssi'), idFor('sw-lq'), idFor('sw-batt'),
-      idFor('sw-chute'), idFor('sw-gps')
+      idFor('cw-chute'), idFor('cw-gps'), idFor('cs-chute'), idFor('cs-gps')
     ],
     configuration: {
       layoutGrid: [10, 10],
       items: [
-        layoutItem('li-sw-rssi', 'sw-rssi', 1, 18),
-        layoutItem('li-sw-lq', 'sw-lq', 21, 18),
-        layoutItem('li-sw-batt', 'sw-batt', 41, 18),
-        layoutItem('li-sw-chute', 'sw-chute', 61, 18),
-        layoutItem('li-sw-gps', 'sw-gps', 81, 18)
+        layoutItem('li-cw-chute', 'cw-chute', 1, 20),
+        layoutItem('li-cw-gps', 'cw-gps', 22, 20)
       ]
     }
   };
@@ -254,19 +431,19 @@
       idFor('master-phase'),
       idFor('link-overlay-traj'),
       idFor('link-overlay-dyn'),
-      idFor('link-overlay-radio'),
       idFor('gauge-baro_alt_m'),
       idFor('gauge-vvel_mps'),
       idFor('gauge-speed_mps'),
-      idFor('gauge-rssi'),
-      idFor('gauge-lq_pct'),
-      idFor('gauge-batt_v'),
+      idFor('master-link-alpha'),
+      idFor('cs-rssi'),
+      idFor('cs-snr'),
+      idFor('cs-lq'),
+      idFor('cs-batt'),
       idFor('master-caution'),
-      idFor('sw-rssi'),
-      idFor('sw-lq'),
-      idFor('sw-batt'),
-      idFor('sw-chute'),
-      idFor('sw-gps')
+      idFor('cw-chute'),
+      idFor('cw-gps'),
+      idFor('cs-chute'),
+      idFor('cs-gps')
     ],
     configuration: {
       rowsLayout: true,
@@ -284,17 +461,14 @@
             frame('rc-f-vvel', 'gauge-vvel_mps', 10),
             frame('rc-f-speed', 'gauge-speed_mps', 10),
             frame('rc-f-traj', 'link-overlay-traj', 40),
-            frame('rc-f-rssi', 'gauge-rssi', 10),
-            frame('rc-f-lq', 'gauge-lq_pct', 10),
-            frame('rc-f-batt', 'gauge-batt_v', 10)
+            frame('rc-f-link', 'master-link-alpha', 30)
           ]
         },
         {
           id: 'rc-c-drill',
           size: 22,
           frames: [
-            frame('rc-f-dyn', 'link-overlay-dyn', 50),
-            frame('rc-f-radio', 'link-overlay-radio', 50)
+            frame('rc-f-dyn', 'link-overlay-dyn', 100)
           ]
         },
         {
@@ -314,18 +488,19 @@
     'link-overlay-traj': TRAJ,
     'link-overlay-dyn': DYN,
     'link-overlay-radio': RADIO,
-    'gauge-batt_v': G_BATT,
-    'gauge-rssi': G_RSSI,
-    'gauge-lq_pct': G_LQ,
     'gauge-baro_alt_m': G_BARO,
     'gauge-vvel_mps': G_VVEL,
     'gauge-speed_mps': G_SPEED,
+    'master-link-alpha': LINK_ALPHA,
+    'cs-rssi': CS_RSSI,
+    'cs-snr': CS_SNR,
+    'cs-lq': CS_LQ,
+    'cs-batt': CS_BATT,
     'master-caution': MASTER_CAUTION,
-    'sw-rssi': SW_RSSI,
-    'sw-lq': SW_LQ,
-    'sw-batt': SW_BATT,
-    'sw-chute': SW_CHUTE,
-    'sw-gps': SW_GPS
+    'cs-chute': CS_CHUTE,
+    'cs-gps': CS_GPS,
+    'cw-chute': CW_CHUTE,
+    'cw-gps': CW_GPS
   };
 
   function RcCsvDictionaryPlugin(options) {
@@ -384,6 +559,7 @@
           return o.identifier.namespace === NAMESPACE &&
             (o.type === 'folder' || o.type === 'table' || o.type === 'LadTable' ||
              o.type === 'gauge' || o.type === 'summary-widget' ||
+             o.type === 'conditionSet' ||
              o.type === 'flexible-layout' || o.type === 'display-layout' || o.type === 'layout' ||
              o.type === 'telemetry.plot.overlay' || o.type === 'telemetry.plot.stacked');
         },

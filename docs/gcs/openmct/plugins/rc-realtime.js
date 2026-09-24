@@ -6,6 +6,9 @@
 (function (global) {
   const NAMESPACE = 'rocket-chip.hello';
   const BUFFER_MS = 120000;
+  // Subscribed on connect so buffers fill before a view opens; never unsubscribed.
+  const ALWAYS = ['seq', 'rssi', 'snr', 'baro', 'baro_alt_m', 'alt_m', 'batt_v', 'vvel_mps',
+    'speed_mps', 'gps_fix', 'gps_sats', 'flight_state', 'lq_pct', 'lat', 'lon'];
 
   function RcRealtimePlugin(options) {
     options = options || {};
@@ -33,12 +36,13 @@
           utc: Number(point.timestamp),
           value: point.value
         };
+        global.__rcWsLastMs = Date.now();
         buffers[id].push(datum);
         trimBuffer(id, datum.timestamp);
-        var cb = listeners[id];
-        if (cb) {
+        // Several views can watch one id (alpha + its condition set + plots).
+        (listeners[id] || []).slice().forEach(function (cb) {
           try { cb(datum); } catch (e) { console.warn('[rc-rt] callback', e); }
-        }
+        });
       }
 
       function connect() {
@@ -58,7 +62,7 @@
             try { socket.send('subscribe ' + id); } catch (e) {}
           });
           // Also subscribe all channels so buffers fill even before plot opens
-          ['seq', 'rssi', 'snr', 'baro', 'baro_alt_m', 'alt_m', 'batt_v', 'vvel_mps', 'speed_mps', 'gps_fix', 'gps_sats', 'flight_state', 'lq_pct', 'lat', 'lon'].forEach(function (id) {
+          ALWAYS.forEach(function (id) {
             try { socket.send('subscribe ' + id); } catch (e) {}
           });
         };
@@ -93,7 +97,7 @@
         },
         subscribe: function (domainObject, callback) {
           var id = domainObject.identifier.key;
-          listeners[id] = callback;
+          (listeners[id] = listeners[id] || []).push(callback);
           connect();
           if (socket && socket.readyState === WebSocket.OPEN) {
             try { socket.send('subscribe ' + id); } catch (e) {}
@@ -104,7 +108,12 @@
             try { callback(buf[buf.length - 1]); } catch (e) {}
           }
           return function unsubscribe() {
+            var arr = listeners[id] || [];
+            var i = arr.indexOf(callback);
+            if (i >= 0) arr.splice(i, 1);
+            if (arr.length) return;
             delete listeners[id];
+            if (ALWAYS.indexOf(id) >= 0) return;
             if (socket && socket.readyState === WebSocket.OPEN) {
               try { socket.send('unsubscribe ' + id); } catch (e) {}
             }

@@ -15,6 +15,8 @@ python docs/gcs/openmct/realtime/enrich_big_daddy_fidelity.py
 python docs/gcs/openmct/realtime/feed_facsimile.py --loop --rate 1
 `
 
+Play starts with 10 s of synthetic ARMED-on-pad data (negative `met_ms`). Mid-pad the link sags through amber and red, then recovers, so the RSSI/SNR/LQ colours get exercised. `--pad-s 0` turns it off and `--pad-flat` keeps it nominal.
+
 WS: `ws://127.0.0.1:8091/`. Hard-reload hello-world; conductor **REAL-TIME** -30s; open **Master Dashboard v1** / **Master Glance (stacked)**.
 
 ## Station live scrape
@@ -23,7 +25,7 @@ WS: `ws://127.0.0.1:8091/`. Hard-reload hello-world; conductor **REAL-TIME** -30
 python docs/gcs/openmct/realtime/stream_station.py --port COM7 --ws-port 8091
 `
 
-Station scrape today is RF + baro-ish; IMU/quat/temps/Vbatt for glass come from facsimile (or vehicle telem) until those fields are on USB/`m`.
+Only one feed can own :8091, so close the facsimile window first; the page reconnects on its own. Station scrape today is RF + baro-ish; IMU/quat/temps/Vbatt for glass come from facsimile (or vehicle telem) until those fields are on USB/`m`.
 
 ## Station MAVLink USB (when kMavlink / STX lock)
 

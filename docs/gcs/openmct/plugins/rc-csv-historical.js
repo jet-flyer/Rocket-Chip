@@ -118,8 +118,15 @@
       if (typeof openmct.on === 'function') openmct.on('start', tryApplyBounds);
       setTimeout(tryApplyBounds, 800);
 
-      // While clock is running, nudge bounds slightly so plots re-request
+      // Rolling live.csv fallback only: refetch + nudge bounds so views re-request.
+      // Skipped for a static CSV and whenever the WebSocket feed is delivering
+      // (subscribe already covers it). Unconditional 1 s polling re-fetched the whole
+      // CSV and made every view re-request each second: ~1 core of CPU and a NaN
+      // flash on the gauges when the re-request came back empty.
+      var pollLive = /live/i.test(csvUrl);
       setInterval(function () {
+        if (!pollLive) return;
+        if (Date.now() - (global.__rcWsLastMs || 0) < 3000) return;
         try {
           loadRows(true);
           // Nudge bounds so TelemetryCollection re-requests while clock runs
@@ -145,7 +152,8 @@
             const end = requestOptions.end;
             return rows
               .filter(function (row) {
-                return row.timestamp >= start && row.timestamp <= end;
+                return row.timestamp >= start && row.timestamp <= end &&
+                  typeof row[key] === 'number' && !Number.isNaN(row[key]);
               })
               .map(function (row) {
                 return { timestamp: row.timestamp, utc: row.timestamp, value: row[key] };
