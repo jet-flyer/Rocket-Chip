@@ -184,12 +184,11 @@ Two new driver modes in `ws2812_status.cpp`:
 - `WS2812_MODE_DOUBLE_FLASH` — AP-parity pre-arm-fail shape
   (100/100/100/700 ms). Hardcoded timing.
 
-**Station/vehicle LED role divergence (Stage L council decision):**
-Station runs no AO_LedEngine — the Fruit Jam's 5-LED NeoPixel strip is
-owned by AO_Radio as an RSSI bar, per LL Entry 32 (PIO contention
-avoidance). Station's role is link-quality display; vehicle's role is
-flight-state display. Intentional role-specific UX, not a candidate
-for future unification.
+**Chain owner:** `AO_LedEngine` is the runtime writer on every role.
+`AO_Radio` posts station link state to `AO_Notify`. One PIO state
+machine drives the chain (LL Entry 32). Vehicle patterns are flight
+state. Station and relay patterns are the link fill / flash / sweep.
+Fruit Jam has five pixels; a one-pixel chain uses the same calls.
 
 `cmd_findme_beacon()` on station role-gates to skip the local publish
 path and instead send `MAV_CMD_USER_1` over radio — vehicle's

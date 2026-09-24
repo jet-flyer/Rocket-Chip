@@ -2,7 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
 // Notification intents — typed per category; kNone=0 so zero-init is idle.
-// Priority: Fault > Calibration > Flight > Radio > Sensor > Idle.
+// Priority: Fault > station link (if posted) > Calibration > Flight >
+// Radio > Sensor > Idle.
 // Cal above Flight so a cal overlay stays visible. See NOTIFY_CONTRACT.md.
 //============================================================================
 #ifndef ROCKETCHIP_NOTIFY_INTENTS_H
@@ -38,8 +39,8 @@ enum class PhaseIntent : uint8_t {
 // ============================================================================
 enum class CalIntent : uint8_t {
     kNone          = 0,
-    kGyro          = 1,   // Blue breathe (keep still)
-    kLevel         = 2,   // Blue breathe (keep flat)
+    kGyro          = 1,   // Yellow blink (keep still)
+    kLevel         = 2,   // Yellow blink (keep flat)
     kBaro          = 3,   // Cyan breathe (sampling)
     kAccelWait     = 4,   // Yellow blink (position board)
     kAccelSample   = 5,   // Yellow solid (hold still)
@@ -91,6 +92,9 @@ enum class FaultIntent : uint8_t {
 // beacon_manual: CLI findme / GCS — pure white 2 Hz; wins over auto.
 // Both clear on SIG_PHASE_CHANGE out of LANDED/ABORT.
 // vehicle_lost: AO_RfManager link-lost latch (not AO_Radio's per-packet RadioIntent).
+// station_*: set by AO_Notify_post_station_link. station_mode matches
+// StationBarMode. Inactive until the first post, so vehicle resolution
+// is unchanged.
 struct NotifyState {
     PhaseIntent  phase;
     CalIntent    cal;
@@ -100,6 +104,10 @@ struct NotifyState {
     bool         beacon_auto;
     bool         beacon_manual;
     bool         vehicle_lost;
+    bool         station_active;
+    bool         station_apply;
+    uint8_t      station_mode;
+    int16_t      station_rssi;
 };
 
 } // namespace notify

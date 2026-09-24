@@ -80,7 +80,7 @@ rocketchip/
 │   │   └── RESEARCH.md
 │   ├── hardware/
 │   │   ├── HARDWARE.md            # Hardware specs, pin assignments
-│   │   ├── STATUS_INDICATORS.md   # LED patterns and status feedback
+│   │   ├── STATUS_INDICATORS.md   # 2026-02 bring-up sketch; live LEDs in USER_GUIDE.md
 │   │   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
 │   │   ├── TELSTAR_BOOSTER_PACK.md    # ELRS RC link + FPV video Booster Pack
 │   │   ├── ESP32_S3_PIVOT_ANALYSIS.md
@@ -357,7 +357,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
 | **calibration_storage** | Dual-sector flash persistence for calibration data |
 | **rc_os** | CLI command handlers — "local GCS" translating keystrokes to commands |
-| **ao_radio** | AO priority 8 — RFM95W, tx_active lock, RX polling, RSSI bar, relay |
+| **ao_radio** | AO priority 8 — RFM95W, tx_active lock, RX polling, station link post, relay |
 | **ao_flight_director** | AO priority 7 — HSM: IDLE→ARMED→BOOST→...→LANDED, pyro commands |
 | **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
 | **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio); Stage L adds beacon overlay, pre-arm-fail + boot-init visuals |

@@ -1,78 +1,14 @@
 # Status Indicators and Messages
 
-**Purpose:** Central reference for all user-facing status feedback: LEDs, serial messages, telemetry codes, and audio (future).
+**Written:** 2026-02-02, FreeRTOS bring-up. Sections 2–5 below are that sketch.
+
+**LEDs:** the tables that used to live in section 1 (green breathe = armed, white = boost, purple = coast) are not the firmware. Operator colors are `docs/USER_GUIDE.md`. Intent → pattern code is `docs/decisions/NOTIFY_CONTRACT.md`. Codes are `include/rocketchip/led_patterns.h`, drawn by `ao_led_engine.cpp`.
 
 ---
 
 ## 1. LED Indicators
 
-### Hardware
-
-| LED | GPIO | Type | Purpose |
-|-----|------|------|---------|
-| Red LED | 7 | Simple on/off | Heartbeat, error patterns |
-| NeoPixel | 21 | WS2812 RGB | Primary status indicator |
-
-### Boot Sequence
-
-| Phase | Red LED | NeoPixel | Duration |
-|-------|---------|----------|----------|
-| Power on | Off | Off | <100ms |
-| FreeRTOS starting | Off | Off | <100ms |
-| Normal operation | 1Hz heartbeat | Rainbow cycle | Continuous |
-
-### Normal Operation
-
-| State | Red LED | NeoPixel Color | NeoPixel Mode |
-|-------|---------|----------------|---------------|
-| Idle/Demo | 1Hz heartbeat | Rainbow | Rainbow cycle |
-| Initializing | 1Hz heartbeat | Yellow | Solid |
-| Ready | 1Hz heartbeat | Green | Solid |
-| Armed | 1Hz heartbeat | Green | Breathe |
-| Calibrating | 1Hz heartbeat | Cyan | Breathe |
-| Recording | 1Hz heartbeat | Blue | Solid |
-
-### Flight States (Future)
-
-| State | NeoPixel Color | NeoPixel Mode |
-|-------|----------------|---------------|
-| Boost | White | Solid |
-| Coast | Purple | Solid |
-| Apogee | Magenta | Blink |
-| Descent | Orange | Breathe |
-| Landed | Green | Slow blink |
-
-### Error States
-
-| Error | Red LED | NeoPixel | Cause |
-|-------|---------|----------|-------|
-| Malloc failed | Fast blink | Red, fast blink | Heap exhausted |
-| Stack overflow | Long-short-short | Orange, fast blink | Task stack exceeded |
-| Sensor failure | Fast blink | Red, solid | IMU/Baro not responding |
-| Storage error | 2Hz blink | Yellow, fast blink | Flash write failed |
-
-### LED Pattern Reference
-
-| Pattern | Timing | Use |
-|---------|--------|-----|
-| Heartbeat | 100ms on, 900ms off | Normal operation |
-| Fast blink | 100ms on/off (5Hz) | Critical error |
-| Breathe | Sinusoidal 10-100%, 2s cycle | Activity/waiting |
-| Rainbow | HSV cycle, 6s period | Demo/idle |
-
-### Color Reference
-
-| Color | Hex | Meaning |
-|-------|-----|---------|
-| Red | `#400000` | Error, critical |
-| Orange | `#402000` | Stack overflow, warning |
-| Yellow | `#404000` | Initializing, caution |
-| Green | `#004000` | Ready, nominal |
-| Cyan | `#004040` | Calibrating, USB |
-| Blue | `#000040` | Recording |
-| Purple | `#200040` | Coast phase |
-| Magenta | `#400040` | Apogee |
-| White | `#404040` | Boost |
+See the operator card and the notify contract above. One NeoPixel chain per board (`kNeoPixelCount`), drawn by `AO_Notify` / `AO_LedEngine` on every role. Armed is red solid.
 
 ---
 
@@ -128,15 +64,7 @@ Heap free: 58496 bytes
 
 ### Heartbeat Status
 
-| MAV_STATE | Meaning | LED |
-|-----------|---------|-----|
-| `MAV_STATE_UNINIT` | Booting | Yellow |
-| `MAV_STATE_BOOT` | Initializing | Yellow |
-| `MAV_STATE_CALIBRATING` | Calibration | Cyan |
-| `MAV_STATE_STANDBY` | Ready | Green |
-| `MAV_STATE_ACTIVE` | Armed/Flight | Green breathe |
-| `MAV_STATE_CRITICAL` | Error | Red |
-| `MAV_STATE_EMERGENCY` | Critical error | Red fast blink |
+The MAV_STATE → LED map from 2026-02-02 is retired with section 1. Live colors are `docs/USER_GUIDE.md`.
 
 ### Status Text Messages
 

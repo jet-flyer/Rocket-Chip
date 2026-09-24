@@ -17,8 +17,9 @@ extern QActive * const AO_LedEngine;
 
 void AO_LedEngine_start(uint8_t prio);
 
-// Post a resolved pattern (AO_Notify → kLayerNotify). See NOTIFY_CONTRACT.md.
-void AO_LedEngine_post_pattern(uint8_t pattern);
+// Post a resolved pattern (AO_Notify → kLayerNotify). rssi is the station
+// locked-fill level; other patterns pass 0. See NOTIFY_CONTRACT.md.
+void AO_LedEngine_post_pattern(uint8_t pattern, int16_t rssi = 0);
 
 // Dev helper: writes g_devOverridePattern (name is historical, not kLayerFault).
 // Non-zero wins over every layer. 0 disables the bypass. LED-test CLI.

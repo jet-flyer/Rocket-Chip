@@ -152,6 +152,7 @@ void ws2812_show() {
 
 void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
     if (!g_state.initialized) { return; }
+    g_state.mode = WS2812_MODE_PIXELS;
 
     // Clear all pixels
     for (uint8_t i = 0; i < g_state.numLeds; ++i) {
@@ -199,6 +200,7 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
 // persist in file-scope statics. Lights exactly 1 pixel at a time.
 void ws2812_set_sweep_bar(ws2812_rgb_t color) {
     if (!g_state.initialized) { return; }
+    g_state.mode = WS2812_MODE_PIXELS;
     static uint8_t g_pos = 0;
     static int8_t  g_dir = 1;
     const uint8_t n = g_state.numLeds;
@@ -221,6 +223,7 @@ void ws2812_set_sweep_bar(ws2812_rgb_t color) {
 
 void ws2812_set_flash_bar(ws2812_rgb_t color, bool lit) {
     if (!g_state.initialized) { return; }
+    g_state.mode = WS2812_MODE_PIXELS;
     const ws2812_rgb_t c = lit ? color : kColorOff;
     for (uint8_t i = 0; i < g_state.numLeds; ++i) {
         g_state.pixels[i] = c;
@@ -498,6 +501,9 @@ void ws2812_update() {
 
         case WS2812_MODE_DOUBLE_FLASH:
             update_double_flash(elapsed);
+            break;
+
+        case WS2812_MODE_PIXELS:
             break;
     }
 

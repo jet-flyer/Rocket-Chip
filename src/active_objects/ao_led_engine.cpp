@@ -18,6 +18,7 @@
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "drivers/ws2812_status.h"
+#include "rocketchip/job.h"
 #include "pico/time.h"
 // Seqlock is Core 1 vitality fallback only. Sensor-status LED lives in AO_Notify.
 
@@ -57,6 +58,11 @@ struct LedEngine {
     ws2812_rgb_t last_alt_color;   // MODE_ALTERNATE dedup
     uint32_t last_core1_count;  // Core1 vitality fallback
     uint8_t core1_stall_ticks;  // Consecutive ticks without core1 progress
+    int16_t notify_rssi;        // Station locked fill
+    int16_t station_drawn_rssi;
+    uint8_t station_drawn;      // Last station pattern, 0 = none
+    uint32_t station_mark_ms;
+    bool station_flash_on;
 };
 
 static LedEngine g_ledEngine;
@@ -106,8 +112,73 @@ static void led_set_alternate_if_changed(LedEngine * const me,
     }
 }
 
+static constexpr uint32_t kStationSweepMs = 50U;
+static constexpr uint32_t kStationFlashHalfMs = 250U;
+static constexpr ws2812_rgb_t kStationApplyColor = {0x20, 0x18, 0x00};
+
+static bool led_is_station(uint8_t val) {
+    return val >= rc::led::kStationNoSignal && val <= rc::led::kStationApply;
+}
+
+// Chain animation for a station pattern. Cadence lives here so AO_Radio
+// only reports the link. 50 ms sweep matches the old 100 Hz / 5-tick step.
+// 250 ms flash half-period matches the old 25-tick green toggle.
+static void led_render_station(LedEngine * const me, uint8_t val) {
+    // Next uniform pattern must call ws2812_set_mode again. The chain
+    // is in PIXELS until then, so a matching last_mode would skip it.
+    me->last_mode = WS2812_MODE_PIXELS;
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+    const bool entered = (me->station_drawn != val);
+    if (entered) {
+        me->station_drawn = val;
+        me->station_mark_ms = now;
+        me->station_flash_on = true;
+    }
+    switch (val) {
+        case rc::led::kStationNoSignal:
+            if (entered) {
+                ws2812_set_rssi_bar(0, true);
+            }
+            break;
+        case rc::led::kStationLocked:
+            if (entered || me->station_drawn_rssi != me->notify_rssi) {
+                me->station_drawn_rssi = me->notify_rssi;
+                ws2812_set_rssi_bar(me->notify_rssi, false);
+            }
+            break;
+        case rc::led::kStationWaiting:
+            if (entered || (now - me->station_mark_ms) >= kStationSweepMs) {
+                me->station_mark_ms = now;
+                ws2812_set_sweep_bar(kColorRed);
+            }
+            break;
+        case rc::led::kStationApply:
+            if (entered || (now - me->station_mark_ms) >= kStationSweepMs) {
+                me->station_mark_ms = now;
+                ws2812_set_sweep_bar(kStationApplyColor);
+            }
+            break;
+        case rc::led::kStationRfHeard:
+            if (entered) {
+                ws2812_set_flash_bar(kColorGreen, true);
+            } else if ((now - me->station_mark_ms) >= kStationFlashHalfMs) {
+                me->station_mark_ms = now;
+                me->station_flash_on = !me->station_flash_on;
+                ws2812_set_flash_bar(kColorGreen, me->station_flash_on);
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 // Map pattern value -> mode + color
 static void led_apply_pattern(LedEngine * const me, uint8_t val) {
+    if (led_is_station(val)) {
+        led_render_station(me, val);
+        return;
+    }
+    me->station_drawn = 0;
     switch (val) {
         // Calibration overlays
         case kCalNeoGyro:
@@ -176,6 +247,12 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
 
 static void led_check_core1_vitality(LedEngine * const me,
                                       const shared_sensor_data_t* snap) {
+    // Station and relay do not run the sensor loop. core1_loop_count
+    // stays put by design. Same gate as health_monitor check_core1_vitality.
+    if constexpr (!job::kRoleSamplesCore1) {
+        me->layers[kLayerFault] = 0;
+        return;
+    }
     // snap==nullptr: seqlock failed (the stall this fallback exists for).
     const bool progressed = (snap != nullptr) &&
                             (snap->core1_loop_count != me->last_core1_count);
@@ -262,6 +339,7 @@ static QState led_engine_running(LedEngine * const me, QEvt const * const e) {
         const rc::LedPatternEvt* pe =
             rc::evt_cast<rc::LedPatternEvt>(e);
         me->layers[kLayerNotify] = pe->pattern;  // 0 clears the layer
+        me->notify_rssi = pe->rssi;
         return Q_HANDLED();
     }
 
@@ -293,8 +371,9 @@ void AO_LedEngine_start(uint8_t prio) {
 }
 
 static uint8_t g_lastPostedPattern = 0;
+static int16_t g_lastPostedRssi = 0;
 
-void AO_LedEngine_post_pattern(uint8_t pattern) {
+void AO_LedEngine_post_pattern(uint8_t pattern, int16_t rssi) {
     // Guard: no-op if AO hasn't been started yet (init-time LED callbacks
     // fire before QF_run -- e.g., flight_director_init IDLE entry action).
     if (!g_ledEngineStarted) {
@@ -302,10 +381,11 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     }
     // Deduplicate: don't post if pattern hasn't changed. Callers like
     // telemetry_radio_tick post every cycle -- without this, queue overflows.
-    if (pattern == g_lastPostedPattern) {
+    if (pattern == g_lastPostedPattern && rssi == g_lastPostedRssi) {
         return;
     }
     g_lastPostedPattern = pattern;
+    g_lastPostedRssi = rssi;
 
     // Static event — QV does NOT copy posted events; the queue stores
     // the pointer. A stack-local event becomes a use-after-free once the
@@ -318,6 +398,7 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     static rc::LedPatternEvt g_evt;
     g_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
     g_evt.pattern = pattern;
+    g_evt.rssi = rssi;
     QACTIVE_POST(&g_ledEngine.super, &g_evt.super, nullptr);
 }
 

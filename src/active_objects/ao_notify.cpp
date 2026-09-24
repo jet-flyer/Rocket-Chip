@@ -17,6 +17,8 @@
 #include "safety/health_monitor.h"
 #include "core1/sensor_core1.h"            // g_gpsInitialized
 #include "fusion/eskf_runner.h"            // eskf_runner_is_initialized()
+#include "rocketchip/job.h"
+#include "active_objects/station_bar_mode.h"
 #include "pico/time.h"
 
 using namespace rc::notify;
@@ -30,6 +32,14 @@ enum : uint16_t {
     SIG_NOTIFY_PREARM_FAIL    = rc::SIG_AO_MAX + 8,  // Stage L — ARM rejected
     SIG_NOTIFY_VEHICLE_LOST   = rc::SIG_AO_MAX + 9,  // IVP-T14 #10 — link lost
     SIG_NOTIFY_VEHICLE_FOUND  = rc::SIG_AO_MAX + 10, // IVP-T14 #10 — re-acquired
+    SIG_NOTIFY_STATION_LINK   = rc::SIG_AO_MAX + 11, // Radio → station chain
+};
+
+struct StationLinkEvt {
+    QEvt super;
+    uint8_t mode;
+    int16_t rssi;
+    uint8_t apply;
 };
 
 // Direct-post event from AO_RCOS carrying a typed CalIntent
@@ -148,7 +158,10 @@ static QState notify_initial(NotifyAo * const me, QEvt const * const e) {
     // eskf_runner_is_initialized(), and imu_read_count>0. Fault/cal write
     // their own categories; they do not clear phase.
     me->state = {};
-    me->state.phase = PhaseIntent::kInit;
+    // Vehicle shows the boot rainbow. Station and relay have no sensor
+    // loop, so kInit would never clear and would cover the link chain.
+    me->state.phase = job::kRoleSamplesCore1 ? PhaseIntent::kInit
+                                              : PhaseIntent::kIdle;
     me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
     me->prearm_fail_ticks = 0U;  // Stage L
     me->init_min_ticks = kInitMinTicks;  // Stage L IVP-L4
@@ -271,6 +284,15 @@ static QState notify_running(NotifyAo * const me, QEvt const * const e) {
         return Q_HANDLED();
     }
 
+    case SIG_NOTIFY_STATION_LINK: {
+        const auto* le = rc::evt_cast<StationLinkEvt>(e);
+        me->state.station_active = true;
+        me->state.station_mode = le->mode;
+        me->state.station_rssi = le->rssi;
+        me->state.station_apply = (le->apply != 0U);
+        return Q_HANDLED();
+    }
+
     case SIG_NOTIFY_CAL_INTENT: {
         // Direct post from AO_RCOS via AO_Notify_post_cal_intent()
         const auto* ce = rc::evt_cast<CalIntentEvt>(e);
@@ -374,4 +396,36 @@ void AO_Notify_post_vehicle_found() {
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
     QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);
+}
+
+static uint8_t station_rssi_step(int16_t rssi) {
+    if (rssi >= -60) { return 5U; }
+    if (rssi >= -70) { return 4U; }
+    if (rssi >= -80) { return 3U; }
+    if (rssi >= -95) { return 2U; }
+    return 1U;
+}
+
+void AO_Notify_post_station_link(uint8_t mode, int16_t rssi, bool apply) {
+    if (!g_notifyStarted) {
+        return;
+    }
+    const uint8_t step = apply ? 0U : station_rssi_step(rssi);
+    static uint8_t last_mode = 0xFFU;
+    static uint8_t last_step = 0xFFU;
+    static uint8_t last_apply = 0xFFU;
+    const uint8_t apply_u = apply ? 1U : 0U;
+    if (mode == last_mode && step == last_step && apply_u == last_apply) {
+        return;
+    }
+    last_mode = mode;
+    last_step = step;
+    last_apply = apply_u;
+
+    static StationLinkEvt g_evt;
+    g_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_STATION_LINK);
+    g_evt.mode = mode;
+    g_evt.rssi = rssi;
+    g_evt.apply = apply_u;
+    QACTIVE_POST(&g_notifyAo.super, &g_evt.super, nullptr);
 }

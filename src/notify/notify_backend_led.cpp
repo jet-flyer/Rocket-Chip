@@ -7,6 +7,7 @@
 
 #include "notify_resolver.h"
 #include "rocketchip/led_patterns.h"
+#include "active_objects/station_bar_mode.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "active_objects/ao_led_engine.h"
@@ -66,6 +67,22 @@ static uint8_t phase_to_pattern(PhaseIntent p) {
     return 0;
 }
 
+static uint8_t station_to_pattern(const NotifyState& s) {
+    if (!s.station_active) {
+        return 0;
+    }
+    if (s.station_apply) {
+        return rc::led::kStationApply;
+    }
+    switch (static_cast<StationBarMode>(s.station_mode)) {
+        case StationBarMode::NoSignal: return rc::led::kStationNoSignal;
+        case StationBarMode::Waiting:  return rc::led::kStationWaiting;
+        case StationBarMode::RfHeard:  return rc::led::kStationRfHeard;
+        case StationBarMode::Locked:   return rc::led::kStationLocked;
+    }
+    return 0;
+}
+
 static uint8_t radio_to_pattern(RadioIntent r) {
     switch (r) {
         case RadioIntent::kLost:      return rc::led::kRxLost;
@@ -116,12 +133,14 @@ static uint8_t apply_beacon_overlay(uint8_t base, const NotifyState& s) {
 }
 
 // ============================================================================
-// Priority resolver — Fault > Cal > Flight > Radio > Sensor.
+// Priority resolver — Fault > station link > Cal > Flight > Radio > Sensor.
 // First non-zero pattern wins. Idle is not a winner; miss → kSensorNoGps.
+// Station link is not beacon-composed.
 // ============================================================================
 uint8_t resolve_led_pattern(const NotifyState& s) {
     uint8_t p = 0;
     if ((p = fault_to_pattern(s.fault))   != 0) { return apply_beacon_overlay(p, s); }
+    if ((p = station_to_pattern(s))       != 0) { return p; }
     if ((p = cal_to_pattern(s.cal))       != 0) { return apply_beacon_overlay(p, s); }
     if ((p = phase_to_pattern(s.phase))   != 0) { return apply_beacon_overlay(p, s); }
     if ((p = radio_to_pattern(s.radio))   != 0) { return apply_beacon_overlay(p, s); }
@@ -135,7 +154,7 @@ uint8_t resolve_led_pattern(const NotifyState& s) {
 void notify_backend_led_update(const NotifyState& state) {
     uint8_t pattern = resolve_led_pattern(state);
 #ifndef ROCKETCHIP_HOST_TEST
-    AO_LedEngine_post_pattern(pattern);
+    AO_LedEngine_post_pattern(pattern, state.station_rssi);
 #else
     (void)pattern;
 #endif

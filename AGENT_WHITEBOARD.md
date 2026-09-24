@@ -28,11 +28,27 @@
 
 ---
 
-## Passive Estes first flight: chute detect (WANTED) (2026-09-05)
+## Room test tomorrow: launch, apogee, landing (NEXT) (2026-09-24)
 
-Nathan (2026-09-05): **first flight is a passive motor Estes-style rocket** (single chute, **no pyro**). FD today is dual-deploy pyro (drogue/main fire on phase transitions). Need a **passive chute-detect / recovery-phase path** before that flight - post-apogee drag jump / |Vvel| collapse (baro + fusion), not pyro events. oMCT glance CSV uses layout-only synthetic chute_detected until this lands.
+Untethered vehicle on battery. Live view is the station pad phase. Afterward, plug the vehicle and download the flight log (`g` list, `d` download). Do not USB-tether the toss. Do not open the station COM port if QGC has it.
 
-Not a license to implement this sitting. Owner: FD / fusion sitting when scheduled.
+**Image:** do not flash the dirty tree for this pass. Launch, burnout, apogee, and landing are already on the chip. The opening-shock edit is uncommitted on `main` and is not in that image.
+
+**Arm:** station pad `a`, type `ARM`, Enter. Wait for ACK and `State: ARMED`. Disarm is pad `D`. ARM starts the backup timers: drogue pin can go high at 15 s if apogee has not cancelled it, main pin at 45 s. No ematch on those pins. Disarm before 15 s if the pad has not shown apogee, and disarm again at the end.
+
+**Motions, IMU Z out of the top of the chip:**
+1. Launch: snap along that axis. Needs `|accel_z| > 20 m/s²` for 50 ms.
+2. Burnout: a moment of freefall (`|a| < 5 m/s²` for 100 ms). Sitting still is about 1 g and will not leave boost.
+3. Apogee is locked out for 3 s after launch. The top of a room toss will not be the mark. Catch it and hold still. After the lockout, a quiet board can enter drogue.
+4. Landing runs only in drogue or main. About 2 s still (speed under 0.5 m/s) after that can land. The baro path wants 5 s under 0.3 m/s.
+
+**Log after:** phase changes and pyro-fired events are in the flight log. The opening-shock time is not. It is a USB line only (`drogue_open_ms` / `main_open_ms` in `FlightMarkers`, printed as response time). Add a `LogEventId` before any untethered pass that needs that interval on disk. oMCT `chute_detected` is still synthetic.
+
+**Opening-shock code (uncommitted, host-tested, not flashed):** every profile, coast through main. Specific force at or above 19.62 m/s² (2 g, above a settled canopy) and 2 m/s of descent-speed lost, held 20 ms. Does not move the phase and does not treat apogee as an opening. Pyro command stamps moved onto the fire transition (`kTransitionFireDrogue` / `kTransitionFireMain`). Response time is command timestamp to shock timestamp. Thresholds are a first cut, not from a flight.
+
+**Verified 2026-09-24:** host `FlightDirectorTest` opening-shock / apogee-crossing / second-opening, guard tests, action-list tests, `scripts_generated_profiles`. Not on a board. Feather was not on the bus (only Bluetooth COM3).
+
+**Dirty, this sitting:** `profiles/{rocket,hab,passive}.cfg`, `scripts/generate_profile.py`, `scripts/config_wizard/core/{cfg_emitter,derivation}.py`, `src/flight_director/` (actions, director, state, guards, evaluator, mission profile + generated header), `test/test_{action_executor,flight_director,guards,mission_profile}.cpp`, `test/test_hab_profile_data.h`. Also dirty and not this sitting: `docs/gcs/openmct/layouts/README.md`, `docs/gcs/openmct/plugins/rc-csv-dictionary.js`. Branch `main` at `af434cc`. No commit, no CHANGELOG.
 
 ---
 
@@ -109,12 +125,6 @@ Wanted skills - not written yet. Not a license to author them until scheduled.
 
 ---
 
-## Starcom
-
-Library flags: [`starcom/AGENT_WHITEBOARD.md`](starcom/AGENT_WHITEBOARD.md). Sequence: [`starcom/docs/IVP.md`](starcom/docs/IVP.md). Product `starcom-v0.2.25`. RC air is always Starcom COP-P. Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`). Nested `starcom/` on `main` matches that tree as of 2026-09-17.
-
----
-
 ## `rp400` git remote = Pi 400 keyboard clone (DEFER) (2026-08-20)
 
 Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) is an early clone onto the **Raspberry Pi 400** keyboard computer (CYBERDECK HAT/Bonnet on hand - `docs/hardware/HARDWARE.md` Ground Station). Host was off/unreachable 2026-08-20. Local tracking of `claude/tender-banach` was dropped; that branch may still exist on the Pi (Feb 2026 SAD/ESKF, already an ancestor of `main`). **Do not chase it now.** Next time that machine is used - likely Stage 12B Yamcs / OpenMCT / advanced GCS - if the clone has not been fully redone, delete leftover branches there (at least `claude/tender-banach`). CHANGELOG `2026-08-20-004` is the land-time note.
@@ -130,16 +140,6 @@ Current `build_flight` ELF **is still development firmware.** Approach A (inject
 Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Concerns:** Probe residual power (E2) if the board looks dead after SWD.
-
----
-
-## Notify / LED system overhaul (OPEN) (2026-08-24)
-
-AO_Notify + `led_patterns.h` + AO_LedEngine need a dedicated sitting, not more overlay nits.
-
-**Known split to keep:** Stage L ARMED is **red solid** (APM2 LED A / traffic-light “motors live”). Pixhawk RGB standard is **solid green** with GPS 3D / **solid blue** without. Do not flip ARMED to green in overlay remediates.
-
-Also in that sitting: `kLedPhaseFault` dropped (`347f0a4`) - 28 is AP pre-arm yellow double-flash only; failsafe/EKF stay Notify `FaultIntent`. USER_GUIDE ARMED is red solid (R-30).
 
 ---
 

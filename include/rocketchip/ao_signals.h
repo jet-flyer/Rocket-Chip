@@ -125,6 +125,7 @@ struct PhaseChangeEvt {
 struct LedPatternEvt {
     QEvt super;
     uint8_t pattern;    // led_patterns.h codes. Posted by AO_Notify via AO_LedEngine_post_pattern.
+    int16_t rssi;       // Station locked-fill only. 0 otherwise.
 };
 
 // Sensor data notification (published by eskf_tick bridge)

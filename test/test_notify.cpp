@@ -17,6 +17,7 @@
 #include "rocketchip/notify_intents.h"
 #include "rocketchip/led_patterns.h"
 #include "notify_resolver.h"
+#include "active_objects/station_bar_mode.h"
 
 using namespace rc::notify;
 
@@ -94,6 +95,30 @@ TEST(NotifyResolver, FlightBeatsRadio) {
     s.phase = PhaseIntent::kArmed;
     s.radio = RadioIntent::kLost;  // Would show red fast blink
     EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdArmed);
+}
+
+TEST(NotifyResolver, StationLinkBeatsPhase) {
+    NotifyState s{};
+    s.station_active = true;
+    s.station_mode = static_cast<uint8_t>(StationBarMode::Locked);
+    s.phase = PhaseIntent::kArmed;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kStationLocked);
+}
+
+TEST(NotifyResolver, StationApplyBeatsLockedMode) {
+    NotifyState s{};
+    s.station_active = true;
+    s.station_apply = true;
+    s.station_mode = static_cast<uint8_t>(StationBarMode::Locked);
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kStationApply);
+}
+
+TEST(NotifyResolver, FaultBeatsStationLink) {
+    NotifyState s{};
+    s.station_active = true;
+    s.station_mode = static_cast<uint8_t>(StationBarMode::RfHeard);
+    s.fault = FaultIntent::kImuFail;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFail);
 }
 
 TEST(NotifyResolver, RadioBeatsSensor) {

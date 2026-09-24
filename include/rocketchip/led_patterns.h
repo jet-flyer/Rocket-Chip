@@ -3,7 +3,8 @@
 //============================================================================
 // LED pattern codes posted to AO_LedEngine (mode + color).
 // 0 off; 1-8 cal; 9-11 RX; 12-18 beacon overlays (base + white);
-// 20-27 flight phase; 28-29 pre-arm fail / boot; 30-36 sensors; 41-46 faults.
+// 20-27 flight phase; 28-29 pre-arm fail / boot; 30-36 sensors; 41-46 faults;
+// 50-54 station chain (notify → LedEngine).
 //============================================================================
 #ifndef ROCKETCHIP_LED_PATTERNS_H
 #define ROCKETCHIP_LED_PATTERNS_H
@@ -30,7 +31,7 @@ static constexpr uint8_t kCalFail     = 8;  // Red blink fast (step failed)
 // RX mode overlays (set by radio RX status)
 // ============================================================================
 static constexpr uint8_t kRxReceiving = 9;   // Green solid (packets arriving)
-static constexpr uint8_t kRxGap       = 10;  // Yellow blink (>1s gap)
+static constexpr uint8_t kRxGap       = 10;  // Yellow blink (>2s gap)
 static constexpr uint8_t kRxLost      = 11;  // Red blink fast (>5s gap)
 
 // ============================================================================
@@ -87,6 +88,14 @@ static constexpr uint8_t kFaultEskfFail   = 43;  // Red blink (ESKF fault)
 static constexpr uint8_t kFaultImuFail    = 44;  // Red fast blink (IMU fault)
 static constexpr uint8_t kFaultSafeMode   = 45;  // Blue + White alt 2Hz
 static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalled)
+
+// Station chain. Radio posts the link; LedEngine draws it.
+// One pixel: sweep is solid, fill is that pixel.
+static constexpr uint8_t kStationNoSignal = 50;  // First pixel dim red
+static constexpr uint8_t kStationWaiting  = 51;  // Red sweep (had RF, now quiet)
+static constexpr uint8_t kStationRfHeard  = 52;  // All pixels flash green
+static constexpr uint8_t kStationLocked   = 53;  // RSSI fill
+static constexpr uint8_t kStationApply    = 54;  // Dim-yellow sweep (config apply)
 
 } // namespace led
 } // namespace rc

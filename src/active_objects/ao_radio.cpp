@@ -24,7 +24,7 @@
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
-#include "drivers/ws2812_status.h"
+#include "ao_notify.h"
 #include "station_bar_mode.h"
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
@@ -637,58 +637,20 @@ static void handle_link_quality(RadioAo* me) {
     }
 }
 
-static void show_station_bar(StationBarMode mode, const RadioAoState& s) {
-    static StationBarMode g_prevBar = StationBarMode::NoSignal;
-    static uint8_t g_rssiDiv = 0;
-    static uint8_t g_waitSweep = 0;
-    static uint8_t g_flashDiv = 0;
-    static bool g_flashOn = true;
-    const bool entered = (mode != g_prevBar);
-    g_prevBar = mode;
-
-    if (mode == StationBarMode::Waiting) {
-        if (entered || ++g_waitSweep >= 5) {
-            g_waitSweep = 0;
-            ws2812_set_sweep_bar(kColorRed);
-        }
-        return;
-    }
-    g_waitSweep = 0;
-    if (mode == StationBarMode::RfHeard) {
-        if (entered || ++g_flashDiv >= 25) {
-            g_flashDiv = 0;
-            g_flashOn = entered ? true : !g_flashOn;
-            ws2812_set_flash_bar(kColorGreen, g_flashOn);
-        }
-        return;
-    }
-    if (!entered && ++g_rssiDiv < 50) {
-        return;
-    }
-    g_rssiDiv = 0;
-    ws2812_set_rssi_bar(s.last_rx_rssi, mode == StationBarMode::NoSignal);
-}
-
 static void handle_rssi_bar(RadioAo* me) {
-    // Station/relay only — vehicle's AO_LedEngine owns the NeoPixel.
-    if constexpr (job::kRole != job::DeviceRole::kVehicle) {
-        RadioAoState& s = me->state;
-        if (s.apply_in_progress) {
-            static uint8_t g_sweepDiv = 0;
-            if (++g_sweepDiv >= 5) {
-                g_sweepDiv = 0;
-                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};
-                ws2812_set_sweep_bar(kSweepColor);
-            }
-            return;
-        }
-        const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
-        const uint32_t gap = now_ms() - s.last_rx_ms;
-        const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U);
-        show_station_bar(station_bar_mode(copp_lock, s.rx_count, gap), s);
-    } else {
+    // Vehicle chain is flight state. Station and relay report the link;
+    // AO_Notify resolves it and AO_LedEngine draws the chain.
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         (void)me;
+        return;
     }
+    RadioAoState& s = me->state;
+    const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+    const uint32_t gap = now_ms() - s.last_rx_ms;
+    const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U);
+    const StationBarMode mode = station_bar_mode(copp_lock, s.rx_count, gap);
+    AO_Notify_post_station_link(static_cast<uint8_t>(mode), s.last_rx_rssi,
+                                s.apply_in_progress);
 }
 
 // Sub 2b: if a config change is queued but no TxDone fires in ~200 ms,

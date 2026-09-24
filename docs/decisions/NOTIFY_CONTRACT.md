@@ -91,14 +91,14 @@ void notify_backend_audio_update(const NotifyState& state);  // Stub (future I2S
 |--------|----------|-------|-------------|
 | **Faults (highest priority)** | | | |
 | FaultIntent::kCore1Stall | SOLID | Magenta | kFaultCore1Stall (46) |
-| FaultIntent::kSafeMode | SOLID | Red | kFaultSafeMode (45) |
+| FaultIntent::kSafeMode | ALTERNATE 2 Hz | Blue + white | kFaultSafeMode (45) |
 | FaultIntent::kImuFail | BLINK_FAST | Red | kFaultImuFail (44) |
 | FaultIntent::kEskfFail | BLINK | Red | kFaultEskfFail (43) |
 | FaultIntent::kBaroFail | BLINK_FAST | Orange | kFaultBaroFail (42) |
 | FaultIntent::kPioWdt | SOLID | Orange | kFaultPioWdt (41) |
 | **Calibration** | | | |
-| CalIntent::kGyro | BREATHE | Blue | kCalGyro (1) |
-| CalIntent::kLevel | BREATHE | Blue | kCalLevel (2) |
+| CalIntent::kGyro | BLINK | Yellow | kCalGyro (1) |
+| CalIntent::kLevel | BLINK | Yellow | kCalLevel (2) |
 | CalIntent::kBaro | BREATHE | Cyan | kCalBaro (3) |
 | CalIntent::kAccelWait | BLINK | Yellow | kCalAccelWait (4) |
 | CalIntent::kAccelSample | SOLID | Yellow | kCalAccelSample (5) |
@@ -106,6 +106,8 @@ void notify_backend_audio_update(const NotifyState& state);  // Stub (future I2S
 | CalIntent::kSuccess | SOLID | Green | kCalSuccess (7) |
 | CalIntent::kFail | BLINK_FAST | Red | kCalFail (8) |
 | **Flight Phase** | | | |
+| PhaseIntent::kInit | RAINBOW | White | kFdBootInit (29) |
+| PhaseIntent::kPreArmFail | DOUBLE_FLASH | Yellow | kFdPreArmFail (28) |
 | PhaseIntent::kBeacon | BLINK | White | kFdBeacon (27) |
 | PhaseIntent::kAbort | BLINK_FAST | Red | kFdAbort (26) |
 | PhaseIntent::kLanded | BLINK | Green | kFdLanded (25) |
@@ -113,7 +115,7 @@ void notify_backend_audio_update(const NotifyState& state);  // Stub (future I2S
 | PhaseIntent::kDrogue | BLINK | Red | kFdDrogue (23) |
 | PhaseIntent::kCoast | SOLID | Yellow | kFdCoast (22) |
 | PhaseIntent::kBoost | SOLID | Red | kFdBoost (21) |
-| PhaseIntent::kArmed | SOLID | Orange | kFdArmed (20) |
+| PhaseIntent::kArmed | SOLID | Red | kFdArmed (20) |
 | **Radio** | | | |
 | RadioIntent::kLost | BLINK_FAST | Red | kRxLost (11) |
 | RadioIntent::kGap | BLINK | Yellow | kRxGap (10) |
@@ -127,6 +129,8 @@ void notify_backend_audio_update(const NotifyState& state);  // Stub (future I2S
 | SensorIntent::kGpsNoNmea | BLINK_FAST | Cyan | kSensorGpsNoNmea (34) |
 | SensorIntent::kNoGps | BLINK | Blue | kSensorNoGps (35) |
 | **Idle (fallback)** | BLINK | Blue | kSensorNoGps (35) |
+
+Renderer: `ao_led_engine.cpp`. Armed, gyro, level, and safe-mode changed in Stage L; the before/after table is in that section. Operator card: `docs/USER_GUIDE.md`.
 
 ---
 
@@ -352,12 +356,13 @@ implemented (deferred).
 
 ### Station/Vehicle LED Role Divergence
 
-Station runs no `AO_LedEngine` — the Fruit Jam's multi-LED strip is
-owned by `AO_Radio` as an RSSI bar (see LL Entry 32 for PIO-contention
-rationale). Vehicle uses `AO_LedEngine` for flight-state visualization.
-This is intentional role-specific UX: station is a ground device
-showing radio link health; vehicle is a flight device showing phase.
-Council-reviewed 2026-04-18.
+Every role starts `AO_Notify` and `AO_LedEngine`. One chain, one PIO
+state machine (LL Entry 32). `AO_Radio` posts the station link
+(`AO_Notify_post_station_link`); the resolver places that picture under
+fault and above calibration. Fruit Jam's chain is five pixels, so the
+fill, all-pixel flash, and one-pixel sweep read as a bar. A one-pixel
+chain uses the same calls. A one-pixel radio vocabulary is later work.
+Operator shapes: `docs/USER_GUIDE.md`.
 
 When `cmd_findme_beacon()` runs on station, it's role-gated to skip
 the local publish path (no AO_Notify to receive it) and instead send
