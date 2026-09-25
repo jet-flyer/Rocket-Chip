@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-24-001 | Grok 4.7 (Build CLI) | architecture, hardware
+
+**One NeoPixel chain writer.** Station and relay post link mode, RSSI, and config-apply through `AO_Notify`; `AO_LedEngine` draws the chain on every role (`1065ae2`). `AO_Radio` no longer calls the WS2812 driver. Operator colors: `docs/USER_GUIDE.md` LED State Reference. Intent order: `docs/decisions/NOTIFY_CONTRACT.md`. Verified: host 982/982; vehicle bench 2/2 COM5; station bench 3/3 COM7; desk red chase after Feather unplug, dim red on Jam boot with Feather off, Feather solid green, beacon from both `b`, ARM then capital `X` back to green. Feather `02FBDDB8E1CA1281` SHA `5E7CC950…`; Jam `BEC71B8EDC6AEBD1` SHA `7E6967FA…`.
+
 ### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation, hardware
 
 **On-desk krtkl module is snickerdoodle one (~17.6k LUT).** `docs/hardware/FPGA/README.md`, `starcom/docs/DESIGN.md`, and `starcom/AGENT_WHITEBOARD.md` had been counting the black module's ~53k LUT. Encode stays the small Forgix T8 job. LDPC decode stays Pi/GCS software; this fabric is the size already classed out of that place-and-route. Gryphon, the 2015 ArduPilot baseboard, was withdrawn before sale; its schematic is not in krtkl/open-source-schematics. Starcom row: `starcom/CHANGELOG.md` 2026-09-23-001.
