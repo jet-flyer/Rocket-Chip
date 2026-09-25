@@ -337,13 +337,19 @@ static void poll_i2c_gps_sidecar() {
 
 static void apply_gps_nmea_utc(shared_sensor_data_t* local_data,
                                const gps_data_t& d) {
-    if (!d.timeValid) {
+    if (d.timeValid) {
+        local_data->gps_hour = d.hour;
+        local_data->gps_minute = d.minute;
+        local_data->gps_second = d.second;
+        local_data->gps_time_valid = true;
+    }
+    if (!d.dateValid) {
         return;
     }
-    local_data->gps_hour = d.hour;
-    local_data->gps_minute = d.minute;
-    local_data->gps_second = d.second;
-    local_data->gps_time_valid = true;
+    local_data->gps_year = d.year;
+    local_data->gps_month = d.month;
+    local_data->gps_day = d.day;
+    local_data->gps_date_valid = true;
 }
 
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).

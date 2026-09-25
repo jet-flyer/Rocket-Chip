@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// PCM frame format — 55-byte standard frame with CRC-16-CCITT
+// PCM frame format — 61-byte standard frame with CRC-16-CCITT
 // Frame layout:
 // Byte  0-1:  Sync word     0xEB 0x90 (IRIG convention, big-endian)
 // Byte  2-5:  MET ms        uint32_t (little-endian, RP2350 native)
 // Byte  6:    Frame type    0=Economy, 1=Standard, 2=Research
-// Byte  7:    Payload len   45 for Standard
-// Byte  8-52: Payload       TelemetryState (45 bytes)
-// Byte 53-54: CRC-16        CRC-16-CCITT over bytes 0-52
+// Byte  7:    Payload len   51 for Standard
+// Byte  8-58: Payload       TelemetryState (51 bytes)
+// Byte 59-60: CRC-16        CRC-16-CCITT over bytes 0-58
 // ─────────────
-// Total:                    55 bytes
+// Total:                    61 bytes
 // Stream resync uses triple validation gate:
 // 1. Find sync word 0xEB90
 // 2. Verify payload_len matches frame type
@@ -34,7 +34,7 @@ static constexpr uint8_t kPcmFrameTypeResearch = 2;
 static constexpr uint8_t kPcmFrameTypeEvent    = 3;  // Discrete event marker
 
 // Standard frame payload size
-static constexpr uint8_t kPcmStandardPayloadLen = 45;
+static constexpr uint8_t kPcmStandardPayloadLen = 51;
 
 // Event frame payload (5 bytes: event_id + 4 bytes context)
 static constexpr uint8_t kPcmEventPayloadLen = 5;
@@ -77,16 +77,16 @@ struct __attribute__((packed)) PcmFrameHeader {
 };
 static_assert(sizeof(PcmFrameHeader) == 8, "PcmFrameHeader must be 8 bytes");
 
-// Standard PCM frame — 55 bytes total
-static constexpr uint32_t kPcmFrameStandardSize = 55;
+// Standard PCM frame — 61 bytes total
+static constexpr uint32_t kPcmFrameStandardSize = 61;
 
 struct __attribute__((packed)) PcmFrameStandard {
     PcmFrameHeader header;       // 8B
-    TelemetryState payload;      // 45B
-    uint16_t       crc16;        // 2B  CRC-16-CCITT over bytes 0-52
+    TelemetryState payload;      // 51B
+    uint16_t       crc16;        // 2B  CRC-16-CCITT over bytes 0-58
 };
 static_assert(sizeof(PcmFrameStandard) == kPcmFrameStandardSize,
-              "PcmFrameStandard must be 55 bytes");
+              "PcmFrameStandard must be 61 bytes");
 
 // Maps payload byte offsets to field names, types, and scaling factors.
 // Used by ground tools for automatic decoding.

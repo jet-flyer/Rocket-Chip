@@ -19,6 +19,31 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 - **Power** - Solar charging, extended battery
 - **RC Link + Video (Telstar)** - ELRS receiver (CRSF/MAVLink), 5.8 GHz FPV VTx, RID module support. Designed for standalone use as well as RocketChip integration.
 
+### Timekeeping
+
+The RP2350 always-on timer runs from its internal low-power RC oscillator
+(about 26–39 kHz untrimmed, and it moves with temperature and supply
+voltage). A tighter clock is an external 32.768 kHz **clock signal** on
+GPIO 12, 14, 20, or 22 — the pin the board leaves free. A bare watch
+crystal does not drive that pin; the board needs an oscillator. That
+timer still dies when the chip's always-on supply drops, so the coin
+cell on this option has to hold that supply.
+
+A separate I2C RTC (PCF8523 class, or a compensated DS3231 when the
+tighter spec is wanted) has its own coin-cell pin and keeps calendar
+time while the RP2350 is off. The Adalogger FeatherWing on the bench is
+the PCF8523 version of that part.
+
+| Option | Core | Main | Titan |
+|--------|:----:|:----:|:-----:|
+| Internal RC only | included | included | — |
+| 32.768 kHz oscillator into the always-on timer, coin cell holds that rail | — | optional | included |
+| I2C RTC with its own coin cell | — | optional | included |
+
+The Feather and Fruit Jam prototypes have neither option. The GPS
+modules on both of those boards do have coin cells; those cells keep
+the GPS clock only.
+
 ---
 
 ## Current Prototype Hardware

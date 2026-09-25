@@ -46,6 +46,8 @@ void print_prompt(MenuId menu) {
         case MenuId::kFlight:   rc::rc_log("[flight] "); break;
         case MenuId::kDebug:    rc::rc_log("[debug] "); break;
         case MenuId::kSettings: rc::rc_log("[settings] "); break;
+        case MenuId::kClock:    rc::rc_log("[clock] "); break;
+        case MenuId::kGps:      rc::rc_log("[gps] "); break;
         default:                rc::rc_log("> "); break;
     }
 }
@@ -211,6 +213,16 @@ void run_action(ActionId act) {
             break;
         case ActionId::kStationDisarm:
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
+            break;
+        case ActionId::kTMinusMinutes:
+            rc_os_start_tminus_minutes();
+            break;
+        case ActionId::kTMinusZulu:
+            rc_os_start_tminus_zulu();
+            break;
+        case ActionId::kTMinusClear:
+            ansi_dashboard_clear_tminus();
+            rc::rc_log("T- cleared\n");
             break;
         case ActionId::kCalGyro:
             AO_RCOS_start_cal_gyro();

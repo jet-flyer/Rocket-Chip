@@ -36,6 +36,12 @@ const DecomField kStandardDecomTable[] = {
     {"battery_mv",    38, 2, 'u', 1.0F},
     {"met_ms",        40, 4, 'u', 0.001F},
     {"flags",         44, 1, 'u', 0.0F},
+    {"utc_hour",      45, 1, 'u', 0.0F},
+    {"utc_minute",    46, 1, 'u', 0.0F},
+    {"utc_second",    47, 1, 'u', 0.0F},
+    {"utc_day",       48, 1, 'u', 0.0F},
+    {"utc_month",     49, 1, 'u', 0.0F},
+    {"utc_year",      50, 1, 'u', 0.0F},
 };
 const uint32_t kStandardDecomTableLen =
     sizeof(kStandardDecomTable) / sizeof(kStandardDecomTable[0]);

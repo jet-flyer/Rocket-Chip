@@ -49,6 +49,10 @@ FIELDS = [
     ('BARO_LAND_RATE_MPS',  'baro_landing_rate_threshold_mps', 'float',  (0.05, 5.0)),
     ('BARO_LAND_HOLD_MS',   'baro_landing_sustain_ms',        'uint32', (500, 60000)),
     ('DESCENT_MAX_MS',      'descent_max_duration_ms',        'uint32', (0, 36000000)),
+    # Opening shock. Spike is specific force; delta-V is a drop in descent speed.
+    ('CHUTE_SPIKE_MPS2',    'chute_spike_mps2',           'float',  (10.0, 200.0)),
+    ('CHUTE_DELTAV_MPS',    'chute_deltav_mps',           'float',  (0.5, 50.0)),
+    ('CHUTE_HOLD_MS',       'chute_sustain_ms',           'uint32', (10, 5000)),
     # Safety lockouts
     ('DEPLOY_LOCKOUT_MPS',  'deploy_lockout_mps',         'float',  (1.0, 1000.0)),
     ('APOGEE_LOCKOUT_MS',   'apogee_lockout_ms',          'uint32', (0, 60000)),
@@ -245,6 +249,28 @@ def validate_and_convert(params):
     known.update(f[0] for f in QR_FIELDS)
     known.update(f[0] for f in RADIO_FIELDS)
     known.add('QR_RAMP_STEPS')
+    known.add('MET_START')
+    known.add('MET_DAYS')
+    met_raw = '0'
+    if 'MET_START' in params and params['MET_START']:
+        met_raw = params['MET_START'][0].lower()
+    if met_raw in ('launch', 'boost', '2'):
+        result['met_start_phase'] = ('uint8', 2)
+    elif met_raw in ('0', 'plug', 'boot', 'none'):
+        result['met_start_phase'] = ('uint8', 0)
+    else:
+        errors.append(f'MET_START = {met_raw}: use launch or 0')
+        result['met_start_phase'] = ('uint8', 0)
+    days_raw = '0'
+    if 'MET_DAYS' in params and params['MET_DAYS']:
+        days_raw = params['MET_DAYS'][0].lower()
+    if days_raw in ('1', 'yes', 'true', 'on'):
+        result['met_show_days'] = ('bool', True)
+    elif days_raw in ('0', 'no', 'false', 'off'):
+        result['met_show_days'] = ('bool', False)
+    else:
+        errors.append(f'MET_DAYS = {days_raw}: use yes or no')
+        result['met_show_days'] = ('bool', False)
     # HAB lockout skip is not implemented (WN-195). Re-adding the cfg key
     # must fail, not silently ignore, until a named HAB sitting wires it.
     rejected = {
@@ -393,6 +419,8 @@ def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
     _dlat = values['default_lat_deg'][1] or 0
     _dlon = values['default_lon_deg'][1] or 0
     lines.append(f'    .has_default_location = {"true" if (_dlat != 0 or _dlon != 0) else "false"},')
+    lines.append(f'    .met_start_phase = {values["met_start_phase"][1]},')
+    lines.append(f'    .met_show_days = {"true" if values["met_show_days"][1] else "false"},')
 
     # Emit phase Q/R table
     lines.append('')

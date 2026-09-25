@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Nav user-data pack for the Starcom Space Packet SDU.
-// Full packed TelemetryState (45 B), including met_ms and flags.
+// Full packed TelemetryState (51 B), including met_ms, flags, and UTC.
 // Not the pre-Starcom 54 B CCSDS frame (primary + MET secondary + 42 B prefix).
 
 #ifndef ROCKETCHIP_NAV_SDU_H
@@ -13,8 +13,8 @@
 
 namespace rc {
 
-constexpr uint8_t kNavSduUserBytes = 45;
-constexpr uint8_t kNavSduTelemBytes = 45;
+constexpr uint8_t kNavSduUserBytes = sizeof(TelemetryState);
+constexpr uint8_t kNavSduTelemBytes = sizeof(TelemetryState);
 static_assert(kNavSduUserBytes == sizeof(TelemetryState),
               "nav SDU is the whole packed TelemetryState");
 static_assert(offsetof(TelemetryState, met_ms) == 40,

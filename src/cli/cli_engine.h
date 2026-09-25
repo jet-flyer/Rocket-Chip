@@ -25,6 +25,8 @@ enum class MenuId : uint8_t {
     kFlight,
     kDebug,
     kSettings,
+    kClock,
+    kGps,
     kNone = 255
 };
 
@@ -45,6 +47,9 @@ enum class ActionId : uint8_t {
     kStationDistance,
     kStationArmConfirm,
     kStationDisarm,
+    kTMinusMinutes,
+    kTMinusZulu,
+    kTMinusClear,
     kCalGyro,
     kCalLevel,
     kCalBaro,

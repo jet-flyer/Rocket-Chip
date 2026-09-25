@@ -30,8 +30,8 @@ TEST(NavSdu, PackRoundTripFullTelemetryState) {
     const TelemetryState in = make_telem();
     uint8_t buf[kNavSduUserBytes] = {};
     ASSERT_EQ(pack_nav_sdu_user(buf, sizeof(buf), in), kNavSduUserBytes);
-    EXPECT_EQ(sizeof(TelemetryState), 45u);
-    EXPECT_EQ(kNavSduUserBytes, 45);
+    EXPECT_EQ(sizeof(TelemetryState), 51u);
+    EXPECT_EQ(kNavSduUserBytes, 51);
 
     TelemetryState out{};
     out.met_ms = 99;

@@ -10,6 +10,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "rocketchip/telemetry_state.h"
 
 namespace rc {
 
@@ -71,10 +72,12 @@ inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
     return true;
 }
 
-// Nav PLTU on air: ASM+V-3+Space Packet+CRC = 18 + kNavSduUserBytes (45).
+// Nav PLTU on air: ASM+V-3+Space Packet+CRC = 18 + kNavSduUserBytes (51).
 // Source: test_starcom_byte_pump encode_nav. Same formula as rfm95w_airtime_us
 // (SX1276 §4.1.1.6, explicit header, CRC on, 8-sym preamble, CR 4/5).
-inline constexpr uint8_t kRadioConfigNavPltuBytes = 63;
+inline constexpr uint8_t kRadioConfigNavPltuBytes = 69;
+static_assert(18U + sizeof(TelemetryState) == kRadioConfigNavPltuBytes,
+              "nav airtime byte count drifted from the SDU");
 inline constexpr uint8_t kRadioConfigNoIndex = 0xFF;
 
 inline constexpr uint32_t radio_config_nav_airtime_us(uint8_t sf, uint16_t bw_khz,

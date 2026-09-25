@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Fixed-point wire-ready telemetry payload — 45 bytes packed.
+// Fixed-point wire-ready telemetry payload — 51 bytes packed.
 // Mix of FusedState, seqlock GPS, baro, health, and MET — not a uniform
 // FusedState float32 dump.
 // Also defines FlightMetadata (UTC epoch anchor) and FlightSummary
@@ -42,15 +42,29 @@ struct __attribute__((packed)) TelemetryState {
     int8_t   temperature_c;     // 1B  DPS310 baro temp, rounded to nearest C
     uint16_t battery_mv;        // 2B  0 = not measured
     uint32_t met_ms;            // 4B
-    uint8_t  flags;             // 1B  [0]=zupt_active, [1-7]=reserved
+    uint8_t  flags;             // 1B  [0]=zupt [1]=mission MET [2]=UTC valid
+    // Vehicle GPS civil time. Valid only when kFlagsUtcValid is set.
+    // The station clock uses this when its own receiver has no time.
+    uint8_t  utc_hour;
+    uint8_t  utc_minute;
+    uint8_t  utc_second;
+    uint8_t  utc_day;
+    uint8_t  utc_month;         // 0 = date not valid
+    uint8_t  utc_year;          // years since 2000
 };
-static_assert(sizeof(TelemetryState) == 45, "TelemetryState must be 45 bytes");
+static_assert(sizeof(TelemetryState) == 51, "TelemetryState must be 51 bytes");
 
 // Health byte: 2-bit encoding per subsystem (matches HealthFlags2 primary byte)
 // Use rc::health_imu(), rc::health_baro(), etc. from health_monitor.h to decode.
 
 // Flags byte definitions
 static constexpr uint8_t kFlagsZuptActive = (1U << 0);
+// met_ms is mission elapsed. Clear: met_ms is time since vehicle boot
+// and the pad must not present it as MET.
+static constexpr uint8_t kFlagsMetMission = (1U << 1);
+static constexpr uint8_t kFlagsUtcValid = (1U << 2);
+// Profile asked for the NASA day field. Clear: hours:minutes:seconds only.
+static constexpr uint8_t kFlagsMetDays = (1U << 3);
 
 // Enables MET-to-wall-clock reconstruction:
 // UTC = anchor_UTC + (frame_MET - met_at_gps_epoch_ms)

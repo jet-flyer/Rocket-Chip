@@ -8,10 +8,12 @@
 #include "rc_os_dashboard.h"
 #include "cli/cli_engine.h"
 #include "cli/cli_menus.h"
+#include "cli/rc_os_dashboard_format.h"
+#include "rocketchip/time_sync.h"
+#include "active_objects/ao_telemetry.h"
 #include "cli/cli_actions.h"
 #include "cli/rc_os_commands.h"
 #include "cli/rc_os_debug.h"
-#include "active_objects/ao_telemetry.h"
 #include "ao_rcos.h"
 #include "rocketchip/job.h"
 #include "rocketchip/rc_log.h"
@@ -47,6 +49,11 @@ static bool g_armConfirmActive = false;
 static char g_armBuf[4] = {};
 static uint8_t g_armBufPos = 0;
 static uint32_t g_armStartMs = 0;
+
+enum class TMinusAsk : uint8_t { kNone = 0, kMinutes, kZulu };
+static TMinusAsk g_tminusAsk = TMinusAsk::kNone;
+static char g_tminusBuf[12] = {};
+static uint8_t g_tminusPos = 0;
 
 #if defined(ROCKETCHIP_DEV_MODE)
 static bool g_devModeRuntime = false;
@@ -127,6 +134,98 @@ void rc_os_print_help() {
 
 bool rc_os_arm_confirm_active() {
     return g_armConfirmActive;
+}
+
+static void tminus_prompt() {
+    if (g_tminusAsk == TMinusAsk::kMinutes) {
+        rc::rc_log("T- minutes (1-1440): ");
+        return;
+    }
+    rc::rc_log("T- Zulu (HHMMSS or HH:MM:SS): ");
+}
+
+static void commit_tminus_line() {
+    g_tminusBuf[g_tminusPos] = '\0';
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    if (g_tminusAsk == TMinusAsk::kMinutes) {
+        uint16_t minutes = 0;
+        if (!rc::dash::parse_tminus_minutes(g_tminusBuf, &minutes)) {
+            rc::rc_log("\nT- needs 1-1440 minutes\n");
+            return;
+        }
+        ansi_dashboard_set_tminus_minutes(minutes, now_ms);
+        AO_Telemetry_send_tracked_command(rc::kCmdTMinus, 0.0F,
+                                          static_cast<float>(minutes),
+                                          0.0F, 0.0F, 0.0F);
+        rc::rc_log("\nT- %u min sent\n", static_cast<unsigned>(minutes));
+        return;
+    }
+    uint8_t h = 0;
+    uint8_t m = 0;
+    uint8_t s = 0;
+    if (!rc::dash::parse_tminus_zulu(g_tminusBuf, &h, &m, &s)) {
+        rc::rc_log("\nT- needs HHMMSS or HH:MM:SS\n");
+        return;
+    }
+    if (!ansi_dashboard_set_tminus_zulu(h, m, s, now_ms)) {
+        rc::rc_log("\nT- needs GPS time\n");
+        return;
+    }
+    const uint32_t sod = (static_cast<uint32_t>(h) * 3600U) +
+                         (static_cast<uint32_t>(m) * 60U) +
+                         static_cast<uint32_t>(s);
+    AO_Telemetry_send_tracked_command(rc::kCmdTMinus, 1.0F,
+                                      static_cast<float>(sod),
+                                      0.0F, 0.0F, 0.0F);
+    rc::rc_log("\nT- at %02u:%02u:%02uZ sent\n",
+               static_cast<unsigned>(h), static_cast<unsigned>(m),
+               static_cast<unsigned>(s));
+}
+
+void rc_os_start_tminus_minutes() {
+    g_tminusAsk = TMinusAsk::kMinutes;
+    g_tminusPos = 0;
+    tminus_prompt();
+}
+
+void rc_os_start_tminus_zulu() {
+    g_tminusAsk = TMinusAsk::kZulu;
+    g_tminusPos = 0;
+    tminus_prompt();
+}
+
+static int handle_tminus_line() {
+    if (g_tminusAsk == TMinusAsk::kNone) {
+        return -1;
+    }
+    const int c = getchar_timeout_us(0);
+    if (c == PICO_ERROR_TIMEOUT) {
+        return 0;
+    }
+    if (c == rc::cli::kEsc) {
+        rc::rc_log("\nT- cancelled\n");
+        g_tminusAsk = TMinusAsk::kNone;
+        show_prompt();
+        return 1;
+    }
+    if (c == '\r' || c == '\n') {
+        commit_tminus_line();
+        g_tminusAsk = TMinusAsk::kNone;
+        show_prompt();
+        return 1;
+    }
+    if (c == 8 || c == 127) {
+        if (g_tminusPos > 0) {
+            g_tminusPos--;
+            rc::rc_log("\b \b");
+        }
+        return 1;
+    }
+    if (g_tminusPos + 1U < sizeof(g_tminusBuf)) {
+        rc::rc_log("%c", c);
+        g_tminusBuf[g_tminusPos++] = static_cast<char>(c);
+    }
+    return 1;
 }
 
 void rc_os_start_arm_confirm() {
@@ -282,7 +381,9 @@ static void dispatch_key(int c) {
         case rc::cli::Event::kUnknown:
             break;
     }
-    show_prompt();
+    if (g_tminusAsk == TMinusAsk::kNone) {
+        show_prompt();
+    }
 }
 
 bool rc_os_update() {
@@ -323,6 +424,14 @@ bool rc_os_update() {
         return false;
     }
     if (arm_result == 1) {
+        return true;
+    }
+
+    const int tminus_result = handle_tminus_line();
+    if (tminus_result == 0) {
+        return false;
+    }
+    if (tminus_result == 1) {
         return true;
     }
 

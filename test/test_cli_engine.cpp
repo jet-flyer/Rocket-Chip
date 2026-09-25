@@ -92,7 +92,7 @@ TEST(CliEngine, VehicleSettingsCatalogKeys) {
 TEST(CliEngine, StationHasNoCalAndZReturnsPadAction) {
     Engine e{};
     init(e);
-    auto r = on_key(e, kStationItems, kStationItemCount, 'c');
+    auto r = on_key(e, kStationItems, kStationItemCount, 'f');
     EXPECT_EQ(r.ev, Event::kUnknown);
     r = on_key(e, kStationItems, kStationItemCount, 'a');
     EXPECT_EQ(r.act, ActionId::kStationArmConfirm);
@@ -100,6 +100,33 @@ TEST(CliEngine, StationHasNoCalAndZReturnsPadAction) {
     EXPECT_EQ(r.act, ActionId::kStationDisarm);
     r = on_key(e, kStationItems, kStationItemCount, 'z');
     EXPECT_EQ(r.act, ActionId::kReturnPad);
+}
+
+TEST(CliEngine, StationClockAndGpsAreSubmenus) {
+    Engine e{};
+    init(e);
+    auto r = on_key(e, kStationItems, kStationItemCount, 'c');
+    EXPECT_EQ(r.ev, Event::kPushed);
+    EXPECT_EQ(top(e), MenuId::kClock);
+    r = on_key(e, kStationItems, kStationItemCount, 'n');
+    EXPECT_EQ(r.act, ActionId::kTMinusMinutes);
+    r = on_key(e, kStationItems, kStationItemCount, 't');
+    EXPECT_EQ(r.act, ActionId::kTMinusZulu);
+    r = on_key(e, kStationItems, kStationItemCount, 'c');
+    EXPECT_EQ(r.act, ActionId::kTMinusClear);
+    r = on_key(e, kStationItems, kStationItemCount, 'z');
+    EXPECT_EQ(r.ev, Event::kPopped);
+    EXPECT_EQ(top(e), MenuId::kMain);
+
+    r = on_key(e, kStationItems, kStationItemCount, 'd');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+    r = on_key(e, kStationItems, kStationItemCount, 'g');
+    EXPECT_EQ(r.ev, Event::kPushed);
+    EXPECT_EQ(top(e), MenuId::kGps);
+    r = on_key(e, kStationItems, kStationItemCount, 's');
+    EXPECT_EQ(r.act, ActionId::kStationGps);
+    r = on_key(e, kStationItems, kStationItemCount, 'd');
+    EXPECT_EQ(r.act, ActionId::kStationDistance);
 }
 
 TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
@@ -117,7 +144,10 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
 
     Engine s{};
     init(s);
-    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'c').ev, Event::kUnknown);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'c').ev, Event::kPushed);
+    EXPECT_EQ(top(s), MenuId::kClock);
+    on_key(s, kStationItems, kStationItemCount, 'z');
+    EXPECT_EQ(top(s), MenuId::kMain);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'f').ev, Event::kUnknown);
     on_key(s, kStationItems, kStationItemCount, 'q');
     EXPECT_EQ(top(s), MenuId::kDebug);

@@ -8,7 +8,10 @@
 
 #include "pico/time.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/shared_state.h"
 #include "core1/sensor_core1.h"
+#include "drivers/gps_pa1010d.h"
+#include "drivers/i2c_master.h"
 #include "drivers/mcu_temp.h"
 
 namespace rc {
@@ -32,6 +35,11 @@ static uint32_t g_lastGpsReadUs = 0;
 // more often than ~10 Hz.
 static uint32_t g_lastTickUs = 0;
 
+// Boot probe runs once. A module plugged in later, or a bus left mid-byte
+// by a warm reboot, stays "absent" unless we ask again.
+static constexpr uint32_t kGpsRetryUs = 2000000U;
+static uint32_t g_lastGpsRetryUs = 0;
+
 // MCU temp capture cadence — every 10th GPS tick = ~1 Hz.
 // IVP-142a: on-die RP2350 temp sensor, captured on both roles.
 static constexpr uint32_t kStationMcuTempDivider = 10;
@@ -46,6 +54,21 @@ void station_idle_tick_init() {
     g_localData.mcu_die_temp_c = kMcuTempSentinelC;
 }
 
+static void try_gps_init() {
+    if (!i2c_master_lines_idle()) {
+        (void)i2c_master_reset();
+    }
+    if (!i2c_master_probe(kGpsPa1010dAddr, kI2cMasterDefaultTimeoutUs)) {
+        return;
+    }
+    g_gpsInitAttempted = true;
+    if (!gps_pa1010d_init()) {
+        return;
+    }
+    g_gpsTransport = GPS_TRANSPORT_I2C;
+    g_gpsInitialized.store(true, std::memory_order_release);
+}
+
 void station_idle_tick() {
     const uint32_t now_us = time_us_32();
     if ((now_us - g_lastTickUs) < kStationGpsTickIntervalUs) {
@@ -56,6 +79,9 @@ void station_idle_tick() {
     // GPS poll is optional; MCU-temp still runs without a GPS (CW-B30-02).
     if (g_gpsInitialized.load(std::memory_order_acquire)) {
         core1_read_gps(&g_localData, &g_lastGpsReadUs);
+    } else if ((now_us - g_lastGpsRetryUs) >= kGpsRetryUs) {
+        g_lastGpsRetryUs = now_us;
+        try_gps_init();
     }
 
     // MCU temp at ~1 Hz (every 10th outer tick at 10 Hz).

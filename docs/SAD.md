@@ -861,7 +861,7 @@ Onboard logging uses PCM fixed frames (per Data Logging council consensus). The 
 | Field | Size | Description |
 |-------|------|-------------|
 | Sync word | 2B | Fixed 16-bit pattern for frame alignment |
-| MET timestamp | 4B | Mission Elapsed Time from `time_us_64()` (49.7-day range) |
+| MET timestamp | 4B | Mission elapsed time in milliseconds (`vehicle_met.h`). Zero until the vehicle latches the mark. uint32 range is 49.7 days. |
 | Frame type | 1B | Economy=0, Standard=1, Research=2 |
 | Length | 1B | Payload length |
 | Payload | Variable | TelemetryState (Standard) or reduced field set (Economy) |

@@ -28,4 +28,15 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs);
 void ansi_dashboard_pause();
 void ansi_dashboard_resume();
 
+void ansi_dashboard_set_tminus_minutes(uint16_t minutes, uint32_t now_ms);
+// False when the station has no GPS time yet.
+bool ansi_dashboard_set_tminus_zulu(uint8_t h, uint8_t m, uint8_t s,
+                                    uint32_t now_ms);
+void ansi_dashboard_clear_tminus();
+// Vehicle ACK'd this UTC second-of-day. Station GPS retargets the
+// countdown. Returns false when this board has no GPS time.
+bool ansi_dashboard_retarget_tminus_sod(uint32_t accepted_sod, uint32_t now_ms);
+void ansi_dashboard_note_latency(bool valid, int32_t latency_s);
+bool ansi_dashboard_latency(int32_t* latency_s);
+
 #endif // ROCKETCHIP_RC_OS_DASHBOARD_H

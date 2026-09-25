@@ -532,7 +532,8 @@ TEST_F(FlightDirectorTest, ProfileStructNoPointers) {
     // sizeof check: struct is compact, no vtable
     // IVP-83: PhaseQRTable adds ~257 bytes (8 phases × 32 bytes + ramp_steps)
     // IVP-120: +12 bytes (baro_landing_rate_threshold_mps, baro_landing_sustain_ms, descent_max_duration_ms)
-    EXPECT_LE(sizeof(rc::MissionProfile), 400u);
+    // Pad clock plus the opening-shock profile fields: struct is 408 bytes.
+    EXPECT_LE(sizeof(rc::MissionProfile), 416u);
 }
 
 // ============================================================================

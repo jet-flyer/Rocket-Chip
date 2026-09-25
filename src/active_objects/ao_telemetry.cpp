@@ -33,6 +33,8 @@
 #include "starcom_adapt/cmd_sdu.h"
 #include "station/gcs_mavlink.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/time_sync.h"
+#include "cli/rc_os_dashboard.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (float→int for SET_RADIO_CONFIG)
 #ifdef ROCKETCHIP_JOB_STATION
@@ -601,6 +603,50 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
 }
 
+static bool g_tminusEchoValid = false;
+static uint64_t g_tminusEcho = 0;
+
+static bool vehicle_gps_sod(uint32_t* sod) {
+    shared_sensor_data_t snap = {};
+    if (!seqlock_read(&g_sensorSeqlock, &snap) || !snap.gps_time_valid) {
+        return false;
+    }
+    *sod = (static_cast<uint32_t>(snap.gps_hour) * 3600U) +
+           (static_cast<uint32_t>(snap.gps_minute) * 60U) +
+           static_cast<uint32_t>(snap.gps_second);
+    return true;
+}
+
+// Operator T-. The vehicle writes the UTC it will honor. No GPS time
+// on the vehicle means deny: the station must not become the locus.
+static uint8_t dispatch_tminus(const mavlink_command_long_t& cmd) {
+    g_tminusEchoValid = false;
+    uint32_t now_sod = 0;
+    if (!vehicle_gps_sod(&now_sod)) {
+        rc::rc_log("[CMD] T- denied — vehicle has no GPS time\n");
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    uint32_t accepted = 0;
+    if (cmd.param1 < 0.5F) {
+        const int minutes = static_cast<int>(lroundf(cmd.param2));
+        if (minutes < 1 || minutes > 1440) {
+            return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+        }
+        accepted = (now_sod + (static_cast<uint32_t>(minutes) * 60U)) %
+                   rc::kSodPerDay;
+    } else {
+        const int sod = static_cast<int>(lroundf(cmd.param2));
+        if (sod < 0 || sod >= static_cast<int>(rc::kSodPerDay)) {
+            return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+        }
+        accepted = static_cast<uint32_t>(sod);
+    }
+    g_tminusEcho = rc::tminus_pack_echo(accepted, now_sod);
+    g_tminusEchoValid = true;
+    rc::rc_log("[CMD] T- accepted sod=%lu\n", (unsigned long)accepted);
+    return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
+}
+
 // Dispatch a single MAVLink COMMAND_LONG. Returns ack_result.
 static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) {
     uint8_t ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
@@ -631,6 +677,9 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
     case MAV_CMD_USER_3:
         // QUERY_RADIO_CONFIG — read-only, echo fields populated below.
         break;
+    case 31013:  // MAV_CMD_USER_4 — T- appointment
+        ack_result = dispatch_tminus(cmd);
+        break;
     default:
         ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
         break;
@@ -651,6 +700,11 @@ static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result)
         g_pendingAck.cfg_nav_hz = cur->nav_rate_hz;
         g_pendingAck.cfg_sf     = cur->spreading_factor;
         g_pendingAck.cfg_cr     = cur->coding_rate;
+    } else if (cmd.command == 31013 && g_tminusEchoValid) {
+        g_pendingAck.cfg_bw_khz = static_cast<uint16_t>(g_tminusEcho & 0xFFFFU);
+        g_pendingAck.cfg_nav_hz = static_cast<uint8_t>((g_tminusEcho >> 16) & 0xFFU);
+        g_pendingAck.cfg_sf     = static_cast<uint8_t>((g_tminusEcho >> 24) & 0xFFU);
+        g_pendingAck.cfg_cr     = static_cast<uint8_t>((g_tminusEcho >> 32) & 0xFFU);
     } else {
         g_pendingAck.cfg_bw_khz = 0;
         g_pendingAck.cfg_nav_hz = 0;
@@ -770,6 +824,36 @@ static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
     }
 }
 
+#ifdef ROCKETCHIP_JOB_STATION
+static void station_on_tminus_ack(const rc::ccsds::CommandAckPayload& ack) {
+    const uint64_t packed = static_cast<uint64_t>(ack.cfg_bw_khz) |
+        (static_cast<uint64_t>(ack.cfg_nav_hz) << 16) |
+        (static_cast<uint64_t>(ack.cfg_sf) << 24) |
+        (static_cast<uint64_t>(ack.cfg_cr) << 32);
+    uint32_t accepted_sod = 0;
+    uint32_t vehicle_now = 0;
+    rc::tminus_unpack_echo(packed, &accepted_sod, &vehicle_now);
+    const bool retargeted = ansi_dashboard_retarget_tminus_sod(
+        accepted_sod, now_ms());
+    shared_sensor_data_t snap = {};
+    const bool station_gps = seqlock_read(&g_sensorSeqlock, &snap) &&
+                             snap.gps_time_valid;
+    if (station_gps) {
+        const uint32_t station_sod =
+            (static_cast<uint32_t>(snap.gps_hour) * 3600U) +
+            (static_cast<uint32_t>(snap.gps_minute) * 60U) +
+            static_cast<uint32_t>(snap.gps_second);
+        ansi_dashboard_note_latency(
+            true, rc::link_latency_s(station_sod, vehicle_now));
+    } else {
+        ansi_dashboard_note_latency(false, 0);
+    }
+    rc::rc_log("[CMD] T- vehicle sod=%lu%s\n",
+               (unsigned long)accepted_sod,
+               retargeted ? "" : " (station has no GPS time)");
+}
+#endif
+
 static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 #ifdef ROCKETCHIP_JOB_STATION
     // Inject ACK suppression (runtime-gated; 0 on production boots).
@@ -814,6 +898,9 @@ static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
     }
     if (accepted && matched_cmd == 31012 /* MAV_CMD_USER_3 */) {
         station_on_query_ack(ack);
+    }
+    if (accepted && matched_cmd == rc::kCmdTMinus) {
+        station_on_tminus_ack(ack);
     }
 #else
     (void)matched_cmd;

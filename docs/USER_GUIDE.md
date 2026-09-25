@@ -291,7 +291,7 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 
 ## Serial Commands — Station
 
-**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Header is `State` + `MET` + `Zulu` + `Local` (one line, 80 col). `GPS (veh):` is vehicle telem. `Zulu`/`Local` are station GPS NMEA UTC (Fruit Jam PA1010D); Local uses `kPadLocalUtcOffsetMin` (0 = same as Zulu). `RSSI` is SX1276 packet RSSI (dBm). Pad `Air:` includes `N(R)` `V(S)` `V(R)`. `RF Link` is COP-P lock + CRC-ok LQ + actual RX Hz (not 10 Hz miss slots). `CRC:` is CRC-fail count, not RfManager Lost. RATE counters are not on the pad.
+**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Header is `MET` + `Zulu` + `Local` on one line, then `State` on the next. `GPS (veh):` is vehicle telem. `Zulu` is station GPS UTC (Fruit Jam PA1010D), kept moving by the station clock between NMEA seconds. `Local` is that UTC plus a zone from the station fix: US/EU daylight rules inside coarse boxes, otherwise the 15° nautical zone. `MET` is one clock. Rocket profiles show `MET ±HH:MM:SS`. `MET_DAYS yes` (HAB) shows the NASA day field, `MET ±D/HH:MM:SS`. A mark set from the clock menu is that zero. With no mark, flight profiles start `T+` when the vehicle detects launch, and `MET_START 0` counts from plug-in. The pad does not pick liftoff. `Veh up` is vehicle time since boot until that clock is running. The station `Up` on the GPS row is time since the station booted. `RSSI` is SX1276 packet RSSI (dBm). Pad `Air:` includes `N(R)` `V(S)` `V(R)`. `RF Link` is COP-P lock + CRC-ok LQ + actual RX Hz (not 10 Hz miss slots). `CRC:` is CRC-fail count, not RfManager Lost. RATE counters are not on the pad.
 
 **Menu** (after `x`):
 
@@ -299,9 +299,9 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 |-----|--------|
 | `h` / `?` | Help |
 | `p` | Preflight Go/No-Go |
+| `c` | Clock (`n` T- in N minutes, `t` T- at Zulu `HHMMSS`, `c` clear, `z` back). A Zulu mark that is already past is the next UTC day. Minutes are 1–1440. |
+| `g` | GPS (`s` station fix, `d` distance, `z` back) |
 | `t` | Radio status (CFG, RSSI, COP-P, RATE dump) |
-| `g` | Station-local GPS (Fruit Jam PA1010D) |
-| `d` | Distance (needs station GPS fix) |
 | `a` | ARM confirm |
 | `X` | DISARM |
 | `m` | Cycle output: ANSI → CSV → MAVLink (QGC / Mission Planner) |

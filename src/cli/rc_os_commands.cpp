@@ -5,6 +5,7 @@
 // sensor seqlock, owns no state.
 
 #include "cli/rc_os_commands.h"
+#include "cli/rc_os_dashboard.h"
 
 #include "ao_rcos.h"
 #include "rocketchip/ao_signals.h"
@@ -1082,6 +1083,12 @@ void cli_print_station_status() {
                        sc.nav_sdu ? "  nav" : "");
         }
     }
+    int32_t latency_s = 0;
+    if (ansi_dashboard_latency(&latency_s)) {
+        rc::rc_log("Link age: %ld s (both GPS)\n", (long)latency_s);
+    } else {
+        rc::rc_log("Link age: -- (needs GPS time on both)\n");
+    }
     if (!rx->valid) {
         rc::rc_log("Waiting for vehicle packets...\n");
         rc::rc_log("RX: %lu pkts  %lu CRC err\n",
@@ -1436,13 +1443,20 @@ void cmd_station_gps() {
 
     shared_sensor_data_t snap = {};
     (void)seqlock_read(&g_sensorSeqlock, &snap);
-    rc::rc_log("  G=%lu E=%lu RMC=%c GGA=%u sats=%u valid=%u\n",
+    rc::rc_log("  G=%lu E=%lu RMC=%c GGA=%u sats=%u valid=%u time=%u\n",
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count,
            snap.gps_rmc_valid ? 'A' : 'V',
            snap.gps_gga_fix,
            snap.gps_satellites,
-           snap.gps_valid ? 1U : 0U);
+           snap.gps_valid ? 1U : 0U,
+           snap.gps_time_valid ? 1U : 0U);
+    if (snap.gps_time_valid) {
+        rc::rc_log("  UTC %02u:%02u:%02uZ\n",
+               static_cast<unsigned>(snap.gps_hour),
+               static_cast<unsigned>(snap.gps_minute),
+               static_cast<unsigned>(snap.gps_second));
+    }
 
     const uint8_t* raw = nullptr;
     size_t raw_len = 0;

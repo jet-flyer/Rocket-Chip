@@ -50,6 +50,8 @@ bool rc_os_is_calibrating(void);
 rc_os_menu_t rc_os_get_menu(void);
 
 void rc_os_start_arm_confirm(void);
+void rc_os_start_tminus_minutes(void);
+void rc_os_start_tminus_zulu(void);
 
 // True while ARM confirm is reading ARM+Enter. Pad key poll must not
 // consume those chars — rc_os_update owns the buffer.

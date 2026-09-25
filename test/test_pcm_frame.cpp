@@ -9,7 +9,7 @@
  *   - CRC detects single-bit corruption
  *   - Sync detection in byte stream with garbage
  *   - Triple-validation resync (corrupt frame skipped)
- *   - Frame size = 55 bytes (static_assert)
+ *   - Frame size = 61 bytes (static_assert)
  *   - Decommutation table coverage
  */
 
@@ -23,7 +23,7 @@
 #include "logging/crc16_ccitt.h"
 
 // Compile-time size check
-static_assert(sizeof(rc::PcmFrameStandard) == 55, "PcmFrameStandard size");
+static_assert(sizeof(rc::PcmFrameStandard) == 61, "PcmFrameStandard size");
 
 // ============================================================================
 // Helper: create a populated TelemetryState for testing
@@ -71,7 +71,7 @@ TEST(PcmFrame, EncodeDecodeRoundtrip) {
     EXPECT_EQ(frame.header.sync_low, 0x90);
     EXPECT_EQ(frame.header.met_ms, 12345U);
     EXPECT_EQ(frame.header.frame_type, rc::kPcmFrameTypeStandard);
-    EXPECT_EQ(frame.header.payload_len, 45);
+    EXPECT_EQ(frame.header.payload_len, 51);
 
     // Decode
     rc::TelemetryState decoded{};
@@ -195,7 +195,7 @@ TEST(PcmFrame, SyncDetectionThreeFramesWithGarbage) {
         stream.push_back(static_cast<uint8_t>(0xAA ^ i));
     }
 
-    // Frame 1 at offset 55+7=62
+    // Frame 1 at offset 61+7=68
     rc::pcm_encode_standard(telem, 2000, frames[1]);
     stream.insert(stream.end(),
                   reinterpret_cast<uint8_t*>(&frames[1]),
@@ -206,13 +206,13 @@ TEST(PcmFrame, SyncDetectionThreeFramesWithGarbage) {
         stream.push_back(static_cast<uint8_t>(0x55 ^ i));
     }
 
-    // Frame 2 at offset 62+55+3=120
+    // Frame 2 at offset 68+61+3=132
     rc::pcm_encode_standard(telem, 3000, frames[2]);
     stream.insert(stream.end(),
                   reinterpret_cast<uint8_t*>(&frames[2]),
                   reinterpret_cast<uint8_t*>(&frames[2]) + sizeof(frames[2]));
 
-    uint32_t expectedOffsets[] = {0, 62, 120};
+    uint32_t expectedOffsets[] = {0, 68, 132};
     uint32_t searchStart = 0;
 
     for (int i = 0; i < 3; ++i) {

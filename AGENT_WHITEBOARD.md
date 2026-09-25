@@ -25,6 +25,8 @@
 
 **Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`. Not a license this wrap.
 
+**Hitch (2026-09-25):** The same ~1 Hz hitch is on the ANSI station pad with COP-P lock and nav around 7 Hz. It is not MAVLink and not the USB glass. It is in the telemetry link. Half duplex is the known part; the turn still looks like something is missing. Do not retune LoRa or COP-P from this note. Earlier measurement: CHANGELOG 2026-09-21-001, ~500–800 ms ATTITUDE holes at the HD token.
+
 
 ---
 
@@ -67,8 +69,6 @@ Station pad is the Fruit Jam ANSI dashboard (`src/cli/rc_os_dashboard.cpp`); con
 **Named views** (configurator presets, not extra firmware products): flight-only, RF-only, IMU, and a **raw-data / workbench lab** dash (full counters, unscaled fields, RATE-class dumps). Lab view is for the bench, not the range pad.
 
 **ASCII attitude indicator.** Wanted if USB CDC + redraw latency stay acceptable (pad is 1 Hz idle / per-RX). 80-col / ~18-row glass may be the limiter, not the quaternion. Gate on a desk latency/readability check before keeping it. Not a license this sitting.
-
-**GPS → Local timezone.** Pad already shows Zulu from NMEA UTC; Local is `kPadLocalUtcOffsetMin` (0 today). Wanted: derive Local from GPS position so the operator does not set an offset. Open question is compactness — full IANA tzdb + DST is not an RP2350 fit; later sitting should look for a small lat/lon→offset table or host-configurator offset. Not a license this sitting.
 
 ---
 
