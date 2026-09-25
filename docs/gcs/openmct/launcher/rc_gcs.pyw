@@ -173,7 +173,8 @@ class App:
         fac = MODES[self.mode.get()] == "fac"
         for w in (self.rate_box, self.pad_chk):
             w.state(["!disabled"] if fac else ["disabled"])
-        self.port_box.state(["disabled"] if fac else ["readonly"])
+        # "readonly" alone does not clear a prior "disabled" flag.
+        self.port_box.state(["disabled"] if fac else ["!disabled", "readonly"])
 
     # ---------- servers ----------
     def ensure_web(self) -> None:

@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-24-002 | Grok Hamilton (Grok Bot) | tooling, feature, bugfix
+
+**oMCT glass WIP: no-data X-out, launcher, live text feed fixed.** Link alphas and the CHUTE/GPS caution boxes go grey with a white X after 3 s without data (G1000-style; legend in `docs/gcs/openmct/layouts/README.md`); RSSI/SNR/LQ/Batt limits retuned for SF7/BW125. New Tkinter launcher `docs/gcs/openmct/launcher/` (feed mode, COM port, Play/Stop/Reset, launch oMCT; `make_shortcut.ps1`). Facsimile replay gains a synthetic ARMED pad with link sag (`--pad-s`). Fixes: the historical CSV provider re-fetched and re-requested every view once a second, which cost about a CPU core and flashed NaN on the gauges, so it now polls only a rolling live CSV while the WebSocket is quiet; realtime listeners are per-id arrays so one view closing no longer silences the others; `stream_station.py` no longer sends `m` on open (current station firmware treats it as output-mode cycle, ANSI to CSV) and parses station CSV `RX,seq,rssi,snr` lines too. Commits `e060ee9` and this one. Still WIP: live-glass field mapping, gauges/LAD no-data look, RF page.
+
 ### 2026-09-24-001 | Grok 4.7 (Build CLI) | architecture, hardware
 
 **One NeoPixel chain writer.** Station and relay post link mode, RSSI, and config-apply through `AO_Notify`; `AO_LedEngine` draws the chain on every role (`1065ae2`). `AO_Radio` no longer calls the WS2812 driver. Operator colors: `docs/USER_GUIDE.md` LED State Reference. Intent order: `docs/decisions/NOTIFY_CONTRACT.md`. Verified: host 982/982; vehicle bench 2/2 COM5; station bench 3/3 COM7; desk red chase after Feather unplug, dim red on Jam boot with Feather off, Feather solid green, beacon from both `b`, ARM then capital `X` back to green. Feather `02FBDDB8E1CA1281` SHA `5E7CC950…`; Jam `BEC71B8EDC6AEBD1` SHA `7E6967FA…`.
