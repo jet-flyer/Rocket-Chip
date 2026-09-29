@@ -389,14 +389,22 @@ static bool starcom_drain_to_radio() {
             return false;
         }
     }
-    // R-32: status PLCWs ~nav/4. Seq cmd/ACK must not wait on that timer.
+    // R-32: spare status PLCWs ~nav/4. Seq cmd/ACK must not wait on that
+    // timer. Table 6-10 E39 is one owed PLCW then the pass token in the
+    // same contact; the cadence must not park that token in S56.
     if constexpr (job::kRadioModeRx) {
         const bool new_seq = g_pump.copp.seq_n != 0;
         const bool must_air_now = g_pendingCmd.pending || g_pendingAckValid;
         if (must_air_now) {
             g_pump.copp.farm.need_plcw = false;
         }
-        if (!new_seq && !station_plcw_cadence_allows()) {
+        const auto src = rc::starcom_adapt::pump_fifo_source(g_pump);
+        const bool contact_close =
+            src == starcom::ccsds::MacFifoSource::spdu ||
+            (g_pump.mac.persistence &&
+             src == starcom::ccsds::MacFifoSource::plcw);
+        if (!new_seq && !must_air_now && !contact_close &&
+            !station_plcw_cadence_allows()) {
             return false;
         }
     }
