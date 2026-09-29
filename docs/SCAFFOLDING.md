@@ -312,6 +312,7 @@ rocketchip/
 │   │   ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
 │   │   ├── rocketchip_ao.pml         # Full AO topology (5 safety + 3 mission)
 │   │   ├── rocketchip_station.pml    # Station RX/ACK/retry (IVP-147: 2/2)
+│   │   ├── proximity1_hd.pml         # 211.0-B-6 Table 6-10 half duplex (E38–E50)
 │   │   └── README.md                 # SPIN usage, model mapping, run recipes
 │   └── scratch/                   # One-off debug tools (not maintained — see CODING_STANDARDS.md "Scratch Tools and Dead-Code Discipline")
 │       └── i2c_bare_test/         # Fruit Jam I2C probe, 2026-04-17, LL Entry 41

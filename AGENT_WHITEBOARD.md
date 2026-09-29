@@ -17,6 +17,25 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Half-duplex Table 6-10 (NEXT) (2026-09-29)
+
+Model only. `mac.cpp` and `byte_pump.cpp` were not edited. Do not retune `flight_mac_mib()`. Do not latch simplex on arm. A second radio only if a correct turn is still visible on the pad.
+
+**Done this sitting:** `tools/spin/proximity1_hd.pml` and `tools/spin/run_hd_book_spin.sh`. Cygwin Spin 6.5.2. Book, `-DSHORT_WINDOW`, and `-DCODE_E38`: five claims `errors: 0`, 442 states. `-DCODE_MISS` (S51/S52 silent, listen ends on that tick): `p_no_dual_s50` `errors: 1`, the other four `errors: 0`. Detail: `tools/spin/README.md`. CHANGELOG 2026-09-29-001.
+
+**Goal:** no perceptible hitch. A yield every 1.2 s is not a target. The table still turns the radio around once per token.
+
+**Next, when editing the flight machine:**
+1. E38 in `starcom/src/ccsds/mac.cpp` `macWaitExpiredHalf` reloads `Send_Duration` while `need_plcw` is set. The book sets persistence. `test_half_token_octets` currently locks the reload. The model does not take that branch once the PLCW has gone out.
+2. `src/starcom_adapt/byte_pump.cpp` `pump_handle_air` calls `macOnToken` before `macSetCarrierAcquired`. A token that is the first frame while the receiver is still in S62 misses E49. The model does carrier lock, then the handoff.
+3. S51/S52 are 10 ms with nothing on the air. The book radiates carrier, then acquisition idle. Vehicle listen is 95 ms, shorter than the station contact, so the missed-token backup can fire in a later quiet gap.
+
+Then measure on the pad: `Last:` against `Air:` during the hole. The procedure countdown (own clock, hold, abort stays open, duplex stays half) is in the Promela model only. It is not in the flight director.
+
+**Blocked:** nothing on the model. No pad trace this sitting. Opening-shock edits are a separate dirty set; leave them unstaged.
+
+---
+
 ## GCS glass: live oMCT PoC (NEXT) (2026-09-20)
 
 **PoC proven (desk):** Master Dashboard QGC-style ring + facsimile OK; live Fruit Jam COM7 into Open MCT works via `stream_mavlink_station.py` (MAVLink USB) when station is in kMavlink. Facsimile: `feed_facsimile.py` + Play http://127.0.0.1:8092/. Serve from `docs/gcs/openmct/` (not hello-world alone) so `../plugins` resolve — URL http://localhost:5000/hello-world/.
@@ -25,7 +44,7 @@
 
 **Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`. Not a license this wrap.
 
-**Hitch (2026-09-25):** The same ~1 Hz hitch is on the ANSI station pad with COP-P lock and nav around 7 Hz. It is not MAVLink and not the USB glass. It is in the telemetry link. Half duplex is the known part; the turn still looks like something is missing. Do not retune LoRa or COP-P from this note. Earlier measurement: CHANGELOG 2026-09-21-001, ~500–800 ms ATTITUDE holes at the HD token.
+**Hitch (2026-09-29):** Same link hitch on the ANSI pad and the QGC HUD. Resume is the half-duplex row above. Do not retune LoRa or COP-P from this note. Earlier measurement: CHANGELOG 2026-09-21-001, ~500–800 ms ATTITUDE holes.
 
 
 ---
@@ -50,7 +69,7 @@ Untethered vehicle on battery. Live view is the station pad phase. Afterward, pl
 
 **Verified 2026-09-24:** host `FlightDirectorTest` opening-shock / apogee-crossing / second-opening, guard tests, action-list tests, `scripts_generated_profiles`. Not on a board. Feather was not on the bus (only Bluetooth COM3).
 
-**Dirty, this sitting:** `profiles/{rocket,hab,passive}.cfg`, `scripts/generate_profile.py`, `scripts/config_wizard/core/{cfg_emitter,derivation}.py`, `src/flight_director/` (actions, director, state, guards, evaluator, mission profile + generated header), `test/test_{action_executor,flight_director,guards,mission_profile}.cpp`, `test/test_hab_profile_data.h`. Also dirty and not this sitting: `docs/gcs/openmct/layouts/README.md`, `docs/gcs/openmct/plugins/rc-csv-dictionary.js`. Branch `main` at `af434cc`. No commit, no CHANGELOG.
+**Dirty, left unstaged (2026-09-29):** opening-shock detector is still not in a commit and not on the chips. Against `3988ecf`: `scripts/config_wizard/core/{cfg_emitter,derivation}.py`, `src/flight_director/` (actions header, director, state, guards, evaluator), `test/test_{action_executor,flight_director,guards}.cpp`. Profiles, the generated header, and the GCS layout files are clean. Do not fold this into the half-duplex commit.
 
 ---
 

@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-29-001 | Grok 4.7 (Build CLI) | tooling
+
+**Half-duplex Table 6-10 model, not finished.** `tools/spin/proximity1_hd.pml` is 211.0-B-6 Figure 6-2 events E38–E50. `tools/spin/run_hd_book_spin.sh` passes the book, a short listen while the peer still radiates, and the flight E38 reload (that reload is not taken once the PLCW has gone out). The silent-open case fails only "both peers in S50". `mac.cpp` was not edited. Three flight rows still differ; a hitch every 1.2 s is not a goal. How to run: `tools/spin/README.md`. Resume: `AGENT_WHITEBOARD.md` half-duplex row.
+
 ### 2026-09-25-001 | Grok 4.7 (Build CLI) | feature, bugfix
 
 **Station pad clock.** Zulu and local come from a GPS tie (station fix, else vehicle UTC on the nav packet). MET is one signed clock: countdown is `MET -HH:MM:SS`, after the mark `MET +HH:MM:SS`; `MET_DAYS yes` (HAB) adds the NASA day field `D/HH:MM:SS`. Rocket leaves days off. State is the line under that clock. Station GPS lock is its own row. Clock menu still sets the mark; the vehicle accepts it. Detail: `docs/USER_GUIDE.md` pad section. Product oscillator/RTC options: `docs/hardware/HARDWARE.md` Timekeeping. Desk: Jam `BEC71B8EDC6AEBD1` 3D 9 sat, Zulu and local confirmed, MET blank in IDLE. Same ~1 Hz hitch on this ANSI pad as on the QGC HUD, so it is the telemetry link, not MAVLink. Half-duplex token is the known piece; the turn still looks short. Note on the GCS glass whiteboard row. Prior hitch: 2026-09-21-001.

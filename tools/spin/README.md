@@ -118,6 +118,38 @@ echo "=== p_eventual_track (liveness, -f) ==="
 
 Expected: `errors: 0` on all 5. Runtime <1 s total. Abstractions: LQ is bucketed (LOW/BORDER/HIGH) rather than the full 10-slot sliding window — state space tractable while still proving the Schmitt/livelock properties. Filter coefficient arithmetic is host-tested separately (test/test_rf_link_health.cpp 32 tests).
 
+### `proximity1_hd.pml` (211.0-B-6 Table 6-10)
+
+Half-duplex data service after hail. One process, two peers, discrete ticks. Rows E38–E50. Hail, COMM_CHANGE, and termination stay in `mac.cpp` and are not this file. The file does not replace `starcom/src/ccsds/mac.cpp`.
+
+Claims, all safety:
+
+- **p_no_dual_s50**: the two peers are never both in S50.
+- **p_gap_bounded**: ticks since the vehicle's last user frame stay within one peer ceremony. The bound is abstract ticks. It is not a millisecond budget and it is not a cadence to keep.
+- **p_lock_keeps_abort**: command lockout refuses ordinary commands, leaves abort open, and stays half duplex.
+- **p_hold_not_commit**: a hold does not refuse ordinary commands.
+- **p_abort_reopens**: abort restores ordinary commands and stays half duplex.
+
+The count (`seq`) is the pad procedure above the MAC. It is not the flight T− clock.
+
+Run, from Cygwin bash (the script is LF):
+
+```bash
+cd /cygdrive/c/Users/pow-w/Documents/Rocket-Chip/tools/spin
+bash run_hd_book_spin.sh
+```
+
+`pan` exits 0 when a claim fails. The script reads the `errors:` count. Expected: `HD_BOOK_SPIN_DONE`.
+
+| Defines | What it is | Expected |
+|---------|------------|----------|
+| none | Book. S51/S52/S58 radiate. Listen covers the contact. | all five `errors: 0` (442 states) |
+| `-DSHORT_WINDOW` | Listen is short and the peer still radiates, so the row is E44 then E49. | all five `errors: 0` |
+| `-DCODE_E38` | Flight E38 reloads `Send_Duration` while `NEED_PLCW` is set. This send clears `NEED_PLCW` on the first PLCW, so the reload is not taken. | all five `errors: 0` |
+| `-DCODE_MISS` | S51/S52 radiate nothing and the listen ends on that silent tick, while the station send is still running. | `p_no_dual_s50` `errors: 1`; the other four `errors: 0` |
+
+A zero-length silence is not a row. The book turns the radio around. How often, and whether that turn is visible on the glass, is the MIB and the PHY.
+
 ## What's Modeled
 
 | Real System | Promela Model | Abstraction |
