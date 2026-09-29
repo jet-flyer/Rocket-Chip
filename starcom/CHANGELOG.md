@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-09-29-002 | Grok 4.7 (Build CLI) | bugfix
+
+**Table 6-10 data-services rows.** `mac.cpp`: E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. `test_mac.cpp` follows those rows. No version bump. No tag.
+
+RC listen windows, the station pass cadence, and the pad score are root `CHANGELOG.md` 2026-09-29-002 (`40b83fc`, `37acb21`).
+
+Verified: host MAC tests in the `40b83fc` pre-commit suite.
+
 ### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation
 
 **On-hand fabric figure is snickerdoodle one (~17.6k LUT).** `docs/DESIGN.md` and `AGENT_WHITEBOARD.md` had been counting ~53k LUT. Encode stays the small job. LDPC decode stays Pi/GCS software. No version bump. No tag.

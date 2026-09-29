@@ -18,9 +18,9 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
-## FSK bitstream bearer (WANTED) (2026-09-02)
+## FSK bitstream bearer (NEXT) (2026-09-29)
 
-Moved from RC board. SX1276 FSK (packet and/or continuous bitstream) as a Best-effort bearer — not 211.1. Not hail. Not a license to mint LoRa SF/BW. Sit after station 2 dBm ELF is on the Jam so SET is not a +20 dBm desk shot. STATUS.md future line already names this. Not a license this sitting.
+SX1276 FSK, both ends in FSK for a session, no mode change inside a turn. Best-effort bearer, not 211.1, not hail. LoRa stays the long-range preset. The LoRa hitch sitting closed with a shorter periodic hitch still visible; pad numbers are the root `AGENT_WHITEBOARD.md` half-duplex row. Do not mint LoRa SF/BW from this row. A desk SET must not be a +20 dBm shot. Root log: `CHANGELOG.md` 2026-09-29-002.
 
 ---
 

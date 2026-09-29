@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-09-29-002 | Grok 4.7 (Build CLI) | bugfix, council
+
+**Half-duplex turn is shorter, and a periodic hitch remains.** Table 6-10 data-services rows are on the air in `40b83fc` (`starcom/src/ccsds/mac.cpp` and the adapter). Council record: `docs/decisions/HD_HITCH_COUNCIL_2026-09-29.md` (`0488d60`). The station sends the owed PLCW and the pass in one contact (`37acb21`). Desk: station already up, then a Feather power-on. ANSI pad, 180 s, packets 203→2010, 10.0 Hz, median gap 93 ms, longest 338 ms, COP-P lock and nav on every redraw, phase Idle. Operator: the hitch is still periodic, and it is much better. FSK on these SX1276s is the next sitting. N and the vehicle send time stay. Opening-shock stays unstaged. Library row: `starcom/CHANGELOG.md` 2026-09-29-002. Resume: `AGENT_WHITEBOARD.md` half-duplex row.
+
 ### 2026-09-29-001 | Grok 4.7 (Build CLI) | tooling
 
 **Half-duplex Table 6-10 model, not finished.** `tools/spin/proximity1_hd.pml` is 211.0-B-6 Figure 6-2 events E38–E50. `tools/spin/run_hd_book_spin.sh` passes the book, a short listen while the peer still radiates, and the flight E38 reload (that reload is not taken once the PLCW has gone out). The silent-open case fails only "both peers in S50". `mac.cpp` was not edited. Three flight rows still differ; a hitch every 1.2 s is not a goal. How to run: `tools/spin/README.md`. Resume: `AGENT_WHITEBOARD.md` half-duplex row.

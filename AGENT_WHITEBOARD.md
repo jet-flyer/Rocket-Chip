@@ -21,9 +21,17 @@
 
 Table 6-10 rows are in `starcom/src/ccsds/mac.cpp` and `src/starcom_adapt/byte_pump.cpp`. E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. Vehicle receive is one station contact (143 ms). Station receive and the carrier-loss hold are one vehicle contact (1278 ms). Vehicle send stays 1200 ms (N=11). S51, S52, and S58 still put no octets on the air. That stays in the adapter.
 
-**Pad, flight-549a0fe, 2026-09-29:** after a Feather watchdog reboot, 11.4 s of the station pad was 7.45 Hz, median gap 154 ms, with repeated holes of about 616–618 ms. Air sat in MAC A/s50 or s51 through each hole and returned to s60 on the next nav. The station is holding the token. The hitch is still there.
+**Pad, flight-549a0fe, 2026-09-29:** after a Feather watchdog reboot, 11.4 s of the station pad was 7.45 Hz, median gap 154 ms, with repeated holes of about 616–618 ms. Air sat in MAC A/s50 or s51 through each hole and returned to s60 on the next nav. The station was holding the token.
 
-**Next:** make that turn short enough that it is not perceptible. Do not retune N or vehicle Send_Duration. Simplex and a second radio wait until a correct turn is measured and still visible. Command lockout is not this step. Opening-shock stays unstaged.
+**Later the same day, commit 37acb21:** the station lets the owed PLCW and the pass token leave in one contact. CLI pad on that image: about 10.4 packets/s, median gap 93 ms, longest 279 ms, CRC flat. The periodic half-second hole was gone on that pad. QGC still showed freezes. Those frames were not soaked, so the cause is still open.
+
+**Ordered reboot, same day:** station already up, then a Feather power-on reset. Passive COM7 pad, 180 s: packets 203→2010, 10.0 Hz, median gap 93 ms, p90 124 ms, longest 338 ms. 99 gaps at least 200 ms, 12 at least 300 ms, none at least 500 ms. CRC errors 0→12. Every redraw was COP-P lock with nav, phase Idle. The longer gaps were MAC A/s50, A/s51, or A/s52, then A/s60. The earlier MAVLink soak had no attitude because the vehicle console was silent.
+
+**Operator after that pad:** a periodic hitch is still there. It is much better than the half-second hole. The remaining rhythm matches one yield per vehicle send window (1200 ms): mostly the low 200s ms, a few near 308 ms.
+
+**Next conversation — FSK:** both SX1276s stay in FSK for a session. No mode change inside a turn. LoRa stays the long-range preset. Convolutional and LDPC encoders stay off the LoRa payload. Do not retune N or vehicle Send_Duration. Simplex and a second radio stay deferred. QGC freezes were not in this pad capture. Opening-shock stays unstaged and off the room-test image.
+
+**Chips at this handoff:** Jam `BEC71B8EDC6AEBD1` is running the cadence image. Its banner still reads `0488d60-dirty` because that image was linked before `37acb21`. Feather `02FBDDB8E1CA1281` power-cycled, recovered the radio, and locked. The clean `37acb21` ELF was not written. The last halt-write on record is the opening-shock dirty ELF. Do not flash either board until that image is identified. Local main is ahead of origin and was not pushed.
 
 The procedure countdown is in `tools/spin/proximity1_hd.pml` only. Book, `-DSHORT_WINDOW`, and `-DCODE_E38`: five claims `errors: 0`. `-DCODE_MISS`: `p_no_dual_s50` `errors: 1`, the other four `errors: 0`.
 
@@ -37,7 +45,7 @@ The procedure countdown is in `tools/spin/proximity1_hd.pml` only. Book, `-DSHOR
 
 **Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`. Not a license this wrap.
 
-**Hitch (2026-09-29):** Same link hitch on the ANSI pad and the QGC HUD. Resume is the half-duplex row above. Do not retune LoRa or COP-P from this note. Pad after the row fixes: 7.45 Hz, repeated holes about 620 ms while Air is s50 or s51.
+**Hitch (2026-09-29):** Same link on the ANSI pad and the QGC HUD. After `37acb21` and a station-then-vehicle reboot the pad ran 10.0 Hz for 180 s, median gap 93 ms, longest 338 ms, COP-P lock and nav on every redraw. Operator: a shorter periodic hitch is still visible. FSK is the next conversation. Do not retune LoRa or COP-P from this note.
 
 
 ---
