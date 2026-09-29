@@ -395,7 +395,7 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
 
 void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
   switch (m.state) {
-    case MacState::s50:  // E38 211.0 table 6-12 (from S50 Y=0)
+    case MacState::s50:  // E38 211.0 table 6-10 (from S50, Y=0)
       // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
       if (m.mib.maximum_failed_token_passes != 0 &&
           m.token_fail_n >= m.mib.maximum_failed_token_passes) {
@@ -411,17 +411,11 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
         }
         break;
       }
-      // 211.0 table 6-12 E38: PERSISTENCE only. E39 still needs NEED_PLCW
-      // already false (PLCW sent during Send_Duration).
+      // Table 6-10 E38 sets PERSISTENCE and does not reload Send_Duration.
+      // E39 still waits until NEED_PLCW is false. The PLCW is a MAC frame,
+      // so macFifoSource still offers it while persistence is set.
       if (m.y == 0) {
-        // 211.0 6.2.4.17: Send_Duration ends when data is sent. NEED_PLCW
-        // means the PLCW has not gone out — stay in S50 and keep sending.
-        if (m.need_plcw) {
-          ++m.token_fail_n;
-          loadWait(m, m.mib.send_duration);
-        } else {
-          m.persistence = true;
-        }
+        m.persistence = true;
       }
       break;
     case MacState::s51:  // E40
@@ -472,9 +466,10 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
       if (m.carrier_acquired) {  // E45
         loadWait(m, m.mib.receive_duration);
         notify(m, MacNotify::no_data_this_contact);
-      } else {  // E50
+      } else {  // E50. Annex C: one S62/S61 miss toward E83.
         applyState(m, MacState::s51);
         loadWait(m, m.mib.carrier_only_duration);
+        ++m.token_fail_n;
         if (m.y == 3) {
           m.y = 0;
           m.pending_cv_valid = false;
@@ -488,6 +483,7 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
       if (!m.carrier_acquired) {  // E50
         applyState(m, MacState::s51);
         loadWait(m, m.mib.carrier_only_duration);
+        ++m.token_fail_n;
         if (m.y == 3) {
           m.y = 0;
           m.pending_cv_valid = false;
@@ -704,10 +700,9 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
       loadWait(m, m.mib.tail_idle_duration);
       return;
     }
-    if (m.y == 0) {  // E42
+    if (m.y == 0) {  // E42. Annex C counts the miss at E50, not here.
       applyState(m, MacState::s58);
       loadWait(m, m.mib.tail_idle_duration);
-      ++m.token_fail_n;
       return;
     }
   }
@@ -752,7 +747,6 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   if (m.state == MacState::s56 && m.y == 0) {  // E42
     applyState(m, MacState::s58);
     loadWait(m, m.mib.tail_idle_duration);
-    ++m.token_fail_n;
     return;
   }
   if (m.state == MacState::s50 && m.y == 2) {  // E65
@@ -997,10 +991,14 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept {
     if (m.mac_frame_pending) {
       return MacFifoSource::spdu;
     }
+    // Table 6-10 E39 waits on NEED_PLCW. Persistence stops user data only.
+    if (m.need_plcw) {
+      return MacFifoSource::plcw;
+    }
     if (m.persistence) {
       return MacFifoSource::idle;
     }
-    if (m.need_plcw || m.need_status_report) {
+    if (m.need_status_report) {
       return MacFifoSource::plcw;
     }
     if (m.sdu_pending) {

@@ -35,11 +35,14 @@ Book mechanism is Starcom: `Send_Duration` / `Receive_Duration` / E39
 token (`starcom/docs/USER_GUIDE.md`, GLOSSARY). **N** and the wait-vs-RX
 table are this consumer. `flight_mac_mib()` in `byte_pump.cpp`: vehicle
 data-services send is `N × nav_ms`; station send is one nav PLTU ToA;
-each Receive_Duration covers the peer's S51–S58 turn. Pad ARM/DISARM
-wait ≈ vehicle send (FTS onboard). 5 Hz nav with the same 90% packing
-does **not** shorten wait. Later: user-facing preset/configurator.
+each Receive_Duration covers the peer's S51–S58 turn: that
+Send_Duration, carrier plus acquisition plus tail, and the PLCW and
+pass token that leave after the send timer. Pad ARM/DISARM wait ≈
+vehicle send (FTS onboard). 5 Hz nav with the same 90% packing does
+**not** shorten wait. Later: user-facing preset/configurator.
 
-Boot 250 kHz / SF7 / 10 Hz. Station send ≈ 60 ms ToA + two 30 ms turns.
+Boot 250 kHz / SF7 / 10 Hz. Vehicle listen is one station ToA, the
+30 ms open and tail, and those two short P-frames.
 
 | N (nav slots) | Vehicle send | Worst pad-command wait | Station RX (approx) | Notes |
 |---|---|---|---|---|

@@ -7,6 +7,7 @@
 #include "starcom_adapt/byte_pump.h"
 #include "starcom_adapt/nav_sdu.h"
 #include "rocketchip/radio_config_table.h"
+#include "flight_director/mission_profile_data.h"
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/v3.hpp"
 #include "starcom/ccsds/space_packet.hpp"
@@ -787,6 +788,50 @@ TEST(StarcomBytePump, HalfDuplexReceiveWindowAfterSendDuration) {
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
 }
 
+// 211.0 table 6-10: E47 (S62→S61) before E49. A SET CONTROL pass that is
+// the first frame still hands the token off.
+TEST(StarcomBytePump, TokenInS62IsE49) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    starcom::ccsds::macOnHailReceived(vehicle.mac, 1);
+    ASSERT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    const starcom::ccsds::Tick t_end =
+        vehicle.mac.mib.send_duration + 200;
+    for (starcom::ccsds::Tick t = 10; t <= t_end; t += 10) {
+        pump_tick(vehicle, t);
+        std::array<std::byte, 255> dump{};
+        (void)pump_air_to_send(vehicle, dump);
+        if (pump_mac_phy(vehicle).receive &&
+            vehicle.mac.state == starcom::ccsds::MacState::s62) {
+            break;
+        }
+    }
+    ASSERT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s62);
+
+    starcom::ccsds::MacControlParams ctl{};
+    ctl.pass = true;
+    std::array<std::byte, 2> spdu{};
+    ASSERT_TRUE(starcom::ccsds::encodeSetControl(spdu, ctl).has_value());
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.remote_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    const auto vn = starcom::ccsds::encodeV3(frame, hdr, spdu);
+    ASSERT_TRUE(vn.has_value());
+    std::array<std::byte, 255> wire{};
+    const auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
+    EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
+    EXPECT_FALSE(pump_mac_phy(vehicle).receive);
+}
+
 // 211.0 6.3.2.3: FIFO empty after the PHY has the bits. E43 must not
 // open receive while the token is still on the air.
 TEST(StarcomBytePump, DeferredFifoEmptyHoldsUntilComplete) {
@@ -1253,8 +1298,9 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
 }
 
-// 211.0 6.2.4.17–18: vehicle data-services Send_Duration > station
-// status/token. Receive_Duration covers the peer's S51–S58 turn.
+// 211.0 6.2.4.17–18: vehicle Send_Duration is the long side.
+// Receive_Duration is the peer's S51–S58 contact: that send, the open
+// and tail, plus the PLCW and the pass token that leave after E38.
 TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     static BytePump station{};
     static BytePump vehicle{};
@@ -1263,9 +1309,20 @@ TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     const auto turn = station.mac.mib.carrier_only_duration +
                       station.mac.mib.acquisition_idle_duration +
                       station.mac.mib.tail_idle_duration;
+    constexpr uint8_t kReportPltuBytes = static_cast<uint8_t>(
+        starcom::ccsds::kPltuAsmSize + starcom::ccsds::kV3HeaderSize + 2U +
+        starcom::ccsds::kPltuCrcSize);
+    const auto report_us = rc::radio_config_nav_airtime_us(
+        rc::kDefaultRocketRadioConfig.spreading_factor,
+        rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuBytes);
+    const starcom::ccsds::Tick report_ms =
+        static_cast<starcom::ccsds::Tick>((report_us + 999U) / 1000U);
+    const auto contact_tail = turn + (2U * report_ms);
     EXPECT_GT(vehicle.mac.mib.send_duration, station.mac.mib.send_duration);
     EXPECT_EQ(station.mac.mib.receive_duration,
-              vehicle.mac.mib.send_duration + turn);
+              vehicle.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(vehicle.mac.mib.receive_duration,
-              station.mac.mib.send_duration + turn);
+              station.mac.mib.send_duration + contact_tail);
+    EXPECT_EQ(station.mac.mib.carrier_loss_timer_duration,
+              vehicle.mac.mib.send_duration + contact_tail);
 }

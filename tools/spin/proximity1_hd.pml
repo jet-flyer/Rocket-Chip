@@ -11,20 +11,26 @@
  * states are not in this model.
  *
  * This file does not replace starcom/src/ccsds/mac.cpp. It is the book
- * machine to diff against that file. Three flight behaviors are not rows:
- *   1. mac.cpp E38 reloads Send_Duration while NEED_PLCW is set
- *      (macWaitExpiredHalf, S50). Compile -DCODE_E38 to model that.
- *   2. pump_handle_air calls macOnToken before carrier lock, so a token
- *      that arrives in S62 is not E49. This model does E47 then E49.
- *   3. S51 and S52 are timed and the SX1276 radiates nothing. Compile
- *      -DCODE_MISS: those states emit nothing, and Receive_Duration is
- *      that one silent tick, so E50 runs before the first frame while
- *      the station Send_Duration is still going. -DSHORT_WINDOW keeps
- *      the radiation, so the row taken is E44, then E49.
+ * machine to diff against that file. The tree now follows E38 and the
+ * token's E47-then-E49. What is still not a row:
+ *   1. -DCODE_E38 reloads Send_Duration while NEED_PLCW is set. That was
+ *      macWaitExpiredHalf. The tree sets persistence and still offers
+ *      the PLCW.
+ *   2. A token in S62 used to be handled before carrier lock. The tree
+ *      does E47, then E49, for that directive only. This model does the
+ *      same order for any carrier.
+ *   3. S51 and S52 are timers in the MAC. Whether those slices radiate
+ *      is the radio adapter, not mac.cpp. -DCODE_MISS emits nothing
+ *      there, and Receive_Duration is that one silent tick, so E50 runs
+ *      before the first frame while the station Send_Duration is still
+ *      going. -DSHORT_WINDOW keeps the radiation, so the row is E44,
+ *      then E49.
  *
  * A zero-length silence is not a row. The table turns the radio around.
  * p_gap_bounded says the silence is one peer ceremony, not a second send.
  * How often the turn happens is Send_Duration, a MIB value, not a goal.
+ * Flight Receive_Duration is the peer contact: that send, the open and
+ * tail timers, and the PLCW and token that follow the timer.
  *
  * The count (seq_*) is the pad procedure above the MAC: its own clock,
  * hold, abort/cutoff, then ordinary commands refused. Abort stays open.

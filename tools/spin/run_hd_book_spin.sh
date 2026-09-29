@@ -11,8 +11,8 @@
 # number after "errors:" on the state-vector line, not field 2
 # ("State-vector 48 byte, ... errors: 0").
 set -u
-cd "$(dirname "$0")"
 export PATH="/c/tools/cygwin/bin:/usr/bin:$PATH"
+cd "$(dirname "$0")"
 
 fail=0
 

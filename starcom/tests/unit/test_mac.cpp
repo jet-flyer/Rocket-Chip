@@ -386,6 +386,29 @@ void test_half_e48_e49_carrier() {
   CHECK(macPollNotify(s) == MacNotify::sender_overran);
 }
 
+void test_half_e42_tail_e50_counts_miss() {
+  // 211.0 table 6-10 E42 is the tail only. Annex C counts S62→E50.
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  macTick(s, 10);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 15);
+  CHECK(s.state == MacState::s56);
+  CHECK(s.token_fail_n == 0);
+  macOnFifoEmpty(s, 15);
+  CHECK(s.state == MacState::s58);
+  CHECK(s.token_fail_n == 0);
+  macTick(s, 17);
+  CHECK(s.state == MacState::s62);
+  macTick(s, 22);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.token_fail_n == 1);
+}
+
 void test_half_e83_rehail() {
   MacMib mb = test_mib();
   mb.maximum_failed_token_passes = 2;
@@ -463,14 +486,15 @@ void test_half_token_octets() {
   CHECK(s.state == MacState::s52);
   macTick(s, 5);
   CHECK(s.state == MacState::s50);
-  macTick(s, 10);  // Send_Duration, NEED_PLCW still set — keep sending
-  CHECK(!s.persistence);
+  macTick(s, 10);  // E38 sets PERSISTENCE; NEED_PLCW still blocks E39
+  CHECK(s.persistence);
   CHECK(s.need_plcw);
   CHECK(s.state == MacState::s50);
+  CHECK(macFifoSource(s) == MacFifoSource::plcw);
   s.need_plcw = false;
-  macTick(s, 15);  // E38 PERSISTENCE after PLCW
-  CHECK(s.persistence);
-  macOnNoFramesPending(s, 15);
+  s.sdu_pending = true;
+  CHECK(macFifoSource(s) == MacFifoSource::idle);
+  macOnNoFramesPending(s, 15);  // E39
   CHECK(s.state == MacState::s56);
   CHECK(s.mac_queue_len == 2);
   CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data(), 2)) ==
@@ -642,6 +666,7 @@ int run_mac_tests() {
   test_annex_b_codecs();
   test_half_hail_octets();
   test_half_e48_e49_carrier();
+  test_half_e42_tail_e50_counts_miss();
   test_half_e83_rehail();
   test_half_e83_responder_listens();
   test_half_rehail_while_active();

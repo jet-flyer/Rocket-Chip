@@ -483,8 +483,10 @@ static bool starcom_tx_held_to_spdu() {
         (mode == starcom::ccsds::MacMode::active &&
          (!phy.transmit || g_pump.mac.persistence))) {
         const auto src = rc::starcom_adapt::pump_fifo_source(g_pump);
+        // E38 blocks user data. The owed PLCW still has to leave before E39.
         if (phy.transmit &&
-            src == starcom::ccsds::MacFifoSource::spdu) {
+            (src == starcom::ccsds::MacFifoSource::spdu ||
+             src == starcom::ccsds::MacFifoSource::plcw)) {
             (void)starcom_drain_to_radio();
         }
         return true;

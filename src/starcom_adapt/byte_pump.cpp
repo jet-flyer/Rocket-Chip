@@ -36,7 +36,22 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
       rc::kRadioConfigNavPltuBytes);
   const starcom::ccsds::Tick toa_ms =
       static_cast<starcom::ccsds::Tick>((toa_us + 999U) / 1000U);
-  // 211.0 6.2.4.17–18 / table 6-10: each side's Send_Duration is local.
+  // PLCW (Fig 3-5) and the E39 SET CONTROL token are each a 2-octet
+  // P-frame. Both leave after Send_Duration (table 6-10 E38 then E39).
+  constexpr unsigned kReportOctets = 2U;
+  constexpr uint8_t kReportPltuBytes = static_cast<uint8_t>(
+      starcom::ccsds::kPltuAsmSize + starcom::ccsds::kV3HeaderSize +
+      kReportOctets + starcom::ccsds::kPltuCrcSize);
+  static_assert(kReportPltuBytes == 14U, "report PLTU layout drifted");
+  const uint32_t report_us = rc::radio_config_nav_airtime_us(
+      rc::kDefaultRocketRadioConfig.spreading_factor,
+      rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuBytes);
+  const starcom::ccsds::Tick report_ms =
+      static_cast<starcom::ccsds::Tick>((report_us + 999U) / 1000U);
+  // 211.0 6.2.4.18: listen through S51–S58, not Send_Duration alone.
+  const starcom::ccsds::Tick contact_tail =
+      turn_ms + (2U * report_ms);
+  // 211.0 6.2.4.17: each side's Send_Duration is local.
   // N=11 (~90% packing). Table: starcom_adapt/README.md. Later user preset.
   const starcom::ccsds::Tick stn_send = toa_ms;
   const starcom::ccsds::Tick tax_ms = stn_send + (2U * turn_ms);
@@ -45,17 +60,17 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   const bool station = (local == starcom::ccsds::Scid{2});
   if (station) {
     m.send_duration = stn_send;
-    m.receive_duration = veh_send + turn_ms;
+    m.receive_duration = veh_send + contact_tail;
   } else {
     m.send_duration = veh_send;
-    m.receive_duration = stn_send + turn_ms;
+    m.receive_duration = stn_send + contact_tail;
   }
   m.hail_wait_duration = nav_ms + 20U;
   m.hail_lifetime = 0;  // 211.0 6.2.4.14.2: 0 = no abort
   m.drop_carrier_duration = 20;
   m.maximum_failed_token_passes = 4;  // 211.0 table 6-12 E83; 0 = unlimited
-  // Cover one peer data-services contact (not 8*nav from symmetric MIB).
-  m.carrier_loss_timer_duration = veh_send + turn_ms;
+  // One vehicle data-services contact, including the frames after E38.
+  m.carrier_loss_timer_duration = veh_send + contact_tail;
   m.plcw_repeat_interval = veh_send;
   m.local_scid = local;
   m.local_pcid = kSoakPcid;
@@ -199,6 +214,9 @@ bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
       }
       consumed = true;
       if (ctl->pass) {
+        // Table 6-10 E47 before E49. Other directives still see S62.
+        starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
+        starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
         starcom::ccsds::macOnToken(p.mac, now);
       }
       if (ctl->rnmd) {
@@ -422,7 +440,7 @@ void pump_tick(BytePump& p, starcom::ccsds::Tick now) noexcept {
     }
   }
   starcom::ccsds::macTick(p.mac, now);
-  // 211.0 table 6-12 E38→E39: persistence + empty MAC queue => token.
+  // 211.0 table 6-10 E39: NEED_PLCW clear and an empty queue => token.
   if (p.mac.mode == starcom::ccsds::MacMode::active && p.mac.persistence &&
       !p.mac.mac_frame_pending) {
     starcom::ccsds::macOnNoFramesPending(p.mac, now);
@@ -449,6 +467,11 @@ static bool pump_copp_blocked(BytePump& p,
   }
   if (p.mac.mode == starcom::ccsds::MacMode::active && !phy.transmit) {
     return true;
+  }
+  // Table 6-10 E38 stops user data. An owed PLCW or queued SPDU still leaves.
+  if (src == starcom::ccsds::MacFifoSource::plcw ||
+      src == starcom::ccsds::MacFifoSource::spdu) {
+    return false;
   }
   const bool active = p.mac.mode == starcom::ccsds::MacMode::active;
   if (active && (p.mac.persistence ||
