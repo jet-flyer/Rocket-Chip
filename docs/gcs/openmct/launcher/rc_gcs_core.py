@@ -17,6 +17,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -60,6 +61,49 @@ def kill_stray(names: tuple[str, ...]) -> None:
           "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
     subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                    creationflags=NO_WINDOW, capture_output=True, timeout=15)
+
+
+def web_healthy(port: int = WEB_PORT) -> bool:
+    """True only if the server really serves the GCS shell page on BOTH 127.0.0.1 and localhost
+    (a port that accepts connections but hangs up - e.g. a stale http.server - is not healthy)."""
+    for host in ("127.0.0.1", "localhost"):
+        try:
+            with urllib.request.urlopen(f"http://{host}:{port}/launcher/app_shell.html", timeout=3) as r:
+                if r.status != 200 or b"Rocket Chip GCS" not in r.read(65536):
+                    return False
+        except Exception:  # noqa: BLE001
+            return False
+    return True
+
+
+def _ps(script: str, timeout: int = 20) -> str:
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", script], creationflags=NO_WINDOW,
+                       capture_output=True, text=True, timeout=timeout)
+    return r.stdout or ""
+
+
+def kill_port_owner(port: int, cmd_pattern: str = "http.server") -> None:
+    """Stop the python process listening on `port` if its command line matches (stale http.server)."""
+    ps = (f"Get-NetTCPConnection -LocalPort {port} -State Listen -ErrorAction SilentlyContinue | "
+          "ForEach-Object { $p = Get-CimInstance Win32_Process -Filter \"ProcessId=$($_.OwningProcess)\"; "
+          f"if ($p -and $p.Name -match '^pythonw?\\.exe$' -and $p.CommandLine -match '{cmd_pattern}') "
+          "{ Stop-Process -Id $p.ProcessId -Force } }")
+    _ps(ps)
+
+
+def profile_procs(profile: Path) -> list[int]:
+    """PIDs of browser processes using this --user-data-dir."""
+    needle = str(profile).replace("'", "''")
+    out = _ps("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and "
+              "$_.CommandLine.Contains('" + needle + "') -and "
+              "$_.Name -match 'chrome|chromium|brave|msedge' } | ForEach-Object { $_.ProcessId }")
+    return [int(x) for x in out.split() if x.isdigit()]
+
+
+def kill_profile_procs(profile: Path) -> None:
+    ids = profile_procs(profile)
+    if ids:
+        _ps("Stop-Process -Force -Id " + ",".join(map(str, ids)) + " -ErrorAction SilentlyContinue")
 
 
 # ---------------------------------------------------------------- job object
@@ -140,6 +184,12 @@ class Controller:
 
     def _spawn(self, args: list[str], tag: str) -> subprocess.Popen:
         self.say(f"> {' '.join(args)}")
+        if tag == "web":
+            # No pipe: a pipe nobody reads any more (parent died) makes http.server hang up on every request.
+            p = subprocess.Popen([str(PY), "-u", *args], cwd=REPO, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
+            _adopt(p)
+            return p
         p = subprocess.Popen([str(PY), "-u", *args], cwd=REPO, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, text=True, errors="replace",
                              creationflags=NO_WINDOW)
@@ -158,15 +208,28 @@ class Controller:
 
     # -- web server
     def ensure_web(self) -> bool:
+        """Make sure :5000 really serves the GCS page (reuse a healthy server, replace a dead one)."""
         with self.lock:
             if port_busy(WEB_PORT):
-                self.say(f"web :{WEB_PORT} already running - reusing it")
-                return True
+                if web_healthy():
+                    self.say(f"web :{WEB_PORT} already running - reusing it")
+                    return True
+                self.say(f"web :{WEB_PORT} is held by a server that does not answer - replacing it")
+                kill_port_owner(WEB_PORT)
+                for _ in range(20):
+                    if not port_busy(WEB_PORT):
+                        break
+                    time.sleep(0.25)
+                else:
+                    self.say(f"web :{WEB_PORT} still held by something that is not a python http.server")
+                    return False
             self.web = self._spawn(["-m", "http.server", str(WEB_PORT), "--bind", "127.0.0.1",
                                     "--directory", str(OMCT)], "web")
-        for _ in range(40):
-            if port_busy(WEB_PORT):
+        for _ in range(60):
+            if web_healthy():
                 return True
+            if self.web.poll() is not None:
+                break
             time.sleep(0.25)
         self.say(f"web :{WEB_PORT} did not come up")
         return False

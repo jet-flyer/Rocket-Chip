@@ -1,5 +1,5 @@
 # Creates two desktop shortcuts (same icon, rc_gcs.ico), both via pythonw (no console):
-#   "Rocket Chip GCS"                -> rc_gcs_app.pyw  (stand-alone app window with controls built in)
+#   "Rocket Chip GCS"                -> rc_gcs_app.pyw  (stand-alone Chrome app window with controls built in)
 #   "Rocket Chip GCS (web launcher)" -> rc_gcs.pyw      (tk launcher + your browser)
 # Any older "Rocket Chip GCS.lnk" is replaced, so there is no duplicate.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,5 +22,5 @@ function New-RcLink($name, $script, $desc) {
     "shortcut: $lnk -> $script"
 }
 
-New-RcLink 'Rocket Chip GCS' 'rc_gcs_app.pyw' 'Rocket Chip GCS - Open MCT glass in its own window, controls built in'
+New-RcLink 'Rocket Chip GCS' 'rc_gcs_app.pyw' 'Rocket Chip GCS - Open MCT glass in its own Chrome app window, controls built in'
 New-RcLink 'Rocket Chip GCS (web launcher)' 'rc_gcs.pyw' 'Rocket Chip GCS web launcher (tk window + browser dashboard)'
