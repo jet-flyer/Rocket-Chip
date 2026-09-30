@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Rocket Chip GCS</title>
+<link rel="icon" href="rc_gcs.ico"/>
+<style>
+  :root{--bg:#2c2c2c;--bar:#232323;--line:#3d3d3d;--fg:#ddd;--dim:#999;--ok:#43a047;--warn:#e69138;--bad:#e53935;--acc:#3b82c4}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.35 system-ui,sans-serif;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100%;height:100dvh}
+  #bar{background:var(--bar);border-bottom:1px solid var(--line);padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
+  body.collapsed #bar{display:none}
+  .grp{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+  .grp.sep{padding-left:14px;border-left:1px solid var(--line)}
+  label{display:inline-flex;align-items:center;gap:5px;color:var(--fg);cursor:pointer;white-space:nowrap}
+  select,button{font:inherit;color:var(--fg);background:#333;border:1px solid #555;border-radius:4px;padding:3px 9px;min-height:26px}
+  select{max-width:min(46vw,300px)}
+  button{cursor:pointer}
+  button:hover:not(:disabled){background:#404040;border-color:#777}
+  button:disabled,select:disabled{opacity:.4;cursor:default}
+  button.go{background:#1f4f7a;border-color:var(--acc)}
+  button.go:hover:not(:disabled){background:#27608f}
+  input[type=radio],input[type=checkbox]{accent-color:var(--acc);margin:0}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#666;margin-right:5px}
+  .dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+  .stat{white-space:nowrap}
+  #facst{color:var(--dim);white-space:nowrap}
+  .grow{flex:1 1 auto}
+  [hidden]{display:none!important}
+  #stage{position:relative;flex:1 1 auto;min-height:0}
+  #dash{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  #tab{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:5;padding:0 16px;min-height:0;height:16px;line-height:14px;
+       font-size:11px;border-radius:0 0 8px 8px;border-top:0;background:rgba(35,35,35,.8);color:var(--dim)}
+  body:not(.collapsed) #tab{display:none}
+  #drawer{position:absolute;left:0;right:0;top:0;z-index:4;max-height:45%;overflow:auto;background:rgba(17,17,17,.96);
+          border-bottom:1px solid var(--line);padding:6px 10px;font:12px/1.4 Consolas,monospace;color:#cfcfcf;white-space:pre-wrap;word-break:break-word}
+  #offline{color:var(--bad)}
+</style></head>
+<body>
+<div id="app">
+  <div id="bar">
+    <div class="grp" id="modes">
+      <label><input type="radio" name="mode" value="fac" checked/>Facsimile</label>
+      <label><input type="radio" name="mode" value="dash"/>Live: station text dashboard</label>
+      <label><input type="radio" name="mode" value="mav"/>Live: station MAVLink</label>
+    </div>
+    <div class="grp" id="liveopts" hidden>
+      <select id="port" title="Station COM port"></select>
+      <button id="refresh" title="Rescan COM ports">Refresh</button>
+    </div>
+    <div class="grp" id="facopts">
+      <label>Rate
+        <select id="rate"><option>0.5</option><option selected>1</option><option>2</option><option>4</option></select>
+      </label>
+      <label title="Pad countdown with link sag (colour test)"><input type="checkbox" id="pad" checked/>Pad link sag</label>
+    </div>
+    <div class="grp">
+      <button id="start" class="go">Start feed</button>
+      <button id="stop">Stop feed</button>
+    </div>
+    <div class="grp sep" id="facctl">
+      <span style="color:var(--dim)">Facsimile</span>
+      <button data-fac="play">Play</button>
+      <button data-fac="stop">Stop</button>
+      <button data-fac="reset">Reset</button>
+      <span id="facst"></span>
+    </div>
+    <div class="grow"></div>
+    <div class="grp">
+      <span class="stat"><i class="dot" id="dweb"></i>Web :5000</span>
+      <span class="stat"><i class="dot" id="dfeed"></i><span id="tfeed">Feed</span></span>
+      <span id="offline" hidden>control server offline</span>
+      <button id="logbtn" title="Show/hide log">Log</button>
+      <button id="reload" title="Reload dashboard">&#8635;</button>
+      <button id="hide" title="Hide bar for a full-size dashboard">&#9650; Hide</button>
+    </div>
+  </div>
+  <div id="stage">
+    <iframe id="dash" src="/hello-world/" title="Open MCT dashboard"></iframe>
+    <button id="tab" title="Show controls">&#9660; controls</button>
+    <div id="drawer" hidden></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var API = 'http://127.0.0.1:8093';
+  var $ = function (id) { return document.getElementById(id); };
+  var first = true, busy = false;
+
+  function call(method, path, body) {
+    var opt = { method: method, cache: 'no-store' };
+    if (body !== undefined) { opt.headers = { 'Content-Type': 'application/json' }; opt.body = JSON.stringify(body); }
+    return fetch(API + path, opt).then(function (r) {
+      return r.json().catch(function () { return { ok: false }; });
+    });
+  }
+  function mode() { return document.querySelector('input[name=mode]:checked').value; }
+
+  function setCollapsed(c) {
+    document.body.classList.toggle('collapsed', c);
+    try { localStorage.setItem('rcgcs.collapsed', c ? '1' : '0'); } catch (e) {}
+  }
+  function syncMode() {
+    var fac = mode() === 'fac';
+    $('facopts').hidden = !fac;
+    $('liveopts').hidden = fac;
+    $('facctl').hidden = !fac;
+    try { localStorage.setItem('rcgcs.mode', mode()); } catch (e) {}
+  }
+  function loadPorts() {
+    return call('GET', '/api/ports').then(function (j) {
+      var list = (j && j.ports) || [], sel = $('port'), cur = sel.value, o;
+      sel.innerHTML = '';
+      list.forEach(function (p) { o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+      if (!list.length) { o = document.createElement('option'); o.textContent = '(no COM ports)'; o.value = ''; sel.appendChild(o); }
+      var want = list.filter(function (p) { return p === cur; })[0] ||
+                 list.filter(function (p) { return /^COM7 /.test(p); })[0] || list[0];
+      if (want) sel.value = want;
+    }).catch(function () {});
+  }
+  function paint(st) {
+    $('offline').hidden = true;
+    $('dweb').className = 'dot ' + (st.web ? 'ok' : 'bad');
+    var t = 'Feed stopped', c = 'bad';
+    if (st.feedOurs) { t = 'Feed: ' + ({ fac: 'facsimile', dash: 'station text', mav: 'station MAVLink' }[st.feedMode] || st.feedMode); c = 'ok'; }
+    else if (st.feed) { t = 'Feed: external'; c = 'warn'; }
+    $('dfeed').className = 'dot ' + c; $('tfeed').textContent = t;
+    $('facst').textContent = st.fac ? 'status: ' + st.fac : '';
+    var facOn = st.feedOurs && st.feedMode === 'fac';
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fac]'), function (b) { b.disabled = !facOn; });
+    $('stop').disabled = !st.feedOurs;
+    var d = $('drawer');
+    if (!d.hidden) {
+      var atEnd = d.scrollTop + d.clientHeight >= d.scrollHeight - 8;
+      d.textContent = (st.log || []).slice(-50).join('\n');
+      if (atEnd) d.scrollTop = d.scrollHeight;
+    }
+    if (first) {
+      first = false;
+      if (st.feedOurs && st.feedMode) {
+        var r = document.querySelector('input[name=mode][value=' + st.feedMode + ']');
+        if (r) { r.checked = true; syncMode(); }
+      }
+    }
+  }
+  function poll() {
+    call('GET', '/api/status').then(paint).catch(function () {
+      $('offline').hidden = false;
+      $('dfeed').className = 'dot'; $('tfeed').textContent = 'Feed ?';
+      $('dweb').className = 'dot';
+    });
+  }
+  function act(fn) {
+    if (busy) return; busy = true;
+    Promise.resolve().then(fn).catch(function () {}).then(function () { busy = false; poll(); });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=mode]'), function (r) { r.addEventListener('change', syncMode); });
+  $('refresh').onclick = function () { loadPorts(); };
+  $('start').onclick = function () {
+    act(function () {
+      return call('POST', '/api/start', { mode: mode(), port: $('port').value, rate: parseFloat($('rate').value) || 1, padDip: $('pad').checked });
+    });
+  };
+  $('stop').onclick = function () { act(function () { return call('POST', '/api/stop', {}); }); };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-fac]'), function (b) {
+    b.onclick = function () { act(function () { return call('POST', '/api/fac/' + b.getAttribute('data-fac'), {}); }); };
+  });
+  $('hide').onclick = function () { setCollapsed(true); };
+  $('tab').onclick = function () { setCollapsed(false); };
+  $('logbtn').onclick = function () { var d = $('drawer'); d.hidden = !d.hidden; poll(); };
+  $('reload').onclick = function () { try { $('dash').contentWindow.location.reload(); } catch (e) { $('dash').src = $('dash').src; } };
+
+  try {
+    var m = localStorage.getItem('rcgcs.mode');
+    var r = m && document.querySelector('input[name=mode][value=' + m + ']');
+    if (r) r.checked = true;
+    if (localStorage.getItem('rcgcs.collapsed') === '1') setCollapsed(true);
+  } catch (e) {}
+  syncMode();
+  loadPorts();
+  poll();
+  setInterval(poll, 1000);
+})();
+</script>
+</body></html>

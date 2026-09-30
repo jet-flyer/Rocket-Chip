@@ -43,28 +43,8 @@ MODES = {
 }
 
 
-def port_busy(port: int, host: str = "127.0.0.1") -> bool:
-    with socket.socket() as s:
-        s.settimeout(0.3)
-        return s.connect_ex((host, port)) == 0
-
-
-def list_ports() -> list[str]:
-    try:
-        from serial.tools import list_ports as lp
-        return [f"{p.device} - {p.description}" for p in sorted(lp.comports(), key=lambda p: p.device)]
-    except Exception:
-        return []
-
-
-def kill_stray(names: tuple[str, ...]) -> None:
-    """Stop feed/web processes started outside this window (e.g. old minimized consoles)."""
-    pat = "|".join(n.replace(".", r"\.") for n in names)
-    ps = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
-          f"Where-Object {{ $_.CommandLine -match '{pat}' }} | "
-          "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
-    subprocess.run(["powershell", "-NoProfile", "-Command", ps],
-                   creationflags=NO_WINDOW, capture_output=True, timeout=15)
+# Shared helpers live in rc_gcs_core.py (also used by rc_gcs_app.pyw).
+from rc_gcs_core import kill_stray, list_ports, port_busy  # noqa: E402,F401
 
 
 class App:
