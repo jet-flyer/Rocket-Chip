@@ -23,16 +23,18 @@ std::size_t delimitedSize(SpacePacketView const& view) noexcept {
 }  // namespace
 
 void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noexcept {
-  // 2.2.1: a user sends or receives only on a preconfigured managed data path.
-  // 4.3.3.3: delivery depends on the service that APID's receiving user uses.
+  // 133.0-B-2 2.2.1 and 4.3.3.3: the SPP user for this APID is Packet or
+  // Octet String. 211.0-B-6 3.2.2.5 DFC ID is the frame's own packet or
+  // user-defined choice.
   svc.receive_service[apidIndex(apid)] = type;
 }
 
 Result<std::size_t> packetTransfer(std::span<std::byte> out,
                                    std::span<const std::byte> packet) noexcept {
-  // 4.2.3.1: transfer the packet using the underlying layer. The caller buffer
-  // is that handoff. 4.2.3.3: the APID in the packet names the receiving entity.
-  // 3.3.1: the octets are copied with no further formatting.
+  // 133.0-B-2 4.2.3.1: the caller buffer is the handoff. 4.2.3.3 examines the
+  // APID in the packet. 3.3.1 copies the octets with no further formatting.
+  // 211.0-B-6 3.2.2.8.3 puts the output port in the frame Port ID. This copy
+  // does not set that field.
   // 4.2.3.2: a multiplex queue is used if necessary, and CCSDS does not specify
   // its order. One packet is transferred per call, in submission order (2.2.1).
   const auto view = decodeSpacePacket(packet);
@@ -50,18 +52,14 @@ Result<std::size_t> packetTransfer(std::span<std::byte> out,
 Result<std::size_t> packetRequest(SpacePacketService&,
                                   std::span<std::byte> out,
                                   std::span<const std::byte> packet,
-                                  Apid apid) noexcept {
-  // 3.3.3.2.4: receipt causes the provider to transfer the Space Packet.
-  // 2.2.1: the SAP accepts an SDU identified with an APID. 4.1.3.3.4.2: that
-  // APID names the managed data path. A header APID other than this SAP's
-  // APID is not transferred and is not rewritten (3.3.1).
-  // 2.2.2.2: the packet is already formatted, so the assembly counter is not used.
+                                  Apid) noexcept {
+  // 133.0-B-2 3.3.3.2.4 transfers the Space Packet. 3.3.1 leaves the octets,
+  // including the header APID, as the user formatted them. 211.0-B-6 2.2.2.2
+  // carries that packet in the frame; 3.2.2.8.3 names the output port there.
+  // 2.2.2.2: the assembly counter is not used on this path.
   const auto view = decodeSpacePacket(packet);
   if (!view) {
     return tl::unexpected(view.error());
-  }
-  if (apidValue(view->fields.apid) != apidValue(apid)) {
-    return tl::unexpected(Error::sp_sap);
   }
   return packetTransfer(out, packet);
 }
@@ -81,7 +79,9 @@ Result<std::size_t> packetAssembly(SpacePacketService& svc,
   fields.secondary_header =
       request.secondary_header && apid != static_cast<unsigned>(kIdleApid);
   fields.apid = Apid{static_cast<std::uint16_t>(apid)};
-  fields.seq_flags = 0b11;  // 4.1.3.4.2.3: Octet String service is unsegmented
+  // 133.0-B-2 4.1.3.4.2.3: Octet String service is unsegmented. These are not
+  // the Proximity-1 segment flags in 211.0-B-6 Table 3-4.
+  fields.seq_flags = 0b11;
   // 4.2.2.4: the maintained counter generates the Packet Sequence Count.
   fields.seq_count = svc.tx_count[idx];
   const auto n = encodeSpacePacket(out, fields, request.octets);
@@ -109,9 +109,10 @@ Result<OctetStringIndication> packetExtraction(
   if (!view) {
     return tl::unexpected(view.error());
   }
-  // 4.3.2.2 reads the Packet Sequence Count. The receive-path counter for
-  // this APID becomes the next count modulo-16384 (4.1.3.4.3.4). The
-  // optional Data Loss Indicator (3.4.2.4) is not generated.
+  // 133.0-B-2 4.3.2.2 reads the Packet Sequence Count. The receive-path counter
+  // for this APID becomes the next count modulo-16384 (4.1.3.4.3.4). The
+  // optional Data Loss Indicator (3.4.2.4) is not generated. Frame acceptance
+  // is COP-P (211.0-B-6 2.2.3.2, 7.3.1 RE5).
   const std::size_t idx = apidIndex(view->fields.apid);
   svc.rx_count[idx] =
       static_cast<std::uint16_t>((view->fields.seq_count + 1u) & kSeqMask);

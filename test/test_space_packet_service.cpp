@@ -81,12 +81,15 @@ TEST(SpacePacketService, PacketRequestTransfersIntact) {
   EXPECT_EQ(svc.tx_count[apidIndex(kNav)], 0);
   EXPECT_EQ(svc.rx_count[apidIndex(kNav)], 0);
 
+  // 133.0-B-2 3.3.1 keeps the formatted header. 211.0-B-6 3.2.2.8 names the
+  // frame port separately, so a different request APID does not rewrite it.
   out.fill(std::byte{0xEE});
-  const auto mismatch =
+  const auto other_sap =
       packetRequest(svc, out, std::span<const std::byte>(framed.data(), *n), kCmd);
-  EXPECT_FALSE(mismatch.has_value());
-  EXPECT_EQ(mismatch.error(), Error::sp_sap);
-  EXPECT_EQ(out[0], std::byte{0xEE});
+  ASSERT_TRUE(other_sap.has_value());
+  EXPECT_EQ(*other_sap, *n);
+  EXPECT_EQ(decodeSpacePacket(std::span<const std::byte>(out.data(), *other_sap))->fields.apid,
+            kNav);
 }
 
 TEST(SpacePacketService, PacketIndicationDeliversOctetsAndApid) {
