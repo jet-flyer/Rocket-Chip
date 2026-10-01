@@ -293,10 +293,54 @@ void copy_user(std::span<std::byte> dst, const uint8_t* src, std::size_t n) noex
   }
 }
 
+SpaceSeqLane* seq_lane(BytePump& p, starcom::ccsds::Apid apid) noexcept {
+  if (apid == kNavApid) {
+    return &p.seq_nav;
+  }
+  if (apid == kCmdApid) {
+    return &p.seq_cmd;
+  }
+  return nullptr;
+}
+
+std::uint16_t peek_tx_seq(BytePump& p, starcom::ccsds::Apid apid) noexcept {
+  SpaceSeqLane* lane = seq_lane(p, apid);
+  if (lane == nullptr) {
+    return 0;
+  }
+  return static_cast<std::uint16_t>(lane->tx & kSpaceSeqMask);
+}
+
+void commit_tx_seq(BytePump& p, starcom::ccsds::Apid apid) noexcept {
+  SpaceSeqLane* lane = seq_lane(p, apid);
+  if (lane == nullptr) {
+    return;
+  }
+  lane->tx = static_cast<std::uint16_t>(
+      (static_cast<unsigned>(lane->tx) + 1u) & kSpaceSeqMask);
+}
+
 }  // namespace
 
+void pump_note_rx_seq(BytePump& p, starcom::ccsds::Apid apid,
+                      std::uint16_t seq_count) noexcept {
+  SpaceSeqLane* lane = seq_lane(p, apid);
+  if (lane == nullptr) {
+    return;
+  }
+  const std::uint16_t got =
+      static_cast<std::uint16_t>(seq_count & kSpaceSeqMask);
+  const std::uint16_t gap = static_cast<std::uint16_t>(
+      (static_cast<unsigned>(got) - lane->rx_expect) & kSpaceSeqMask);
+  if (gap != 0u) {
+    lane->rx_lost += gap;
+  }
+  lane->rx_expect = static_cast<std::uint16_t>(
+      (static_cast<unsigned>(got) + 1u) & kSpaceSeqMask);
+}
+
 starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
-    std::span<std::byte> out, const TelemetryState& telem) noexcept {
+    BytePump& p, std::span<std::byte> out, const TelemetryState& telem) noexcept {
   uint8_t user[kNavSduUserBytes] = {};
   if (pack_nav_sdu_user(user, sizeof(user), telem) != kNavSduUserBytes) {
     return starcom::ccsds::Result<std::size_t>{
@@ -306,14 +350,19 @@ starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
   copy_user(user_b, user, user_b.size());
   starcom::ccsds::SpacePacketFields sp{};
   sp.apid = kNavApid;
-  return pack_user_packet(out, sp, user_b);
+  sp.seq_count = peek_tx_seq(p, kNavApid);
+  const auto n = pack_user_packet(out, sp, user_b);
+  if (n.has_value()) {
+    commit_tx_seq(p, kNavApid);
+  }
+  return n;
 }
 
 // COMMAND_LONG is id + seq + 5 floats (JPL-25 ParameterThreshold is 6).
 // NOLINTNEXTLINE(readability-function-size)
 starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
-    std::span<std::byte> out, uint16_t cmd_id, uint8_t seq, float p1, float p2,
-    float p3, float p4, float p5) noexcept {
+    BytePump& p, std::span<std::byte> out, uint16_t cmd_id, uint8_t seq,
+    float p1, float p2, float p3, float p4, float p5) noexcept {
   uint8_t user[kCmdSduUserBytes] = {};
   if (pack_cmd_sdu_user(user, sizeof(user), cmd_id, seq, p1, p2, p3, p4, p5) !=
       kCmdSduUserBytes) {
@@ -325,11 +374,17 @@ starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
   starcom::ccsds::SpacePacketFields sp{};
   sp.telecommand = true;
   sp.apid = kCmdApid;
-  return pack_user_packet(out, sp, user_b);
+  sp.seq_count = peek_tx_seq(p, kCmdApid);
+  const auto n = pack_user_packet(out, sp, user_b);
+  if (n.has_value()) {
+    commit_tx_seq(p, kCmdApid);
+  }
+  return n;
 }
 
 starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
-    std::span<std::byte> out, const ccsds::CommandAckPayload& ack) noexcept {
+    BytePump& p, std::span<std::byte> out,
+    const ccsds::CommandAckPayload& ack) noexcept {
   uint8_t user[kAckSduUserBytes] = {};
   if (pack_ack_sdu_user(user, sizeof(user), ack) != kAckSduUserBytes) {
     return starcom::ccsds::Result<std::size_t>{
@@ -339,14 +394,19 @@ starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
   copy_user(user_b, user, user_b.size());
   starcom::ccsds::SpacePacketFields sp{};
   sp.apid = kCmdApid;
-  return pack_user_packet(out, sp, user_b);
+  sp.seq_count = peek_tx_seq(p, kCmdApid);
+  const auto n = pack_user_packet(out, sp, user_b);
+  if (n.has_value()) {
+    commit_tx_seq(p, kCmdApid);
+  }
+  return n;
 }
 
 starcom::ccsds::Result<std::size_t> pump_encode_nav(
     BytePump& p, std::span<std::byte> out,
     const TelemetryState& telem) noexcept {
   std::array<std::byte, 6u + kNavSduUserBytes> packet{};
-  const auto pn = pump_pack_nav_packet(packet, telem);
+  const auto pn = pump_pack_nav_packet(p, packet, telem);
   if (!pn) {
     return pn;
   }

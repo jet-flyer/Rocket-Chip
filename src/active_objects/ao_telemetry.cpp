@@ -437,7 +437,7 @@ static void send_pending_ack_if_any() {
     }
     std::byte pkt[6u + rc::kAckSduUserBytes];
     const auto n = rc::starcom_adapt::pump_pack_ack_packet(
-        pkt, g_pendingAck);
+        g_pump, pkt, g_pendingAck);
     if (!n.has_value() || *n == 0) {
         return;
     }
@@ -548,7 +548,7 @@ static void encode_and_send(TelemAo* me) {
 
     std::byte pkt[6u + rc::kNavSduUserBytes];
     const auto n = rc::starcom_adapt::pump_pack_nav_packet(
-        pkt, me->latest_telem);
+        g_pump, pkt, me->latest_telem);
     if (!n.has_value() || *n == 0) { return; }
     (void)rc::starcom_adapt::pump_submit_sdu(
         g_pump, std::span<const std::byte>(pkt, *n), true);
@@ -989,6 +989,9 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     if (!pkt) {
         return false;
     }
+    // 133.0-B-2 §4.3.2: continuity is per APID on this end.
+    rc::starcom_adapt::pump_note_rx_seq(
+        g_pump, pkt->fields.apid, pkt->fields.seq_count);
     if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
         return starcom_handle_nav_sdu(me, pkt->data, pkt->fields.seq_count);
     }
@@ -1329,7 +1332,7 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     populate_pending(command, seq, params);
     std::byte pkt[6u + rc::kCmdSduUserBytes];
     const auto n = rc::starcom_adapt::pump_pack_cmd_packet(
-        pkt, command, seq, p1, p2, p3, p4, p5);
+        g_pump, pkt, command, seq, p1, p2, p3, p4, p5);
     if (n.has_value() && *n > 0) {
         const auto sub = rc::starcom_adapt::pump_submit_sdu(
             g_pump, std::span<const std::byte>(pkt, *n), false);

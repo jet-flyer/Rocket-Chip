@@ -32,8 +32,19 @@ inline constexpr std::size_t kAirMtu = 255;
 inline constexpr starcom::ccsds::Apid kNavApid{0x001};
 // RC kApidCmdAck (include/rocketchip/telemetry_encoder.h). TC=command, TM=ACK.
 inline constexpr starcom::ccsds::Apid kCmdApid{0x003};
+// 133.0-B-2 §4.1.3.4.3.4: Packet Sequence Count is continuous modulo 16384.
+inline constexpr std::uint16_t kSpaceSeqMask = 0x3FFFu;
 inline constexpr starcom::ccsds::Pcid kSoakPcid{0};
 inline constexpr starcom::ccsds::PortId kSoakPort{1};
+
+// One APID on this end. TX and RX are separate directions.
+// 133.0-B-2 §4.1.3.4.3.3: counts are not shared across APIDs.
+// pump_init does not clear these (§4.1.3.4.3.4).
+struct SpaceSeqLane {
+  std::uint16_t tx = 0;
+  std::uint16_t rx_expect = 0;
+  std::uint32_t rx_lost = 0;
+};
 
 struct BytePump {
   starcom::ccsds::CoppEndpoint copp{};
@@ -51,6 +62,9 @@ struct BytePump {
   // 211.0 6.3.2.3: FIFO empty after PHY TxDone. Host tests empty at post.
   bool defer_spdu_fifo_empty = false;
   bool spdu_on_air = false;
+  // APID 0x001 nav. APID 0x003 is this end only (vehicle ACK or station command).
+  SpaceSeqLane seq_nav{};
+  SpaceSeqLane seq_cmd{};
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
@@ -66,12 +80,16 @@ starcom::ccsds::Result<std::size_t> pump_encode_nav(
     const TelemetryState& telem) noexcept;
 
 starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
-    std::span<std::byte> out, const TelemetryState& telem) noexcept;
+    BytePump& p, std::span<std::byte> out, const TelemetryState& telem) noexcept;
 starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
-    std::span<std::byte> out, uint16_t cmd_id, uint8_t seq, float p1, float p2,
-    float p3, float p4, float p5) noexcept;
+    BytePump& p, std::span<std::byte> out, uint16_t cmd_id, uint8_t seq,
+    float p1, float p2, float p3, float p4, float p5) noexcept;
 starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
-    std::span<std::byte> out, const ccsds::CommandAckPayload& ack) noexcept;
+    BytePump& p, std::span<std::byte> out,
+    const ccsds::CommandAckPayload& ack) noexcept;
+// 133.0-B-2 §4.3.2: gap is (seq - expected) mod 16384, added to rx_lost.
+void pump_note_rx_seq(BytePump& p, starcom::ccsds::Apid apid,
+                      std::uint16_t seq_count) noexcept;
 
 starcom::ccsds::Result<std::size_t> pump_submit_sdu(
     BytePump& p, std::span<const std::byte> packet, bool expedited) noexcept;

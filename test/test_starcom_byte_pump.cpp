@@ -43,6 +43,9 @@ using rc::starcom_adapt::pump_mac_phy;
 using rc::starcom_adapt::pump_mac_phy;
 using rc::starcom_adapt::pump_fifo_source;
 using rc::starcom_adapt::pump_poll_mac_notify;
+using rc::starcom_adapt::kCmdApid;
+using rc::starcom_adapt::kNavApid;
+using rc::starcom_adapt::pump_note_rx_seq;
 using rc::starcom_adapt::pump_pack_nav_packet;
 using rc::starcom_adapt::pump_pack_cmd_packet;
 using rc::starcom_adapt::pump_pack_ack_packet;
@@ -140,7 +143,7 @@ TEST(StarcomBytePump, CoppNavSduNotOldEncoder) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_nav_packet(pkt, telem);
+    const auto pn = pump_pack_nav_packet(tx, pkt, telem);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(tx, std::span<const std::byte>(pkt.data(), *pn),
                                 false)
@@ -173,7 +176,7 @@ TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_cmd_packet(pkt, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto pn = pump_pack_cmd_packet(station, pkt, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(pkt.data(), *pn), false)
@@ -201,7 +204,7 @@ TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
     rc::ccsds::CommandAckPayload ack{};
     ack.cmd_seq = 1;
     ack.cmd_id = 400;
-    const auto an = pump_pack_ack_packet(pkt, ack);
+    const auto an = pump_pack_ack_packet(vehicle, pkt, ack);
     ASSERT_TRUE(an.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *an), false)
@@ -218,7 +221,7 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> nav{};
-    const auto nn = pump_pack_nav_packet(nav, telem);
+    const auto nn = pump_pack_nav_packet(vehicle, nav, telem);
     ASSERT_TRUE(nn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(nav.data(), *nn), false)
@@ -235,7 +238,7 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s_plcw));
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -257,7 +260,7 @@ TEST(StarcomBytePump, PlcwThenSeqInOneContact) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -350,7 +353,7 @@ TEST(StarcomBytePump, PlcwThenExpAckInOneContact) {
     ack.cmd_seq = 0;
     ack.result = 0;
     std::array<std::byte, 64> pkt{};
-    const auto n = pump_pack_ack_packet(pkt, ack);
+    const auto n = pump_pack_ack_packet(vehicle, pkt, ack);
     ASSERT_TRUE(n.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *n), true)
@@ -393,7 +396,7 @@ TEST(StarcomBytePump, CmdAckIsExpedited) {
     ack.cmd_id = 400;
     ack.result = 0;
     std::array<std::byte, 64> pkt{};
-    const auto n = pump_pack_ack_packet(pkt, ack);
+    const auto n = pump_pack_ack_packet(vehicle, pkt, ack);
     ASSERT_TRUE(n.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *n), true)
@@ -420,7 +423,7 @@ TEST(StarcomBytePump, NavDoesNotStarveFarmPlcw) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_nav_packet(pkt, telem);
+    const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
@@ -463,7 +466,7 @@ TEST(StarcomBytePump, ConnectingLDoesNotRadiate) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_nav_packet(pkt, telem);
+    const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
@@ -556,7 +559,7 @@ TEST(StarcomBytePump, ConnectingTDoesNotLeakSeq) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_start_session(station, true, 0);
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -713,7 +716,7 @@ TEST(StarcomBytePump, HailThenNavReachesStation) {
 
         if ((t % 100) == 0) {
             std::array<std::byte, 64> pkt{};
-            const auto pn = pump_pack_nav_packet(pkt, telem);
+            const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
             ASSERT_TRUE(pn.has_value());
             (void)pump_submit_sdu(
                 vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
@@ -763,7 +766,7 @@ TEST(StarcomBytePump, HalfDuplexReceiveWindowAfterSendDuration) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_nav_packet(pkt, telem);
+    const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
     ASSERT_TRUE(pn.has_value());
     std::array<std::byte, 255> wire{};
     bool saw_receive = false;
@@ -875,7 +878,7 @@ TEST(StarcomBytePump, TokenPassThenStationSeqAd) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     bool cmd_queued = false;
     bool saw_token = false;
@@ -912,7 +915,7 @@ TEST(StarcomBytePump, TokenPassThenStationSeqAd) {
         }
         if ((t % 100) == 0) {
             std::array<std::byte, 64> pkt{};
-            const auto pn = pump_pack_nav_packet(pkt, telem);
+            const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
             ASSERT_TRUE(pn.has_value());
             (void)pump_submit_sdu(
                 vehicle, std::span<const std::byte>(pkt.data(), *pn), true);
@@ -1086,7 +1089,7 @@ TEST(StarcomBytePump, StationReinitLocksOnVehiclePlcw) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_nav_packet(pkt, telem);
+    const auto pn = pump_pack_nav_packet(vehicle, pkt, telem);
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(pkt.data(), *pn), true)
@@ -1134,7 +1137,7 @@ TEST(StarcomBytePump, FarmSeqCmdAfterLockViaHandleAir) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> nav{};
-    const auto nn = pump_pack_nav_packet(nav, telem);
+    const auto nn = pump_pack_nav_packet(vehicle, nav, telem);
     ASSERT_TRUE(nn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     vehicle, std::span<const std::byte>(nav.data(), *nn), true)
@@ -1154,7 +1157,7 @@ TEST(StarcomBytePump, FarmSeqCmdAfterLockViaHandleAir) {
     EXPECT_EQ(vehicle.copp.farm.v_r, 0u);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -1193,14 +1196,14 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     pump_start_session(vehicle, false, 0);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(cmd, 400, 0, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 0, 1.0F, 0, 0, 0, 0);
     ASSERT_TRUE(cn.has_value());
     rc::ccsds::CommandAckPayload ack{};
     ack.cmd_id = 400;
     ack.cmd_seq = 0;
     ack.result = 0;
     std::array<std::byte, 64> ack_pkt{};
-    const auto an = pump_pack_ack_packet(ack_pkt, ack);
+    const auto an = pump_pack_ack_packet(vehicle, ack_pkt, ack);
     ASSERT_TRUE(an.has_value());
 
     std::array<std::byte, 255> stn_wire{};
@@ -1325,4 +1328,171 @@ TEST(StarcomBytePump, AsymmetricHdSendDuration) {
               station.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(station.mac.mib.carrier_loss_timer_duration,
               vehicle.mac.mib.send_duration + contact_tail);
+}
+
+namespace {
+
+// ao_telemetry starcom_handle_nav_sdu stores this field, and
+// dispatch_nav_csv prints it as RX,<seq>,<rssi>,<snr>.
+std::uint16_t decoded_seq(std::span<const std::byte> pkt) {
+    const auto view = starcom::ccsds::decodeSpacePacket(pkt);
+    EXPECT_TRUE(view.has_value());
+    if (!view.has_value()) {
+        return 0xFFFFu;
+    }
+    return view->fields.seq_count;
+}
+
+}  // namespace
+
+// 133.0-B-2 §4.1.3.4.3.3/.4: count starts at 0 and is continuous modulo 16384.
+TEST(StarcomBytePump, SpaceSeqCountIncrementsAndWraps) {
+    static BytePump vehicle{};
+    vehicle.seq_nav = {};
+    vehicle.seq_cmd = {};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    rc::TelemetryState telem{};
+    telem.q_w = 1;
+    std::array<std::byte, 64> pkt{};
+    for (unsigned i = 0; i < 16384u; ++i) {
+        const auto n = pump_pack_nav_packet(vehicle, pkt, telem);
+        ASSERT_TRUE(n.has_value());
+        const auto view = starcom::ccsds::decodeSpacePacket(
+            std::span<const std::byte>(pkt.data(), *n));
+        ASSERT_TRUE(view.has_value());
+        ASSERT_EQ(view->fields.seq_count, static_cast<std::uint16_t>(i));
+        ASSERT_EQ(view->fields.apid, kNavApid);
+        ASSERT_EQ(view->fields.seq_flags, 0x03);
+    }
+    const auto wrapped = pump_pack_nav_packet(vehicle, pkt, telem);
+    ASSERT_TRUE(wrapped.has_value());
+    EXPECT_EQ(decoded_seq(std::span<const std::byte>(pkt.data(), *wrapped)), 0u);
+
+    // pump_init must not rewind a count that has not reached the modulus.
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    const auto kept = pump_pack_nav_packet(vehicle, pkt, telem);
+    ASSERT_TRUE(kept.has_value());
+    EXPECT_EQ(decoded_seq(std::span<const std::byte>(pkt.data(), *kept)), 1u);
+}
+
+// Nav is APID 0x001. Command and ACK share APID 0x003 on different ends.
+TEST(StarcomBytePump, SpaceSeqNavCmdAckIndependent) {
+    static BytePump vehicle{};
+    static BytePump station{};
+    vehicle.seq_nav = {};
+    vehicle.seq_cmd = {};
+    station.seq_nav = {};
+    station.seq_cmd = {};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    rc::TelemetryState telem{};
+    telem.q_w = 1;
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_id = 400;
+    std::array<std::byte, 64> pkt{};
+
+    ASSERT_TRUE(pump_pack_nav_packet(vehicle, pkt, telem).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 0u);
+    ASSERT_TRUE(pump_pack_ack_packet(vehicle, pkt, ack).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 0u);
+    ASSERT_TRUE(pump_pack_nav_packet(vehicle, pkt, telem).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 1u);
+    ASSERT_TRUE(pump_pack_ack_packet(vehicle, pkt, ack).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 1u);
+
+    ASSERT_TRUE(
+        pump_pack_cmd_packet(station, pkt, 400, 1, 0, 0, 0, 0, 0).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 0u);
+    const auto cmd = starcom::ccsds::decodeSpacePacket(pkt);
+    ASSERT_TRUE(cmd.has_value());
+    EXPECT_TRUE(cmd->fields.telecommand);
+    EXPECT_EQ(cmd->fields.apid, kCmdApid);
+
+    ASSERT_TRUE(
+        pump_pack_cmd_packet(station, pkt, 400, 2, 0, 0, 0, 0, 0).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 1u);
+    ASSERT_TRUE(pump_pack_ack_packet(vehicle, pkt, ack).has_value());
+    EXPECT_EQ(decoded_seq(pkt), 2u);
+
+    EXPECT_EQ(vehicle.seq_nav.tx, 2u);
+    EXPECT_EQ(vehicle.seq_cmd.tx, 3u);
+    EXPECT_EQ(station.seq_cmd.tx, 2u);
+    EXPECT_EQ(station.seq_nav.tx, 0u);
+}
+
+// A skipped count adds (received - expected) mod 16384 to that APID's rx_lost.
+TEST(StarcomBytePump, SpaceSeqRxLostOnGap) {
+    static BytePump vehicle{};
+    static BytePump station{};
+    vehicle.seq_nav = {};
+    vehicle.seq_cmd = {};
+    station.seq_nav = {};
+    station.seq_cmd = {};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    rc::TelemetryState telem{};
+    std::array<std::byte, 64> pkt{};
+    std::uint16_t nav_seq[5] = {};
+    for (int i = 0; i < 5; ++i) {
+        const auto n = pump_pack_nav_packet(vehicle, pkt, telem);
+        ASSERT_TRUE(n.has_value());
+        nav_seq[i] = decoded_seq(std::span<const std::byte>(pkt.data(), *n));
+        EXPECT_EQ(nav_seq[i], static_cast<std::uint16_t>(i));
+    }
+    pump_note_rx_seq(station, kNavApid, nav_seq[0]);
+    pump_note_rx_seq(station, kNavApid, nav_seq[1]);
+    pump_note_rx_seq(station, kNavApid, nav_seq[3]);
+    EXPECT_EQ(station.seq_nav.rx_lost, 1u);
+    EXPECT_EQ(station.seq_nav.rx_expect, 4u);
+    pump_note_rx_seq(station, kNavApid, nav_seq[4]);
+    EXPECT_EQ(station.seq_nav.rx_lost, 1u);
+
+    std::uint16_t cmd_seq[4] = {};
+    for (int i = 0; i < 4; ++i) {
+        const auto n =
+            pump_pack_cmd_packet(station, pkt, 400, 0, 0, 0, 0, 0, 0);
+        ASSERT_TRUE(n.has_value());
+        cmd_seq[i] = decoded_seq(std::span<const std::byte>(pkt.data(), *n));
+    }
+    pump_note_rx_seq(vehicle, kCmdApid, cmd_seq[0]);
+    pump_note_rx_seq(vehicle, kCmdApid, cmd_seq[3]);
+    EXPECT_EQ(vehicle.seq_cmd.rx_lost, 2u);
+    EXPECT_EQ(vehicle.seq_cmd.rx_expect, 4u);
+    EXPECT_EQ(vehicle.seq_nav.rx_lost, 0u);
+    EXPECT_EQ(station.seq_nav.rx_lost, 1u);
+
+    static BytePump rx{};
+    rx.seq_nav = {};
+    for (unsigned s = 0; s < 16384u; ++s) {
+        pump_note_rx_seq(rx, kNavApid, static_cast<std::uint16_t>(s));
+    }
+    EXPECT_EQ(rx.seq_nav.rx_lost, 0u);
+    EXPECT_EQ(rx.seq_nav.rx_expect, 0u);
+    pump_note_rx_seq(rx, kNavApid, 2);
+    EXPECT_EQ(rx.seq_nav.rx_lost, 2u);
+    EXPECT_EQ(rx.seq_nav.rx_expect, 3u);
+}
+
+// 133.0-B-2 §4.1.3.3.3.4: APID 0x7FF forces the secondary header flag off.
+TEST(StarcomBytePump, IdleApidSecondaryHeaderFlagClear) {
+    starcom::ccsds::SpacePacketFields idle{};
+    idle.apid = starcom::ccsds::kIdleApid;
+    idle.secondary_header = true;
+    const std::array<std::byte, 1> data{std::byte{0x00}};
+    std::array<std::byte, 16> out{};
+    const auto n = starcom::ccsds::encodeSpacePacket(out, idle, data);
+    ASSERT_TRUE(n.has_value());
+    EXPECT_EQ(out[0], std::byte{0x07});
+    const auto view =
+        starcom::ccsds::decodeSpacePacket(std::span<const std::byte>(out.data(), *n));
+    ASSERT_TRUE(view.has_value());
+    EXPECT_FALSE(view->fields.secondary_header);
+    EXPECT_EQ(view->fields.apid, starcom::ccsds::kIdleApid);
+
+    starcom::ccsds::SpacePacketFields kept{};
+    kept.apid = kNavApid;
+    kept.secondary_header = true;
+    const auto kn = starcom::ccsds::encodeSpacePacket(out, kept, data);
+    ASSERT_TRUE(kn.has_value());
+    EXPECT_EQ(out[0], std::byte{0x08});
 }
