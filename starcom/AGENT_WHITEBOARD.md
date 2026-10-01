@@ -20,7 +20,7 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ## FSK bitstream bearer (NEXT) (2026-09-29)
 
-SX1276 FSK, both ends in FSK for a session, no mode change inside a turn. Best-effort bearer, not 211.1, not hail. LoRa stays the long-range preset. The LoRa hitch sitting closed with a shorter periodic hitch still visible; pad numbers are the root `AGENT_WHITEBOARD.md` half-duplex row. Do not mint LoRa SF/BW from this row. A desk SET must not be a +20 dBm shot. Root log: `CHANGELOG.md` 2026-09-29-002. The 2026-10-01 note in `docs/DESIGN.md` records CCSDS 401, SatNOGS-COMMS, and RCC 106 as other physical layers. None of them is this FSK sitting, and none of them is a 211.1 claim.
+SX1276 FSK, both ends in FSK for a session, no mode change inside a turn. Best-effort bearer, not 211.1, not hail. LoRa stays the long-range preset. The LoRa hitch sitting closed with a shorter periodic hitch still visible; pad numbers are the root `AGENT_WHITEBOARD.md` half-duplex row. Do not mint LoRa SF/BW from this row. A desk SET must not be a +20 dBm shot. Root log: `CHANGELOG.md` 2026-09-29-002. The 2026-10-01 note in `docs/DESIGN.md` records CCSDS 401, SatNOGS-COMMS, and RCC 106 as other physical layers. None of them is this FSK sitting, and none of them is a 211.1 claim. Same sitting: split Rocket-Chip `src/starcom_adapt/byte_pump.cpp` and use the library path where that file reimplemented a Blue Book procedure Starcom already provides. Root board: half-duplex row, "byte_pump surgery".
 
 ---
 
