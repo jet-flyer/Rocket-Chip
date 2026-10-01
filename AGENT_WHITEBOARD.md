@@ -17,6 +17,24 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## GCS standalone app / Hamilton handover (NEXT) (2026-10-01)
+
+**Done, committed locally, not pushed (push held until wrap):**
+- `f5a0424` standalone app: `docs/gcs/openmct/launcher/rc_gcs_app.pyw`, `app_shell.html`, `rc_gcs_core.py`. Chrome app-mode window, control server on :8093, ports 5000/8091/8092/8093. The old `rc_gcs.pyw` web launcher is kept. Shortcuts "Rocket Chip GCS" and "Rocket Chip GCS (web launcher)" share one icon.
+- `afd18b3` the dashboard defaults to Real-Time.
+- `0da60ae` Real-Time window is now the last 5 min ending at now. The old +5 s end offset was arbitrary, not an Open MCT default.
+
+**Open bug:** pinning the running app window to the taskbar saves plain Chrome, not the app. The old tk launcher pinned fine. Planned fix: give the Chrome window its own AppUserModelID matching the shortcut and relaunch details, or go back to a native pywebview window (pywebview 6.2.1 is installed and worked earlier), which pins like the old launcher. Not started. It needs launch/close tests on the PC, so wait until Nathan says he is done testing.
+
+**Unverified by Hamilton:** live station mode in the standalone app; plots with the facsimile feed after the Real-Time default; Real-Time showing on screen; taskbar icon and title.
+
+**CCSDS findings (from Duke, repo @3988ecf):** every on-air packet carries sequence count 0. `byte_pump.cpp` `pump_pack_nav_packet`/cmd/ack set only APID and type. Fix: a per-APID, per-direction 14-bit counter (APID 0x001 nav; APID 0x003 ACK/command comes from different senders, so each end keeps its own 0x003 counter), plus an optional receive-side gap counter. Until then the walk-test CSV `seq` column is not useful. The firmware change goes through the visible Grok Build TUI. Nathan asked Buzz to write a report for Grok Build and Duke to list easy-win gaps; both replies are awaited.
+Docs fixes waiting on Nathan's OK: renumber 131.0-B-5 to B-6; add issue numbers to vague citations; footnote 235.1 as a Red draft; soften "compliant"/"Full" wording (`CONFORMANCE.md:28`); add the Annex A PICS table, managed-parameter table and APID table; `IVP.md:1824` is outdated.
+
+**Parked:** grey no-data look for gauges/LAD; RF page; FDAI 8-ball; GPS-present flag; MAVLink toggle-only; custom Leaflet map spike; phone/responsive support; Yamcs (judged overkill for now).
+
+---
+
 ## Half-duplex hitch (NEXT) (2026-09-29)
 
 Table 6-10 rows are in `starcom/src/ccsds/mac.cpp` and `src/starcom_adapt/byte_pump.cpp`. E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. Vehicle receive is one station contact (143 ms). Station receive and the carrier-loss hold are one vehicle contact (1278 ms). Vehicle send stays 1200 ms (N=11). S51, S52, and S58 still put no octets on the air. That stays in the adapter.
