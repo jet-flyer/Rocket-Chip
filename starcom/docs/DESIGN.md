@@ -22,7 +22,7 @@ This is the single canonical record consolidating:
 
 **Starcom is a standalone, universal CCSDS data-link library.** It is built for *any* consumer that needs CCSDS-conformant (or CCSDS-derived) telemetry and command links — cubesats, ground stations, high-altitude balloons, research platforms, drones, and high-power rocketry. **Rocket-Chip (RC) is the first consumer and the integration driver — it is not the owner, and it is not the boundary of the design.**
 
-**What Starcom is, and why now (settled 2026-06-19):** *What* it is never changes — a **universal, CCSDS-compliant telemetry/command library.** The *why* and *when* are RC-specific: RC's **radio telemetry is currently broken** (improper half-duplex handling; MAVLink only works over direct serial), which is a **flight blocker**, and prior ad-hoc band-aids (a STOP-GAP retry/ACK layer + RadioScheduler TX-window hacks) have cost more time than a principled implementation would have. The universal goal and the RC blocker are *not* in tension: the blocker is *why we build it now*; the universal library is *what we build*. And doing it right is not a luxury — because band-aids mask the failure chain, a clean principled foundation is the **diagnostic instrument** that lets the real bug (and the next one behind it) finally surface. (See Round 3.)
+**What Starcom is, and why now (settled 2026-06-19):** *What* it is never changes — a **universal telemetry/command library that implements CCSDS data-link codecs and procedures (per-book scope in CONFORMANCE; not formally CCSDS-compliant).** The *why* and *when* are RC-specific: RC's **radio telemetry is currently broken** (improper half-duplex handling; MAVLink only works over direct serial), which is a **flight blocker**, and prior ad-hoc band-aids (a STOP-GAP retry/ACK layer + RadioScheduler TX-window hacks) have cost more time than a principled implementation would have. The universal goal and the RC blocker are *not* in tension: the blocker is *why we build it now*; the universal library is *what we build*. And doing it right is not a luxury — because band-aids mask the failure chain, a clean principled foundation is the **diagnostic instrument** that lets the real bug (and the next one behind it) finally surface. (See Round 3.)
 
 **Two distinct goalposts — keep them separate:**
 - **Library end goal = the CCSDS Blue Books.** Full standards compliance. This destination is *precisely defined* by the standards and reached *incrementally* — it is not fuzzy.
@@ -118,7 +118,7 @@ For an implementer picking this up later, the current settled position after Rou
 - **CI:** malloc-after-init hard gate + published per-config size report.
 - **MIB:** versioned public API. **Identity:** standalone; RC is an example integration.
 - **Standards baseline:** keep JSF AV C++ / P10 / JPL-C as-is; **do not adopt MISRA C++:2023** (paywalled, ~90% overlap) — stay *compatible-with* it.
-- **131.0-B pin (2026-08-19):** 211.2-B-3 §1.7 [2] is 131.0-B-3. Implement Prox-1 conv / (2048,1024) LDPC against that issue. 131.0-B-5 is current TM-only (B-5 vs B-4 = §10 randomizer). Do not rewrite historical research cites of B-3 as “the book 211.2 uses.”
+- **131.0-B pin (2026-08-19):** 211.2-B-3 §1.7 [2] is 131.0-B-3. Implement Prox-1 conv / (2048,1024) LDPC against that issue. 131.0-B-5 was current TM-only when pinned (B-5 vs B-4 = §10 randomizer); as of 2026-10-01 the current issue is 131.0-B-6 (April 2026, section numbers shifted; see CONFORMANCE References). Do not rewrite historical research cites of B-3 as “the book 211.2 uses.”
 
 **Open (need resolution before/within Phase 0 / framework-planning):**
 - **MVP scope precise cut** — confirm V-3/PLTU + COP-P + minimal half-duplex turnaround; decide whether turnaround rides RC's existing RadioScheduler or a fresh minimal MAC.
@@ -383,7 +383,7 @@ All modifications only on this branch; main untouched for starcom/.
 
 Append-only. Does not rewrite §0 or the 2026-08-25 PHY note.
 
-**Starcom “universal” is matching PICS, not every radio.** Cross-support is among implementations that tick the same book/option. Three levels: **0** (not implemented / out of scope), **Best effort** (non-conformant approximation — still not a PICS tick), **Full** (PICS-claimable for that book/option). Code `PhyTier` maps `none` / `best_effort` / `compliant` onto those. `PhyTier::compliant` is Full; it is not offered.
+**Starcom “universal” is matching PICS, not every radio.** Cross-support is among implementations that tick the same book/option. Three levels: **0** (not implemented / out of scope), **Best effort** (non-conformant approximation — still not a PICS tick), **Full** (PICS-claimable for that book/option). Code `PhyTier` maps `none` / `best_effort` / `compliant` onto those. `PhyTier::compliant` would be the Full tier; it is not offered.
 
 **Best-effort rule of thumb** (not a hard red line): only when it advances performance or features, especially if the work later transfers to Full. Do not add it just to have it. A lot of current radio Best-effort is Rocket-Chip-specific even when sequestered; RC pins and AO stay out of `starcom::ccsds`.
 

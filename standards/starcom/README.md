@@ -38,7 +38,7 @@ JPL C coding standard (lars-lab) did not serve a public PDF from this environmen
 | [`ccsds/CCSDS-211.0-B-6.pdf`](ccsds/CCSDS-211.0-B-6.pdf) | Proximity-1 Space Link Protocol—Data Link Layer | Blue Book, Issue 6, July 2020 | <https://ccsds.org/Pubs/211x0b6e1.pdf> | Proximity-1 framing / MAC / session (current issue; 211.0-B-5 404) |
 | [`ccsds/CCSDS-211.1-B-4.pdf`](ccsds/CCSDS-211.1-B-4.pdf) | Proximity-1 Space Link Protocol—Physical Layer | Blue Book, Issue 4, December 2013 (e1 file) | <https://public.ccsds.org/Pubs/211x1b4e1.pdf> | Proximity-1 PHY used this sitting |
 | [`ccsds/CCSDS-211.2-B-3.pdf`](ccsds/CCSDS-211.2-B-3.pdf) | Proximity-1 Space Link Protocol—Coding and Synchronization Sublayer | Blue Book, Issue 3, October 2019 | <https://ccsds.org/Pubs/211x2b3.pdf> | Proximity-1 C&S (current issue; 211.2-B-2 404) |
-| [`ccsds/CCSDS-131.0-B-5.pdf`](ccsds/CCSDS-131.0-B-5.pdf) | TM Synchronization and Channel Coding | Blue Book, Issue 5, September 2023 | <https://public.ccsds.org/Pubs/131x0b5.pdf> | TM coding, including LDPC (2048,1024) and convolutional |
+| [`ccsds/CCSDS-131.0-B-5.pdf`](ccsds/CCSDS-131.0-B-5.pdf) | TM Synchronization and Channel Coding | Blue Book, Issue 5, September 2023. **Superseded** by 131.0-B-6 (Issue 6, April 2026; not on this shelf; URL below) | <https://public.ccsds.org/Pubs/131x0b5.pdf> | TM coding, including LDPC (2048,1024) and convolutional. Starcom cites now use B-6 section numbers with the B-5 number alongside |
 | [`ccsds/CCSDS-133.0-B-2.pdf`](ccsds/CCSDS-133.0-B-2.pdf) | Space Packet Protocol | Blue Book, Issue 2, June 2020 (e2 file) | <https://public.ccsds.org/Pubs/133x0b2e2.pdf> | Space Packet used this sitting |
 | [`ccsds/CCSDS-232.0-B-4.pdf`](ccsds/CCSDS-232.0-B-4.pdf) | TC Space Data Link Protocol | Blue Book, Issue 4, October 2021 (TC1 Oct 2023) | <https://public.ccsds.org/Pubs/232x0b4e1c1.pdf> | CLCW field format §4.2.1 |
 | [`ccsds/CCSDS-232.1-B-2.pdf`](ccsds/CCSDS-232.1-B-2.pdf) | Communications Operation Procedure-1 | Blue Book, Issue 2, September 2010 (TC1 Apr 2019) | <https://public.ccsds.org/Pubs/232x1b2e2c1.pdf> | FOP-1 / FARM-1 tables |
@@ -51,6 +51,8 @@ Download failed, was gated, was undersize, or is C-not-FPGA. Official URLs only;
 
 | Document | Date / issue | Official URL | Why URL-only |
 |---|---|---|---|
+| CCSDS 131.0-B-6 TM Synchronization and Channel Coding | Blue Book, Issue 6, April 2026 (Editorial Correction 1, May 2026) | <https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2026/06/131x0b6ec1.pdf> (listing: <https://ccsds.org/publications/allpubs/entry/4803/>) | Current issue. Not downloaded into the tree; `public.ccsds.org/Pubs/131x0b6.pdf` is 404 |
+| CCSDS 235.1-R-1 Space Communications Session Control | **Red Book draft** (not a Blue Book), Issue 1, May 2026 | <https://ccsds.org/review/ccsds-235-1-r-1/> | Draft under agency review; Starcom makes no claim against it |
 | CCSDS 211.0-B-5 Proximity-1 Data Link Layer | Blue Book, Issue 5, December 2013 | <https://public.ccsds.org/Pubs/211x0b5.pdf> | 404; superseded. Current issue stored as `CCSDS-211.0-B-6.pdf` |
 | CCSDS 211.2-B-2 Proximity-1 C&S | Blue Book, Issue 2, December 2013 | <https://public.ccsds.org/Pubs/211x2b2.pdf> | 404; superseded. Current issue stored as `CCSDS-211.2-B-3.pdf` |
 | Gaisler, *A structured VHDL design method* (`structdes.pdf`) | lecture / paper | <https://gaisler.com/doc/structdes.pdf> | URL redirects to homepage; no public PDF >50 KB |

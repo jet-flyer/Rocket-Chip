@@ -86,7 +86,7 @@ Build order **inside** this increment:
 
 1. PLTU (ASM `FAF320` + CRC-32). Envelope. CRC covers the transfer frame only. 211.2-B-3 Fig 3-1 and Annex C.
 2. Version-3 frame (5-octet header, 2 KiB cap, TFVN bits `10`). 211.0-B-6 Fig 3-2. PCID / Port ID here.
-3. Space Packet SDU (6-octet header + N). 133.0-B-2 Fig 4-1.
+3. Space Packet PDU codec (6-octet header + N), Packet Service only. 133.0-B-2 Fig 4-1.
 4. `Plcw16` pack/unpack (211.0-B-6 §3.2.4.3.2.1.1). Pack only.
 5. `Clcw32` pack/unpack (232.0-B-4 §4.2.1). Distinct type.
 
@@ -301,7 +301,7 @@ Result<PltuView> phyUncodedDecode(PhyDecl, std::span<const std::byte>);
 
 ### Increment 19 — Convolutional / LDPC
 
-Landed (host). 211.2 PICS: uncoded (18) + conv encode + LDPC encode. 211.2 §3.4.3 / §3.4.4 / §3.4.5 and 131.0-B-5 §3.3 / §7.4. Encode only; Viterbi / LDPC decode deferred to GCS/Pi. Not a 131.0 long-haul TM C&S product. Uncoded PhyTier path from 18 is unchanged. G2 inversion is used (Prox-1 211.2 → 131.0). Annex F Odyssey Unreliable Bitstream is not this increment.
+Landed (host). 211.2 PICS: uncoded (18) + conv encode + LDPC encode. 211.2 §3.4.3 / §3.4.4 / §3.4.5 and 131.0-B-6 §4.3 / §8.4 (B-5 §3.3 / §7.4; 211.2 cites B-3). Encode only; Viterbi / LDPC decode deferred to GCS/Pi. Not a 131.0 long-haul TM C&S product. Uncoded PhyTier path from 18 is unchanged. G2 inversion is used (Prox-1 211.2 → 131.0). Annex F Odyssey Unreliable Bitstream is not this increment.
 
 ```cpp
 Result<std::size_t> convEncode(std::span<std::byte> out, std::span<const std::byte> in);

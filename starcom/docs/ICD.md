@@ -318,7 +318,7 @@ Uncoded host path for none / best_effort. `compliant` is not offered. FPGA HDL s
 
 ## Increment 19 — convolutional / LDPC encode
 
-Core path: `starcom::ccsds`, not adapters. Rate-1/2 K=7 conv (211.2 §3.4.3 → 131.0 §3.3): G1=171, G2=133, G2 inverted, C1 then C2, MSB-first, memory 0 at the one-shot API. LDPC (211.2 §3.4.4–3.4.5 → 131.0 §7.4) (2048,1024) systematic encode, CSM not randomized, 211.2 PN on the codeword only. Decode is not on this API.
+Core path: `starcom::ccsds`, not adapters. Rate-1/2 K=7 conv (211.2 §3.4.3 → 131.0-B-6 §4.3; B-5 §3.3): G1=171, G2=133, G2 inverted, C1 then C2, MSB-first, memory 0 at the one-shot API. LDPC (211.2 §3.4.4–3.4.5 → 131.0-B-6 §8.4; B-5 §7.4) (2048,1024) systematic encode, CSM not randomized, 211.2 PN on the codeword only. Decode is not on this API.
 
 ```cpp
 struct ConvEnc { std::uint8_t mem = 0; };
