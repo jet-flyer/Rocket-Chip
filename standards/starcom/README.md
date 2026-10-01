@@ -60,6 +60,11 @@ Download failed, was gated, was undersize, or is C-not-FPGA. Official URLs only;
 | **ECSS-E-ST-50-12C Rev.1** SpaceWire — Links, nodes, routers and networks | 15 May 2019 | <https://ecss.nl/standard/ecss-e-st-50-12c-rev-1-spacewire-links-nodes-routers-and-networks-15-may-2019/> | ECSS typically requires free registration; not treated as freely redistributable. Use with SpaceWire-Lite draft above |
 | **ECSS-E-ST-20-40C** ASIC, FPGA and IP Core engineering | 11 October 2023 | <https://ecss.nl/standard/ecss-e-st-20-40c-asic-fpga-and-ip-core-engineering-11-october-2023/> | Gated / registration; no PDF stored |
 | **ECSS-E-HB-20-40A** Engineering techniques for radiation effects mitigation in ASICs and FPGAs handbook | 11 October 2023 | <https://ecss.nl/home/ecss-e-hb-20-40a-engineering-techniques-for-radiation-effects-mitigation-in-asics-and-fpgas-handbook/> | Gated / registration; no PDF stored |
+| **CCSDS 401.0-B** Radio Frequency and Modulation Systems — Part 1: Earth Stations and Spacecraft | Issue 32, October 2021 (later issues may exist) | <https://ccsds.org/Pubs/401x0b32.pdf> | Earth-station PHY. Not Proximity-1. Not downloaded this sitting. Detail: `starcom/docs/DESIGN.md` note 2026-10-01 |
+| **CCSDS 231.0-B** TC Synchronization and Channel Coding | (not pinned) | <https://public.ccsds.org/Publications/default.aspx> | Telecommand coding companion to 401. Not on this shelf. Not walked |
+| **RCC 106** Telemetry Standards (IRIG 106) | 106-22, May 2022; wiki tracks later issues | <https://www.irig106.org/wiki/irig_106-22> | US range ascent telemetry. Chapter 2: PCM/FM, SOQPSK-TG, ARTM CPM. Not CCSDS |
+| **RCC 319** Flight Termination Systems Commonality Standard | 319-25, June 2025 | <https://www.trmc.osd.mil/wiki/download/attachments/113019893/319-25_FTS_Commonality.pdf> | Dedicated termination uplink, independent of the telemetry radio. Tones and ordnance stay in that book |
+| **NASA/TP–20230006855** NASA Sounding Rockets User Handbook (810-HB-SRP) | May 2023 | <https://www.nasa.gov/wp-content/uploads/2015/03/sounding-rocket-user-handbook.pdf> | Umbilical circuit classes and Wallops PCM encoders. No universal pin number list. Circuits: `docs/hardware/HARDWARE.md` Regulatory Notes |
 
 ## Provenance notes
 

@@ -31,6 +31,8 @@ Table 6-10 rows are in `starcom/src/ccsds/mac.cpp` and `src/starcom_adapt/byte_p
 
 **Next conversation — FSK:** both SX1276s stay in FSK for a session. No mode change inside a turn. LoRa stays the long-range preset. Convolutional and LDPC encoders stay off the LoRa payload. Do not retune N or vehicle Send_Duration. Simplex and a second radio stay deferred. QGC freezes were not in this pad capture. Opening-shock stays unstaged and off the room-test image.
 
+**Recorded 2026-10-01, not this sitting’s work:** other physical layers and the sounding-rocket umbilical are written down. `starcom/docs/DESIGN.md` note 2026-10-01, `docs/hardware/HARDWARE.md` Regulatory Notes, `standards/starcom/README.md` URL-only rows. SatNOGS-COMMS and IRIG 106 are not Proximity-1. RCC 319 is a separate termination uplink. Do not start that hardware from this row.
+
 **Chips at this handoff:** Jam `BEC71B8EDC6AEBD1` is running the cadence image. Its banner still reads `0488d60-dirty` because that image was linked before `37acb21`. Feather `02FBDDB8E1CA1281` power-cycled, recovered the radio, and locked. The clean `37acb21` ELF was not written. The last halt-write on record is the opening-shock dirty ELF. Do not flash either board until that image is identified. Local main is ahead of origin and was not pushed.
 
 The procedure countdown is in `tools/spin/proximity1_hd.pml` only. Book, `-DSHORT_WINDOW`, and `-DCODE_E38`: five claims `errors: 0`. `-DCODE_MISS`: `p_no_dual_s50` `errors: 1`, the other four `errors: 0`.

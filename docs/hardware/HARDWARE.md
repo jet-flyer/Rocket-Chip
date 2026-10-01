@@ -574,6 +574,27 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 - Duty cycle and power restrictions for license-free operation
 - Check local regulations for non-US deployments
 
+### Range hardline and flight termination
+
+NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `standards/starcom/README.md`.
+
+The sounding-rocket umbilical reference is NASA/TP–20230006855, *NASA Sounding Rockets User Handbook*, May 2023, document 810-HB-SRP:
+
+<https://www.nasa.gov/wp-content/uploads/2015/03/sounding-rocket-user-handbook.pdf>
+
+That handbook does not publish one pin number list. The experimenter defines the connector. The circuits it names are:
+
+- 28 V and power return.
+- Ground-support discretes that exist only while the connector is mated: +28 V or ground, momentary or latched. Events that must not fire on the ground are inhibited separately.
+- A breakwire. Opening it is T-0. The flight timer starts on that opening or on a lift-off switch. Housekeeping reports the umbilical breakwire and the eject breakwire.
+- The baseband PCM pair the blockhouse displays and the S-band exciter modulates after release: bit clock, data, and major-frame sync. Shielded pair or coax, with the shield ground end named on the interface drawing. Wallops encoders (WFF93, Axon, and the others in that handbook) emit an IRIG 106 Chapter 4 frame as Bi-phase-L, NRZ, or randomized NRZ.
+- A calibration tone switched in from the ground station, into a 75 ohm load, up to 1 V RMS, so the receiver and recorder are set before release.
+- On a pointed payload, attitude-control target angles from the control station while the vehicle is still on the rail.
+
+Agency release is a lanyard or a latch, with vehicle motion as the backup. A magnetic shell is a local mechanical choice. The avionics event at release is still the breakwire opening.
+
+Flight termination is a second radio. RCC 319-25 (June 2025) requires the termination uplink to operate independently of the telemetry transmitter and of the flight-control command link. Telemetry, or this hardline while it is mated, reports receiver signal strength, power, command-output state, and safe-and-arm. Once that receiver’s fail-safe is enabled, loss of its uplink is a termination condition. Command tones and the ordnance path stay in 319. They are not part of the proximity modem.
+
 ### Pyro Channels
 - Safety interlocks required in firmware
 - Physical arm switch recommended for Pro tier

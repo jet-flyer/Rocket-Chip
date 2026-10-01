@@ -271,7 +271,7 @@ Issue 2, June 2020 (e2). `CCSDS-133.0-B-2.pdf`. CONFORMANCE: Space Packet as SDU
 
 ## 211.1-B-4 — Physical Layer (filled)
 
-Issue 4, Dec 2013. `CCSDS-211.1-B-4.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**.
+Issue 4, Dec 2013. `CCSDS-211.1-B-4.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**. CCSDS 401.0-B is a different physical layer (Earth station and spacecraft) and is not walked here; URL only in `standards/starcom/README.md`. Range ascent telemetry is RCC 106, also not this book. Note: `DESIGN.md` 2026-10-01.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|

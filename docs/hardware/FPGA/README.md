@@ -186,6 +186,8 @@ T8 is not on the base RC board for comms. FSK / bitstream is the RFM95 lab path.
 
 Max on existing RFM95: RP 211.0 plus T8 211.2 encode and FSK continuous bitstream as the lab path. Bit-bang / FSK is not 211.1. Full 211.1 PHY is not offered. Hamilton: no PHY approximations.
 
+A 2026-10-01 survey of other physical layers is `starcom/docs/DESIGN.md` (note of that date) and the URL-only rows in `standards/starcom/README.md`. SatNOGS-COMMS is an AT86RF215 LVDS I/Q port into a Zynq-7020. That image is Category A GMSK/FSK/BPSK/QPSK, not 211.1. The on-desk snickerdoodle one is the Zynq-7010 and is not that radio. Snickerdoodle black is the 7020. Range ascent telemetry is RCC 106, and the sounding-rocket umbilical circuit list is `docs/hardware/HARDWARE.md`.
+
 Living claims and order live in the Starcom docs, not here:
 
 - `starcom/docs/CONFORMANCE.md` - PICS levels; PIO bit pipe and FSK are Best effort, not 211.1

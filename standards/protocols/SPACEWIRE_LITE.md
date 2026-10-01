@@ -88,6 +88,8 @@ For GPIO prototype mode, signals are single-ended:
 
 See `docs/icd/EXPANSION_CONNECTOR_ICD.md` for physical connector specification. SpaceWire signals are allocated on the Gemini-specific pins of the expansion connector.
 
+A SATA cable has two 100-ohm pairs, which is one direction (Data and Strobe). A full-duplex link is four pairs, so two such cables. The cable does not speak SpaceWire; the ends do, in Data-Strobe. Pair-to-pair skew is the recovered clock, so a SATA jumper is a short bench lead and not the ECSS cable. Long “serial on an Ethernet cable” is usually RS-422, which has no strobe pair. Gemini’s production target remains 10 Mbps through an SN65LVDS049.
+
 ---
 
 ## 3. Data-Link Layer

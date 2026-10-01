@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-01-001 | Grok 4.7 (Build CLI) | documentation
+
+**401, SatNOGS, and range telemetry are not 211.1.** `docs/DESIGN.md` note 2026-10-01. `docs/COVERAGE.md` points at it from the 211.1 header. No version bump. No tag. No modem work.
+
+The umbilical circuit list and RCC 319 note are root `CHANGELOG.md` 2026-10-01-001 (`docs/hardware/HARDWARE.md`).
+
+Verified: documentation only, no library source in this change.
+
 ### 2026-09-29-002 | Grok 4.7 (Build CLI) | bugfix
 
 **Table 6-10 data-services rows.** `mac.cpp`: E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. `test_mac.cpp` follows those rows. No version bump. No tag.

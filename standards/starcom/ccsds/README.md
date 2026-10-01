@@ -12,3 +12,5 @@ PDFs only. Research notes stay in `starcom/docs/`. Index and URL-only rows: [`..
 | `CCSDS-232.0-B-4.pdf` | TC Space Data Link Protocol (Issue 4, Oct 2021 + TC1 Oct 2023). CLCW §4.2.1 |
 | `CCSDS-232.1-B-2.pdf` | COP-1 (Issue 2, Sep 2010 + TC1 Apr 2019) |
 | `CCSDS-732.1-B-3.pdf` | USLP (Issue 3, June 2024) |
+
+401.0-B (Earth stations and spacecraft) is not in this folder. URL and the reason it is a different physical layer from 211.1: [`../README.md`](../README.md) URL-only table, and `starcom/docs/DESIGN.md` note 2026-10-01.
