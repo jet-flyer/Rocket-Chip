@@ -45,7 +45,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-10-01-003 | Grok 4.7 (Build CLI) | bugfix, feature
 
-**Space Packet header count advances. The 133.0 service is not wired in yet.** Nav, command, and ACK were leaving with sequence count 0. Each end now keeps a 14-bit count per APID (`0x001` nav, `0x003` command or ACK) and adds a receive gap to `rx_lost` (`8d7161c`). Idle APID `0x7FF` forces the secondary-header flag off. That count lives inside `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), the project's own packer, which was already written. It still builds those three packets and hands the frames to COP-P. The 133.0 request and indication layer (`c0d4ee9`, `d9aa009`) is host-tested and is not wired in yet because that self-implemented service already owns the air path. Library row: `starcom/CHANGELOG.md` 2026-10-01-002.
+**Space Packet header count advances. The 133.0 service is not wired in yet.** Nav, command, and ACK were leaving with sequence count 0. Each end now keeps a 14-bit count per APID (`0x001` nav, `0x003` command or ACK) and adds a receive gap to `rx_lost` (`1f23b35`). Idle APID `0x7FF` forces the secondary-header flag off. That count lives inside `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), the project's own packer, which was already written. It still builds those three packets and hands the frames to COP-P. The 133.0 request and indication layer (`b6a8ca4`, `f19a7a0`) is host-tested and is not wired in yet because that self-implemented service already owns the air path. Library row: `starcom/CHANGELOG.md` 2026-10-01-002.
 
 ### 2026-10-01-002 | Grok Hamilton (Grok Bot) | documentation
 
