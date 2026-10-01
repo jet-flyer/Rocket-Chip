@@ -17,7 +17,7 @@ python docs/gcs/openmct/realtime/feed_facsimile.py --loop --rate 1
 
 Play starts with 10 s of synthetic ARMED-on-pad data (negative `met_ms`). Mid-pad the link sags through amber and red, then recovers, so the RSSI/SNR/LQ colours get exercised. `--pad-s 0` turns it off and `--pad-flat` keeps it nominal.
 
-WS: `ws://127.0.0.1:8091/`. Hard-reload hello-world; conductor **REAL-TIME** -30s; open **Master Dashboard v1** / **Master Glance (stacked)**.
+WS: `ws://127.0.0.1:8091/`. Hard-reload hello-world; conductor **REAL-TIME** last 5 min (-5m..now); open **Master Dashboard v1** / **Master Glance (stacked)**.
 
 ## Station live scrape
 
