@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-01-002 | Grok Hamilton (Grok Bot) | documentation
+
+**CCSDS docs overhaul on `ccsds-docs`.** `starcom/docs/CONFORMANCE.md` and `COVERAGE.md` audited so every claim has a quoted clause or is removed. Stored PDFs in `standards/starcom/ccsds/` replaced with the current issues (131.0-B-6 EC1; B-5 removed), with a current-issues table in `standards/starcom/ccsds/README.md`. Prox-1 randomizer documented from 211.2-B-3 3.4.4.4 / 3.4.5 (LDPC only, shall); B-6 10.2.5 recorded as a quoted note; 133.0-B-2 Packet-Service items recorded. Grok Build task files added in `docs/decisions/prompts/`: `SEQ_COUNT_FIX_PROMPT.md`, `SPACE_PACKET_SERVICE_PROMPT.md`. Open: APID 0x003 two senders, Prox-1 shall sweep, FSK coding option at the FSK pivot (`AGENT_WHITEBOARD.md`). No firmware or source changes.
+
 ### 2026-10-01-001 | Grok 4.7 (Build CLI) | documentation
 
 **Other physical layers and the sounding-rocket umbilical are written down.** Proximity-1 stays the 211 books. CCSDS 401.0-B, SatNOGS-COMMS (I/Q partition, Category A image, not 211.1), RCC 106 ascent telemetry, and RCC 319 as a separate termination uplink are in `starcom/docs/DESIGN.md` note 2026-10-01. The NASA/TP–20230006855 (810-HB-SRP, May 2023) umbilical circuit list is `docs/hardware/HARDWARE.md` Regulatory Notes. Shelf URLs, including that handbook, are `standards/starcom/README.md`. FSK on the SX1276s is still the next sitting. Opening-shock stays unstaged. Library pointer: `starcom/CHANGELOG.md` 2026-10-01-001.
