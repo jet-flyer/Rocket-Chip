@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-01-003 | Grok 4.7 (Build CLI) | bugfix, feature
+
+**Space Packet header count advances. The 133.0 service is not wired in yet.** Nav, command, and ACK were leaving with sequence count 0. Each end now keeps a 14-bit count per APID (`0x001` nav, `0x003` command or ACK) and adds a receive gap to `rx_lost` (`8d7161c`). Idle APID `0x7FF` forces the secondary-header flag off. That count lives inside `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), the project's own packer, which was already written. It still builds those three packets and hands the frames to COP-P. The 133.0 request and indication layer (`c0d4ee9`, `d9aa009`) is host-tested and is not wired in yet because that self-implemented service already owns the air path. Library row: `starcom/CHANGELOG.md` 2026-10-01-002.
+
 ### 2026-10-01-002 | Grok Hamilton (Grok Bot) | documentation
 
 **CCSDS docs overhaul on `ccsds-docs`.** `starcom/docs/CONFORMANCE.md` and `COVERAGE.md` audited so every claim has a quoted clause or is removed. Stored PDFs in `standards/starcom/ccsds/` replaced with the current issues (131.0-B-6 EC1; B-5 removed), with a current-issues table in `standards/starcom/ccsds/README.md`. Prox-1 randomizer documented from 211.2-B-3 3.4.4.4 / 3.4.5 (LDPC only, shall); B-6 10.2.5 recorded as a quoted note; 133.0-B-2 Packet-Service items recorded. Grok Build task files added in `docs/decisions/prompts/`: `SEQ_COUNT_FIX_PROMPT.md`, `SPACE_PACKET_SERVICE_PROMPT.md`. Open: APID 0x003 two senders, Prox-1 shall sweep, FSK coding option at the FSK pivot (`AGENT_WHITEBOARD.md`). No firmware or source changes.
