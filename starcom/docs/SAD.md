@@ -198,7 +198,7 @@ Do **not** copy NASA Odyssey Annex F as the codec: that mission profile forced R
 
 ### CLCW (32-bit) — 232.0-B-4 §4.2.1, Fig 4-6
 
-Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book on shelf: `standards/starcom/ccsds/CCSDS-232.0-B-4.pdf`.
+Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book on shelf: `standards/starcom/ccsds/CCSDS-232.0-B-4-EC1-Cor1.pdf`.
 
 | Bits | Width | Field | Value / meaning |
 |------|-------|-------|-----------------|

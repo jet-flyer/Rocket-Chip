@@ -118,7 +118,7 @@ For an implementer picking this up later, the current settled position after Rou
 - **CI:** malloc-after-init hard gate + published per-config size report.
 - **MIB:** versioned public API. **Identity:** standalone; RC is an example integration.
 - **Standards baseline:** keep JSF AV C++ / P10 / JPL-C as-is; **do not adopt MISRA C++:2023** (paywalled, ~90% overlap) — stay *compatible-with* it.
-- **131.0-B pin (2026-08-19):** 211.2-B-3 §1.7 [2] is 131.0-B-3. Implement Prox-1 conv / (2048,1024) LDPC against that issue. 131.0-B-5 was current TM-only when pinned (B-5 vs B-4 = §10 randomizer); as of 2026-10-01 the current issue is 131.0-B-6 (April 2026, section numbers shifted; see CONFORMANCE References). Do not rewrite historical research cites of B-3 as “the book 211.2 uses.”
+- **131.0-B pin (2026-08-19):** 211.2-B-3 §1.7 [2] is 131.0-B-3. Implement Prox-1 conv / (2048,1024) LDPC against that issue. Historical: written against 131.0-B-5, which was current TM-only when pinned (B-5 vs B-4 = §10 randomizer); as of 2026-10-01 the current issue is 131.0-B-6 (April 2026, section numbers shifted; see CONFORMANCE References). Do not rewrite historical research cites of B-3 as “the book 211.2 uses.”
 
 **Open (need resolution before/within Phase 0 / framework-planning):**
 - **MVP scope precise cut** — confirm V-3/PLTU + COP-P + minimal half-duplex turnaround; decide whether turnaround rides RC's existing RadioScheduler or a fresh minimal MAC.

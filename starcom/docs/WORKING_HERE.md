@@ -119,7 +119,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 - **Don't** invent a half-duplex dwell, COP-P retry, or FIFO bypass when 211.0 (or the other shelf book) already has the event. Open the PDF first. If you cannot cite a table/section, stop and ask — that is the failure mode, not a license to improvise.
 - **Don't** implement large features against stale `comparison.md` D-1…D-5 text. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. `comparison.md` is historical; append Status lines, do not rewrite entries.
-- **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; the current issue is 131.0-B-6 (TM-only; was B-5 until April 2026). See `DESIGN.md` pin and CONFORMANCE References.
+- **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; the current issue is 131.0-B-6 (TM-only; historical: the docs were originally written against B-5, current until April 2026). See `DESIGN.md` pin and CONFORMANCE References.
 
 ---
 

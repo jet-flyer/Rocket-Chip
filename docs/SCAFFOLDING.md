@@ -114,7 +114,7 @@ rocketchip/
 │   └── starcom/                  # Starcom primary-source PDFs (not the stack)
 │       ├── README.md             # Index; ECSS URL-only
 │       ├── fpga/                 # NASA-HDBK-4008/4011, ESA ASIC/001, GSFC 500-PG-8700.2.7
-│       └── ccsds/                # 211.0-B-6, 211.1-B-4, 211.2-B-3, 131.0-B-5 (superseded by B-6, April 2026), 133.0-B-2
+│       └── ccsds/                # 211.0-B-6, 211.1-B-4, 211.2-B-3, 131.0-B-6 (April 2026), 133.0-B-2
 │
 ├── include/
 │   └── rocketchip/
