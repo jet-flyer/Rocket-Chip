@@ -40,6 +40,7 @@ First TUs: CRC-32 (Annex C) then PLTU. Then V-3, Space Packet, `Plcw16`, `Clcw32
 | `v3_length_oob` | Length field implies frame &lt; 5 or &gt; 2048 octets. |
 | `sp_too_short` | Space Packet &lt; 7 octets, or Data Length implies that. |
 | `sp_pvn` | Packet Version Number not `000`. |
+| `sp_sap` | Space Packet SAP does not accept this APID (133.0-B-2 2.2.1). |
 | `buffer_too_small` | Output span cannot hold the encoded unit. |
 | `uslp_truncated` | End of Frame Primary Header Flag = 1 and Truncated Transfer Frame Length (MIB) not supplied. |
 | `uslp_length_oob` | USLP C implies frame &lt; 8 or &gt; 65536 octets (truncated: not 6–32, 732.1 D1.3.2). |

@@ -171,6 +171,12 @@ target_include_directories(test_starcom_byte_pump PRIVATE
 )
 gtest_discover_tests(test_starcom_byte_pump)
 
+add_executable(test_space_packet_service
+    test_space_packet_service.cpp
+)
+target_link_libraries(test_space_packet_service PRIVATE Starcom::starcom GTest::gtest_main)
+gtest_discover_tests(test_space_packet_service)
+
 # Station USB GCS MAVLink (QGC / Mission Planner)
 add_executable(test_gcs_mavlink test_gcs_mavlink.cpp)
 target_link_libraries(test_gcs_mavlink PRIVATE rc_telemetry GTest::gtest_main)
