@@ -1821,11 +1821,13 @@ Council-reviewed (unanimous, 6 amendments incorporated): 64-bit frequency calcul
 
 **Implement:** `TelemetryEncoder` strategy interface with two concrete implementations, selected by Mission Profile at boot. Both encoders read from the same `TelemetryState` struct defined in Stage 6.
 
-1. **CcsdsEncoder:** CCSDS Space Packet (pruned stack). 6-byte primary header (big-endian per CCSDS 133.0-B-2 §4.1.1, explicit byte-swap from RP2350 little-endian) + 4-byte secondary header (MET timestamp) + 42-byte nav payload + optional 2-byte CRC = 52–54 bytes. APID field enables future multiplexing (nav at 5 Hz, diagnostics at 0.5 Hz on same link). Primary encoder for `Rocket_Pro` profiles.
+1. **CcsdsEncoder:** CCSDS Space Packet (pruned stack). 6-byte primary header (big-endian per CCSDS 133.0-B-2 §4.1.3, explicit byte-swap from RP2350 little-endian) + 4-byte secondary header (`met_ms`, big-endian uint32, not a CCSDS time code) + 42-byte nav payload + 2-byte CRC-16-CCITT = 54 bytes (58 bytes on APID 0x004, which adds a 4-byte radio-config tail). APID field enables future multiplexing (nav at 5 Hz, diagnostics at 0.5 Hz on same link). Originally the primary encoder for `Rocket_Pro` profiles. **Superseded on air (see current state below).**
 
 2. **MavlinkEncoder:** MAVLink v2 three-message set (HEARTBEAT + ATTITUDE_QUATERNION + GLOBAL_POSITION_INT = 105 bytes). Default encoder for `Rocket_Edu` profiles. Enables direct QGC/Mission Planner display without translation layer.
 
 Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no recompilation. `packet_type` parameter in interface.
+
+**Current state (2026-10-01):** The strategy wrapper described above was removed on 2026-07-09 (`telemetry_encoder.h`). On-air telemetry is now Starcom COP-P (`src/starcom_adapt/byte_pump.cpp`): the 51-byte `TelemetryState` (including `met_ms`) is the user data of a 57-byte Space Packet (6-byte header, no secondary header, no CRC-16), carried in a Version-3 frame and PLTU (69 bytes on air). `CcsdsEncoder` and `MavlinkEncoder` remain as legacy and host-test code, selected through the `EncoderType` field (`kCcsds` is a legacy value). MAVLink is not sent on air; it is the station USB GCS path (`src/station/gcs_mavlink.cpp`). APIDs, managed parameters and known gaps (the on-air sequence count is always 0): `starcom/docs/CONFORMANCE.md`.
 
 **[GATE]:**
 - CCSDS packet encodes and decodes to original values with no field corruption
