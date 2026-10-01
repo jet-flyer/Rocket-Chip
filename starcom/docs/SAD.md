@@ -173,7 +173,7 @@ Encode/decode of a single canned frame in a host test can pass IDs and lengths *
 | 4 | 1 | Secondary Header Flag | `1` secondary header present. `0` absent. Idle packets: `0`. |
 | 5–15 | 11 | APID | Naming of the managed data path. Idle: all ones (`0x7FF`). |
 | 16–17 | 2 | Sequence Flags | `00` continuation, `01` first, `10` last, `11` unsegmented. Octet String service: always `11`. |
-| 18–31 | 14 | Packet Sequence Count (or Packet Name on TC) | Per APID, modulo 16384. |
+| 18–31 | 14 | Packet Sequence Count (or Packet Name on TC) | Continuous modulo-16384 (133.0-B-2 4.1.3.4.3.4); counts unique and independent per APID (4.1.3.4.3.3). |
 | 32–47 | 16 | Packet Data Length | C = (octets in the Packet Data Field) − 1. |
 
 Yamcs `CcsdsPacket` (open-source GCS, 133.0-B-2) packs this same 6-octet layout: version / type / 2nd-header / APID / grouping / seq / length-minus-one. NASA cFS `CFE_MSG` / `cfe_sb` is the same primary header on the flight side. Starcom codecs the header; user-field contents (PUS vs cFS vs F´) stay out of `starcom::ccsds`.

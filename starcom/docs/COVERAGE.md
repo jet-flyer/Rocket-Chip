@@ -252,7 +252,7 @@ Issue 3, June 2024. `CCSDS-732.1-B-3.pdf`. CONFORMANCE: Version-4 in the same PL
 
 ## 133.0-B-2 — Space Packet Protocol (filled)
 
-Issue 2, June 2020 (editorial changes October 2020 and September 2024; no Issue 3), current issue (checked on ccsds.org 2026-10-01). `CCSDS-133.0-B-2.pdf`. CONFORMANCE: Space Packet PDU codec (partial; Annex A PICS table in CONFORMANCE lists the exceptions). Annex A marks the Octet String items and Packet Assembly / Extraction M (CONFORMANCE, Annex A section); policy is to build the service layer. Not a Starcom product name.
+Issue 2, June 2020 (Editorial Change 1 October 2020, Editorial Change 2 September 2024; neither touches sections 3, 4 or Annex A; no Issue 3), current issue (checked on ccsds.org 2026-10-01). `CCSDS-133.0-B-2.pdf`; source `https://ccsds.org/Pubs/133x0b2e2.pdf` (do not cite `133x0b2e1.pdf` or `133x0b2.pdf`, both 404). CONFORMANCE: Space Packet PDU codec (partial; Annex A PICS table in CONFORMANCE lists the exceptions). Annex A marks the Octet String items and Packet Assembly / Extraction M (CONFORMANCE, Annex A section); policy is to build the service layer. Not a Starcom product name.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
@@ -262,7 +262,7 @@ Issue 2, June 2020 (editorial changes October 2020 and September 2024; no Issue 
 | §3.3 | Packet service (PACKET.request §3.3.3.2, PACKET.indication §3.3.3.3: SPP-10 / SPP-11 M) | partial (PDU codec; no primitives) | Space Packet PDU codec, Packet Service only | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
 | §3.4 | Octet String service (OCTET_STRING.request §3.4.3.2, .indication §3.4.3.3: SPP-2, 6, 7, 8, 12, 13 M; SPP-9 O) | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
 | §4.1 | Space Packet PDU | partial | Space Packet PDU codec, Packet Service only | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000`. Sequence count is caller-supplied (RC sends 0, §4.1.3.4.3.3 / .4: CONFORMANCE Known gaps). Idle secondary-header flag (§4.1.3.3.3.4) not forced on encode |
-| §4.2 / §4.3 | Send/receive procedures: Packet Assembly §4.2.2, Transfer §4.2.3, Extraction §4.3.2, Reception §4.3.3 (SPP-19 to SPP-22 all M) | 0 | — | codec only | No SAP / routing. Counter rule: per APID, modulo 16384, not shared across APIDs; 4.1.3.4.3.3 counts are independent per APID; the count rule for two senders on APID 0x003 is an open item (whiteboard) |
+| §4.2 / §4.3 | Send/receive procedures: Packet Assembly §4.2.2, Transfer §4.2.3, Extraction §4.3.2, Reception §4.3.3 (SPP-19 to SPP-22 all M) | 0 | — | codec only | No SAP / routing. Counter text: 4.1.3.4.3.3 ("unique and independent per each user application as identified by the APID and are not shared across multiple APIDs"), 4.1.3.4.3.4 (continuous modulo-16384). Two senders on APID 0x003: not addressed in the 133.0-B-2 text (CONFORMANCE, APID allocation); decision needed (whiteboard) |
 | §5 | Managed parameters | 0 as a table | — | `Maximum_Packet_Size` named in SAD MIB working copy; caller supplies | Table 5-1. RC values: CONFORMANCE managed-parameter table |
 | Annex A | PICS | — | CONFORMANCE | Draft Annex A table (exceptions: Yes) | Tables A-1 to A-6, SPP-1 to SPP-26 |
 | Annex B–D | informative | unread | — | — | — |
