@@ -252,17 +252,17 @@ Issue 3, June 2024. `CCSDS-732.1-B-3.pdf`. CONFORMANCE: Version-4 in the same PL
 
 ## 133.0-B-2 — Space Packet Protocol (filled)
 
-Issue 2, June 2020 (e2), current issue (checked on ccsds.org 2026-10-01). `CCSDS-133.0-B-2.pdf`. CONFORMANCE: Space Packet PDU codec, Packet Service only (partial; Annex A PICS table in CONFORMANCE lists the exceptions). Not a Starcom product name.
+Issue 2, June 2020 (editorial changes October 2020 and September 2024; no Issue 3), current issue (checked on ccsds.org 2026-10-01). `CCSDS-133.0-B-2.pdf`. CONFORMANCE: Space Packet PDU codec (partial; Annex A PICS table in CONFORMANCE lists the exceptions). A Packet-Service-only claim is non-conforming per Annex A (inference from the 4.2.1 / 4.3.1 prose; policy is to build the service layer). Not a Starcom product name.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
 | §1 | Introduction | unread | — | — | — |
 | §2 | Overview | unread | — | — | Packet vs Octet String |
 | §2.4 | Services assumed from lower layers | — | PLTU repeater (related) | `repeat_pltu` / `PltuRepeatQ` | Store-and-forward **assumed**, not an SPP procedure. Starcom repeater is not a 133.0 product |
-| §3.3 | Packet service | partial (PDU codec; no primitives) | Space Packet PDU codec, Packet Service only | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
-| §3.4 | Octet String service | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
+| §3.3 | Packet service (PACKET.request §3.3.3.2, PACKET.indication §3.3.3.3: SPP-10 / SPP-11 M) | partial (PDU codec; no primitives) | Space Packet PDU codec, Packet Service only | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
+| §3.4 | Octet String service (OCTET_STRING.request §3.4.3.2, .indication §3.4.3.3: SPP-2, 6, 7, 8, 12, 13 M; SPP-9 O) | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
 | §4.1 | Space Packet PDU | partial | Space Packet PDU codec, Packet Service only | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000`. Sequence count is caller-supplied (RC sends 0, §4.1.3.4.3.3 / .4: CONFORMANCE Known gaps). Idle secondary-header flag (§4.1.3.3.3.4) not forced on encode |
-| §4.2 / §4.3 | Send/receive procedures | 0 | — | codec only | No SAP / routing |
+| §4.2 / §4.3 | Send/receive procedures: Packet Assembly §4.2.2, Transfer §4.2.3, Extraction §4.3.2, Reception §4.3.3 (SPP-19 to SPP-22 all M) | 0 | — | codec only | No SAP / routing. Counter rule: per APID, modulo 16384, not shared across APIDs; APID 0x003 shared by two ends keeps one counter per direction (inference; the standard is silent) |
 | §5 | Managed parameters | 0 as a table | — | `Maximum_Packet_Size` named in SAD MIB working copy; caller supplies | Table 5-1. RC values: CONFORMANCE managed-parameter table |
 | Annex A | PICS | — | CONFORMANCE | Draft Annex A table (exceptions: Yes) | Tables A-1 to A-6, SPP-1 to SPP-26 |
 | Annex B–D | informative | unread | — | — | — |
@@ -289,26 +289,26 @@ Issue 4, Dec 2013. `CCSDS-211.1-B-4.pdf`. CONFORMANCE: blanket Full **not offere
 
 ## 131.0-B-6 — TM Synchronization and Channel Coding (filled)
 
-Issue 6, April 2026 (Editorial Correction 1, May 2026), current issue (checked on ccsds.org 2026-10-01). Superseded Issue 5 (Sep 2023) is the PDF still on the shelf, `CCSDS-131.0-B-5.pdf`. The section numbers below are **B-6**; the B-5 number is in parentheses. 211.2-B-3 itself cites 131.0-B-3. TODO verify against 131.0-B-3: B-3 was not retrievable, so conv / LDPC were checked against B-5 and B-6 only. CONFORMANCE: long-haul TM C&S **0** (different sublayer than PLTU). 211.2 **cites** two clauses; those are walked as 211.2 coding, not as a 131.0 product. B-6 makes the pseudo-randomizer mandatory (§4.2.2, §8.2.2); the Prox-1 conv path here does not use it (the 211.2 book defines its own handling): TODO verify against 211.2-B-3 §3.4.3.
+Issue 6, April 2026 (Editorial Correction 1, May 2026), current issue (checked on ccsds.org 2026-10-01). Superseded Issue 5 (Sep 2023) is the PDF still on the shelf, `CCSDS-131.0-B-5.pdf`. The section numbers below are **B-6**; the B-5 number is in parentheses. 211.2-B-3 itself cites 131.0-B-3. Issue history (document-control pages): B-1 Sep 2003, B-2 Aug 2011, B-3 Sep 2017, B-4 Apr 2022, B-5 Sep 2023, B-6 Apr 2026, EC 1 May 2026. B-6 changes versus B-5 (its own summary): adds a Turbo channel interleaver (§7.3.12), moves slicing into its own §3 for all block codes, and makes the pseudo-randomizer mandatory (§10.1). TODO verify against 131.0-B-3: B-3 was not retrievable, so conv / LDPC were checked against B-5 and B-6 only. CONFORMANCE: long-haul TM C&S **0** (different sublayer than PLTU). 211.2 **cites** two clauses; those are walked as 211.2 coding, not as a 131.0 product. B-6 makes the pseudo-randomizer mandatory (§10.1, §4.2.2, §5.2.1, §7.2.1, §8.2.2, §3.3.1 d)). **Prox-1 (inference):** this does not change the Prox-1 coding path. 211.2-B-3 §3.4.3 (convolutional) specifies no randomizer; its LDPC path has its own randomizer (§3.4.4.4, §3.4.5) with the 255-bit polynomial x^8 + x^6 + x^4 + x^3 + x^2 + x + 1, which differs from B-6 §10.4.2 (x^8 + x^7 + x^5 + x^3 + 1); 211.1-B-4 has none; B-6 scopes itself to TM, AOS and USLP. 211.0-B-6 was not read for this inference.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
-| §1 | Introduction | unread | — | — | — |
-| §2 | Overview | unread | — | — | TM ASM / FECF path ≠ Prox-1 PLTU |
-| §3 (new in B-6) | Transfer frame synchronization, slicing, validation | 0 | long-haul TM = 0 | — | B-5 had no chapter 3 of this name (convolutional was §3) |
+| §1 | Introduction | unread | — | — | B-5 §1.4 Rationale has no B-6 section; B-6 §1.4 is Document Structure (13 sections, 7 annexes). B-5 §1.6 to §1.8 are B-6 §1.5 to §1.7 |
+| §2 | Overview | unread | — | — | TM ASM / FECF path ≠ Prox-1 PLTU. New §2.2.4 Transfer Frame Slicing; B-5 §2.2.4 / §2.2.5 (Synchronization, Pseudo-randomizing) are B-6 §2.2.5 / §2.2.6 |
+| §3 (new in B-6) | Transfer frame synchronization, slicing, validation | 0 | long-haul TM = 0 | — | B-5 had no chapter 3 of this name (convolutional was §3). §3.1 overview, §3.2 slicing, §3.3 sync with slicing, §3.4 sync without slicing, §3.5 frame validation. Fed by B-5 §8.1, §8.2.3, §8.2.4, §8.2.5 |
 | §4.3 (B-5 §3.3) | Basic convolutional code | partial: encode only, as 211.2 cite | Coding encode | `conv_encode`; `test_conv_*` | 211.2 §3.4.3 → **this** clause. Punctured §4.4 (B-5 §3.4) = **0** |
 | §4.4 (B-5 §3.4) | Punctured convolutional | 0 | — | — | Not 211.2 O.1 |
 | §5 (B-5 §4) | Reed-Solomon | 0 | long-haul TM = 0 | — | — |
 | §6 (B-5 §5) | Concatenated | 0 | long-haul TM = 0 | — | — |
-| §7 (B-5 §6) | Turbo | 0 | long-haul TM = 0 | — | B-6 adds a turbo interleaver |
+| §7 (B-5 §6) | Turbo | 0 | long-haul TM = 0 | — | B-6 adds a channel interleaver, §7.3.12 (Table 7-4, Fig 7-5). B-5 §6.2.1 / §6.2.2 are B-6 §7.2.1 / §7.2.2; the B-5 §6.3 items a) to k) are numbered §7.3.1 to §7.3.11 |
 | §8.3 (B-5 §7.3) | LDPC rate 223/255 | 0 | — | — | Not the Prox-1 (2048,1024) |
 | §8.4 (B-5 §7.4) | LDPC rates 1/2, 2/3, 4/5 | partial: rate 1/2, k=1024 encode only, as 211.2 cite | Coding encode | `ldpc_encode_*`; `test_ldpc_*` | 211.2 §3.4.4 → (n=2048, k=1024). 2/3 and 4/5 = **0**. Decode = **0**. Table 8-5 (B-5 Table 7-5) |
-| §8.2 (B-5 §7.2) | LDPC general: sync, randomization (B-6 §8.2.2; B-5 §7.2.2), validation | 0 as TM stream | long-haul TM = 0 | — | 211.2 has its own CSM + randomizer. B-6 restructured the chapters (slicing is now §3): TODO verify the exact B-6 clause that replaces B-5 §8 (LDPC of a stream of SMTFs) |
-| §9 | TM frame synchronization (B-6 "CSM"; B-5 "ASM") | 0 | long-haul TM = 0 | — | **Not** Prox-1 `FAF320` (211.2 §3.2.3). LDPC 1/2 CSM `034776C7272895B0` is the same in B-5 and B-6 |
-| §10 | TM pseudo-randomizer | 0 | long-haul TM = 0 | — | 211.2 §3.4.5 is the Prox LDPC randomizer |
-| §11 | Transfer frame lengths | 0 | long-haul TM = 0 | — | Prox length is 211.0 / 732.1 / 211.2 §3.6.4 |
-| §12 | Managed parameters (Tables 12-1 to 12-5 in B-6) | 0 | — | — | — |
-| §13 | Ground-to-space / space-to-space | unread | — | — | — |
+| §8.2 (B-5 §7.2) | LDPC general: sync, randomization (B-6 §8.2.2; B-5 §7.2.2), validation | 0 as TM stream | long-haul TM = 0 | — | 211.2 has its own CSM + randomizer. B-6 restructured the chapters: B-5 §8 (LDPC for a stream of SMTFs) was **dissolved** into B-6 §3 (slicing), §9 (CSM), §10, §11 (Case 3) and §12. Clause pairs: B-5 §8.1 → B-6 §3.1, §3.3.1; §8.2.1 → §2.2.5, §3.3.1, §3.3.2; §8.2.2 (CSM patterns, Table 8-1) → §9.3.3, §9.3.4, Figs 9-1 / 9-2, §3.3.1 a) / Fig 3-2; §8.2.3 (frame validation) → §3.5.2; §8.2.4 (sending) → §3.3.1 a) to e); §8.2.5 (receive) → §3.3.2 a) to e); §8.3.1 to §8.3.2 (randomization) → §3.3.1 d), §10.2.5, §10.3.2. B-5 §8.3.3 (no randomizer reset within a codeblock) vs B-6 §10.4.3 (initialized at the start of each codeblock, codeword, or Transfer Frame): semantics unclear (inference), not resolved here. B-5 "m codewords per codeblock" (§8.1, Table 12-6) has no B-6 home. B-5 §7.2.1 / §7.2.2 / §7.2.3 → B-6 §8.2.1 / §8.2.2 / §8.2.3 |
+| §9 | TM frame synchronization (B-6 "CSM"; B-5 "ASM") | 0 | long-haul TM = 0 | — | **Not** Prox-1 `FAF320` (211.2 §3.2.3). LDPC 1/2 CSM `034776C7272895B0` is the same in B-5 and B-6. B-5 ch. 9 = B-6 ch. 9 (ASM renamed CSM). B-5 §9.6 (ASM for the embedded data stream, `352EF853`) has **no B-6 home** (dropped) |
+| §10 | TM pseudo-randomizer | 0 | long-haul TM = 0 | — | **Mandatory in B-6** (§10.1; B-5 allowed omitting it, Table 12-1 "Absent"). Per-coding rules §10.2.2 to §10.2.5. Sequences: §10.4.1 131071-bit, h(x) = x^17 + x^14 + 1; §10.4.2 legacy 255-bit, h(x) = x^8 + x^7 + x^5 + x^3 + 1. 211.2 §3.4.5 is the Prox LDPC randomizer; its 255-bit polynomial differs from §10.4.2 (inference: the B-6 mandate does not reach Prox-1) |
+| §11 | Transfer frame lengths | 0 | long-haul TM = 0 | — | Prox length is 211.0 / 732.1 / 211.2 §3.6.4. New §11.5 Case 3 (slicing; was B-5 §11.9 Case 7); B-5 §11.5 to §11.8 → B-6 §11.6 to §11.9 |
+| §12 | Managed parameters (Tables 12-1 to 12-5 in B-6) | 0 | — | — | B-6 adds Slicing and Channel Interleaver rows; Table 12-5 (LDPC of a Transfer Frame) includes Slicing present / absent. B-5 §12.8 (Table 12-6, m = 1 to 8) and §12.9 (Table 12-7) have **no B-6 home** |
+| §13 | Ground-to-space / space-to-space | unread | — | — | B-5 §13.4 (coding of a stream of SMTFs) has **no B-6 home**, replaced by generic slicing (§3). §13.2 Turbo, §13.3 LDPC retained |
 | Annex A–G | | unread | — | — | Annex A service is TM, not PLTU |
 
 ---

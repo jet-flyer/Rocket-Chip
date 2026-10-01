@@ -26,7 +26,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | Version-3 transfer frame | 211.0-B-6 Fig 3-2 | Full | In scope (MVP) | First insides of PLTU. 5-octet header, 2 KiB cap. Tests: `tests/unit/test_v3.cpp`. |
 | User Defined Data (V-3 DFC `11`) | 211.0-B-6 §2.2.2.3, §3.2.3.5, Table 3-1 | Full | In scope (IVP 14) | Opaque octets, no reassembly. `encodeV3UserDefined` / `coppSubmitUserDefined` (`tests/unit/test_user_defined.cpp`). Explicitly not Annex F (Odyssey Unreliable Bitstream is not the library default). No SC-NNN. |
 | Version-4 / USLP transfer frame in the same PLTU | 732.1-B-3 Fig 4-1 | Full | In scope (MVP + IVP 9 remainder) | Non-truncated + truncated (annex D) + Insert Zone + FECF Annex B (`tests/unit/test_uslp.cpp`). Not nested in the V-3 data field. No SC-NNN. |
-| Space Packet PDU codec, Packet Service only | 133.0-B-2 Fig 4-1 / 4-2 | Partial (PDU codec) | In scope (MVP) | 6-octet primary header + user data. Packet Service only: no Octet String Service, no service primitives, no Packet Assembly / Transfer / Extraction / Reception procedures (133.0-B-2 §4.2, §4.3). Sequence count is caller-supplied; Rocket-Chip currently sends 0 (see [Known gaps](#known-gaps)). Idle-packet secondary-header flag is not forced on encode. Not a Starcom product name. Annex A table below (exceptions: Yes). Tests: `tests/unit/test_space_packet.cpp`. |
+| Space Packet PDU codec, Packet Service only | 133.0-B-2 Fig 4-1 / 4-2 | Partial (PDU codec) | In scope (MVP) | 6-octet primary header + user data. Packet Service only: no Octet String Service, no service primitives, no Packet Assembly / Transfer / Extraction / Reception procedures (133.0-B-2 §4.2, §4.3). Sequence count is caller-supplied; Rocket-Chip currently sends 0 (see [Known gaps](#known-gaps)). Idle-packet secondary-header flag is not forced on encode. Not a Starcom product name. Annex A table below (exceptions: Yes; a Packet-Service-only claim is non-conforming, see the Annex A section). Tests: `tests/unit/test_space_packet.cpp`. |
 | PLCW 16-bit SPDU field codec | 211.0-B-6 §3.2.4.3.2.1.1 | Full | In scope (MVP codecs) | Pack/unpack only. Not the ARQ. Distinct from CLCW. No generic OCF. Tests: `tests/unit/test_ocf.cpp`. |
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | Full | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. Tests: `tests/unit/test_ocf.cpp`. |
 | COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | Full | In scope (MVP + IVP 11 USLP VC) | Tables + `CoppEndpoint` / `coppInitUslp` (`tests/unit/test_copp.cpp`). SET V(R) persistent is MAC — increment 13. Not a whole-book 211.0-B-6 PICS tick (timing, segment reassembly, most Type-1 SPDUs are 0; see `COVERAGE.md`). No SC-NNN. |
@@ -48,7 +48,9 @@ When a row is implemented, add a test pointer. Do not retcon a Level to Full wit
 
 ## Annex A PICS: CCSDS 133.0-B-2 (Space Packet Protocol)
 
-Draft and unsigned. Items and references are from 133.0-B-2 Annex A (Tables A-1 to A-6). "Support" is Y / N / N/A as in A1.2. "Have any exceptions been required?" **Yes**: mandatory procedures (SPP-19 to SPP-22) and the Octet String items are not implemented, so this is **not** a claim that Starcom conforms to 133.0-B-2 as a whole. The claim is the PDU codec and the Packet Service only.
+Draft and unsigned. Items, references and status flags are from 133.0-B-2 Annex A (A2.2, Tables A-1 to A-6), checked against the PDF on 2026-10-01. "Support" is Y / N / N/A as in A1.2. "Have any exceptions been required?" **Yes**: mandatory items are not implemented (SPP-2, 6, 7, 8, 10, 11, 12, 13 and SPP-19 to SPP-22), so this is **not** a claim that Starcom conforms to 133.0-B-2 as a whole. The claim is the PDU codec only.
+
+**A Packet-Service-only claim is non-conforming.** Annex A marks the Octet String Service items (SPP-2, 6, 7, 8, 12, 13) and the Packet Assembly and Packet Extraction functions (SPP-19, SPP-21) mandatory with no condition. There is no "Packet Service only" option and no O.n "at least one of" rule in Tables A-1 to A-6. Leaving them out is an exception, and per A2.1.4 a YES answer to "Have any exceptions been required?" means the implementation does not conform. **Inference (Duke):** the prose in 4.2.1 and 4.3.1 ("Depending on the services actually implemented within a real system, not all of the functions may be present") is the only argument for a partial claim; it is not a PICS-level permission. **Policy (Nathan, 2026-10-01):** full compliance wherever feasible, so the plan is to build the service layer (Packet Service primitives, Octet String Service, Packet Assembly / Transfer / Extraction / Reception). "Exceptions required: **Yes**" stays until that is built and tested.
 
 | A2.1 field | Value |
 |------------|-------|
@@ -63,27 +65,33 @@ Draft and unsigned. Items and references are from 133.0-B-2 Annex A (Tables A-1 
 | Item | Description | Ref | Status | Support | Notes |
 |------|-------------|-----|--------|---------|-------|
 | SPP-1 | Space Packet SDU | 3.2.2 | M | Y | The packet is built by the caller; codec only. |
-| SPP-2 | Octet String SDU | 3.2.3 | M | N | Not implemented (`COVERAGE.md` §3.4). Exception. |
+| SPP-2 | Octet String SDU | 3.2.3 | M | N | Mandatory even for Packet-Service-only use. Not implemented (`COVERAGE.md` §3.4). Exception. |
 | SPP-3 | APID (service parameter) | 3.3.2.2 | M | Y | `SpacePacketFields::apid`, 11 bits. |
 | SPP-4 | Packet Loss Indicator | 3.3.2.3 | O | N | No receive-side gap detection (see Known gaps). |
 | SPP-5 | QoS Requirement | 3.3.2.4 | O | N | QoS is a 211.0 COP-P choice (Expedited / Sequence Controlled) made by the caller, not an SPP parameter. |
-| SPP-6 to SPP-9 | Octet String service parameters | 3.4.2 | M / O | N | Octet String Service not implemented. |
+| SPP-6 | Octet String (parameter) | 3.4.2.1 | M | N | Octet String Service not implemented. Exception. |
+| SPP-7 | APID (Octet String Service) | 3.4.2.2 | M | N | Exception. |
+| SPP-8 | Secondary Header Indicator | 3.4.2.3 | M | N | Exception. |
+| SPP-9 | Data Loss Indicator | 3.4.2.4 | O | N | Optional. Needs per-APID count-discontinuity detection (see Known gaps). |
 | SPP-10 | Packet.request | 3.3.3.2 | M | N | No service primitive; `encodeSpacePacket` is the codec. Exception. |
 | SPP-11 | Packet.indication | 3.3.3.3 | M | N | `decodeSpacePacket` is the codec. Exception. |
-| SPP-12, SPP-13 | Octet_String.request / .indication | 3.4.3 | M | N | Not implemented. |
+| SPP-12 | Octet_String.request | 3.4.3.2 | M | N | Not implemented. Exception. |
+| SPP-13 | Octet_String.indication | 3.4.3.3 | M | N | Not implemented. Exception. |
 | SPP-14 | Space Packet | 4.1 | M | Y | PVN `000`; 7 to 65542 octets; `test_roundtrip`, `test_reject_sp_pvn`. |
 | SPP-15 | Packet Primary Header | 4.1.3 | M | Y | Fields round-trip. Sequence count is caller-supplied (Rocket-Chip sends 0: Known gaps). Idle-packet secondary-header flag not forced to 0 on encode. |
 | SPP-16 | Packet Data Field | 4.1.4 | M | Y | 1 to 65536 octets. |
 | SPP-17 | Packet Secondary Header | 4.1.4.2 | C1 | Y (flag only) | Flag is carried. Contents are user data. Rocket-Chip's Starcom packets set the flag to 0. |
 | SPP-18 | User Data Field | 4.1.4.3 | C2 | Y | Opaque octets. |
-| SPP-19 | Packet Assembly Function | 4.2.2 | M | N | Exception. |
+| SPP-19 | Packet Assembly Function | 4.2.2 | M | N | Octet String path only (builds the primary header and per-APID sequence count). Exception. |
 | SPP-20 | Packet Transfer Function | 4.2.3 | M | N | No multiplexing or routing by APID. Exception. |
-| SPP-21 | Packet Extraction Function | 4.3.2 | M | N | Exception. |
-| SPP-22 | Packet Reception Function | 4.3.3 | M | N | Exception. |
+| SPP-21 | Packet Extraction Function | 4.3.2 | M | N | Octet String path only. Exception. |
+| SPP-22 | Packet Reception Function | 4.3.3 | M | N | Demultiplex by APID (4.3.3.2). Exception. |
 | SPP-23 | Maximum Packet Length (octets) | Table 5-1 | M | Integer | See managed parameters. |
-| SPP-24 | Packet Type of Outgoing Packets | Table 5-1 | M | 0 or 1 | Per APID; see APID table. |
-| SPP-25 | Packet Multiplexing Scheme | Table 5-1 | O | N | No SPP multiplexer. |
-| SPP-26 | Service Type | Table 5-1 | M | Packet Service | All APIDs. |
+| SPP-24 | Packet Type of Outgoing Packets (sending systems only) | Table 5-1 | M | 0 or 1 | Per APID; see APID table. The standard lists this in the PICS, but Table 5-1 carries it only as a note. |
+| SPP-25 | Packet Multiplexing Scheme (sending and intermediate systems only) | Table 5-1 | O | N | No SPP multiplexer. |
+| SPP-26 | Service Type (per APID, sending and receiving ends) | Table 5-1 | M | Packet Service | All APIDs. |
+
+Idle packet generation is not mandatory in 133.0-B-2 and has no PICS item. If idle packets are generated: APID all ones (4.1.3.3.4.4), Secondary Header Flag 0 (4.1.3.3.3.4). Sequence counts are per APID, continuous modulo 16384, and not shared across APIDs (4.1.3.4.3.3 and 4.1.3.4.3.4). Section pointers for the service layer: primary header 4.1.2 to 4.1.3; Packet Service 3.3 (PACKET.request 3.3.3.2, PACKET.indication 3.3.3.3); Octet String Service 3.4 (3.4.3.2, 3.4.3.3); Packet Assembly 4.2.2; Packet Transfer 4.2.3; Packet Extraction 4.3.2; Packet Reception 4.3.3; managed parameters Table 5-1.
 
 ## Managed parameters (133.0-B-2 Table 5-1 style)
 
@@ -129,7 +137,7 @@ APIDs are Rocket-Chip assigned (11-bit, no SANA registration). 133.0-B-2 §4.1.3
 | 0x005 | `kApidStationBeacon` (commented out) | Parked station beacon. | n/a | n/a | n/a | Parked |
 | 0x7FF | `kIdleApid` | Idle packet (all ones, 133.0-B-2 §4.1.3.3.4.4). Codec and `test_sp_idle` only. No firmware path sends one. Secondary header flag must be 0 (§4.1.3.3.3.4). | n/a | n/a | n/a | Defined, unused |
 
-All other APIDs are unallocated. Sequence counts are per APID and independent (133.0-B-2 §4.1.3.4.3.3), so APID 0x003 needs one counter per sending end (station for commands, vehicle for ACKs).
+All other APIDs are unallocated. Sequence counts are per APID and independent (133.0-B-2 §4.1.3.4.3.3), so APID 0x003 needs one counter per sending end (station for commands, vehicle for ACKs). **Inference (the standard is silent on two ends sharing an APID):** each end keeps its own counter per direction (managed data path; the 2.2.1 NOTE recommends one managed data path per direction), and receive-side loss detection must be keyed per (path, APID), not by APID alone, or interleaved packets from the two sources will look like losses.
 
 ## Mission elapsed time field (legacy)
 
@@ -150,8 +158,8 @@ Checked against the ccsds.org publication listing (`https://ccsds.org/publicatio
 
 | Book | Issue | Date | Note |
 |------|-------|------|------|
-| 131.0-B-6 TM Synchronization and Channel Coding | 6 | April 2026 (Editorial Correction 1, May 2026) | Current. Entry: `https://ccsds.org/publications/allpubs/entry/4803/`. Supersedes 131.0-B-5 (Issue 5, September 2023). `public.ccsds.org/Pubs/131x0b6.pdf` returned 404; the file is `131x0b6ec1.pdf` under ccsds.org uploads. The shelf in `standards/starcom/ccsds/` still holds the superseded B-5 PDF. |
-| 133.0-B-2 Space Packet Protocol | 2 | June 2020 | Current; no later issue listed. |
+| 131.0-B-6 TM Synchronization and Channel Coding | 6 | April 2026 (Editorial Correction 1, May 2026) | Current. Issue history (document-control pages, verified): B-1 September 2003, B-2 August 2011, B-3 September 2017, B-4 April 2022, B-5 September 2023, B-6 April 2026, EC 1 May 2026. (The B-6 document-control table mislabels the Issue 5 row as 131.0-B-6.) Entry: `https://ccsds.org/publications/allpubs/entry/4803/`. Supersedes 131.0-B-5 (Issue 5, September 2023). `public.ccsds.org/Pubs/131x0b6.pdf` returned 404; the file is `131x0b6ec1.pdf` under ccsds.org uploads. The shelf in `standards/starcom/ccsds/` still holds the superseded B-5 PDF. |
+| 133.0-B-2 Space Packet Protocol | 2 | June 2020 (editorial changes October 2020 and September 2024) | Current; no later issue listed and no Issue 3. Issue history (verified): B-1 September 2003, B-2 June 2020; EC 1 October 2020 (figure 2-1), EC 2 September 2024 (duplicated table-of-contents entries, A4 page size). |
 | 211.0-B-6 Proximity-1 Data Link Layer | 6 | July 2020 | |
 | 211.1-B-4 Proximity-1 Physical Layer | 4 | December 2013 | |
 | 211.2-B-3 Proximity-1 Coding and Synchronization | 3 | October 2019 | Its §1.7 [2] cites 131.0-B-3 (Issue 3, September 2017). |
@@ -172,8 +180,17 @@ Checked against the ccsds.org publication listing (`https://ccsds.org/publicatio
 | Punctured convolutional codes | §3.4 | §4.4 |
 | LDPC rates 1/2, 2/3, 4/5 | §7.4 | §8.4 |
 | LDPC 223/255 | §7.3 | §8.3 |
-| LDPC randomization (LDPC applied to a Transfer Frame, the case 211.2 cites) | §7.2.2 (§8.3 is the stream case) | §8.2.2 |
+| LDPC randomization (LDPC applied to a Transfer Frame, the case 211.2 cites) | §7.2.2 | §8.2.2 |
+| LDPC for a stream of SMTFs (whole B-5 chapter 8) | §8 | Dissolved: slicing is new §3; CSM §9; randomizer §10 (§10.2.5, §10.3.2); Case 3 §11.5; managed parameters §12. Randomization of the codeblock (B-5 §8.3.1 to §8.3.2) is B-6 §3.3.1 d) |
+| Transfer Frame Slicing (all block codes) | none | new §2.2.4 and §3 (3.1 overview, 3.2 slicing, 3.3 sync with slicing, 3.4 sync without slicing, 3.5 frame validation) |
+| Turbo channel interleaver | none | new §7.3.12 (Table 7-4, Fig 7-5) |
+| Pseudo-randomizer | §10.1 and the per-coding clauses allow omitting it when the system designer verifies the concerns are resolved; Table 12-1 allows "Absent" | §10.1 "mandatory"; per-coding clauses unconditional (§4.2.2, §5.2.1, §7.2.1, §8.2.2, §3.3.1 d)); Table 12-1 no longer lists "None". Legacy 255-bit sequence still allowed (§10.4.2) |
+| Chapters 3 to 6 (conv, RS, concatenated, Turbo) | §3 to §6 | §4 to §7 |
+| Chapters 7 and 9 | §7 LDPC of a Transfer Frame; §9 Frame Synchronization | §8 LDPC; §9 Codeword Synchronization (same chapter number) |
+| Clauses with no B-6 home | §9.6 (embedded-stream sync marker `352EF853`); "m codewords per codeblock" (§8.1, Table 12-6 in §12.8); §12.9 (Table 12-7); §13.4; §1.4 Rationale | none (dropped, or replaced by the generic slicing in B-6 §3) |
 | Sync marker clause | §9 "ASM" | §9 "CSM" (same `034776C7272895B0` for LDPC 1/2) |
+
+**Prox-1 randomizer (inference, Duke):** the B-6 mandate does not change the Prox-1 coding path. 211.2-B-3 cites 131.0-B-3 only for the code definitions and carries its own LDPC randomizer text (3.4.4.4, 3.4.5) with a 255-bit sequence, h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1 (3.4.5.2.8), which differs from the 255-bit legacy sequence in 131.0-B-6 §10.4.2 (h(x) = x^8 + x^7 + x^5 + x^3 + 1). The 211.2 convolutional path specifies no randomizer, and 211.1-B-4 has none. B-6 scopes itself to TM, AOS and USLP. This is an inference: 211.0-B-6 was not downloaded or read for it.
 
 TODO verify: 211.2-B-3 normatively cites 131.0-B-3. The B-3 PDF was not retrievable (404), so the convolutional and LDPC definitions were not diffed against B-3. The B-6 text matches the constants in code (G1 171, G2 133 with G2 inversion, LDPC (2048, 1024), CSM `034776C7272895B0`).
 
