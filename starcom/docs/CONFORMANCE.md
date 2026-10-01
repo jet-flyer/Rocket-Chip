@@ -162,7 +162,7 @@ Checked against the ccsds.org publication listing (`https://ccsds.org/publicatio
 | 133.0-B-2 Space Packet Protocol | 2 | June 2020 (editorial changes October 2020 and September 2024) | Current; no later issue listed and no Issue 3. Issue history (verified): B-1 September 2003, B-2 June 2020; EC 1 October 2020 (figure 2-1), EC 2 September 2024 (duplicated table-of-contents entries, A4 page size). |
 | 211.0-B-6 Proximity-1 Data Link Layer | 6 | July 2020 | |
 | 211.1-B-4 Proximity-1 Physical Layer | 4 | December 2013 | |
-| 211.2-B-3 Proximity-1 Coding and Synchronization | 3 | October 2019 | Its §1.7 [2] cites 131.0-B-3 (Issue 3, September 2017). |
+| 211.2-B-3 Proximity-1 Coding and Synchronization | 3 | October 2019 | Its §1.7 [2] cites 131.0-B-3 (Issue 3, September 2017); B-3 retrieved and the cite verified (see the 131.0-B-3 cite note after the renumbering table). |
 | 232.0-B-4 TC Space Data Link Protocol | 4 | October 2021 | |
 | 232.1-B-2 COP-1 | 2 | September 2010 | |
 | 732.1-B-3 USLP | 3 | June 2024 | |
@@ -192,6 +192,16 @@ Checked against the ccsds.org publication listing (`https://ccsds.org/publicatio
 
 **Prox-1 randomizer (inference, Duke):** the B-6 mandate does not change the Prox-1 coding path. 211.2-B-3 cites 131.0-B-3 only for the code definitions and carries its own LDPC randomizer text (3.4.4.4, 3.4.5) with a 255-bit sequence, h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1 (3.4.5.2.8), which differs from the 255-bit legacy sequence in 131.0-B-6 §10.4.2 (h(x) = x^8 + x^7 + x^5 + x^3 + 1). The 211.2 convolutional path specifies no randomizer, and 211.1-B-4 has none. B-6 scopes itself to TM, AOS and USLP. This is an inference: 211.0-B-6 was not downloaded or read for it.
 
-TODO verify: 211.2-B-3 normatively cites 131.0-B-3. The B-3 PDF was not retrievable (404), so the convolutional and LDPC definitions were not diffed against B-3. The B-6 text matches the constants in code (G1 171, G2 133 with G2 inversion, LDPC (2048, 1024), CSM `034776C7272895B0`).
+**131.0-B-3 cite (verified, Duke 2026-10-01, against the PDF):** 211.2-B-3 normatively cites 131.0-B-3 (Issue 3). B-3 was retrieved from the CCSDS archive (Silver Book entry 3574): `https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2025/03//131x0b3s.pdf` (keep the double slash before the file name; 98 pages; cover "CCSDS 131.0-B-3, Blue Book, September 2017", stamped "CCSDS Historical Document"). B-4 and B-2 EC1 are at the same path as `131x0b4s.pdf` and `131x0b2ec1s.pdf`. **B-3 to B-5 mapping:** chapters 1 to 12 keep the same numbers in B-5, which adds chapter 13. B-3 chapter 8 is LDPC of a stream of SMTFs (8.3 Randomization), chapter 10 is the Pseudo-Randomizer, and Table 12-1 is in 12.3. Within 10.4, B-3 10.4.1 (polynomial) is B-5 10.4.1 and 10.4.2; B-3 10.4.2 (start, repeat, all-ones initialization) is B-5 10.4.3; B-3 Figure 10-2 is B-5 Figures 10-2 and 10-3. The B-6 text matches the constants in code (G1 171, G2 133 with G2 inversion, LDPC (2048, 1024), CSM `034776C7272895B0`).
+
+**Randomizer reset rule (resolved, Duke, verified against the PDFs):**
+
+- B-3 and B-4 chapter 10 are identical. Only the 255-bit generator h(x) = x^8 + x^7 + x^5 + x^3 + 1 exists, with an all-ones seed, reset at the start of each codeblock, codeword, or Transfer Frame (10.4.2). The sync marker is not randomized (10.3.4 Note 1). Table 12-1 lists the randomizer as Present or Absent.
+- B-5 adds the 131071-bit generator h(x) = x^17 + x^14 + 1 with seed 11000111000111000, and keeps the 255-bit one as legacy (10.4.2). The reset text is the same (10.4.3). Table 12-1 lists Long, Short or Absent.
+- B-5 to B-6: the reset rule in 10.4.3 is unchanged. Randomizing becomes mandatory, the CSM replaces the ASM in 10.3, 10.2 is split per coding scheme (10.2.2 to 10.2.5), and the LDPC stream-of-SMTFs mode is gone.
+- The CSM is never randomized. Under slicing the 32-bit ASM sits inside the data and IS randomized (B-5 8.3.3; B-6 Fig 3-2).
+- B-5 8.3.3 says there is no reset at codeword boundaries within the codeblock, for a multi-codeword LDPC codeblock. Inference: that construct no longer exists in B-6, so each LDPC codeword gets its own reset.
+
+**Ambiguity in the standard (unresolved by CCSDS):** B-6 10.2.3 and 10.2.5 say the receiver derandomizes "after decoding". That contradicts B-5 10.2.2 and B-6 3.3.2 and 3.4.2, which derandomize before decoding. Duke's recommendation: derandomize before decoding, and record it as an ambiguity in the standard, not a silent choice.
 
 **Footnote, 235.1:** CCSDS 235.1 (Space Communications Session Control) is a **Red Book draft** (235.1-R-1, May 2026, agency review at `https://ccsds.org/review/ccsds-235-1-r-1/`), not a Blue Book. It is not a Recommended Standard yet and Starcom makes no claim against it. Hailing in Starcom follows 211.0-B-6 §6.
