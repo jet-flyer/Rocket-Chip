@@ -73,6 +73,9 @@
   function RcCsvHistoricalPlugin(options) {
     options = options || {};
     const csvUrl = options.csvUrl || '../fixtures/omct_big_daddy_fidelity.csv';
+    // Auto-switch to Fixed over the CSV time span is opt-in (default off) so the
+    // dashboard stays in Real-Time; the live feeders push now-stamped samples.
+    const autoFixed = options.autoFixed === true;
 
     return function install(openmct) {
       let cache = null;
@@ -107,7 +110,7 @@
       }
 
       function tryApplyBounds() {
-        if (boundsApplied) return;
+        if (boundsApplied || !autoFixed) return;
         loadRows(true).then(function (rows) {
           if (boundsApplied) return;
           boundsApplied = true;

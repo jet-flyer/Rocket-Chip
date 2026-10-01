@@ -66,6 +66,19 @@
     var csvUrl = params.get('csv') || '../fixtures/omct_big_daddy_fidelity.csv';
     var assetPath = new URL('node_modules/openmct/dist/', window.location.href).href;
     openmct.setAssetPath(assetPath);
+    // Open MCT restores time state from the URL hash (tc.mode / tc.startBound ...). A stale
+    // tc.mode=fixed left by an earlier session would override the Real-Time default on a
+    // reload, so drop tc.* from the hash on every load. Add ?keepTime=1 to keep a deep link.
+    if (!params.has('keepTime') && window.location.hash.indexOf('tc.') >= 0) {
+      var qi = window.location.hash.indexOf('?');
+      if (qi >= 0) {
+        var hp = new URLSearchParams(window.location.hash.slice(qi + 1));
+        Array.from(hp.keys()).forEach(function (k) { if (k.indexOf('tc.') === 0) hp.delete(k); });
+        var rest = hp.toString();
+        window.history.replaceState(null, '', window.location.pathname + window.location.search +
+          window.location.hash.slice(0, qi) + (rest ? '?' + rest : ''));
+      }
+    }
     openmct.install(openmct.plugins.LocalStorage());
     openmct.install(openmct.plugins.MyItems());
     openmct.install(openmct.plugins.UTCTimeSystem());
@@ -79,8 +92,15 @@
     if (openmct.plugins.Condition) openmct.install(openmct.plugins.Condition());
     if (openmct.plugins.ConditionWidget) openmct.install(openmct.plugins.ConditionWidget());
     if (openmct.plugins.Conductor) {
+      // The FIRST menu option is the default mode (Open MCT 4.x Conductor plugin):
+      // Real-Time / Local Clock / UTC, -30s .. +5s. Fixed stays one click away.
       openmct.install(openmct.plugins.Conductor({
         menuOptions: [{
+          name: 'Realtime',
+          timeSystem: 'utc',
+          clock: 'local',
+          clockOffsets: { start: -30 * 1000, end: 5 * 1000 }
+        }, {
           name: 'Fixed',
           timeSystem: 'utc',
           bounds: { start: Date.now() - 60000, end: Date.now() }
@@ -92,10 +112,12 @@
     }
     openmct.time.setTimeSystem('utc');
     openmct.time.setClock('local');
-    openmct.time.setClockOffsets({ start: -30 * 1000, end: 5 * 1000 });
+    openmct.time.setMode('realtime', { start: -30 * 1000, end: 5 * 1000 });
     try {
       openmct.install(RcCsvDictionaryPlugin());
-      openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl }));
+      // autoFixed only when a CSV was asked for explicitly (?csv=...): replay that file in
+      // Fixed mode. The default static fixture must not push the dashboard into Fixed mode.
+      openmct.install(RcCsvHistoricalPlugin({ csvUrl: csvUrl, autoFixed: params.has('csv') }));
       openmct.install(RcRealtimePlugin({ wsUrl: 'ws://localhost:8091/' }));
     } catch (pluginErr) {
       fail(pluginErr);
