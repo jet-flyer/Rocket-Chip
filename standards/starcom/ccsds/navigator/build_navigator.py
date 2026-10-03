@@ -67,7 +67,7 @@ def join_text(parts):
         if not out:
             out = p
         elif (out.endswith("-") and len(out) > 1 and out[-2].isalnum() and p[0].islower()) \
-                or out.endswith("\u2014"):
+                or out.endswith("\u2014") or p[0] in "^_":
             out += p
         else:
             out += " " + p
@@ -81,6 +81,46 @@ class Line:
         return "Line(p%d %.0f,%.0f %r)" % (self.page, self.x0, self.y0, self.text[:50])
 
 
+def span_text(spans):
+    """Text of one PDF line. Spans set in a clearly smaller size (<= 90% of the line's main
+    size) and raised / lowered against the line's baseline are written as ^sup / _sub, so
+    that equation exponents and subscripts keep their position (X^32, M_0, M_{n-33}).
+    Short alphanumeric runs are written bare, anything else in braces. Only the position
+    information of the PDF is used; no character is added other than ^ _ { }."""
+    vis = [s for s in spans if s["text"].strip()]
+    if not vis:
+        return "".join(s["text"] for s in spans)
+    base = max(s["size"] for s in vis)
+    main = [s for s in vis if s["size"] >= base - 0.2]
+    by = main[0]["origin"][1]
+    out, run, mode = "", "", None
+
+    def flush():
+        nonlocal out, run, mode
+        if run:
+            out = out.rstrip(" ") + mode + (run if (re.fullmatch(r"[A-Za-z0-9]+", run) or len(run) == 1) else "{" + run + "}")
+        run, mode = "", None
+
+    for s in spans:
+        t = s["text"]
+        kind = None
+        if t.strip() and s["size"] <= 0.9 * base:
+            dy = s["origin"][1] - by
+            kind = "^" if dy < -1.0 else ("_" if dy > 1.0 else None)
+        if kind and (mode in (None, kind)):
+            mode = kind
+            run += t.strip()
+            continue
+        flush()
+        if kind:
+            mode = kind
+            run = t.strip()
+        else:
+            out += t
+    flush()
+    return out
+
+
 def page_lines(doc):
     """All text lines of the document in content-stream order, with positions/bold."""
     pages = []
@@ -91,7 +131,7 @@ def page_lines(doc):
                 continue
             for l in b["lines"]:
                 spans = [s for s in l["spans"]]
-                text = norm("".join(s["text"] for s in spans))
+                text = norm(span_text(spans))
                 if not text:
                     continue
                 ln = Line()
@@ -110,6 +150,7 @@ def page_lines(doc):
                         break
                 ln.bold_text = norm(bt)
                 ln.size = round(vis[0]["size"], 1) if vis else 0
+                ln.maxsize = max([x["size"] for x in vis] or [0])
                 ln.spans = [(s["text"], bool(s["flags"] & 16)) for s in spans]
                 ln.hf = False
                 ln.cell = None
@@ -289,7 +330,7 @@ class Blk:
                 out = p
                 continue
             if (out.endswith("-") and len(out) > 1 and out[-2].isalnum() and p[0].islower()) \
-                    or out.endswith("\u2014"):
+                    or out.endswith("\u2014") or p[0] in "^_":
                 offs.append((len(out), pg))
                 out += p
             else:
@@ -457,7 +498,7 @@ def parse_book(book_id, path):
         t = ln.text
         cur = state["cur"]
 
-        if ln.rot or (ln.arial and not front):
+        if ln.rot or (ln.arial and not front) or (0 < ln.maxsize < 9.0 and not front):
             close()
             b = new_block("figtext", ln, "figure")
             b.add(ln, t)
@@ -548,7 +589,7 @@ def parse_book(book_id, path):
             p = cur.last
             if ln.page == p.page:
                 dy = ln.y0 - p.y0
-                cont = (-3 <= dy <= 1.45 * max(p.size, 8))
+                cont = (-3 <= dy <= (1.6 if re.search(r"[\^_]", p.text) else 1.45) * max(p.maxsize, 8))
                 if cur.kind == "heading" and not getattr(cur, "head_open", False):
                     cont = False
             else:
@@ -927,7 +968,10 @@ def assemble_book(bid, pdf_path):
     # clause contents
     content = collections.OrderedDict((k, []) for k in bp.nodes)
     cur_table = None
+    gfx = collections.OrderedDict()
     for bi, b in enumerate(bp.blocks):
+        if b.kind == "figtext" and b.clause is not None and b.ctx != "front-matter":
+            gfx[(b.clause, b.page0)] = gfx.get((b.clause, b.page0), 0) + 1
         if b.ctx == "front-matter" or b.clause is None or b.kind in ("figtext",):
             cur_table = None
             continue
@@ -965,20 +1009,37 @@ def assemble_book(bid, pdf_path):
                 it.pop("clause", None)
     clauses = []
     for k, nd in bp.nodes.items():
-        clauses.append({"key": k, "title": nd["title"], "page": nd["page"], "pdf_page": nd["pdf_page"],
-                        "parent": nd["parent"], "kind": nd["kind"], "content": content[k]})
+        cl = {"key": k, "title": nd["title"], "page": nd["page"], "pdf_page": nd["pdf_page"],
+              "parent": nd["parent"], "kind": nd["kind"], "content": content[k]}
+        om = [{"pdf_page": pp, "page": bp.labels[pp - 1], "lines": n} for (ck, pp), n in gfx.items() if ck == k]
+        if om:
+            cl["graphic_text_omitted"] = om
+        clauses.append(cl)
     out_sents = []
     for s in sents:
         core = re.sub(r"\s+(?:and|or)$", "", s["text"])
         incomplete = ("shall" in s["counts"] and not core.endswith((".", "?", "!", ":", ";", ","))
                       and not s["continues_in_items"])
+        cont = None
+        if incomplete:
+            # the sentence runs on through display equations: collect the following blocks
+            # (verbatim) up to the one that ends with a full stop (at most 6 blocks)
+            parts = []
+            for nb in bp.blocks[s["block"] + 1:s["block"] + 7]:
+                parts.append(nb.joined()[0])
+                if parts[-1].endswith("."):
+                    break
+            if parts and parts[-1].endswith("."):
+                cont = join_text(parts)
+                incomplete = False
+            elif parts:
+                cont = parts[0]
         out_sents.append({"id": s["id"], "book": bid, "clause": s["clause"], "ctx": s["ctx"],
                           "page": s["page"], "pdf_page": s["pdf_page"], "page_end": s["page_end"],
                           "pdf_page_end": s["pdf_page_end"], "text": s["text"], "kind": s["kind"],
                           "counts": s["counts"], "continues_in_items": s["continues_in_items"],
                           "lead_in": s["lead_in"], "incomplete": incomplete,
-                          "continues_in_next_block": (bp.blocks[s["block"] + 1].joined()[0]
-                                                      if incomplete and s["block"] + 1 < len(bp.blocks) else None),
+                          "continues_in_next_block": cont,
                           "does_not_apply_when": None, "option_tag": None})
     xr = []
     for n, x in enumerate(xrefs, 1):
@@ -1106,7 +1167,7 @@ def scan_implementation(repo, nodes_by_book, include_docs=False):
 
 # --------------------------------------------------------------------------- SHALL_MATRIX.md
 def md_cell(t):
-    return t.replace("|", "\\|").replace("\n", " ")
+    return t.replace("\\", "\\\\").replace("|", "\\|").replace("*", "\\*").replace("_", "\\_").replace("\n", " ")
 
 
 def write_matrix(path, standard):
@@ -1126,7 +1187,9 @@ def write_matrix(path, standard):
     L.append("")
     L.append("Each row is one sentence containing the word `shall`. A sentence that is a lead-in to a list is "
              "followed by its list items in the same quote. `p.` is the printed page label; `PDF p.` is the page "
-             "number in the PDF file.\n")
+             "number in the PDF file. In equations `^` marks a superscript and `\\_` a subscript "
+             "(`X^32` is X with superscript 32); the backslashes before `*`, `_` and `|` only keep Markdown from "
+             "formatting the quote.\n")
     L.append("| ID | Book | Clause | Verbatim quote | Page | Status | Does not apply when | Option tag |")
     L.append("|---|---|---|---|---|---|---|---|")
     for b in standard["books"]:
@@ -1136,8 +1199,8 @@ def write_matrix(path, standard):
             q = s["text"]
             if s["continues_in_items"]:
                 q += " " + " ".join(s["continues_in_items"])
-            if s["incomplete"]:
-                q += " [sentence continues in the next paragraph of the PDF: " + (s["continues_in_next_block"] or "") + "]"
+            if s["continues_in_next_block"]:
+                q += " [the sentence continues in the following paragraph(s) of the PDF: " + s["continues_in_next_block"] + "]"
             if s["lead_in"]:
                 q += " [lead-in paragraph: " + s["lead_in"] + "]"
             clause = s["clause"] if s["clause"] else "unattributed"
