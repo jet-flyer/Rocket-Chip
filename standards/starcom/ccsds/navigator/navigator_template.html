@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCSDS Prox-1 navigator</title>
+<style>
+:root{--bg:#f4f4f1;--panel:#ffffff;--ink:#1d2127;--mute:#5d6672;--line:#d5d8dc;--accent:#2f5d8a;--accent2:#e3ecf5;
+--shall:#2f5d8a;--should:#7a5c00;--may:#4a6b3a;--hl:#fff3b8;--chip:#e8eaed;--warn:#8a3b12}
+body.mode-impl{--bg:#14110b;--panel:#1d1810;--ink:#f1e6cf;--mute:#b3a07a;--line:#4a3c1c;--accent:#ffb000;--accent2:#33290f;
+--shall:#ffb000;--should:#e8c46a;--may:#c9b37a;--hl:#4d3a05;--chip:#2c2412;--warn:#ff8a3d}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0;font-weight:700;white-space:nowrap}
+.toggle{display:inline-flex;border:1px solid var(--accent);border-radius:6px;overflow:hidden}
+.toggle button{border:0;background:transparent;color:var(--ink);padding:5px 12px;font:inherit;cursor:pointer}
+.toggle button.on{background:var(--accent);color:#fff}
+body.mode-impl .toggle button.on{color:#14110b;font-weight:700}
+.search{flex:1 1 220px;display:flex;gap:8px;align-items:center;min-width:180px}
+.search input[type=search]{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.search label{white-space:nowrap;color:var(--mute);font-size:13px}
+#banner{display:none;background:#ffb000;color:#14110b;font-weight:800;letter-spacing:.02em;padding:7px 12px;border-bottom:3px solid #14110b;text-align:center}
+body.mode-impl #banner{display:block}
+#tabs{display:none}
+main{flex:1;min-height:0;display:grid;grid-template-columns:270px minmax(280px,1fr) minmax(320px,1.2fr);gap:0}
+.panel{overflow:auto;padding:10px 12px;border-right:1px solid var(--line);min-height:0;background:var(--bg)}
+.panel:last-child{border-right:0}
+.panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:2px 0 8px}
+.layer{display:block;width:100%;text-align:left;border:2px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);padding:9px 11px;margin:0 0 4px;cursor:pointer;font:inherit}
+.layer:hover{border-color:var(--accent)}
+.layer.sel{border-color:var(--accent);background:var(--accent2)}
+.layer b{font-size:15px}
+.layer .t{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.layer .c{display:block;font-size:12px;margin-top:3px}
+.joint{height:10px;margin:0 0 4px 22px;border-left:2px dashed var(--line)}
+.chip{display:inline-block;font-size:11px;line-height:16px;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;background:var(--chip);color:var(--ink);white-space:nowrap}
+.chip.shall{background:var(--shall);color:#fff}
+body.mode-impl .chip.shall{color:#14110b}
+.chip.should{background:var(--should);color:#fff}.chip.may{background:var(--may);color:#fff}
+body.mode-impl .chip.should,body.mode-impl .chip.may{color:#14110b}
+.chip.lvl-read-in-code{background:#6b7a8f;color:#fff}.chip.lvl-host-test{background:#2f7d5b;color:#fff}.chip.lvl-board-confirmed{background:#1f5fbf;color:#fff}
+.chip.unchecked{background:transparent;border:1px dashed var(--mute);color:var(--mute)}
+.chip.cite{background:var(--accent);color:#fff}body.mode-impl .chip.cite{color:#14110b}
+.tree{list-style:none;margin:0;padding:0}
+.tree ul{list-style:none;margin:0;padding-left:16px;border-left:1px solid var(--line)}
+.node{display:flex;gap:4px;align-items:baseline;padding:3px 4px;border-radius:5px;cursor:pointer}
+.node:hover{background:var(--accent2)}
+.node.sel{background:var(--accent);color:#fff}
+body.mode-impl .node.sel{color:#14110b}
+.node.sel .mute{color:inherit;opacity:.85}
+.node.xout{outline:2px solid var(--accent);outline-offset:-2px}
+.node.xin{outline:2px dotted var(--accent);outline-offset:-2px}
+.tw{width:16px;flex:none;text-align:center;color:var(--mute);user-select:none}
+.node.sel .tw{color:inherit}
+.k{font-weight:700;flex:none}
+.ttl{flex:1;min-width:0}
+.mute{color:var(--mute)}
+.dim{opacity:.6}
+.xrefbar{margin:8px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.xrefbar a,.lnk{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.res{padding:7px 8px;border:1px solid var(--line);background:var(--panel);border-radius:6px;margin:0 0 6px;cursor:pointer}
+.res:hover{border-color:var(--accent)}
+.res .sn{font-size:12.5px;color:var(--mute);margin-top:3px}
+mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
+mark.m-shall{box-shadow:inset 0 -2px 0 var(--shall)}
+mark.m-should{box-shadow:inset 0 -2px 0 var(--should)}
+mark.m-may{box-shadow:inset 0 -2px 0 var(--may)}
+.det h3{margin:0 0 2px;font-size:17px}
+.det .sub{color:var(--mute);margin-bottom:10px}
+.sec{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);border-top:1px solid var(--line);padding-top:8px}
+.blk{margin:6px 0;padding:6px 9px;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.blk.item{margin-left:18px}.blk.note{border-style:dashed}.blk.caption{font-style:italic}
+.blk .lab{font-weight:700;margin-right:6px;color:var(--mute)}
+.pg{color:var(--mute);font-size:12px}
+.quote{border-left:4px solid var(--shall);padding:6px 10px;margin:8px 0;background:var(--panel)}
+.quote.should{border-left-color:var(--should)}.quote.may{border-left-color:var(--may)}
+table.t{border-collapse:collapse;width:100%;font-size:12.5px;margin:4px 0}
+table.t td{border:1px solid var(--line);padding:3px 5px;vertical-align:top}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.cite-row{padding:6px 8px;margin:5px 0;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--panel);border-radius:4px;word-break:break-word}
+.none{color:var(--mute);font-style:italic}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 10px}
+.kv div:nth-child(odd){color:var(--mute)}
+button.small,.btn{font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;cursor:pointer}
+@media (max-width:700px){
+ body{height:auto;min-height:100%}
+ header{position:sticky;top:0;z-index:5}
+ #tabs{display:flex;position:sticky;top:0;z-index:4;background:var(--panel);border-bottom:1px solid var(--line)}
+ #tabs button{flex:1;padding:9px 4px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--ink);font:inherit;font-weight:600}
+ #tabs button.on{border-bottom-color:var(--accent);color:var(--accent)}
+ main{display:block}
+ .panel{border-right:0;overflow:visible;padding:10px 10px 40px}
+ body[data-tab="books"] #p-map,body[data-tab="books"] #p-detail,
+ body[data-tab="map"] #p-books,body[data-tab="map"] #p-detail,
+ body[data-tab="detail"] #p-books,body[data-tab="detail"] #p-map{display:none}
+ header h1{font-size:14px}
+ .search{flex-basis:100%}
+}
+@media (min-width:701px) and (max-width:1000px){ main{grid-template-columns:210px 1fr 1.3fr} }
+</style>
+</head>
+<body class="mode-std" data-tab="books">
+<header>
+ <h1>CCSDS Prox-1 navigator</h1>
+ <div class="toggle" role="group" aria-label="View mode">
+  <button id="b-std" class="on" type="button">STANDARD</button><button id="b-impl" type="button">IMPLEMENTATION</button>
+ </div>
+ <div class="search">
+  <input id="q" type="search" placeholder="clause number (3.4.5) or word" aria-label="Search clause number or word" autocomplete="off">
+  <label><input id="shallonly" type="checkbox"> shall only</label>
+ </div>
+</header>
+<div id="banner" role="note">IMPLEMENTATION VIEW: this is our code, not the standard</div>
+<nav id="tabs" aria-label="Panels"><button data-t="books" class="on" type="button">Books</button><button data-t="map" type="button">Clause map</button><button data-t="detail" type="button">Detail</button></nav>
+<main>
+ <section class="panel" id="p-books" aria-label="Books"><h2>Books (top layer first)</h2><div id="stack"></div></section>
+ <section class="panel" id="p-map" aria-label="Clause map"><h2 id="maph">Clause map</h2><div id="map"></div></section>
+ <section class="panel" id="p-detail" aria-label="Clause detail"><h2>Clause detail</h2><div id="detail" class="det"><p class="none">Select a clause.</p></div></section>
+</main>
+<script id="d-std" type="application/json">__STANDARD_JSON__</script>
+<script id="d-impl" type="application/json">__IMPLEMENTATION_JSON__</script>
+<script id="d-ev" type="application/json">__EVIDENCE_JSON__</script>
+<script>
+"use strict";
+(function(){
+const STD=JSON.parse(document.getElementById('d-std').textContent);
+const IMPL=JSON.parse(document.getElementById('d-impl').textContent);
+const EV=JSON.parse(document.getElementById('d-ev').textContent);
+const LEVELS=['read-in-code','host-test','board-confirmed'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const books=STD.books, B={}, C={}, KIDS={}, SENT={}, SBYCL={}, PICSBY={}, XOUT={}, XIN={}, CITES={}, FT={};
+books.forEach(b=>{
+ B[b.id]=b; C[b.id]={}; KIDS[b.id]={'':[]}; SBYCL[b.id]={}; PICSBY[b.id]={}; XOUT[b.id]={}; XIN[b.id]={}; CITES[b.id]={}; FT[b.id]={};
+ b.clauses.forEach(c=>{C[b.id][c.key]=c; KIDS[b.id][c.key]=[];});
+ b.clauses.forEach(c=>{(KIDS[b.id][c.parent||'']||(KIDS[b.id][c.parent||'']=[])).push(c.key);});
+ b.sentences.forEach(s=>{SENT[s.id]=s; (SBYCL[b.id][s.clause||'__front']=SBYCL[b.id][s.clause||'__front']||[]).push(s);});
+ b.pics.forEach((r,i)=>{r._i=i; (r.ref_clauses||[]).forEach(k=>{(PICSBY[b.id][k]=PICSBY[b.id][k]||[]).push(r);});});
+ b.crossrefs.forEach(x=>{(XOUT[b.id][x.source_clause]=XOUT[b.id][x.source_clause]||[]).push(x);
+  if(x.target_kind==='clause'&&x.scope==='internal'&&x.resolved){(XIN[b.id][x.target]=XIN[b.id][x.target]||[]).push(x);}});
+ b.figures_tables.forEach(f=>{FT[b.id][f.label.toLowerCase()]=f;});
+});
+(IMPL.citations||[]).forEach(c=>{
+ let k=c.target, bid=c.book;
+ if(c.target_kind!=='clause'){const f=FT[bid]&&FT[bid][c.target.toLowerCase()]; if(!f||!f.clause) {(CITES[bid]=CITES[bid]||{})['__nokey']=(CITES[bid]['__nokey']||[]).concat([c]);return;} k=f.clause; c=Object.assign({},c,{via:c.target});}
+ if(!CITES[bid])return; (CITES[bid][k]=CITES[bid][k]||[]).push(c);
+});
+function ownShall(b,k){return (SBYCL[b][k]||[]).filter(s=>s.counts.shall).length;}
+const SUB={};
+function sub(b,k){const id=b+'|'+k; if(id in SUB)return SUB[id];
+ let n={shall:ownShall(b,k),cite:(CITES[b][k]||[]).length};
+ (KIDS[b][k]||[]).forEach(ch=>{const m=sub(b,ch);n.shall+=m.shall;n.cite+=m.cite;}); SUB[id]=n; return n;}
+function evFor(b,k){return EV[b+' '+k]||[];}
+function levelsFor(b,k){const s=new Set(evFor(b,k).map(e=>e.level)); return LEVELS.filter(l=>s.has(l));}
+const S={mode:'std',book:books[0].id,clause:null,pics:null,q:'',shall:false,expanded:{}};
+function readHash(){const h=location.hash.replace(/^#/,''); if(!h)return; const p={}; h.split('&').forEach(x=>{const i=x.indexOf('='); if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1));});
+ if(p.m==='impl')S.mode='impl'; if(p.b&&B[p.b])S.book=p.b; if(p.c){S.clause=p.c; if(p.c==='__front'||(C[S.book]&&C[S.book][p.c])) expandTo(S.book,p.c);} if(p.p!=null&&B[S.book].pics[+p.p]){S.pics=+p.p;S.clause=null;}
+ if(p.q){S.q=p.q;$('q').value=p.q;} if(p.s==='1'){S.shall=true;$('shallonly').checked=true;} if(p.t&&/^(books|map|detail)$/.test(p.t))setTab(p.t);}
+function writeHash(){const p=['m='+S.mode,'b='+encodeURIComponent(S.book)]; if(S.clause)p.push('c='+encodeURIComponent(S.clause)); if(S.pics!=null)p.push('p='+S.pics);
+ try{history.replaceState(null,'','#'+p.join('&'));}catch(e){}}
+function expandTo(b,k){let c=C[b][k]; while(c&&c.parent){S.expanded[b+'|'+c.parent]=true;c=C[b][c.parent];}}
+function setTab(t){document.body.dataset.tab=t; document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));}
+function pg(o){return 'p. '+esc(o.page||'no printed label')+' (PDF p.'+o.pdf_page+')';}
+function go(b,k){S.book=b;S.clause=k;S.pics=null; if(k)expandTo(b,k); render(); if(k)setTab('detail'); writeHash();}
+function setMode(m){S.mode=m; document.body.classList.toggle('mode-std',m==='std'); document.body.classList.toggle('mode-impl',m==='impl');
+ $('b-std').classList.toggle('on',m==='std'); $('b-impl').classList.toggle('on',m==='impl'); render(); writeHash();}
+/* ---------- stack */
+function renderStack(){let h='';
+ books.forEach((b,i)=>{const nsh=b.sentences.filter(s=>s.counts.shall).length; let extra='<span class="chip">'+b.clauses.length+' clauses</span><span class="chip shall">'+nsh+' shall</span>';
+  if(S.mode==='impl'){const n=Object.keys(CITES[b.id]).reduce((a,k)=>a+(k==='__nokey'?0:CITES[b.id][k].length),0); extra='<span class="chip cite">'+n+' code citations</span>';}
+  h+=(i?'<div class="joint"></div>':'')+'<button class="layer'+(b.id===S.book?' sel':'')+'" data-b="'+esc(b.id)+'"><b>CCSDS '+esc(b.id)+'</b><span class="t">'+esc(b.title)+'</span><span class="t">'+esc(b.issue||'')+' &middot; '+esc(b.date||'')+'</span><span class="c">'+extra+'</span></button>';});
+ $('stack').innerHTML=h;
+ $('stack').querySelectorAll('.layer').forEach(el=>el.onclick=()=>{S.book=el.dataset.b;S.clause=null;S.pics=null;S.q='';$('q').value='';render();setTab('map');writeHash();});}
+/* ---------- tree */
+function nodeVisible(b,k){return !S.shall||sub(b,k).shall>0;}
+function nodeLabel(b,c){if(c.title)return esc(c.title); const t=(c.content[0]&&c.content[0].text)||''; return '<span class="mute">'+esc(t.length>70?t.slice(0,70)+'\u2026':t)+'</span>';}
+function treeHtml(b,k,sel,xo,xi){const kids=(KIDS[b][k]||[]).filter(ch=>nodeVisible(b,ch)); if(!kids.length)return '';
+ let h='<ul'+(k===''?' class="tree"':'')+'>';
+ kids.forEach(ch=>{const c=C[b][ch], has=(KIDS[b][ch]||[]).some(x=>nodeVisible(b,x)), open=!!S.expanded[b+'|'+ch]; const m=sub(b,ch);
+  let chips='';
+  if(S.mode==='std'){const n=ownShall(b,ch); if(n)chips+='<span class="chip shall">'+n+' shall</span>';}
+  else{const oc=(CITES[b][ch]||[]).length; if(oc)chips+='<span class="chip cite">'+oc+' cited</span>'; else if(m.cite)chips+='<span class="chip dim">\u00b7 '+m.cite+' below</span>';
+   const lv=levelsFor(b,ch); chips+= lv.length? lv.map(l=>'<span class="chip lvl-'+l+'">'+l+'</span>').join(''):'<span class="chip unchecked">unchecked</span>';}
+  h+='<li><div class="node'+(sel===ch?' sel':'')+(xo.has(ch)?' xout':'')+(xi.has(ch)?' xin':'')+'" data-k="'+esc(ch)+'"><span class="tw" data-t="'+(has?'1':'')+'">'+(has?(open?'\u25be':'\u25b8'):'')+'</span><span class="k">'+esc(ch)+'</span><span class="ttl">'+nodeLabel(b,c)+'</span>'+chips+'</div>';
+  if(has&&open)h+=treeHtml(b,ch,sel,xo,xi); h+='</li>';});
+ return h+'</ul>';}
+function renderMap(){const b=S.book, bk=B[b]; $('maph').textContent='Clause map: CCSDS '+b;
+ if(S.q){return renderSearch();}
+ const sel=S.clause; const xo=new Set(), xi=new Set(); let bar='';
+ if(sel&&C[b][sel]){(XOUT[b][sel]||[]).forEach(x=>{if(x.target_kind==='clause'&&x.scope==='internal'&&x.resolved)xo.add(x.target);}); (XIN[b][sel]||[]).forEach(x=>xi.add(x.source_clause));
+  const o=[...xo].map(k=>'<a data-go="'+esc(k)+'">'+esc(k)+'</a>').join(', ')||'<span class="none">none recorded</span>'; const i=[...xi].map(k=>'<a data-go="'+esc(k)+'">'+esc(k)+'</a>').join(', ')||'<span class="none">none recorded</span>';
+  bar='<div class="xrefbar"><b>Cross-references of '+esc(sel)+'</b><br>refers to (solid outline): '+o+'<br>referred to by (dotted outline): '+i+'</div>';}
+ let h=bar+treeHtml(b,'',sel,xo,xi);
+ const fr=(SBYCL[b]['__front']||[]).filter(s=>!S.shall||s.counts.shall); 
+ h+='<ul class="tree"><li><div class="node'+(sel==='__front'?' sel':'')+'" data-k="__front"><span class="tw"></span><span class="k">front matter</span><span class="ttl mute">sentences before clause 1 (clause: unattributed)</span><span class="chip">'+fr.length+'</span></div></li>';
+ if(bk.pics.length)h+='<li><div class="node'+(S.pics!=null?' sel':'')+'" data-k="__pics"><span class="tw"></span><span class="k">Annex A</span><span class="ttl">PICS requirements list rows</span><span class="chip">'+bk.pics.length+'</span></div></li>';
+ h+='</ul>';
+ if(S.mode==='impl'){const nk=(CITES[b]['__nokey']||[]); if(nk.length)h+='<div class="sec">Table / figure citations without a clause</div>'+nk.map(citeRow).join('');}
+ $('map').innerHTML=h;
+ $('map').querySelectorAll('.node').forEach(el=>el.onclick=ev=>{const k=el.dataset.k; if(ev.target.classList.contains('tw')&&ev.target.dataset.t){S.expanded[b+'|'+k]=!S.expanded[b+'|'+k];renderMap();return;}
+  if(k==='__pics'){S.clause=null;S.pics=0;render();setTab('detail');writeHash();return;} go(b,k);});
+ $('map').querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(b,el.dataset.go));}
+/* ---------- search */
+const IDX={};
+function hay(b,c){const id=b+'|'+c.key; if(IDX[id])return IDX[id]; const parts=[c.key,c.title||'']; c.content.forEach(i=>{if(i.text)parts.push(i.text); if(i.rows)i.rows.forEach(r=>parts.push(r.join(' ')));}); return IDX[id]=parts.join(' \n ').toLowerCase();}
+function renderSearch(){const q=S.q.trim(); const ql=q.toLowerCase(); const numeric=/^[a-z]?\d+(\.\d+)*$/i.test(q)||/^annex\s*[a-z]?$/i.test(q); const res=[];
+ books.forEach(bk=>{ if(numeric){const qq=q.toUpperCase().replace(/^ANNEX\s*/,'ANNEX '); bk.clauses.forEach(c=>{const k=c.key.toUpperCase(); if(k===qq||k.startsWith(qq+'.')||(/^[A-Z]\d/.test(qq)&&k.startsWith(qq))||(/^ANNEX/.test(qq)&&k.startsWith(qq))){ if(S.shall&&sub(bk.id,c.key).shall===0)return; res.push({b:bk.id,k:c.key,sn:c.title||((c.content[0]||{}).text||'')});}});}
+  else{const toks=ql.split(/\s+/).filter(Boolean);
+   if(S.shall){bk.sentences.forEach(s=>{if(!s.counts.shall)return; const t=(s.text+' '+(s.clause||'')).toLowerCase(); if(toks.every(w=>t.includes(w)))res.push({b:bk.id,k:s.clause||'__front',sn:s.text,hit:toks[0]});});}
+   else bk.clauses.forEach(c=>{const h=hay(bk.id,c); if(toks.every(w=>h.includes(w))){const i=h.indexOf(toks[0]); res.push({b:bk.id,k:c.key,sn:snippet(c,toks[0]),hit:toks[0]});}});}});
+ const cap=300; let h='<div class="xrefbar"><b>'+res.length+' result'+(res.length===1?'':'s')+'</b> for &ldquo;'+esc(q)+'&rdquo;'+(S.shall?' (shall sentences only)':'')+' in all four books'+(res.length>cap?' (first '+cap+' shown)':'')+' <button class="small" id="clr" type="button">clear</button></div>';
+ if(!res.length)h+='<p class="none">none recorded</p>';
+ res.slice(0,cap).forEach(r=>{const c=C[r.b][r.k]; h+='<div class="res" data-b="'+esc(r.b)+'" data-k="'+esc(r.k)+'"><span class="chip">'+esc(r.b)+'</span><b>'+(r.k==='__front'?'front matter':esc(r.k))+'</b> '+esc(c&&c.title?c.title:'')+'<div class="sn">'+hl(r.sn,r.hit)+'</div></div>';});
+ $('map').innerHTML=h; $('clr').onclick=()=>{S.q='';$('q').value='';render();};
+ $('map').querySelectorAll('.res').forEach(el=>el.onclick=()=>{S.q='';$('q').value='';go(el.dataset.b,el.dataset.k);});}
+function snippet(c,w){const t=(c.content.map(i=>i.text||'').join(' ')||''); const i=t.toLowerCase().indexOf(w); if(i<0)return c.title||t.slice(0,140); return (i>60?'\u2026':'')+t.slice(Math.max(0,i-60),i+120)+'\u2026';}
+function hl(t,w){t=String(t||''); if(!w)return esc(t.slice(0,220)); const i=t.toLowerCase().indexOf(w); if(i<0)return esc(t.slice(0,220)); const a=Math.max(0,i-80); return esc(t.slice(a,i))+'<mark>'+esc(t.slice(i,i+w.length))+'</mark>'+esc(t.slice(i+w.length,i+w.length+140));}
+/* ---------- detail */
+function markItem(it){const t=it.text; if(!it.sids)return esc(t); const marks=[]; it.sids.forEach(id=>{const s=SENT[id]; const i=t.indexOf(s.text); if(i>=0)marks.push([i,i+s.text.length,s]);}); marks.sort((a,b)=>a[0]-b[0]);
+ let h='',p=0; marks.forEach(m=>{if(m[0]<p)return; h+=esc(t.slice(p,m[0]))+'<mark class="m-'+m[2].kind+'" title="'+m[2].kind+', '+esc(pg(m[2]).replace(/<[^>]+>/g,''))+'">'+esc(t.slice(m[0],m[1]))+'</mark>'; p=m[1];}); return h+esc(t.slice(p));}
+function contentHtml(c){ if(!c.content.length)return '<p class="none">none recorded</p>'; let h='';
+ c.content.forEach(it=>{ if(S.shall&&!(it.sids&&it.sids.some(id=>SENT[id].counts.shall)))return;
+  if(it.t==='table'){h+='<div class="blk"><table class="t">'+it.rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</table><span class="pg">table, '+pg(it)+'</span></div>';return;}
+  h+='<div class="blk '+it.t+'">'+(it.num?'<span class="lab">'+esc(it.num)+'</span>':'')+(it.label?'<span class="lab">'+esc(it.label)+'</span>':'')+markItem(it)+' <span class="pg">'+pg(it)+'</span></div>';});
+ return h||'<p class="none">no shall sentence in this clause</p>';}
+function sentHtml(list){ if(!list.length)return '<p class="none">none recorded</p>'; return list.map(s=>{const ks=Object.keys(s.counts).map(k=>'<span class="chip '+k+'">'+k+(s.counts[k]>1?' \u00d7'+s.counts[k]:'')+'</span>').join('');
+  return '<div class="quote '+s.kind+'">'+ks+'<span class="pg">'+pg(s)+(s.pdf_page_end?' &rarr; continues to PDF p.'+s.pdf_page_end:'')+'</span><br>&ldquo;'+esc(s.text)+'&rdquo;'
+   +(s.continues_in_items.length?'<div class="pg">followed in the PDF by list items:</div>'+s.continues_in_items.map(x=>'<div>'+esc(x)+'</div>').join(''):'')
+   +(s.incomplete?'<div class="pg">The sentence continues in the next paragraph of the PDF'+(s.continues_in_next_block?': &ldquo;'+esc(s.continues_in_next_block)+'&rdquo;':'')+'</div>':'')
+   +(s.lead_in?'<div class="pg">lead-in paragraph: '+esc(s.lead_in)+'</div>':'')
+   +'<div class="pg">Does not apply when: '+(s.does_not_apply_when?esc(s.does_not_apply_when):'<span class="none">none recorded</span>')+' &middot; Option tag: '+(s.option_tag?esc(s.option_tag):'<span class="none">none recorded</span>')+'</div></div>';}).join('');}
+function picsHtml(b,k){const rows=PICSBY[b][k]||[]; if(!rows.length)return '<p class="none">none recorded</p>';
+ return rows.map(r=>'<div class="blk"><a class="lnk" data-pics="'+r._i+'"><b>'+esc(r.item)+'</b></a> '+esc(r.description)+'<div class="pg">Annex A, '+pg(r)+' &middot; Reference column: '+esc(r.reference)+' &middot; Status column as printed: '+esc(r.status)+'</div></div>').join('');}
+function xrefHtml(b,k){const out=XOUT[b][k]||[], inn=XIN[b][k]||[]; let h='<div class="sec">Cross-references from this clause (explicit in the text)</div>';
+ if(!out.length)h+='<p class="none">none recorded</p>';
+ out.forEach(x=>{let tgt;
+  if(x.target_kind==='clause'&&x.scope==='internal'){tgt=x.resolved?'<a class="lnk" data-go="'+esc(x.target)+'">'+esc(x.mention)+' &rarr; '+esc(x.target)+'</a>':esc(x.mention)+' (target clause not in extracted tree)';}
+  else if(x.scope==='external'){const r=B[b].references.find(z=>z.label==='['+x.external_ref+']'); tgt=esc(x.mention)+' of reference ['+esc(x.external_ref)+']'+(r?' &mdash; <span class="pg">'+esc(r.text)+'</span>':'');}
+  else if(x.target_kind==='reference'){const r=B[b].references.find(z=>z.label==='['+x.target+']'); tgt='reference ['+esc(x.target)+']'+(r?' &mdash; <span class="pg">'+esc(r.text)+'</span>':'');}
+  else{const f=FT[b][x.target.toLowerCase()]; tgt=esc(x.mention)+(f?' &mdash; <span class="pg">'+esc(f.caption)+', '+pg(f)+'</span>':'');}
+  h+='<div class="blk">'+tgt+'<div class="pg">source sentence ('+pg(x)+'): &ldquo;'+esc(x.sentence)+'&rdquo;</div></div>';});
+ h+='<div class="sec">Referred to by (explicit in the text of this book)</div>';
+ if(!inn.length)h+='<p class="none">none recorded</p>';
+ inn.forEach(x=>{h+='<div class="blk"><a class="lnk" data-go="'+esc(x.source_clause)+'">'+esc(x.source_clause)+'</a> <span class="pg">'+pg(x)+'</span><div class="pg">&ldquo;'+esc(x.sentence)+'&rdquo;</div></div>';});
+ return h;}
+function citeRow(c){return '<div class="cite-row"><span class="chip">'+esc(c.book)+'</span><b class="code">'+esc(c.file)+':'+c.line+'</b>'+(c.via?' <span class="chip">cites '+esc(c.via)+'</span>':' <span class="chip">cites '+esc(c.target)+'</span>')+(c.resolved===false?' <span class="chip">clause not in extracted tree</span>':'')+'<div class="code">'+esc(c.text)+'</div></div>';}
+function implHtml(b,k){const cs=CITES[b][k]||[]; let h='<div class="sec">Code citations (explicit clause references found in this repository)</div>'+(cs.length?cs.map(citeRow).join(''):'<p class="none">none recorded</p>');
+ const ev=evFor(b,k), lv=levelsFor(b,k);
+ h+='<div class="sec">Evidence (data/evidence.json)</div><div>Review status derived from evidence: '+(lv.length?lv.map(l=>'<span class="chip lvl-'+l+'">'+l+'</span>').join(''):'<span class="chip unchecked">unchecked</span>')+'</div>';
+ h+=ev.length?ev.map(e=>'<div class="cite-row"><span class="chip lvl-'+esc(e.level)+'">'+esc(e.level)+'</span> <span class="code">'+esc(e.ref)+'</span><div class="pg">'+esc(e.date||'')+' &middot; '+esc(e.by||'')+'</div></div>').join(''):'<p class="none">none recorded</p>';
+ return h;}
+function renderDetail(){const b=S.book, bk=B[b], el=$('detail');
+ if(S.pics!=null){const r=bk.pics[S.pics]; if(!r){el.innerHTML='<p class="none">none recorded</p>';return;}
+  let h='<h3>CCSDS '+esc(b)+' Annex A row '+esc(r.item)+'</h3><div class="sub">PICS requirements list, '+pg(r)+'</div>';
+  h+='<div class="kv"><div>Item</div><div>'+esc(r.item)+'</div><div>Description</div><div>'+esc(r.description)+'</div><div>Reference</div><div>'+esc(r.reference)+'</div><div>Status (as printed)</div><div>'+esc(r.status)+'</div>'+(r.values_allowed!=null?'<div>Values allowed</div><div>'+(esc(r.values_allowed)||'<span class="none">none recorded</span>')+'</div>':'')+'<div>Support column</div><div>'+(esc(r.support)||'<span class="none">none recorded</span>')+'</div><div>Group</div><div>'+(esc(r.group)||'<span class="none">none recorded</span>')+'</div><div>Does not apply when</div><div>'+(r.does_not_apply_when?esc(r.does_not_apply_when):'<span class="none">none recorded</span>')+'</div><div>Option tag</div><div>'+(r.option_tag?esc(r.option_tag):'<span class="none">none recorded</span>')+'</div></div>';
+  h+='<div class="sec">Clauses named in the Reference column</div>'; const cl=(r.ref_clauses||[]);
+  h+=cl.length?cl.map(k=>C[b][k]?'<div class="blk"><a class="lnk" data-go="'+esc(k)+'">'+esc(k)+'</a> '+esc(C[b][k].title||'')+'</div>':'<div class="blk">'+esc(k)+' <span class="pg">(not in extracted tree)</span></div>').join(''):'<p class="none">none recorded</p>';
+  if(r.ref_external){const rf=bk.references.find(z=>z.label==='['+r.ref_external+']'); h+='<div class="blk">Reference column names reference ['+esc(r.ref_external)+']'+(rf?' &mdash; <span class="pg">'+esc(rf.text)+'</span>':'')+'</div>';}
+  if(S.mode==='impl'){}
+  el.innerHTML=h; wire(el); return;}
+ const k=S.clause; if(!k){el.innerHTML='<p class="none">Select a clause in the map.</p>'; return;}
+ if(k==='__front'){const l=(SBYCL[b]['__front']||[]).filter(s=>!S.shall||s.counts.shall); el.innerHTML='<h3>CCSDS '+esc(b)+' front matter</h3><div class="sub">Sentences before clause 1; clause: unattributed.</div>'+sentHtml(l); return;}
+ const c=C[b][k]; if(!c){el.innerHTML='<p class="none">none recorded</p>';return;}
+ let h='<h3>CCSDS '+esc(b)+' &sect;'+esc(c.key)+(c.title?' &mdash; '+esc(c.title):'')+'</h3><div class="sub">'+pg(c)+(c.parent?' &middot; inside <a class="lnk" data-go="'+esc(c.parent)+'">'+esc(c.parent)+'</a>':'')+'</div>';
+ h+='<div class="sec">Text as printed (verbatim, page numbers)</div>'+contentHtml(c);
+ if(!c.content.length&&(KIDS[b][k]||[]).length){h+='<div class="sec">Text of the direct sub-clauses (verbatim)</div>'+(KIDS[b][k]||[]).map(x=>{const cc=C[b][x]; if(S.shall&&sub(b,x).shall===0)return ''; return '<div class="blk"><a class="lnk" data-go="'+esc(x)+'"><b>'+esc(x)+'</b></a> '+(cc.title?esc(cc.title):'')+(cc.content.length?contentHtml(cc):'<div class="none">no text of its own</div>')+'</div>';}).join('');}
+ h+='<div class="sec">Normative-word sentences in this clause (shall / should / may)</div>'+sentHtml((SBYCL[b][k]||[]).filter(s=>!S.shall||s.counts.shall));
+ h+='<div class="sec">Annex A (PICS) rows that name this clause</div>'+picsHtml(b,k);
+ h+=xrefHtml(b,k);
+ const kids=(KIDS[b][k]||[]); h+='<div class="sec">Sub-clauses</div>'+(kids.length?kids.map(x=>'<a class="lnk" data-go="'+esc(x)+'">'+esc(x)+'</a>').join(', '):'<span class="none">none recorded</span>');
+ if(S.mode==='impl')h+=implHtml(b,k);
+ el.innerHTML=h; wire(el);}
+function wire(el){el.querySelectorAll('[data-go]').forEach(a=>a.onclick=()=>go(S.book,a.dataset.go)); el.querySelectorAll('[data-pics]').forEach(a=>a.onclick=()=>{S.pics=+a.dataset.pics;S.clause=null;render();writeHash();});}
+function render(){renderStack();renderMap();renderDetail();}
+$('b-std').onclick=()=>setMode('std'); $('b-impl').onclick=()=>setMode('impl');
+$('q').oninput=e=>{S.q=e.target.value; renderMap(); if(S.q)setTab('map');};
+$('shallonly').onchange=e=>{S.shall=e.target.checked; render();};
+document.querySelectorAll('#tabs button').forEach(x=>x.onclick=()=>setTab(x.dataset.t));
+window.addEventListener('hashchange',()=>{readHash();setMode(S.mode);});
+readHash(); setMode(S.mode);
+window.__navReady=true;
+})();
+</script>
+</body>
+</html>
