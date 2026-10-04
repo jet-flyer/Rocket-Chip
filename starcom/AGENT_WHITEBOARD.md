@@ -194,3 +194,47 @@ Held until **base-level verification on the FPGA board**. Not increment 19. Not 
 Owner split: Researcher FPGA / Blue Book / sim-before-bitstream. Hamilton decode as a later software port (Pi first). Buzz bench bring-up when Nathan says.
 
 ---
+
+## Dead code vs unused Starcom features (OPEN) (2026-10-04)
+
+Source: the LoRa/CCSDS stack audit of origin/main 53bfaedd (2026-10-04). Nathan wants these items noted although they are not fixed. Nothing is removed yet. Every item below needs Nathan's decision.
+
+**A) Dead code on the RC side (no caller, no plan)**
+
+- **F1: legacy CCSDS CRC-16 encoder.** Where: `telemetry_encoder.h:25`, `telemetry_encoder.h:146`, `telemetry_encoder.cpp`. The encoder has no firmware caller. Only `test/test_telemetry_encoder.cpp` uses it (958 lines, about 37 tests). An RX remnant is live in `ao_radio.cpp:427-482`. Cost: the encoder uses 0 B of flash because the linker drops it. The RX remnant uses about 56 B plus a share of the CRC-16 table. The maintenance and test work is the real cost. Disposition: needs Nathan's decision. The tests would be deleted.
+- **F3: `EncoderType` and `ROCKETCHIP_STAGE_T3_MAVLINK`.** Where: `radio_config.h:30`, `mission_profile_data.h:103`, `radio_config.h:56`, `CMakeLists.txt:844-847`. The code sets `EncoderType protocol` but no code reads `.protocol`. The code defines `ROCKETCHIP_STAGE_T3_MAVLINK` but no source reads it. Cost: a few bytes of config. The knob looks like a protocol selector but is not one. Disposition: needs Nathan's decision.
+- **F4: unused `kDefaultRadioConfig`.** Where: `radio_config.h:54-62`, `mission_profile_data.h:100-108`, `rfm95w.cpp:52`. `kDefaultRadioConfig` has no users. The live default is `kDefaultRocketRadioConfig`. `kDefaultTxPowerDbm = 20` in `rfm95w.cpp:52` is overridden by `apply_runtime_config`. Cost: three defaults for one link, and a risk of stale docs. Disposition: needs Nathan's decision.
+- **F5: `ROCKETCHIP_RADIO_PERSIST` branches.** Where: `ao_radio.cpp:395-425`, `ao_radio.cpp:552-560`, `ao_radio.cpp:674-736`, `main.cpp:217`. No CMake file defines `ROCKETCHIP_RADIO_PERSIST`. The guarded branches use names that no longer exist. They do not compile if enabled. The symmetric-revert watchdog is compiled out. Cost: about 60 lines of dead source. `main.cpp:217` still calls `radio_config_storage_init()` (40 B in the ELF). CW-B39-01 already logs this item (`L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md:189-198`). Disposition: needs Nathan's decision.
+- **F9: vestigial `retries_left` and `g_retryStats`.** Where: `ao_telemetry.cpp:1304`, `ao_telemetry.cpp:1383-1390`, `diag_stats.cpp:179-180`. The code sets `retries_left` to `kAckMaxRetries = 8`. Nothing decrements it. `g_retryStats` can show only first-try ACKs. The comment at `ao_telemetry.cpp:1383-1390` says COP-P owns resend. Cost: 120 B of bss and misleading diagnostics. Disposition: needs Nathan's decision.
+
+**B) Starcom features RC does not use (yet)**
+
+- **conv, ldpc, cop1, clcw.** Where: `starcom/src/ccsds/ldpc.cpp:169` (randomizer). The firmware does not link these four modules. They are absent from all four link maps. They have no caller outside their unit tests (for example `starcom/test/test_coding.cpp`). Cost: 0 B of flash today. Disposition: needs Nathan's decision.
+- **USLP (F11).** Where: `uslp.cpp`, `crc32.cpp:29-45`. No code calls `coppInitUslp`, so `e.uslp` stays false. The firmware links `uslp.cpp.obj` (2,070 B text), `crc16Fecf` (78 B), `coppEncodeUslp` (226 B), `coppReceiveUslp` (186 B), `coppInitUslp` (64 B), and `uslpFrameLen` (140 B). Cost: about 2.6 to 2.8 KB of flash (measured or derived). 211.2 allows USLP. FSK may want it. Disposition: needs Nathan's decision.
+- **`starcom/adapters/rp2350` radio abstraction and PIO bit pipe (F12).** Where: `radio_bus.cpp`, `pio_port.cpp`, `phy.cpp`, `radio_port.hpp` in `starcom/adapters/rp2350`, and `CMakeLists.txt:858`. This is a second radio abstraction. The firmware has no reference to it. The firmware links only `Starcom::starcom`. `pioShiftOut/In` and `PhyDecl` are the natural continuous-mode FSK bit pipe. The audit says to keep this code until the FSK seam decision. Cost: 0 B of flash today. It is a second abstraction to maintain. Disposition: needs Nathan's decision.
+- **`SpacePacketService` vs RC `SpaceSeqLane` (F12).** Where: `space_packet_service.cpp` (194 lines), `byte_pump.h:40-46`, `byte_pump.cpp:296-340`, `AGENT_WHITEBOARD.md:66`. `SpacePacketService` does the same job as RC `SpaceSeqLane`. The firmware does not wire it. The overlap is already logged at `AGENT_WHITEBOARD.md:66`. Cost: 0 B of flash today. About 10 KiB of RAM if the firmware wires it as it is (`tx_count[2048]` and `rx_count[2048]`). The audit says to resolve this before wiring, and to shrink the 2048-entry tables to the APIDs in use. Disposition: needs Nathan's decision.
+- **`huntPltu`.** Where: `pltu.cpp:~157`. The firmware does not use it. LoRa packets do not need a bit-stream ASM hunt. Cost: the audit gives no size. Disposition: needs Nathan's decision.
+- **Polled-radio design (F16).** Where: `ao_radio.cpp:615-616`, `ao_radio.cpp:753-754`, `rfm95w.cpp:326-330`, `board_pico2.h:39`, `board_fruit_jam.h:43`, `board_feather_rp2350.h:35`, `board_tiny_2350_common.h:40`. The radio has no ISR. The 100 Hz AO_Radio tick calls `handle_rx_poll` twice per tick. `kRadioTrustDio0` is false on all four boards. `rfm95w_available` always does the SPI register read. The GPIO branch is dead. Cost (estimate): about 200 two-byte SPI reads per second in RX, and up to 10 ms of RX latency. FSK continuous mode needs DCLK/DATA or FIFO-level service. This model will not carry over to FSK. Disposition: needs Nathan's decision.
+
+Nothing is removed yet.
+
+---
+
+## Cite the book section for each function (OPEN) (2026-10-04)
+
+Nathan wants each function to show which book section it comes from. Nathan says almost all Starcom functions come from the CCSDS books.
+
+**Rule:** every Starcom function that comes from a CCSDS book cites the book number and the section in a short comment. Use one line per function. Example: `CCSDS 211.2-B-3 3.6.5`. Do not use long comment blocks. The code stays clean.
+
+A function with no book section needs a reason or a review.
+
+Nathan said on 2026-10-04 that the byte pump file was written without need, and that it grew into a kitchen sink file. This row records his statement. This row does not check it.
+
+**Current practice** (checked with grep in `starcom/src` on 2026-10-04):
+
+- `starcom/src/ccsds/pltu.cpp:185`: `// 211.2 §3.6.4 c: unrecognized version — keep searching for the next ASM.`
+- `starcom/src/ccsds/space_packet.cpp:51`: `// 133.0-B-2 §4.1.3.3.3.4: Idle Packet secondary header flag is 0.`
+
+The current cites do not always name the issue. Line 185 of `pltu.cpp` writes `211.2`, not `211.2-B-3`. No count was made of functions with a cite and functions without a cite. No code is changed yet.
+
+---
