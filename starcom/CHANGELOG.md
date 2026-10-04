@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
+
+**Unadopted hardware option.** `docs/DESIGN.md` note 2026-10-04. An AT86RF215 MR-FSK transceiver is one later candidate. It is not a selected radio. No version bump. No tag. No modem work.
+
+Verified: documentation only, no library source in this change.
+
 ### 2026-10-03-001 | Grok 4.7 (Build CLI) | documentation
 
 **Which Proximity-1 applies, by year.** `docs/DESIGN.md` note 2026-10-03. Shelf URLs for the 2026 pinks, 235.1-R-1, and LunaNet v5 are root `standards/starcom/README.md`. The 915 MHz regulatory lines are root `docs/hardware/HARDWARE.md`. No version bump. No tag. No modem work. Root `CHANGELOG.md` has no row for this sitting.
