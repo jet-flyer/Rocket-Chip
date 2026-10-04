@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-04-002 | Grok 4.7 (Build CLI) | documentation
+
+**Consumer guide in Simplified Technical English.** `docs/USER_GUIDE.md` now helps a reader who does not know CCSDS. The Version-3 / Version-4 choice is one example. That file uses ASD-STE100. The other documents do not. No version bump. No tag. The later standard is root `CHANGELOG.md` 2026-10-04-001 and `AGENT_WHITEBOARD.md` (LATER).
+
+Verified: documentation only, no library source in this change.
+
 ### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
 
 **Unadopted hardware option.** `docs/DESIGN.md` note 2026-10-04. An AT86RF215 MR-FSK transceiver is one later candidate. It is not a selected radio. No version bump. No tag. No modem work.

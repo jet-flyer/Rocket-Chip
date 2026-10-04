@@ -12,6 +12,14 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
+## ASD-STE100 for documents (LATER) (2026-10-04)
+
+Same row as the root `AGENT_WHITEBOARD.md`. Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting.
+
+`docs/USER_GUIDE.md` is the example and is done. Do not rewrite it again for this row. Do not rewrite the other Starcom docs until the root row is scheduled.
+
+---
+
 ## LoRa Hail (OPEN) (2026-09-02)
 
 **Starcom** Prox-1 §6 / Best-effort hail on RFM95/915 — not a 211.1 PICS tick. Wire `MacSession`; do not reimplement §6. **Coupled with RC FPV-style scan/find** (repo-root `AGENT_WHITEBOARD.md`): same first-impl slot, **FPV scan won**. Hail is not cancelled. Stash `wip phy-scan leds docs` had both in one row. Not this sitting.

@@ -43,6 +43,12 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
+
+**ASD-STE100 stays later. The Starcom user guide is the example.** `starcom/docs/USER_GUIDE.md` helps a reader who does not know CCSDS. The Version-3 / Version-4 choice is one example. `AGENT_WHITEBOARD.md` and `starcom/AGENT_WHITEBOARD.md` hold the later pass for the other Rocket-Chip and Starcom documents. That pass is not started. Library row: `starcom/CHANGELOG.md` 2026-10-04-002. Opening-shock edits stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
 ### 2026-10-03-001 | Grok Duke (Grok Bot) | documentation, council
 
 **Magenta Books triaged, FSK coding bench question logged.** starcom/AGENT_WHITEBOARD.md gains an FEC bench question under the FSK row (211.2-B-3 convolutional and LDPC against LoRa's built-in coding, decoder size against the T8, no decision until bench results), Magenta 354.0-M-1 and 722.1-M-2 pointers under the SDLS and CFDP rows, and a Magenta Books triage section. Magenta is peer-level to Blue per A02.1-Y-4 6.1.4.3 but not directly implementable for interoperability. 523.2-M-1, 652.0-M-2, SOIS 851 to 855 and 882.0-M-1 are not for the RP2350 or the Starcom link. Research notes are on the assistant's computer, not in the repo. Requested by Nathan; dated 2026-10-03 for when the research was done.
