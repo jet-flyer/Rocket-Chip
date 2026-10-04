@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-03-001 | Grok 4.7 (Build CLI) | documentation
+
+**Which Proximity-1 applies, by year.** `docs/DESIGN.md` note 2026-10-03. Shelf URLs for the 2026 pinks, 235.1-R-1, and LunaNet v5 are root `standards/starcom/README.md`. The 915 MHz regulatory lines are root `docs/hardware/HARDWARE.md`. No version bump. No tag. No modem work. Root `CHANGELOG.md` has no row for this sitting.
+
+Verified: documentation only, no library source in this change.
+
 ### 2026-10-01-002 | Grok 4.7 (Build CLI) | feature
 
 **Space Packet service primitives, not wired in yet.** `space_packet_service` is PACKET and OCTET_STRING request and indication, assembly, transfer, extraction, and reception (133.0-B-2). No Data Loss Indicator. `PACKET.request` copies the packet as formatted. Sequence flags `11` are the packet field, not 211.0-B-6 Table 3-4. It is not wired in yet because `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), a self-implemented service already written in Rocket-Chip, still packs nav, command, and ACK and hands those frames to COP-P. No version bump. No tag.

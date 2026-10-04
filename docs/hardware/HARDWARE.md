@@ -569,10 +569,9 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 ## Regulatory Notes
 
 ### Telemetry (US)
-- **915MHz ISM Band** - License-free but power-limited
-- FCC Part 15 limits apply
-- Duty cycle and power restrictions for license-free operation
-- Check local regulations for non-US deployments
+- **915 MHz ISM** — current air bearer. IREC 2026 Frequency Student Band Plan Rev D (14 April 2026) places student-built 33 cm telemetry in 902.0–909.0 MHz as Part 15 wideband, Part 15 hopping, or narrowband amateur. Narrowband amateur needs a license, a callsign, and no encryption. 70 cm student telemetry is amateur in 420.6–438.0 MHz. Part 15 power and bandwidth limits still apply on the ISM path.
+- Mars Proximity-1 hails (404.4 MHz, 435.6 MHz, and the Channel 0 pair) and lunar S-band (2025–2110 MHz and 2200–2290 MHz) are not this radio’s frequencies. Which book applies in which year: `starcom/docs/DESIGN.md` note 2026-10-03.
+- Check local regulations for non-US deployments.
 
 ### Range hardline and flight termination
 
