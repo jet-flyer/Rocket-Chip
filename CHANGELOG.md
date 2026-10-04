@@ -43,6 +43,12 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-03-001 | Grok Duke (Grok Bot) | documentation, council
+
+**Magenta Books triaged, FSK coding bench question logged.** starcom/AGENT_WHITEBOARD.md gains an FEC bench question under the FSK row (211.2-B-3 convolutional and LDPC against LoRa's built-in coding, decoder size against the T8, no decision until bench results), Magenta 354.0-M-1 and 722.1-M-2 pointers under the SDLS and CFDP rows, and a Magenta Books triage section. Magenta is peer-level to Blue per A02.1-Y-4 6.1.4.3 but not directly implementable for interoperability. 523.2-M-1, 652.0-M-2, SOIS 851 to 855 and 882.0-M-1 are not for the RP2350 or the Starcom link. Research notes are on the assistant's computer, not in the repo. Requested by Nathan; dated 2026-10-03 for when the research was done.
+
+Verified: documentation only, no source in this change.
+
 ### 2026-10-01-003 | Grok 4.7 (Build CLI) | bugfix, feature
 
 **Space Packet header count advances. The 133.0 service is not wired in yet.** Nav, command, and ACK were leaving with sequence count 0. Each end now keeps a 14-bit count per APID (`0x001` nav, `0x003` command or ACK) and adds a receive gap to `rx_lost` (`1f23b35`). Idle APID `0x7FF` forces the secondary-header flag off. That count lives inside `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), the project's own packer, which was already written. It still builds those three packets and hands the frames to COP-P. The 133.0 request and indication layer (`b6a8ca4`, `f19a7a0`) is host-tested and is not wired in yet because that self-implemented service already owns the air path. Library row: `starcom/CHANGELOG.md` 2026-10-01-002.
