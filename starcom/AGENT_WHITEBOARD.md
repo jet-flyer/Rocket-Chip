@@ -61,6 +61,35 @@ E2d was named for microprobes (Deep Space 2 era). Greg Kazz / SLS-SLP Sep 2016: 
 
 ---
 
+## UniClOGS / OreSat station reference (LOOK) (2026-10-05)
+
+Fielded example of CCSDS data-link (USLP + COP-1 + SDLS) over a **non-CCSDS PHY**. Not a Prox-1 PHY sample. OreSat link is GFSK ~50 kb/s per field report, not residual-carrier PCM/PM.
+
+Same pattern Starcom wants: CCSDS layers over our own FSK/radio, with honest deviations labeled (OreSat EDL: SDLS header in USLP insert zone is out of spec).
+
+Station hardware (Buzz): LimeSDR, GNU Radio, UHF Yagi RHCP/LHCP, LNA/PA, coax switch; UHF 435–438 MHz amateur.
+
+Yamcs GCS reference (Goddard): UniClOGS runs Yamcs + USLP/COP-1/CFDP; GNU Radio passes CCSDS frames over UDP. Relates to parked Yamcs / openmct-yamcs option (30 Sep). AGPL-3.0 — reference only.
+
+License limits (Duke): OpenCCSDS has no license + last push Mar 2022 — read only, do not copy. oresat-c3-software and uniclogs-configs are GPL-3.0; uniclogs/yamcs is AGPL-3.0 — references only, not Starcom code.
+
+Links:
+
+- CrowdSupply OreSat field report: https://www.crowdsupply.com/lime-micro/limesdr/updates/field-report-oresat-oregons-first-satellite
+- Org: https://github.com/uniclogs
+- https://github.com/oresat/uniclogs-hardware
+- https://github.com/uniclogs/uniclogs-sdr
+- https://github.com/uniclogs/uniclogs-docs
+- OreSat EDL spec (USLP): https://github.com/oresat/oresat-c3-software/blob/1136e319fb85844638c0c549663045f731468e7f/docs/edl.rst
+- Yamcs config example: https://github.com/uniclogs/uniclogs-configs/blob/311ffc486c0b696e1a3b626a5a02d580d35351ac/etc/yamcs.oresat0_5.yaml
+- OpenCCSDS: https://github.com/oresat/OpenCCSDS
+- SmallSat paper: https://digitalcommons.usu.edu/cgi/viewcontent.cgi?article=5829&context=smallsat
+- uniclogs/yamcs: https://github.com/uniclogs/yamcs
+
+LOOK / reference only. Nothing decided or final. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 
 Same row as the root `AGENT_WHITEBOARD.md`. Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting.
