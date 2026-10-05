@@ -73,6 +73,14 @@ Same row as `starcom/AGENT_WHITEBOARD.md`. E2d named for microprobes; Greg Kazz 
 Same row as `starcom/AGENT_WHITEBOARD.md`. Fielded USLP + COP-1 + SDLS over a non-CCSDS PHY (GFSK ~50 kb/s). Not a Prox-1 PHY sample. Yamcs / LimeSDR station reference. Licenses are reference only. LOOK only — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
 
 
+## Deviation survey of other projects (OPEN) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Learn from deviations that other open projects state themselves. Record only written deviations with quote and URL. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Re-evaluate Prox-1 vs USLP for Starcom (OPEN) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Start only after the deviation survey row is done. Prox-1 may or may not fit a rocket-to-pad link versus USLP. Outcome is Nathan's decision. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 
 Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting. Do not start a wide rewrite from this row.
