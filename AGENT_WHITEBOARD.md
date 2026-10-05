@@ -17,6 +17,57 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
+
+Owner, this sitting. Two flight modes. Do not start the work from this row.
+
+Passive rocket mode uses Proximity-1 simplex (211.0-B-6 §6.4.4). No hail. One direction.
+
+The main mode may be pseudo-simplex. That name is ours. The pattern is the IRIG 106 rocket pattern: one-way telemetry in flight, two-way on the ground, one fixed pair, settings already known. This row does not select an IRIG 106 waveform. It does not replace the Proximity-1 frames. The half-duplex hitch row still says simplex stays deferred for that sitting. This row is the later mode split.
+
+Look next at the Ingenuity–Perseverance link. It is a fixed pair with that on/off pattern. It is not Proximity-1 and not the rover's Electra relay.
+
+Known so far. Not a design:
+
+- Two identical COTS IEEE 802.15.4 radios, SiFlex 02 (LS Research), about 900 MHz (reported near 914 MHz). One is on the helicopter. One is the Mars Helicopter Base Station on Perseverance. The computers talk to the radios over UART.
+- Balaram et al., AIAA 2018-0023, section F: one-way data during the short flights, at 20 kbit/s or 250 kbit/s, design range about 1 km. A secure two-way mode when landed. NTRS 20190026832. DOI 10.2514/6.2018-0023.
+- N5BF, "Mars Helicopter Telecom," EME 2024 slides (`https://www.ok2kkw.com/eme/Trenton/papers/N5BF-Mars_Helicopter_Telecom_EME2024.pdf`): the protocol was modified from Zigbee and adapted to a two-point high-throughput link. Packet or ack loss triggers retries. Flight software driver name on those slides is ISF. Helicopter-side telecom mass about 13 g. TX under 3 W. RX under 0.2 W.
+- Chahat et al., IEEE Antennas and Propagation Magazine, Dec 2020, "The Mars Helicopter Telecommunication Link." Antennas and the link budget. Not the protocol.
+
+Still unread. Open these before any mode text is written:
+
+- The actual frame, ack, and retry rules of the modified 802.15.4 stack.
+- Whether flight "one-way" is the radio receiving off, or the same radio with data in one direction.
+- Who starts a contact, and whether the radios are powered only at scheduled times.
+- What of that is useful for a fixed pad-to-rocket pair, and what is Zigbee-only.
+
+Do not adopt this radio or this protocol from this row. Do not write it into `starcom/docs/DESIGN.md`. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Waveforms stay separate (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Four waveforms stay separate. Same power-saving motive does not merge them. Not a design decision. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Half-duplex carrier-only at turnaround (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Under 211.0-B-6 §6 (and Goddard draft 235.1-R-1 Table 5-9), half duplex radiates Carrier Only (S51) at each turnaround. OPEN / not a product decision. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## E2d asymmetric option (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Books name Category E2d (211.1-B-4 / 211.1-P-4.2 Table 3-1). Working assumption IF chosen later; books give no FSK profile. Not a verified Starcom claim. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Hardware map for E2d-style path (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Working assumption only, untested. Rocket residual-PSK TX needs SDR/I/Q; RFM95/96 and CC1101 cannot make that TX waveform. Module versus die note (SX1276 / RFM95W / RFM96W). Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Licence / bands (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. Part 97 UHF forward 420–450 MHz; fixed return Ch0/Ch1 in meteorological-aids band. Open licence note; not legal advice. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## E2d history (LOOK) (2026-10-05)
+
+Same row as `starcom/AGENT_WHITEBOARD.md`. E2d named for microprobes; Greg Kazz SLS-SLP Sep 2016 cite; Green Book 210.0-G-2 descoped FSK case. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 
 Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting. Do not start a wide rewrite from this row.
@@ -48,7 +99,6 @@ Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and St
 **Parked:** grey no-data look for gauges/LAD; RF page; FDAI 8-ball; GPS-present flag; MAVLink toggle-only; custom Leaflet map spike; phone/responsive support; Yamcs (judged overkill for now).
 
 ---
-
 ## Half-duplex hitch (NEXT) (2026-09-29)
 
 Table 6-10 rows are in `starcom/src/ccsds/mac.cpp` and `src/starcom_adapt/byte_pump.cpp`. E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. Vehicle receive is one station contact (143 ms). Station receive and the carrier-loss hold are one vehicle contact (1278 ms). Vehicle send stays 1200 ms (N=11). S51, S52, and S58 still put no octets on the air. That stays in the adapter.

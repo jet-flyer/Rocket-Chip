@@ -12,6 +12,55 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
+## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
+
+Same row as the root `AGENT_WHITEBOARD.md`. Owner will look up the Ingenuity–Perseverance radio protocol as a fixed-pair example: one-way in flight, two-way on the ground. It is modified IEEE 802.15.4, not Proximity-1. Passive rocket mode is 211.0 simplex. Pseudo-simplex may be the main mode. The IRIG 106 mention is the operating pattern, not a waveform change. Do not adopt the radio. Do not write `docs/DESIGN.md` from this row. Not this sitting.
+
+---
+
+## Waveforms stay separate (LOOK) (2026-10-05)
+
+Four waveforms stay separate: residual-carrier PCM/PM; suppressed-carrier PSK (211.0); pink-book GMSK (211.1-P-4.2 S-band); E2d FSK. Same power-saving motive does not make them the same waveform or requirement set. Not a design decision. Docs and hardware notes must not merge them. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
+## Half-duplex carrier-only at turnaround (LOOK) (2026-10-05)
+
+Under 211.0-B-6 §6 (and Goddard: same pattern in draft 235.1-R-1 Table 5-9), half duplex radiates Carrier Only (S51) at each turnaround, not only at the first hail. Rare-up "pseudo-simplex" on one radio still needs residual-carrier TX from whichever side is about to send. OPEN / not a product decision. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
+## E2d asymmetric option (LOOK) (2026-10-05)
+
+Books name Category E2d (211.1-B-4 / 211.1-P-4.2 Table 3-1): element TX PSK, descoped RX FSK; not required for cross support. 211.0-B-6 Annex B1.7.9 Carrier Modulation can be PSK or FSK; hail can set TX and RX modulation separately. Working assumption IF this path is chosen later: rocket residual-PSK TX + FSK RX; ground FSK TX. Books give no FSK deviation, rate, or acquisition rules — undefined open profile, not a verified Starcom claim. Do not put FSK uplink details into CONFORMANCE without a quoted profile we write and Nathan accepts. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
+## Hardware map for E2d-style path (LOOK) (2026-10-05)
+
+Working assumption only, untested residual-PSK TX on our desk:
+
+- Rocket TX (telemetry residual-PSK): SDR or I/Q path; RFM95/96 and CC1101 cannot make that waveform.
+- Ground TX (rare FSK commands): RFM96W or CC1101 can make FSK.
+- Rocket RX: FSK (same modules).
+- Ground RX (residual-PSK): not an RFM demod path; SDR on the station is the practical receive side.
+
+Module versus die: SX1276 is the die (synth/modem); RFM95W is the 915 MHz match; RFM96W is the 433/470-class match. SPI to the die does not change the match. A 915 MHz RFM95W cannot become a clean 435 MHz Prox-1 forward radio by register writes alone. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
+## Licence / bands (LOOK) (2026-10-05)
+
+Part 97 covers UHF forward in 420–450 MHz. Fixed return Ch0/Ch1 (401.6 / 404.4 MHz) sit in meteorological-aids band, not amateur. Cite as open licence note; not legal advice. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
+## E2d history (LOOK) (2026-10-05)
+
+E2d was named for microprobes (Deep Space 2 era). Greg Kazz / SLS-SLP Sep 2016: https://mailman.ccsds.org/pipermail/sls-slp/2016-September/000772.html . Green Book 210.0-G-2 marks FSK as that descoped case, not required for cross support. Books still give no FSK deviation/rate/acquisition profile. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
+
+---
+
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 
 Same row as the root `AGENT_WHITEBOARD.md`. Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting.

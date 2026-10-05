@@ -42,6 +42,13 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-05-001 | Grok Hamilton (Grok Bot) | documentation
+
+**Whiteboard LOOK rows for Prox-1 waveforms / E2d / bands.** `starcom/AGENT_WHITEBOARD.md` and root `AGENT_WHITEBOARD.md` log LOOK rows for waveform separation, half-duplex carrier-only turnaround, E2d option + hardware map, Part 97 / met-aids note, and E2d history cite. Nothing here is a product decision. Opening-shock / flight_director edits stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+
 
 ### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
 
