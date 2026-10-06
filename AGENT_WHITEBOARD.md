@@ -73,13 +73,13 @@ Same row as `starcom/AGENT_WHITEBOARD.md`. E2d named for microprobes; Greg Kazz 
 Same row as `starcom/AGENT_WHITEBOARD.md`. Fielded USLP + COP-1 + SDLS over a non-CCSDS PHY (GFSK ~50 kb/s). Not a Prox-1 PHY sample. Yamcs / LimeSDR station reference. Licenses are reference only. LOOK only — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
 
 
-## Deviation survey of other projects (OPEN) (2026-10-05)
-
-Same row as `starcom/AGENT_WHITEBOARD.md`. Learn from deviations that other open projects state themselves. Record only written deviations with quote and URL. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
-
 ## Re-evaluate Prox-1 vs USLP for Starcom (OPEN) (2026-10-05)
 
-Same row as `starcom/AGENT_WHITEBOARD.md`. Start only after the deviation survey row is done. Prox-1 may or may not fit a rocket-to-pad link versus USLP. Outcome is Nathan's decision. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+Same row as `starcom/AGENT_WHITEBOARD.md`. Deviation-survey research is in `starcom/docs/research/` (survey, clause map, R-rows, Prox-1 vs USLP notes). Prox-1 may or may not fit a rocket-to-pad link versus USLP. Outcome is Nathan's decision. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
+
+## Exact state (2026-10-06 wrap)
+
+`main` tip after this wrap: CHANGELOG 2026-10-06-001 + `starcom/docs/research/` CCSDS compliance research set (commits `73dd0fce`, `e776ee88`, `7a0facf2`, plus this wrap commit). Deviation survey OPEN row erased (research done; not a product decision). Prox-1 vs USLP re-eval stays OPEN. LOOK waveform / E2d / UniClOGS rows unchanged. Dirty `flight_director` / `config_wizard` / `test` files were left unstaged all sitting. Cite-fix list (e.g. 231.0-B-3 -> B-4) still needs Nathan OK before edits.
 
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 

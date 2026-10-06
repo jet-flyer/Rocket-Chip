@@ -42,6 +42,13 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-06-001 | Grok Hamilton (Grok Bot) | documentation
+
+**CCSDS compliance research notes landed under Starcom.** `starcom/docs/research/` holds the deviation survey, GOY/Magenta reviews, Prox-1 MAC/lunar facts, OTS GMSK BT note, compliance draft (inferences parked), check-2/3 and clause maps, Prox-1 vs USLP notes, plus `research/README.md`. Whiteboard OPEN row for the deviation survey is erased (research deliverable done; nothing product-decided). Prox-1 vs USLP re-eval stays OPEN. Opening-shock / flight_director / config_wizard / test dirties stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+
 ### 2026-10-05-002 | Grok Hamilton (Grok Bot) | documentation
 
 **UniClOGS / OreSat LOOK reference pointer.** `starcom/AGENT_WHITEBOARD.md` and root `AGENT_WHITEBOARD.md` add one LOOK row: fielded USLP + COP-1 + SDLS over a non-CCSDS PHY (GFSK ~50 kb/s); not Prox-1. Yamcs / LimeSDR station cites; licenses reference only. Opening-shock / flight_director edits stayed unstaged.

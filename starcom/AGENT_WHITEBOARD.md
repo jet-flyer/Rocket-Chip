@@ -90,30 +90,11 @@ LOOK / reference only. Nothing decided or final. Root pointer: root `AGENT_WHITE
 
 ---
 
-## Deviation survey of other projects (OPEN) (2026-10-05)
-
-Goal: learn from deviations that other open projects state themselves. Use them to inform Starcom's own deviations.
-
-Method: record only deviations a project writes down, with a quote and a URL. No guesses from code.
-
-Owners:
-- Goddard finds projects and quotes.
-- Buzz records stated PHY choices (modulation, band, match, power).
-- Duke maps each to the book clause, marks it shall / should / may, and marks whether it matches one of our open deviations.
-- Hamilton logs the table.
-
-Starter list (Goddard): OreSat/UniClOGS, SatNOGS-COMMS, AcubeSAT TM/TC, LibreCube, OpenLST (non-CCSDS contrast), plus any project with a public PICS or "out of spec" note.
-
-Example already found: OreSat EDL states "Though out of spec, the SDLS Header is currently implemented using the USLP insert zone." (https://github.com/oresat/oresat-c3-software docs/edl.rst)
-
-OPEN. Nothing is decided. Root pointer: root `AGENT_WHITEBOARD.md`, same title.
-
 ---
 
 ## Re-evaluate Prox-1 vs USLP for Starcom (OPEN) (2026-10-05)
 
-Order: start only after Row A (Deviation survey of other projects) is done (Nathan, 2026-10-05).
-
+Order: Row A (deviation survey) research deliverable is in `docs/research/` (survey, rationale, clause map, R-rows, `prox1_vs_uslp.md`). Product outcome still waits on Nathan.
 Why: Earth-orbit and deep-space ground links normally use TM, TC, AOS, or USLP, not Prox-1. 210.0-G-1 2.2.1 says the name "Proximity" contrasts the protocol with Packet Telemetry/AOS used for Earth-deep space links, and says distance is "not intended to be the only distinguishing feature".
 
 211.0-B-6 1.1: proximity links are "short-range, bi-directional, fixed or mobile radio links ... short time delays, moderate (not weak) signals, and short, independent sessions". This profile may still fit a rocket-to-pad link. Not decided.
@@ -122,7 +103,7 @@ Why: Earth-orbit and deep-space ground links normally use TM, TC, AOS, or USLP, 
 
 USLP 732.1-B-3 (June 2024) 1.1: for "space-to-ground, ground-to-space, or space-to-space communications links". OreSat uses USLP + COP-1 + SDLS.
 
-Inputs: Row A results; Duke side-by-side (hail, half-duplex turnaround, COP-P vs COP-1, frame overhead, sync/coding books each one needs) with clause citations; current pink books and other book colors.
+Inputs: `docs/research/` Row A results; Duke side-by-side (hail, half-duplex turnaround, COP-P vs COP-1, frame overhead, sync/coding books each one needs) with clause citations; current pink books and other book colors.
 
 Outcome is Nathan's decision. No code or doc claims change until then.
 
