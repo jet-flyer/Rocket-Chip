@@ -11,7 +11,7 @@ Labels used here:
 - **candidate** / **proposed** = an option for Nathan. It is not a decision.
 - **parked** / **open** = not yet a fact. It needs the named check.
 
-References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The lunar Prox-1 Pink sheets (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red book 235.1-R-1 are tagged **[draft]**. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft. The Pink sheets and 235.1-R-1 stay as **[draft]** references (Nathan's decision, decision 5). 235.1-R-1 is for code-only work: no hardware is built from it. Other CCSDS books are background only.
+References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The lunar Prox-1 Pink sheets (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red book 235.1-R-1 are tagged **[draft]**. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft. The Pink sheets and 235.1-R-1 stay as **[draft]** references (Nathan's decision, decision 5). Guidance (Nathan, 2026-10-08): use 235.1-R-1 mainly for code-only work. This is guidance, not a hard rule; Tier 3 will involve hardware. Other CCSDS books are background only.
 
 ---
 
@@ -111,7 +111,7 @@ All numbers: SX1276 split path, vehicle 2.9 dBi, ground 2 dBi, 10 dB margin, fre
 | T3-B | Book PHY features: Bi-Phase-L, residual carrier, carrier-only, idle PN (map E7–E9) |
 | T3-C | Soft Viterbi, then LDPC + randomizer (map E11, E12) |
 | T3-D | Lunar S-band variant: launch-only US94 / US96 + Part 26 path (map §2.7) |
-| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red; code-only, no hardware is built from it, decision 5; S-band chip rate only, so a deviation at 915 MHz); SDLS on USLP for commands |
+| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red, decision 5). It is the only Prox-family source: no 211.x Blue or Pink book defines PN ranging (Duke). Re-check when 235.1 is issued as a Blue Book. S-band chip rate only, so a deviation at 915 MHz; SDLS on USLP for commands |
 
 ## 5. Tests: run order and gear (map §10, §10.1)
 
@@ -273,7 +273,7 @@ None of these is decided, except decisions 5, 8 and 13 (Nathan, 2026-10-08; clos
 4. **Form order:** A, then B and A′; B′ as the lab path; C after T5; D as the fallback (§3).
 5. **Pink / Red drafts** (map D7, Draft status). **Closed** (Nathan's decision, 2026-10-08):
    - **Nathan's decision (2026-10-08):** the lunar Prox-1 Pink sheets 211.0-P-6.2, 211.1-P-4.2 and 211.2-P-3.2 stay as **[draft]** references. Reason: they are near acceptance and less likely to change. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft.
-   - **Nathan's decision (2026-10-08):** 235.1-R-1 (Red) also stays as a **[draft]** reference, like the Pink sheets. Conditions: each cite is clearly marked **[draft]**, and it is used for code-only work. No hardware is built from it. It is Pink reference [5]. Tier 3 PN ranging (T3-E) depends on it.
+   - **Nathan's decision (2026-10-08):** 235.1-R-1 (Red) also stays as a **[draft]** reference, like the Pink sheets. Condition: each cite is clearly marked **[draft]**. Guidance (Nathan, 2026-10-08): use it mainly for code-only work; this is not a hard rule, and Tier 3 will involve hardware. It is Pink reference [5]. Tier 3 PN ranging (T3-E) uses its Annex E, the only Prox-family source (Duke); re-check when 235.1 is issued as a Blue Book.
 6. **SDLS frame version and MAC length** (map E19; 355.0-B-2 §2.1: "not applicable" to Prox-1).
 7. **Prox-1 vs USLP** (map E20; `starcom/docs/research/prox1_vs_uslp.md`; whiteboard OPEN row, `AGENT_WHITEBOARD.md` l.76–78, changed 2026-10-06).
 8. **Cite-fix list.** **Closed** (Nathan, 2026-10-08: verified corrections need no OK). Applied: 231.0-B-3 → 231.0-B-4 §6.2 in `starcom/docs/CONFORMANCE.md` and `starcom/docs/COVERAGE.md` (B-4 text checked, same content), and the 232.1-B-2 "K may never exceed 255" cite → Table 7-1 NOTE, p.7-1 (Cor. 1).
