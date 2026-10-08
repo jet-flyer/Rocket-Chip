@@ -266,11 +266,11 @@ None of these is decided. Each item points to its evidence.
 12. (Removed 2026-10-08. Its only source was an older doc.)
 13. **Reasons for the three 211.1-B-4 PHY deviations** PD1–PD3 (§8.1).
 14. (Removed 2026-10-08. Its only sources were older docs.)
-15. **Doc errors found** (files not edited):
-    - a. `docs/hardware/HARDWARE.md` l.400–410: the table says D12 = GPIO12 and D13 = GPIO13. CircuitPython `pins.c`, the Adafruit guide and the Feather schematic (nets D4 / D7 at JP3 pins 5 / 4) say the D12 pad = GPIO4 and the D13 pad = GPIO7 (the LED pin) (Buzz).
-    - b. `docs/hardware/HARDWARE.md` l.442–444: SPI on GPIO16 / 18 / 19. The board uses GPIO20 / 22 / 23 (Buzz).
-    - c. `include/rocketchip/board_feather_rp2350.h` l.43–44: pyro pins 12 / 13 are GPIO12 / 13. These are only on the HSTX back connector (pads D2P / D2N), not on the D12 / D13 header pads. This can be intentional, but the comment does not say so (Buzz).
-    - d. `standards/RF_COMPLIANCE.md` errors from Goddard (l.18 / 20, l.33, l.37 / 122, l.99, 110, 145–146, 166): see `starcom/docs/research/README.md` and map §2.6.
+15. **Doc errors found** (status per item; the doc-fix commit after this plan, 2026-10-08):
+    - a. `docs/hardware/HARDWARE.md` l.400–410: the table says D12 = GPIO12 and D13 = GPIO13. CircuitPython `pins.c`, the Adafruit guide and the Feather schematic (nets D4 / D7 at JP3 pins 5 / 4) say the D12 pad = GPIO4 and the D13 pad = GPIO7 (the LED pin) (Buzz). **Fixed.**
+    - b. `docs/hardware/HARDWARE.md` l.442–444: SPI on GPIO16 / 18 / 19. The board uses GPIO20 / 22 / 23 (Buzz). **Fixed.**
+    - c. `include/rocketchip/board_feather_rp2350.h` l.43–44: pyro pins 12 / 13 are GPIO12 / 13. These are only on the HSTX back connector (pads D2P / D2N), not on the D12 / D13 header pads. This can be intentional, but the comment does not say so (Buzz). **Not fixed:** a staged `include/` file triggers the bench_sim HW gate in the pre-commit hook, and no board test runs without Nathan's go.
+    - d. `standards/RF_COMPLIANCE.md` errors from Goddard (l.18 / 20, l.33, l.37 / 122, l.99, 110, 145–146, 166): see `starcom/docs/research/README.md` and map §2.6. **Fixed** (dependent EIRP and link-budget numbers recomputed).
 
 ## 10. Open checks (pointers to the map and this plan)
 

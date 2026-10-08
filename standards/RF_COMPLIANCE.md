@@ -1,7 +1,7 @@
 # RF Compliance Reference
 
 **Status:** Active — check on every radio code change
-**Last Updated:** 2026-08-31 (WN-100: driver defaults match this file; not legal advice)
+**Last Updated:** 2026-10-08 (antenna gains, the (b)(4) cite, the BW500 measured bandwidth and the grant status, from the 2026-10-07 research set; not legal advice)
 **Applies to:** `src/drivers/rfm95w.cpp`, `ground_station/radio_rx.cpp`, telemetry service, any code touching radio TX/RX parameters
 
 ---
@@ -15,9 +15,9 @@ RocketChip operates in the **902–928 MHz ISM band** under FCC Part 15.247, whi
 | Parameter | Limit | Source |
 |-----------|-------|--------|
 | Max peak conducted output power | **+30 dBm (1 W)** | 47 CFR 15.247(b)(3) |
-| Max antenna gain before power backoff | **6 dBi** | 47 CFR 15.247(b)(3)(ii) |
+| Max antenna gain before power backoff | **6 dBi** | 47 CFR 15.247(b)(4) |
 | Max EIRP (at 6 dBi antenna) | **+36 dBm (4 W)** | Derived: 30 + 6 |
-| Antenna gain > 6 dBi | Reduce TX power 1 dB per 1 dB excess | 47 CFR 15.247(b)(3)(ii) |
+| Antenna gain > 6 dBi | Reduce TX power 1 dB per 1 dB excess | 47 CFR 15.247(b)(4) |
 | Min 6 dB bandwidth (digital modulation) | **500 kHz** | 47 CFR 15.247(a)(2) |
 | Max PSD in any 3 kHz band | **+8 dBm** | 47 CFR 15.247(e) |
 | Spurious emissions | **30 dB below fundamental peak** | 47 CFR 15.247(d) |
@@ -30,11 +30,11 @@ LoRa uses Chirp Spread Spectrum (CSS), which is neither classical DSSS nor FHSS.
 
 **Bandwidth implications for digital modulation mode:**
 - The regulation requires a minimum **6 dB bandwidth of 500 kHz**
-- LoRa BW500 mode meets this directly (measured 6 dB BW ≈ 500 kHz)
+- LoRa BW500 mode meets this directly. Measured 6 dB BW on an SX1276 module: 0.63–0.713 MHz (Morlab report SZ24010259W01, FCC ID 2AD66-LORA1276-915, Annex A.4 p.33). Our own board is not measured yet (test T5).
 - LoRa BW125 and BW250 modes have 6 dB bandwidth **below** 500 kHz
 - BW125/BW250 qualify under the **FHSS provisions** of 15.247(a)(1) when using frequency hopping, OR can be certified under alternate provisions depending on module FCC grant
 
-**In practice:** The RFM95W module's FCC grant (via HopeRF/Semtech module certification) covers LoRa operation at all standard bandwidths. The host product inherits the module's certification when operating within the module's rated parameters. See Module Certification section below.
+**In practice:** no grant was found that covers LoRa operation at all standard bandwidths. The only HopeRF RFM95-family grant found is FCC ID 2ASEORFM95C (RFM95C, not RFM95W): DTS, 915.0 MHz, 0.0145 W (11.6 dBm) conducted, single modular approval, grant date 2019-02-28 (fccid.io mirror, not fcc.gov). No FCC ID named RFM95W was found under grantee 2ASEO (`starcom/docs/research/rc-utility-2026-10-07/goddard-g1-g4-g6.md` G1-5). The host product inherits the module's certification when operating within the module's rated parameters. See Module Certification section below.
 
 ### Duty Cycle
 
@@ -96,20 +96,20 @@ Matches `rfm95w_init` / `kDefaultRadioConfig` (live desk 2026-08-31).
 | Component | Value | Notes |
 |-----------|-------|-------|
 | TX conducted power | +20 dBm | PA_BOOST max |
-| TX antenna gain | +3 dBi | VAS XFire Pro (omnidirectional) |
+| TX antenna gain | +2.9 dBi | VAS XFire Pro (omnidirectional) |
 | Cable/connector loss | -0.5 dB | Conservative estimate, short pigtail |
-| **EIRP** | **+22.5 dBm** | Well under +36 dBm limit |
+| **EIRP** | **+22.4 dBm** | Well under +36 dBm limit |
 
-**Compliance:** EIRP of +22.5 dBm is **13.5 dB below** the FCC limit of +36 dBm. No power backoff required.
+**Compliance:** EIRP of +22.4 dBm is **13.6 dB below** the FCC limit of +36 dBm. No power backoff required.
 
 ### EIRP Calculation (Bench Configuration)
 
 | Component | Value | Notes |
 |-----------|-------|-------|
 | TX conducted power | +5 dBm | IVP-57 bench testing |
-| TX antenna gain | +3 dBi | VAS XFire Pro |
+| TX antenna gain | +2.9 dBi | VAS XFire Pro |
 | Cable/connector loss | -0.5 dB | |
-| **EIRP** | **+7.5 dBm** | |
+| **EIRP** | **+7.4 dBm** | |
 
 ### Alternative Configurations (Available via Mission Profile)
 
@@ -119,7 +119,7 @@ Matches `rfm95w_init` / `kDefaultRadioConfig` (live desk 2026-08-31).
 | SF7/BW250/CR4-5 | Higher rate profile | ~51 ms | 10 Hz | -120 dBm | 3–10 km |
 | SF6/BW500/CR4-5 | High rate / short range | ~14 ms | 50 Hz theoretical | -111 dBm | 1–5 km |
 
-BW125 does not meet the 500 kHz digital modulation bandwidth requirement on its own, but operates within the module's FCC grant parameters. BW250 is borderline. BW500 clearly meets the 500 kHz threshold.
+BW125 does not meet the 500 kHz digital modulation bandwidth requirement on its own. No grant was found that covers it (see "In practice" above). BW250 is borderline. BW500 clearly meets the 500 kHz threshold.
 
 ---
 
@@ -142,28 +142,28 @@ FSPL(dB) = 20·log10(d_m) + 20·log10(f_Hz) - 147.55
 | Parameter | Value |
 |-----------|-------|
 | TX power | +20 dBm |
-| TX antenna gain (VAS XFire Pro) | +3 dBi |
-| RX antenna gain (TBS Immortal T) | +3 dBi |
+| TX antenna gain (VAS XFire Pro) | +2.9 dBi |
+| RX antenna gain (TBS Immortal T V2) | +2 dBi |
 | FSPL at 10 km / 915 MHz | -111.7 dB |
 | Fade margin (tumble + polarization) | -5 dB |
-| **Received power** | **-90.7 dBm** |
+| **Received power** | **-91.8 dBm** |
 | RX sensitivity (SF7/BW250) | -120 dBm |
-| **Link margin** | **+29.3 dB** |
+| **Link margin** | **+28.2 dB** |
 
 ### Link Margin vs Distance
 
 | Distance | Received Power | Margin | Status |
 |----------|---------------|--------|--------|
-| 100 m | -42.7 dBm | +77.3 dB | Excellent |
-| 500 m | -56.6 dBm | +63.4 dB | Excellent |
-| 1 km | -62.7 dBm | +57.3 dB | Excellent |
-| 5 km | -76.6 dBm | +43.4 dB | Good |
-| 10 km | -90.7 dBm | +29.3 dB | Adequate |
-| 20 km | -96.7 dBm | +23.3 dB | Marginal |
+| 100 m | -51.8 dBm | +68.2 dB | Excellent |
+| 500 m | -65.7 dBm | +54.3 dB | Excellent |
+| 1 km | -71.8 dBm | +48.2 dB | Excellent |
+| 5 km | -85.7 dBm | +34.3 dB | Good |
+| 10 km | -91.8 dBm | +28.2 dB | Adequate |
+| 20 km | -97.8 dBm | +22.2 dB | Marginal |
 
 **Antenna assumptions:**
-- TX: VAS XFire Pro (~3 dBi, vertical omni, SMA)
-- RX: TBS Immortal T (~2–3 dBi, omni, SMA) — using 3 dBi for calculations
+- TX: VAS XFire Pro (2.9 dBi on the product page, vertical omni, SMA)
+- RX: TBS Immortal T V2 (2 dBi on the TBS product page, omni, SMA) — using 2 dBi for calculations
 - Both are real products with published gain patterns, not theoretical isotropic
 
 **Fade margin:** 5 dB accounts for rocket tumble (random polarization alignment), multipath from ground reflection, and atmospheric absorption (negligible at 915 MHz for <20 km).

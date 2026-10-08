@@ -397,13 +397,13 @@ This ensures users can stack standard FeatherWings (displays, sensors, storage) 
 
 | Arduino Name | Feather RP2350 GPIO | Notes |
 |--------------|---------------------|-------|
-| D5 | GPIO5 | Digital pins map directly |
+| D5 | GPIO5 | Most digital pins map directly (not D12 / D13) |
 | D6 | GPIO6 | |
 | D9 | GPIO9 | |
 | D10 | GPIO10 | Common SPI CS for FeatherWings |
 | D11 | GPIO11 | Common RST for FeatherWings |
-| D12 | GPIO12 | |
-| D13 | GPIO13 | |
+| D12 | GPIO4 | The D12 pad is GPIO4, not GPIO12 |
+| D13 | GPIO7 | The D13 pad is GPIO7 (red LED), not GPIO13 |
 | A0 | GPIO26 | Analog pins start at GPIO26 |
 | A1 | GPIO27 | |
 | A2 | GPIO28 | |
@@ -439,9 +439,9 @@ When Adafruit documentation says "CS on pin 10", they mean GPIO10 (silkscreen la
 | UART RX | GPIO1 | RX | Standard UART |
 | I2C SDA | GPIO2 | SDA | Qwiic/STEMMA QT |
 | I2C SCL | GPIO3 | SCL | Qwiic/STEMMA QT |
-| SPI RX | GPIO16 | MISO | Standard SPI |
-| SPI SCK | GPIO18 | SCK | Standard SPI |
-| SPI TX | GPIO19 | MOSI | Standard SPI |
+| SPI RX | GPIO20 | MISO | Standard SPI (SPI0) |
+| SPI SCK | GPIO22 | SCK | Standard SPI (SPI0) |
+| SPI TX | GPIO23 | MOSI | Standard SPI (SPI0) |
 | ADC0 | GPIO26 | A0 | Analog input |
 | ADC1 | GPIO27 | A1 | Analog input |
 | ADC2 | GPIO28 | A2 | Analog input |
