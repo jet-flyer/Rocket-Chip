@@ -55,8 +55,12 @@ def _import_matrix():
 # Each row: (label, paths, expected_flight, expected_station)
 #
 # - paths: list of paths as if produced by `git diff --cached --name-only`
-# - expected_flight: True iff TRIGGER_FLIGHT_BENCH should fire
+# - expected_flight: True iff TRIGGER_FLIGHT_BENCH (vehicle bench) should fire
 # - expected_station: True iff TRIGGER_STATION_BENCH should fire
+#
+# Role rule (Nathan, 2026-10-08): a firmware ([elf]) or [gate] change
+# benches BOTH roles. When every firmware path is in [station-only], only
+# the station bench runs. A radio push benches both roles.
 #
 # The matrix regexes are anchored at start-of-string (`^`) and pattern-match
 # only path prefixes — anything not matching the regex should NOT fire either
@@ -64,19 +68,19 @@ def _import_matrix():
 # =============================================================================
 
 FIXTURES = [
-    # ----- Known-good: SHOULD fire flight gate -----
+    # ----- Firmware change: BOTH roles -----
     ('flight_director module',
-     ['src/flight_director/flight_director.cpp'], True, False),
+     ['src/flight_director/flight_director.cpp'], True, True),
     ('ao_flight_director cpp',
-     ['src/active_objects/ao_flight_director.cpp'], True, False),
+     ['src/active_objects/ao_flight_director.cpp'], True, True),
     ('ao_flight_director header',
-     ['src/active_objects/ao_flight_director.h'], True, False),
+     ['src/active_objects/ao_flight_director.h'], True, True),
     ('ao_logger cpp',
-     ['src/active_objects/ao_logger.cpp'], True, False),
+     ['src/active_objects/ao_logger.cpp'], True, True),
     ('cli/rc_os core',
-     ['src/cli/rc_os.cpp'], True, False),
+     ['src/cli/rc_os.cpp'], True, True),
 
-    # ----- Station-role-only: station bench, NOT vehicle COM5 -----
+    # ----- Every firmware path in [station-only]: station bench only -----
     ('station subdirectory',
      ['src/station/something.cpp'], False, True),
     ('cli/rc_os_dashboard station-only',
@@ -87,7 +91,7 @@ FIXTURES = [
      ['src/station/station_idle_tick.cpp',
       'include/rocketchip/board_fruit_jam.h'], False, True),
 
-    # ----- Shared TUs: vehicle ELF + station scope → BOTH -----
+    # ----- Shared TUs: BOTH roles -----
     ('ao_rcos (vehicle CLI + station)',
      ['src/active_objects/ao_rcos.cpp'], True, True),
     ('ao_telemetry',
@@ -106,7 +110,7 @@ FIXTURES = [
     ('rc_os core + dashboard (shared CLI + station-only dash → both)',
      ['src/cli/rc_os.cpp', 'src/cli/rc_os_dashboard.cpp'], True, True),
 
-    # ----- Known-bad / no-fire: SHOULD NOT fire either gate -----
+    # ----- No-fire rows (docs, tests, tooling) and some image paths -----
     ('doc-only change',
      ['docs/PROJECT_STATUS.md'], False, False),
     ('changelog only',
@@ -118,11 +122,11 @@ FIXTURES = [
     ('test file only',
      ['test/test_command_handler.cpp'], False, False),
     ('CMakeLists changes vehicle ELF',
-     ['CMakeLists.txt'], True, False),
+     ['CMakeLists.txt'], True, True),
     ('sensor seqlock header (vehicle Core1)',
-     ['include/rocketchip/sensor_seqlock.h'], True, False),
+     ['include/rocketchip/sensor_seqlock.h'], True, True),
     ('icm20948 driver (vehicle IMU)',
-     ['src/drivers/icm20948.cpp'], True, False),
+     ['src/drivers/icm20948.cpp'], True, True),
     ('station-only + vehicle driver → both',
      ['src/station/station_idle_tick.cpp',
       'src/drivers/icm20948.cpp'], True, True),
@@ -142,10 +146,43 @@ FIXTURES = [
     # ao_logger* covers ao_logger.cpp AND ao_logger.h, AND ao_logger_writer.*
     # (any file starting with "src/active_objects/ao_logger"). Document that.
     ('ao_logger header (same prefix)',
-     ['src/active_objects/ao_logger.h'], True, False),
+     ['src/active_objects/ao_logger.h'], True, True),
 
-    ('rc_os_commands -> flight only',
-     ['src/cli/rc_os_commands.cpp'], True, False),
+    ('rc_os_commands -> both roles',
+     ['src/cli/rc_os_commands.cpp'], True, True),
+
+    # ----- 2026-10-08 list file (scripts/ci/firmware_paths.txt) -----
+    # Paths that reach the image but were outside the old regex.
+    ('pio program reaches the image',
+     ['pio/backup_timer.pio'], True, True),
+    ('profile cfg reaches the image',
+     ['profiles/rocket.cfg'], True, True),
+    ('pico-sdk gitlink bump',
+     ['pico-sdk'], True, True),
+    # Radio / link code: both images -> both benches (radio push).
+    ('starcom core (radio push)',
+     ['starcom/src/ccsds/mac.cpp'], True, True),
+    ('radio driver (radio push)',
+     ['src/drivers/rfm95w.cpp'], True, True),
+    ('starcom adapter (radio push)',
+     ['src/starcom_adapt/byte_pump.cpp'], True, True),
+    # Starcom docs do not reach the image.
+    ('starcom docs only',
+     ['starcom/docs/research/x.md'], False, False),
+    ('firmware path list is gate machinery',
+     ['scripts/ci/firmware_paths.txt'], True, True),
+
+    # ----- [gate] change: BOTH roles (2026-10-08) -----
+    ('vehicle bench script (gate)',
+     ['scripts/bench_sim.py'], True, True),
+    ('station bench script (gate)',
+     ['scripts/station_bench_sim.py'], True, True),
+    ('hook (gate)',
+     ['scripts/hooks/pre-push'], True, True),
+    ('station-only path + gate file -> both',
+     ['src/station/station_idle_tick.cpp', 'scripts/_rc_test_common.py'], True, True),
+    ('station-only path + docs -> station only',
+     ['src/station/station_idle_tick.cpp', 'docs/FLASHING.md'], False, True),
 ]
 
 

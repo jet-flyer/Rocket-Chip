@@ -142,7 +142,8 @@ When creating a new script under `scripts/`:
    - `0` = pass
    - `1` = real failure (block in CI)
    - `2` = environment skip (no target present, wrong build, watchdog
-     fired, KeyboardInterrupt). Pre-commit treats `2` as SKIP, not block.
+     fired, KeyboardInterrupt). The pre-push gate treats `2` as FAIL when
+     the push needs that bench (a skipped bench is a gate that did not run).
 4. **Update this file** when the script lands.
 
 Minimum-template for a new vehicle script:
@@ -188,7 +189,7 @@ dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 ## Roadmap history (completed)
 
 - **Tier 5 — station `'p'` preflight parity:** **`src/cli/rc_os.cpp`** main-menu `'p'` now calls **`cli_print_preflight()`** on RX (station) as well as vehicle — **`[Health]` / VERDICT** visible without debug menu (`2026-04-30`).
-- **Tier 6b — matrix-driven hooks:** Patterns live in **`scripts/ci/pre_commit_matrix.py`** (evaluated by **`scripts/hooks/pre-commit`**). One-time repo setup: `git config core.hooksPath scripts/hooks` — see **`scripts/hooks/README.md`**. **Categories not enumerations (2026-05-16, council unanimous, see LL Entry 40):** `FLIGHT_CRITICAL` matches any path that can change `rocketchip.elf` (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, vendored libs we link, plus the gate scripts themselves for self-rot prevention). Pure-doc / pure-test / pure-tooling exempt by virtue of not matching the regex — never by explicit carve-out. The prior narrow enumeration (~7 hand-listed FD/AO paths) was the LL Entry 36 / 39 failure mode in waiting. **Role-aware (2026-09-17):** if every staged firmware path is station-role-only (`src/station/`, Fruit Jam board header, station dashboard), skip vehicle `bench_sim` (COM5) and run `station_bench_sim` (COM7). Shared TUs still fire vehicle bench_sim.
+- **Tier 6b — matrix-driven hooks:** Paths live in ONE tracked file, **`scripts/ci/firmware_paths.txt`**, read by **`scripts/ci/pre_commit_matrix.py`**, the identity gate and `cmake/rc_version.cmake` (`kFirmwareTreeId`). **`scripts/hooks/pre-commit`** uses it for the flight target cross-compile (both roles); **`scripts/hooks/pre-push`** uses it to bench the pushed commit **once per push** (2026-10-08; `standards/HW_GATE_DISCIPLINE.md` Rule 5). One-time repo setup: `bash scripts/hooks/install.sh` — see **`scripts/hooks/README.md`**. **Categories not enumerations (2026-05-16, council unanimous, see LL Entry 40):** `[elf]` lists every path that can change a flight image (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, `pio/`, `profiles/`, vendored libs and submodules we link, the Starcom core); `[gate]` lists the gate scripts themselves (self-rot prevention). Pure-doc / pure-test / pure-tooling exempt by virtue of not matching — never by explicit carve-out. The prior narrow enumeration (~7 hand-listed FD/AO paths) was the LL Entry 36 / 39 failure mode in waiting. **Roles (2026-10-08, Nathan):** a firmware (`[elf]`) or `[gate]` change benches BOTH roles (`bench_sim` and `station_bench_sim`). One exception (2026-09-17): if every firmware path in the push is station-role-only (`[station-only]`: `src/station/`, the station board header, the station dashboard), only `station_bench_sim` runs. **Radio push:** a change to any `[radio]` path benches BOTH boards and needs the two-board radio round trip (GAP: not built).
 - **Tier 7 — watchdog ceilings:** **`@rc_test(..., watchdog_s=…)`** on **`soak_test`** (86400s), **`warm_reboot_audit`** (300s) — escapes hung USB open on Windows beyond intended wall times. (Post-R-25-exec 2026-05-13: ack_stress_test + replay_harness deleted in step 9.)
 
 Older Tier 1–4 / 6a notes remain in **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**.

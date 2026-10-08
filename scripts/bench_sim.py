@@ -20,7 +20,8 @@ banner-classified; station firmware is rejected. Connection uses
 ``open_classified_port`` for a post-open re-classify guard.
 
 Refuses leftover firmware: banner ``flight-<sha>`` must match the ELF
-``kGitHash``, the ELF must match this tree, and
+``kGitHash``, the ELF's ``kFirmwareTreeId`` must match this firmware tree
+(or ``--commit <sha>`` from the pre-push gate), and
 ``rocketchip.elf.flashed.json`` must record this ELF's sha256. A PASS
 on last week's image is a failed gate (HW_GATE_DISCIPLINE Rule 5).
 
@@ -47,6 +48,7 @@ from _rc_test_common import (  # noqa: E402
     banner_matches_elf_error,
     find_target_port,
     open_classified_port,
+    print_board_usb_serial,
     rc_test,
     refuse_stale_tree_and_elf,
     TARGET_VEHICLE_ANY,
@@ -267,6 +269,9 @@ def main():
                         help='Print all serial traffic')
     parser.add_argument('--max-runtime', type=float, default=120.0,
                         help='Wall-clock deadline (default 120s, hard-killed by watchdog)')
+    parser.add_argument('--commit', default=None,
+                        help='Sha being pushed (pre-push gate). The ELF must be a '
+                             'clean build of that firmware tree. Default: working tree.')
     args = parser.parse_args()
 
     # Wall-clock watchdog: hard kill after deadline, even if stuck inside
@@ -274,7 +279,7 @@ def main():
     _start_watchdog(args.max_runtime)
 
     repo = Path(_SCRIPTS_DIR).resolve().parent
-    expected, ident_err = refuse_stale_tree_and_elf(repo, 'vehicle')
+    expected, ident_err = refuse_stale_tree_and_elf(repo, 'vehicle', commit=args.commit)
     if ident_err or expected is None:
         print('ERROR: leftover / unflashed image would make this gate a lie.')
         print(f'  {ident_err}')
@@ -301,6 +306,7 @@ def main():
         sys.exit(1)
 
     print(f'Using {port_name} ({meta.short_summary()})')
+    print_board_usb_serial(port_name)
     print(f'  image: flight-{expected.git_hash} sha256={expected.sha256[:12]}…')
 
     try:

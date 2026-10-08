@@ -21,6 +21,7 @@ Council-required tests (2026-04-27 review):
   9. find_vehicle_and_station_ports assigns station then vehicle from mock scan.
   10. pre_commit_matrix matches staged path prefixes like the pre-commit hook.
   11. leftover banner flight-<sha> and rebuilt-unflashed ELF sha fail closed.
+  12. board_usb_serial reads the USB serial from enumeration (pre-push note).
 
 Exit code: 0 if all tests pass, 1 if any fail.
 """
@@ -481,6 +482,37 @@ def test_find_vehicle_and_station_discovers_pair() -> None:
           vp == 'COM10' and vb is not None and vb.role.name == 'VEHICLE',
           f'{vp=} {vb=}')
 
+def test_board_usb_serial_from_enumeration() -> None:
+    """The bench prints the benched board's USB serial (pre-push note
+    ``boards:`` line). Enumeration only, mocked here."""
+    print('test_board_usb_serial_from_enumeration')
+    import io
+    from contextlib import redirect_stdout
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from _rc_test_common import board_usb_serial, print_board_usb_serial
+
+    from _rc_test_common import ROCKETCHIP_USB_PID, ROCKETCHIP_USB_VID
+    ports = [SimpleNamespace(device='COM5', serial_number='E6614C311B4A2E2F',
+                             vid=ROCKETCHIP_USB_VID, pid=ROCKETCHIP_USB_PID),
+             SimpleNamespace(device='COM7', serial_number=None,
+                             vid=ROCKETCHIP_USB_VID, pid=ROCKETCHIP_USB_PID),
+             SimpleNamespace(device='COM4', serial_number='E663AC91D3487137',
+                             vid=0x2E8A, pid=0x000C)]
+    with patch('serial.tools.list_ports.comports', return_value=ports):
+        check('serial of COM5', board_usb_serial('COM5') == 'E6614C311B4A2E2F')
+        check('no serial -> None', board_usb_serial('COM7') is None)
+        check('absent port -> None', board_usb_serial('COM9') is None)
+        check('debug probe port (PID 0x000C) -> None, never a board',
+              board_usb_serial('COM4') is None)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_board_usb_serial('COM7')
+        check('unknown is printed, never an empty value',
+              buf.getvalue() == 'board_usb_serial: unknown\n', buf.getvalue())
+
+
 def test_pre_commit_matrix_triggers() -> None:
     print('test_pre_commit_matrix_triggers')
     ci_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci')
@@ -489,18 +521,19 @@ def test_pre_commit_matrix_triggers() -> None:
     from pre_commit_matrix import match  # noqa: E402
 
     # Policy 2026-05-16 (commit a40e7f5, council unanimous, LL Entry 40):
-    # ANY firmware-affecting path triggers FLIGHT_BENCH. STATION_SCOPE
-    # stays narrow (no SWD on Fruit Jam per DEBUG_PROBE_NOTES.md).
+    # ANY firmware-affecting path triggers the bench.
+    # Role rule (Nathan, 2026-10-08): a firmware or gate change benches
+    # BOTH roles; only an all-[station-only] change benches the station alone.
 
     # Pure-doc / non-firmware: neither gate.
     ft, st = match(['README.md'])
     check('no trigger on unrelated', not ft and not st)
 
-    # Firmware path → flight bench (regardless of label).
+    # Firmware path -> both roles (one source list builds both images).
     ft_f, st_f = match(['src/flight_director/flight_director.cpp'])
-    check('flight_critical', ft_f and not st_f)
+    check('flight_critical -> both roles', ft_f and st_f)
 
-    # Station-role-only: station bench, not vehicle COM5.
+    # Station-role-only: station bench only.
     ft_s, st_s = match(['src/station/main.cpp'])
     check('station_only_station_bench', (not ft_s) and st_s)
 
@@ -517,7 +550,7 @@ def test_pre_commit_matrix_triggers() -> None:
     # Empirical motivator: Cubesat lived case where a
     # target_link_libraries reorder changed init order.
     ft_c, st_c = match(['CMakeLists.txt'])
-    check('root cmake triggers flight', ft_c and not st_c)
+    check('root cmake triggers both roles', ft_c and st_c)
 
     # 8adab2d regression class — main.cpp + rc_log.h. Prior narrow
     # regex would have returned False here; new regex catches it.
@@ -536,6 +569,10 @@ def test_pre_commit_matrix_triggers() -> None:
     check('rc_test_common_self_rot', ft_rc)
     ft_fl, _ = match(['scripts/flash_elf_halt_write.py'])
     check('flash_elf_self_rot', ft_fl)
+    # A gate change benches BOTH roles (2026-10-08).
+    for gp in ('scripts/hooks/pre-commit', 'scripts/station_bench_sim.py',
+               'scripts/bench_sim.py'):
+        check(f'gate {gp} -> both roles', match([gp]) == (True, True))
 
     # Tests are exempt (host-ctest gate covers them).
     ft_t, st_t = match(['test/test_command_handler.cpp'])
@@ -608,6 +645,48 @@ def test_flash_stamp_refuses_rebuilt_elf() -> None:
               err is not None and 'not flashed' in err, repr(err))
 
 
+def test_firmware_tree_identity_gate() -> None:
+    """Build ID = firmware-tree hash; docs commits keep it (2026-10-08)."""
+    print('test_firmware_tree_identity_gate')
+    import tempfile
+    from pathlib import Path
+    from _rc_test_common import tree_matches_elf_error
+    import firmware_tree
+
+    repo = Path(os.path.dirname(os.path.abspath(__file__))).parent
+    try:
+        want = firmware_tree.elf_tree_id(repo, 'HEAD')
+    except firmware_tree.FirmwareTreeError as exc:
+        check('firmware tree hash computable', False, repr(exc))
+        return
+    check('hash is a 40-hex blob id', len(want) == 40, want)
+    with tempfile.TemporaryDirectory() as td:
+        elf = Path(td) / 'rocketchip.elf'
+        elf.write_bytes(b'image')
+
+        def img(tree_id: str) -> ExpectedImage:
+            return ExpectedImage(
+                role='vehicle', elf=elf,
+                version_header=Path(td) / 'version.h',
+                git_hash='deadbe', build_identity='x',
+                sha256=elf_sha256(elf), firmware_tree_id=tree_id)
+
+        check('push mode: matching clean build passes',
+              tree_matches_elf_error(repo, img(want), commit='HEAD') is None)
+        err = tree_matches_elf_error(repo, img('0' * 40), commit='HEAD')
+        check('push mode: other tree refused',
+              err is not None and 'firmware tree' in err, repr(err))
+        err = tree_matches_elf_error(repo, img(want + '-dirty'), commit='HEAD')
+        check('push mode: dirty build refused',
+              err is not None and 'dirty' in err, repr(err))
+        err = tree_matches_elf_error(repo, img(''), commit='HEAD')
+        check('missing kFirmwareTreeId refused',
+              err is not None and 'kFirmwareTreeId' in err, repr(err))
+    check('docs path is not firmware',
+          not firmware_tree.in_section(
+              'docs/x.md', firmware_tree.load(repo), 'elf'))
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -636,8 +715,10 @@ def main() -> int:
         test_watchdog_fires,
         test_find_vehicle_and_station_rejects_same_port,
         test_find_vehicle_and_station_discovers_pair,
+        test_board_usb_serial_from_enumeration,
         test_pre_commit_matrix_triggers,
         test_banner_refuses_leftover_git_hash,
+        test_firmware_tree_identity_gate,
         test_flash_stamp_refuses_rebuilt_elf,
     ]
 

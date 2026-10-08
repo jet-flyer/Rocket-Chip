@@ -139,10 +139,29 @@ Available for testing but not in active prototype:
 |------|--------------|-------|
 | Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
 | KB2040 | #5302 | RP2040 Pro Micro form factor |
-| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350A, 4 MB QSPI flash, tiny footprint with castellations - evaluating for Core board candidate. Detail: "Tiny 2350 (PIM721)" below |
 | ESP32-S3 Reverse TFT Feather | #5691 | Built-in display + WiFi/BT, 4MB flash, 2MB PSRAM |
 | Feather M0 RFM69HCW | #3176 | Older M0 with integrated radio - potential for dedicated GCS/relay tasks |
 | Feather M0 Adalogger | #2796 | Older M0 with SD card - potential for dedicated logging tasks |
+
+#### Tiny 2350 (PIM721)
+
+Source: product page https://shop.pimoroni.com/products/tiny-2350, and SDK 2.2.0 `pimoroni_tiny2350.h`.
+
+- Product number PIM721 (package label).
+- RP2350A, 4 MB QSPI flash. The product page lists no PSRAM.
+- RGB LED: GP18 red, GP19 green, GP20 blue, active low (product page). The SDK sets `PICO_DEFAULT_LED_PIN` to 19.
+- BOOT button: user switch on GP23, active low (product page).
+- Qw/St (Qwiic) I2C: GP12 SDA, GP13 SCL (SDK: "routed to Qw/St connector").
+- Stepping is per unit. The product page says current stock is A4. Measured unit: "Important Notes" item 2 below.
+- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2. `include/rocketchip/board_tiny_2350_plus.h` l.3 ("Pimoroni Tiny 2350+ (the Plus variant)") is a mix-up.
+
+Known conflicts in the repo map (`include/rocketchip/board_tiny_2350_common.h`):
+
+- l.24, l.84: GPIO 21 is both I2C SCL and PSRAM CS (CW-B02-03). The product page lists no PSRAM, so remove the PSRAM CS line.
+- l.23-24: I2C is on GPIO 20 / 21. GPIO 20 is the blue LED. The Qwiic I2C is on GPIO 12 / 13.
+- l.54: `kLedPin` is 25. The LED is RGB on GPIO 18-20, active low.
+- l.44: `kNeoPixelPin` is 23. GPIO 23 is the BOOT switch. The board has no NeoPixel.
 
 ### Sensors
 | Part | Adafruit P/N | Notes |
@@ -482,6 +501,7 @@ The 22-pin HSTX connector on the back provides:
      - Vehicle Feather RP2350: CHIP_ID `0x20004927`. REVISION (bits 31:28) is `0x2`, which is stepping A2 (RP2350 datasheet, Appendix C.1). Source: Buzz, SWD read, 2026-10-08. E9 applies to this board.
      - Forgix board: `picotool info -a` gives RP2350A, QFN60, revision A4, chip ID `0x0ea4b6bf2e39063a`, flash 2048K. The program on it is `forge_fpga_loader`. Source: Buzz, 2026-10-08. E9 does not apply to A4 (PCN 28: E9 fixed in A3).
      - Fruit Jam (station): `picotool info -a` gives RP2350B, QFN80 (B is the QFN80 package, RP2350 datasheet), revision A4, chip ID `0xbec71b8edc6aebd1`. Source: Buzz, 2026-10-08. E9 does not apply to A4 (the erratum lists A2 only).
+     - Tiny 2350 (Pimoroni PIM721, per the package label): `picotool info -a -f` gives RP2350, QFN60 (RP2350A), revision A2, chip ID `0x4747c69945b9afb3`, flash 4 MB, `pico_board: pimoroni_tiny2350`. Source: Buzz, 2026-10-08. E9 applies to this unit. Stepping is per unit: the product page says current stock is A4.
      - The other Feathers and the Pico 2 Ws are not measured. They are A2 by ship date (`docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` section 7.2).
 3. **LED Pin**: Always use `PICO_DEFAULT_LED_PIN` instead of hardcoding GPIO 7. The Pico SDK defines the correct pin for each board variant. Hardcoding GPIO 7 may work on some boards but fail on others.
 
