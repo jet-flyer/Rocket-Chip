@@ -257,7 +257,7 @@ Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's re
   - 211.0-B-6 §6.2.4.3 (p. 6-12): "Carrier_Only_Duration represents the time that shall be used to radiate an unmodulated carrier at the beginning of a transmission." 235.1-R-1 §5.2.3.3 (p. 5-10) **[draft]**: "Carrier_Only_Duration represents the duration for radiating an unmodulated carrier at the beginning of a transmission."
   - 211.1-B-4 §3.3.5.2 (p. 3-8): "Residual carrier shall be provided with modulation index of 60° ± 5%." RC FSK has no residual carrier. This is PD3. It is not a new deviation.
   - Our implementer value: Carrier_Only_Duration = 1 Interval_Clock tick (§13 K5). So the carrier-only phase lasts 1 tick.
-  - The SX1276 output during this tick is not in the repo docs. It is an open item on the whiteboard ("Next, before moving on").
+  - The repo docs do not say what the SX1276 sends during this tick. The FSK code must define it (Nathan, 2026-10-08).
 
 ### 8.2 Other deviations and extensions
 

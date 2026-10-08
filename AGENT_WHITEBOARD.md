@@ -21,14 +21,11 @@
 
 Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
 
-- Carrier_Only_Duration (K5 / D2 are closed; plan §13 K5). Two parts stay open:
-  - SX1276 output during the 1-tick carrier-only phase. The repo docs do not say what the chip sends (plan §8.1, PD3 note).
-  - Reading, not a stated clause: a timer at 'zero' is inactive (211.0-B-6 §6.3.1.1.2, p. 6-15), and the events fire at "WT = 1" (E4, E10, E32, E40). So a value of 0 may not end the carrier-only phase. Neither book says this in words. PLCW_Repeat_Interval has its own zero rule (211.0-B-6 §6.2.4.19.2, p. 6-14; 235.1-R-1 §5.2.3.18.2, p. 5-12 [draft]); Carrier_Only_Duration has none. Do not write this reading into the plan.
 - H6: antenna RSSI check, antenna outside vs inside the airframe, at desk power. Needs Nathan's go.
 - H1: SX1276 DIO1 / DIO2 drive states (Sleep and "–" cells of Tables 29–30). The capture also measures the DIO levels through reset, setup and each mode. Board test, needs Nathan's go.
 - P36: KB2040 analyzer power-up checks before any capture. Board test, needs Nathan's go.
 
-Exact state: `main` is ahead of `origin/main` (CHANGELOG 2026-10-08-002 and after), not pushed. The comment-fix commit passed bench_sim 2/2 on the vehicle Feather (banner `flight-136b1ae9`). Host ctest passed on every commit. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+Exact state: the final docs commit of CHANGELOG 2026-10-08-002 pushes all 2026-10-08-002 work to `origin/main`. The comment-fix commit passed bench_sim 2/2 on the vehicle Feather (banner `flight-136b1ae9`). Host ctest passed on every commit. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
 
 ## Soldering to-do (can be done today) (OPEN) (2026-10-08)
 
