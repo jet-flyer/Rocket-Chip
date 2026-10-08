@@ -1,6 +1,6 @@
 # FSK pivot plan (draft): RC radio link rework
 
-Status: **draft plan of candidates for Nathan. Nothing is decided, except decisions 5 and 8 (marked as Nathan's).** Not legal advice.
+Status: **draft plan of candidates for Nathan. Nothing is decided, except the items marked as Nathan's.** Not legal advice.
 Prepared 2026-10-08 (CT). Sources: the research set in `starcom/docs/research/rc-utility-2026-10-07/`, mainly `starcom/docs/research/rc-utility-2026-10-07/rc-product-utility-map.md` (v2i), and the room inputs of 2026-10-08 (attributed). "Map §x" points to that map. "[S#]" is a section of `starcom/docs/research/rc-utility-2026-10-07/rc_utility_calcs.py` (calc only, nothing board-measured). "[V#]" is a source in map §6.2. Repo paths are relative to the repo root.
 
 Rule for older docs (Nathan, 2026-10-08): do not reference older docs, especially if they conflict. The most recent source wins. This plan cites code and board files for the current state of the hardware and the code. Other repo docs appear only in these places: the parts and pin facts that Nathan asked for (§7.1a), Buzz's cited reason in §7.1, the repo rule for plan files (§11), docs dated 2026-10-06 or later, and docs that need a fix (decision 15, F1). Current conflicts are in §13.
@@ -245,6 +245,13 @@ Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's re
 | PD2 | §3.3.4 (p. 3-8), PICS item 4 (M), polarization | "Both forward and return links shall operate with Right Hand Circular Polarization (RHCP)." | Vehicle XFire Pro is "cross polarized linear"; ground Immortal T is linear (map §2.2) | **Nathan's reason:** antenna size and weight. Physics: linear to linear loses cos²θ with roll angle θ, so roll causes fades. Circular to linear loses a fixed 3 dB at any roll. Same-hand RHCP at both ends loses 0 dB at any roll. Nathan may revisit this if RHCP shows a significant benefit. |
 | PD3 | §3.3.5.1 (p. 3-8), PICS item 5 (M), and §3.3.5.2, modulation | "The PCM data shall be Bi-Phase-L encoded and modulated directly onto the carrier." "Residual carrier shall be provided with modulation index of 60° ± 5%." In 211.1-B-4, FSK appears only for E2d (Table 3-1, p. 3-1): "a descoped receiver capable of receiving an FSK modulated carrier. These elements transmit using PSK modulation." | NRZ FSK (forms B, B′, C, D) and LoRa (forms A, A′) | **Nathan's reason:** the SX1276 has no PCM/PM mode (map E9). |
 
+- **PD3 note: Manchester (SX1276 DcFree = 01) was considered and not adopted (Nathan, 2026-10-08).** Reasons:
+  - It gives an edge for each payload bit, but it halves the net bit rate (or it costs about 3 dB of sensitivity at a doubled chip rate).
+  - It replaces chip whitening. The preamble, the sync word and the ASM stay NRZ.
+  - It does not remove PD3: FSK is not PCM/PM, and PICS item 5 has no partial status.
+  - Chip whitening stays on (T1-B).
+  - Sources: SX1276 DS Rev 6 §4.2.13.7 p.78; 211.1-B-4 §3.3.5.1–§3.3.5.4 p.3-8.
+
 ### 8.2 Other deviations and extensions
 
 - **Hop layer (forms B, B′, A′):** a **stated deviation**. The Prox-1 books do not define frequency hopping. Hopping appears only in the informative security annexes 211.1-B-4 §B1.4 and 211.1-P-4.2 §B1.4 **[draft]** (ROOM, Duke; map §3.1). Reason: §15.247(a)(1) (FHSS power path). Form A has no hop layer. Form D has no hop layer and no power gain.
@@ -256,7 +263,7 @@ Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's re
 
 ## 9. Decisions for Nathan
 
-None of these is decided, except decisions 5 and 8 (Nathan, 2026-10-08; closed). Each item points to its evidence.
+None of these is decided, except decisions 5, 8 and 13 (Nathan, 2026-10-08; closed). Each item points to its evidence.
 
 1. **DIO jumpers:** none, DIO2 only (frame time tag, SyncAddress), or DIO1 + DIO2 (form B′). Map §9 step 0.5, T2, map C15; pin rows in §7.1; Nathan's pin constraints in §7.1a (vehicle pins schematic-checked by Buzz; H10 closed).
 2. **Which RFM95 board or wing is on each unit.** Map §10 gear; §7.1 rows assume the #3231 wing on the vehicle and the SPI1 adapter on the station.
@@ -272,7 +279,7 @@ None of these is decided, except decisions 5 and 8 (Nathan, 2026-10-08; closed).
 10. **211.2-B-3 coding option for the FSK link** (no coding, convolutional or LDPC). Map E11 / E12 give "drop" at Tier 1 as candidates only.
 11. **FSK modulation shaping and index.** If shaping is on, continuous mode needs DCLK (DS §2.1.12.2 p.70; map C15). So this decision links to decision 1.
 12. (Removed 2026-10-08. Its only source was an older doc.)
-13. **Reasons for the three 211.1-B-4 PHY deviations** PD1–PD3 (§8.1).
+13. **Reasons for the three 211.1-B-4 PHY deviations** PD1–PD3. **Closed:** Nathan's reasons are in §8.1 (2026-10-08).
 14. (Removed 2026-10-08. Its only sources were older docs.)
 15. **Doc errors found** (status per item; the doc-fix commit after this plan, 2026-10-08):
     - a. `docs/hardware/HARDWARE.md` l.400–410: the table says D12 = GPIO12 and D13 = GPIO13. CircuitPython `pins.c`, the Adafruit guide and the Feather schematic (nets D4 / D7 at JP3 pins 5 / 4) say the D12 pad = GPIO4 and the D13 pad = GPIO7 (the LED pin) (Buzz). **Fixed.**
@@ -331,7 +338,7 @@ None of these is decided, except decisions 5 and 8 (Nathan, 2026-10-08; closed).
 - PIO1 stays empty unless a product need is opted in. Form B′ is the one candidate (map §7). It needs a `PIO_BUDGET.md` entry first (F1).
 - Features only where they give a notable advantage.
 - No IRL test runs until Nathan says go.
-- Nothing in this file is decided, except decisions 5 and 8 (Nathan's). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
+- Nothing in this file is decided, except the items marked as Nathan's. Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
 
 ## 12. Repo sweep (removed 2026-10-08)
 
