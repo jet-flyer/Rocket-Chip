@@ -1,6 +1,6 @@
 # FSK pivot plan (draft): RC radio link rework
 
-Status: **draft plan of candidates for Nathan. Nothing is decided.** Not legal advice.
+Status: **draft plan of candidates for Nathan. Nothing is decided, except the one item marked "Nathan's decision" (decision 5).** Not legal advice.
 Prepared 2026-10-08 (CT). Sources: the research set in `starcom/docs/research/rc-utility-2026-10-07/`, mainly `starcom/docs/research/rc-utility-2026-10-07/rc-product-utility-map.md` (v2i), and the room inputs of 2026-10-08 (attributed). "Map §x" points to that map. "[S#]" is a section of `starcom/docs/research/rc-utility-2026-10-07/rc_utility_calcs.py` (calc only, nothing board-measured). "[V#]" is a source in map §6.2. Repo paths are relative to the repo root.
 
 Rule for older docs (Nathan, 2026-10-08): do not reference older docs, especially if they conflict. The most recent source wins. This plan cites code and board files for the current state of the hardware and the code. Other repo docs appear only in these places: the parts and pin facts that Nathan asked for (§7.1a), Buzz's cited reason in §7.1, the repo rule for plan files (§11), docs dated 2026-10-06 or later, and docs that need a fix (decision 15, F1). Current conflicts are in §13.
@@ -11,7 +11,7 @@ Labels used here:
 - **candidate** / **proposed** = an option for Nathan. It is not a decision.
 - **parked** / **open** = not yet a fact. It needs the named check.
 
-References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The Pink and Red drafts (211.x-P, 235.1-R-1) are tagged **[draft]**. They are not stable (map "How to read", Draft status). Other CCSDS books are background only.
+References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The lunar Prox-1 Pink sheets (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red book 235.1-R-1 are tagged **[draft]**. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft. The Pink sheets stay as **[draft]** references (Nathan's decision, decision 5). Whether 235.1-R-1 stays is open (decision 5). Other CCSDS books are background only.
 
 ---
 
@@ -111,7 +111,7 @@ All numbers: SX1276 split path, vehicle 2.9 dBi, ground 2 dBi, 10 dB margin, fre
 | T3-B | Book PHY features: Bi-Phase-L, residual carrier, carrier-only, idle PN (map E7–E9) |
 | T3-C | Soft Viterbi, then LDPC + randomizer (map E11, E12) |
 | T3-D | Lunar S-band variant: launch-only US94 / US96 + Part 26 path (map §2.7) |
-| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red, not stable; S-band chip rate only, so a deviation at 915 MHz); SDLS on USLP for commands |
+| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red; keep or drop is open, decision 5; S-band chip rate only, so a deviation at 915 MHz); SDLS on USLP for commands |
 
 ## 5. Tests: run order and gear (map §10, §10.1)
 
@@ -243,20 +243,22 @@ Every RC tier at 902–928 MHz has these three. The reason cells are for Nathan 
 
 - **Hop layer (forms B, B′, A′):** a **stated deviation**. The Prox-1 books do not define frequency hopping. Hopping appears only in the informative security annexes 211.1-B-4 §B1.4 and 211.1-P-4.2 §B1.4 **[draft]** (ROOM, Duke; map §3.1). Reason: §15.247(a)(1) (FHSS power path). Form A has no hop layer. Form D has no hop layer and no power gain.
 - **Chip whitening:** a declared PHY extension, not a 211.2 randomizer (map E2). Reason: the bit synchronizer needs an edge every 16 bits (DS §2.1.3.3 p.51).
-- **Uncoded NRZ FSK and LoRa:** a deviation from Blue 211.1-B-4 §3.3.5 (PD3) whatever the drafts decision is (decision 5). If the drafts stay in, 211.2-P-3.2 §3.4.2.2 Note 1 **[draft]** ("Coding option a) is only possible with Bi-Phase-L Modulation") is one more point against uncoded NRZ (map E10) (ROOM, Duke).
+- **Uncoded NRZ FSK and LoRa:** a deviation from Blue 211.1-B-4 §3.3.5 (PD3). The Pink sheets stay in (decision 5), so 211.2-P-3.2 §3.4.2.2 Note 1 **[draft]** ("Coding option a) is only possible with Bi-Phase-L Modulation") is one more point against uncoded NRZ (map E10) (ROOM, Duke).
 - **Hop gaps in B′:** 20–50 µs gaps in the continuous stream (TS_HOP, DS Rev 7 Table 7 p.15; map §3.1).
 - **Removed, not needed:** the length byte between ASM and frame. It is a chip default, not a forced deviation. Unlimited-length mode removes it, and the RX exit reads the V-3 Frame Length (map §3.2, E1; Duke D1).
 - **Rate catalog:** uses book fields per map D4 (Mode = "Mission Specific", map E15). The current packing in mode_select + scrambler bits gives those fields a non-book meaning (map E15 partial risk).
 
 ## 9. Decisions for Nathan
 
-None of these is decided. Each item points to its evidence.
+None of these is decided, except the Pink-sheet part of decision 5 (Nathan's decision, 2026-10-08). Each item points to its evidence.
 
 1. **DIO jumpers:** none, DIO2 only (frame time tag, SyncAddress), or DIO1 + DIO2 (form B′). Map §9 step 0.5, T2, map C15; pin rows in §7.1; Nathan's pin constraints in §7.1a (vehicle pins schematic-checked by Buzz; H10 closed).
 2. **Which RFM95 board or wing is on each unit.** Map §10 gear; §7.1 rows assume the #3231 wing on the vehicle and the SPI1 adapter on the station.
 3. **Go for the IRL tests,** including T11 (stepping read). Map §10.1; §5.
 4. **Form order:** A, then B and A′; B′ as the lab path; C after T5; D as the fallback (§3).
-5. **Keep or drop the Pink / Red drafts** (211.x-P, 235.1-R-1). Map D7, Draft status. Review closes 10/12/2026 (ROOM, Duke).
+5. **Pink / Red drafts** (map D7, Draft status):
+   - **Nathan's decision (2026-10-08):** the lunar Prox-1 Pink sheets 211.0-P-6.2, 211.1-P-4.2 and 211.2-P-3.2 stay as **[draft]** references. Reason: they are near acceptance and less likely to change. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft.
+   - **Open:** keep or drop 235.1-R-1 (Red). It is Pink reference [5]. Tier 3 PN ranging (T3-E) depends on it. Review closes 10/12/2026 (ROOM, Duke).
 6. **SDLS frame version and MAC length** (map E19; 355.0-B-2 §2.1: "not applicable" to Prox-1).
 7. **Prox-1 vs USLP** (map E20; `starcom/docs/research/prox1_vs_uslp.md`; whiteboard OPEN row, `AGENT_WHITEBOARD.md` l.76–78, changed 2026-10-06).
 8. **Cite-fix list** (proposed by Hamilton; includes 231.0-B-3 → 231.0-B-4 §6.2). Needs Nathan's OK.
@@ -279,7 +281,7 @@ None of these is decided. Each item points to its evidence.
 | B2 | FSK PER vs level; 0.1 % BER → 1 % PER shift | map §13, T1 |
 | B3 | Crystal offset (desk test) | map §13, §10.1 |
 | B6 | XFire Pro match 902–910 MHz | map §2.2, T6 (blocked); H6 (§10.1) |
-| B7 | XFire Pro pattern / "no nulls" | map §2.2, T9 |
+| B7 | XFire Pro pattern / "no nulls". The VAS product page shows one 915 MHz pattern plot that looks like a simulation (found 2026-10-08; map §2.2 says none was found). No measured pattern was found | map §2.2, T9 |
 | B8 | 6 dB / 20 dB BW and peak PSD | map §13, T5 (blocked) |
 | B12 | Ranging error at 1–5 km | map §4, Tier 2 hardware |
 | D2 | MIB range of Carrier_Only (PICS DLL-152 gives no range; §13 K5 clause check) | map §13; conflict K5 |
@@ -323,7 +325,7 @@ None of these is decided. Each item points to its evidence.
 - PIO1 stays empty unless a product need is opted in. Form B′ is the one candidate (map §7). It needs a `PIO_BUDGET.md` entry first (F1).
 - Features only where they give a notable advantage.
 - No IRL test runs until Nathan says go.
-- Nothing in this file is decided. Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
+- Nothing in this file is decided, except the Pink-sheet part of decision 5 (Nathan's decision). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
 
 ## 12. Repo sweep (removed 2026-10-08)
 

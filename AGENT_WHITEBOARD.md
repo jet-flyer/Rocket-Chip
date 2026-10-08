@@ -17,6 +17,23 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Next, before moving on (OPEN) (2026-10-08)
+
+Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
+
+- 235.1-R-1 Red: keep or drop (Pink ref [5]; Tier 3 PN ranging). Plan decision 5.
+- §8 deviation reasons to confirm: band (211.1-B-4 §3.3.2.2), RHCP (§3.3.4), Bi-Phase-L (§3.3.5).
+- K5 / D2: is Carrier_Only_Duration = 0 a deviation (DLL-152 Values Allowed blank).
+- H9: CHIP_ID read (T11) to confirm the Fruit Jam stepping. Needs Nathan's go.
+- H6: antenna RSSI check, antenna outside vs inside the airframe, at desk power. Needs Nathan's go.
+- H1: SX1276 DIO1 / DIO2 drive states (Sleep and "–" cells of Tables 29–30). Board test, needs Nathan's go.
+- P36: KB2040 analyzer power-up checks before any capture. Board test, needs Nathan's go.
+- CCSDS cite-fix list (e.g. 231.0-B-3 -> B-4): plan decision 8 and `starcom/docs/research/current-issue-recheck.md` l.223–227. Needs Nathan's OK.
+- Two comment fixes not committed. The bench_sim gate needs an image built from this tree and flashed first (ELF identity check). `src/safety/fault_protection.cpp` l.60–61 stale last-gasp comment (Buzz's text; patch on the box at `/workspace/rc/fault_protection_comment.patch`). `include/rocketchip/board_feather_rp2350.h` l.43–44 pyro comment (D2P = GPIO12, D2N = GPIO13 are on the HSTX back connector only; patch at `/workspace/rc/board_pyro_comment.patch`). Needs Nathan's OK for a flash + bench run, or for `--no-verify`. Not applied in the working tree.
+- `docs/hardware/PIO_BUDGET.md` l.25 "PIO1 *(empty / reserved)*" and `src/safety/pio_watchdog.cpp` l.23 "PIO1 = reserved": wording check against the "PIO1 empty on purpose" rule (`60cc4ea4`).
+
+Exact state: `main` pushed at the 2026-10-08 wrap commit. Host ctest 1010/1010 on every commit. No board test ran; the one bench_sim attempt (hook only, Nathan's go) stopped at its ELF identity check: the build_flight ELF is older than this tree. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+
 ## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
 
 Owner, this sitting. Two flight modes. Do not start the work from this row.
@@ -76,10 +93,6 @@ Same row as `starcom/AGENT_WHITEBOARD.md`. Fielded USLP + COP-1 + SDLS over a no
 ## Re-evaluate Prox-1 vs USLP for Starcom (OPEN) (2026-10-05)
 
 Same row as `starcom/AGENT_WHITEBOARD.md`. Deviation-survey research is in `starcom/docs/research/` (survey, clause map, R-rows, Prox-1 vs USLP notes). Prox-1 may or may not fit a rocket-to-pad link versus USLP. Outcome is Nathan's decision. OPEN — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
-
-## Exact state (2026-10-06 wrap)
-
-`main` tip after this wrap: CHANGELOG 2026-10-06-001 + `starcom/docs/research/` CCSDS compliance research set (commits `73dd0fce`, `e776ee88`, `7a0facf2`, plus this wrap commit). Deviation survey OPEN row erased (research done; not a product decision). Prox-1 vs USLP re-eval stays OPEN. LOOK waveform / E2d / UniClOGS rows unchanged. Dirty `flight_director` / `config_wizard` / `test` files were left unstaged all sitting. Cite-fix list (e.g. 231.0-B-3 -> B-4) still needs Nathan OK before edits.
 
 ## ASD-STE100 for documents (LATER) (2026-10-04)
 
@@ -343,6 +356,3 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 **Stage 16: Field Tuning** - All VALIDATE parameters. Needs flight data.
 
 **Stage 17: Field Testing** - IVP-135, 136, 137, 138. Airframe integration, ground test, flight test, exit gate. Needs hardware access and weather. IVP-134 (pre-flight checklist) already committed.
-
-## Exact state (2026-09-20 wrap)
-`main` tip after this wrap commit: oMCT Master Dashboard PoC (facsimile + live MAVLink bridge script) + prior station USB MAVLink/QGC work on origin. Live glass = PoC; STX toggle-only + field/RSSI specifics still NEXT (WB). Serve oMCT from `docs/gcs/openmct/`.

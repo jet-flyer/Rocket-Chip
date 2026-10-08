@@ -42,6 +42,13 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-08-001 | Grok Hamilton (Grok Bot) | documentation
+
+**FSK pivot planning sitting.** The RC product-utility research set landed (`868167ce`, `starcom/docs/research/rc-utility-2026-10-07/`). A draft FSK pivot plan landed (`docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`): PHY forms and order, phases, tests, DIO pin rows, open conflict K5, open checks (H6 antenna, H9 stepping). The plan records the E9 scope for every floating vehicle input and the RP2350 stepping evidence from ship dates: Feathers and Pico 2 Ws are A2; the Fruit Jam is probably A4 (H9 open). Nathan's decision: the lunar Prox-1 Pink sheets stay as [draft] references; 235.1-R-1 (Red) stays open. `docs/hardware/PIO_BUDGET.md` l.53 no longer reads as a PIO1 beacon reservation. Verified doc errors are fixed in `docs/hardware/HARDWARE.md` (D12 / D13 pads, SPI pins) and `standards/RF_COMPLIANCE.md` (the (b)(4) cite, BW500 measured bandwidth, grant status, antenna gains and link budget, U.FL, pattern note). The two comment fixes (`src/safety/fault_protection.cpp` beacon comment, `include/rocketchip/board_feather_rp2350.h` pyro comment) are not committed: the bench_sim gate needs a fresh flash. They are on the whiteboard, with the other next items ("Next, before moving on").
+
+Verified: documentation only, no firmware source in this change. Host ctest 1010/1010 on each commit. The one bench_sim hook attempt stopped at its ELF identity check; no board test ran.
+
+
 ### 2026-10-06-001 | Grok Hamilton (Grok Bot) | documentation
 
 **CCSDS compliance research notes landed under Starcom.** `starcom/docs/research/` holds the deviation survey, GOY/Magenta reviews, Prox-1 MAC/lunar facts, OTS GMSK BT note, compliance draft (inferences parked), check-2/3 and clause maps, Prox-1 vs USLP notes, plus `research/README.md`. Whiteboard OPEN row for the deviation survey is erased (research deliverable done; nothing product-decided). Prox-1 vs USLP re-eval stays OPEN. Opening-shock / flight_director / config_wizard / test dirties stayed unstaged.
