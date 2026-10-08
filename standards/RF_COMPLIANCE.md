@@ -132,9 +132,9 @@ FSPL(dB) = 20·log10(d_m) + 20·log10(f_Hz) - 147.55
 | Distance | FSPL | Notes |
 |----------|------|-------|
 | 100 m | 71.7 dB | Bench/close range |
-| 500 m | 85.6 dB | Typical field test |
+| 500 m | 85.7 dB | Typical field test |
 | 1 km | 91.7 dB | Model rocket apogee (low-mid power) |
-| 5 km | 105.6 dB | High-power rocket |
+| 5 km | 105.7 dB | High-power rocket |
 | 10 km | 111.7 dB | HAB / extreme range |
 
 ### Full Link Budget at 10 km
@@ -155,16 +155,17 @@ FSPL(dB) = 20·log10(d_m) + 20·log10(f_Hz) - 147.55
 | Distance | Received Power | Margin | Status |
 |----------|---------------|--------|--------|
 | 100 m | -51.8 dBm | +68.2 dB | Excellent |
-| 500 m | -65.7 dBm | +54.3 dB | Excellent |
+| 500 m | -65.8 dBm | +54.2 dB | Excellent |
 | 1 km | -71.8 dBm | +48.2 dB | Excellent |
-| 5 km | -85.7 dBm | +34.3 dB | Good |
+| 5 km | -85.8 dBm | +34.2 dB | Good |
 | 10 km | -91.8 dBm | +28.2 dB | Adequate |
 | 20 km | -97.8 dBm | +22.2 dB | Marginal |
 
 **Antenna assumptions:**
-- TX: VAS XFire Pro (2.9 dBi on the product page, vertical omni, SMA)
+- TX: VAS XFire Pro (2.9 dBi on the product page, vertical omni, U.FL per https://www.team-blacksheep.com/products/prod:vas_915mhz_xfp_u)
 - RX: TBS Immortal T V2 (2 dBi on the TBS product page, omni, SMA) — using 2 dBi for calculations
-- Both are real products with published gain patterns, not theoretical isotropic
+- VAS XFire Pro pattern: the VAS product page (https://videoaerialsystems.com/products/xfire-pro-antenna) shows one 915 MHz pattern plot. It looks like a simulation, and it is not labeled as a measurement. It shows 2.4 to 2.9 dBic in the horizontal plane and −6.6 to 2.9 dBic in the vertical plane. No measured pattern was found.
+- TBS Immortal T V2 pattern: no published pattern was found.
 
 **Fade margin:** 5 dB accounts for rocket tumble (random polarization alignment), multipath from ground reflection, and atmospheric absorption (negligible at 915 MHz for <20 km).
 
