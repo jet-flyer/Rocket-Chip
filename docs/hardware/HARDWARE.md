@@ -477,7 +477,7 @@ The 22-pin HSTX connector on the back provides:
 ### Important Notes
 
 1. **PSRAM (GPIO 8)**: If board has 8MB PSRAM installed, GPIO 8 is reserved for PSRAM CS. Do not use as general GPIO.
-2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pulldowns. Use 8.2K or smaller external pull-down resistors where needed.
+2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pull-downs. RP2350 datasheet Appendix D.5.1 gives two fixes: an external pull-down of 8.2 kΩ or less, or the pad pull-up (it still works). **Chosen for the vehicle Feather (Nathan, 2026-10-08): the internal pad pull-up** (no extra parts). Firmware rule: ignore the radio DIO lines until the radio is configured, because an undriven DIO reads high. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` section 7.2.
    - **Measured RP2350 stepping (2026-10-08):**
      - Vehicle Feather RP2350: CHIP_ID `0x20004927`. REVISION (bits 31:28) is `0x2`, which is stepping A2 (RP2350 datasheet, Appendix C.1). Source: Buzz, SWD read, 2026-10-08. E9 applies to this board.
      - Forgix board: `picotool info -a` gives RP2350A, QFN60, revision A4, chip ID `0x0ea4b6bf2e39063a`, flash 2048K. The program on it is `forge_fpga_loader`. Source: Buzz, 2026-10-08. E9 does not apply to A4 (PCN 28: E9 fixed in A3).

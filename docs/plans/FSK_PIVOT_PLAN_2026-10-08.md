@@ -193,8 +193,10 @@ What the hardware docs record (facts; the pins are not decided here):
 - **E9 on the vehicle (Buzz):** the vehicle Feather is A2 (measured 2026-10-08, below). The other Feathers are A2 by ship date (evidence below). So the E9 rule covers every vehicle input that can float, not only DIO1 / DIO2. This includes:
   - open-drain interrupt outputs, for example the Adalogger RTC INT;
   - any INT or PPS pad before its wire is connected.
-- **Candidate workaround (Buzz):** enable the internal pull-up on each of these inputs. Do not rely on the internal pull-down. DS Appendix D.5.1 says that it cannot overcome E9. The pull-up needs no extra parts. It does no harm on A4.
-  - **Open (Nathan):** pull-up vs external pull-down. Both are in RP2350 DS D.5.1 (pull-down of 8.2 kΩ or less; the pad pull-up still works). SX1276 DIO interrupts are active-high, so with a pull-up an undriven DIO reads as a pending interrupt; with the pull-down it reads idle (Buzz, reading). HARDWARE.md l.480 names the pull-down.
+- **Chosen (Nathan, 2026-10-08: use what is onboard):** the internal pad pull-up on each of these inputs on the vehicle Feather (A2). RP2350 DS Appendix D.5.1: the pad pull-up still works; an external pull-down must be 8.2 kΩ or less. The internal pull-down cannot overcome E9. The pull-up needs no extra parts. It does no harm on A4.
+  - **Firmware rule:** with the pull-up, an undriven DIO reads high. SX1276 DIO interrupts are active-high, so this looks like a pending interrupt. Ignore DIO interrupts from radio reset until the radio is configured, and for at least 5 ms after a manual reset (SX1276 DS §7.2.2) or 10 ms after POR (§7.2.1).
+  - **Exception, FSK continuous TX:** DIO2 / DATA is an input to the radio. If the RP2350 pin stays an input with the pull-up, the radio sends a constant 1. Firmware must set the DIO2 GPIO (vehicle GPIO27) to an output before continuous TX.
+  - **DIO state out of reset: not confirmed by the datasheet** (Buzz, SX1276 DS Rev 6). Table 1 lists DIO0–DIO5 as "I/O, Digital I/O, software configured". RegDioMapping1 / 2 (0x40 / 0x41) reset to 0x00, so each DIO has a flag function after reset (reading: driven as outputs; not stated). §7.2 gives no DIO state while NRESET is low or during POR. The H1 analyzer capture (KB2040 on DIO1 / DIO2 / DIO5) will measure it.
 - Push-pull outputs that are always driven (for example GPS TX) do not need the pull-up.
 - Candidate: the same pull-up on the station DIO inputs. **Not needed:** the Fruit Jam is A4 (measured 2026-10-08); E9 lists A2 only.
 - The KB2040 analyzer is RP2040. E9 does not apply to it (§6).
@@ -229,7 +231,7 @@ What the hardware docs record (facts; the pins are not decided here):
   - B′ is the one PIO1 candidate, and only if Nathan opts in.
   - On the vehicle, both programs would use GPIOBASE 0. The station's GPIOBASE 16 does not affect this.
   - If both are ever opted in, the F1 `PIO_BUDGET.md` entry must show that they fit in the 32 instructions of PIO1. This is not checked. Neither program exists.
-- **Open H1 (Buzz's untested assumption):** the SX1276 drives DIO1 and DIO2 in every mode. Buzz (2026-10-08): DIO2 is bidirectional. The datasheet does not give the radio state for the "–" cells and for Sleep. The pull-up (§7.2) also covers those states. H1 stays open.
+- **Open H1 (Buzz's untested assumption):** the SX1276 drives DIO1 and DIO2 in every mode. Buzz (2026-10-08): DIO2 is bidirectional. The datasheet does not give the radio state for the "–" cells and for Sleep. The pull-up (§7.2) also covers those states. The H1 analyzer capture also measures the DIO levels through reset, setup and each mode. H1 stays open.
 
 ## 8. Deviations
 
