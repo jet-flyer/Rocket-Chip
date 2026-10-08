@@ -3,7 +3,7 @@
 ## Issue check (2026-10-05, Nathan's rule)
 Every rule here rests on the current Blue Book: 732.1-B-3 (no draft on ccsds.org/review), 211.0-B-6, 211.1-B-4, 232.0-B-4 incl. Cor 1, 232.1-B-2 incl. Cor 1. Drafts checked: 211.0-P-6.2, 211.1-P-4.2.
 Any older issue in this file (732.1-B-1/B-2, 131.0-B-3/B-4, etc.) is HISTORY: it records what a project itself cites, not a rule we follow.
-- 232.1-B-2 §5.1.12 (1 ≤ K ≤ PW): holds in the current issue. Cor 1 adds "NOTE – Although 1 ≤ K ≤ PW, the value of K may never exceed 255."
+- 232.1-B-2 §5.1.12 (1 ≤ K ≤ PW): holds in the current issue. Cor 1 adds, in Table 7-1 (p.7-1), not in §5.1.12: "NOTE – Although 1 ≤ K ≤ PW, the value of K may never exceed 255."
 - USLP FECF 16 bits: current rule is 732.1-B-3 §4.1.6.2.2. B-2 is named only because Yamcs/OreSat/spacepackets-py cite it.
 - CHANGED IN DRAFT: Prox-1 near-Earth text. 211.1-B-4 §3.3.1 has both "430 MHz cannot be used ... in the vicinity of the Earth" and the layering provision for near-Earth use. 211.1-P-4.2 §3.3.1 drops BOTH sentences. It keeps "designed primarily for use in a Proximity link space environment far from Earth" and adds "the frequency bands for which the use of Proximity-1 is foreseen (UHF and S-Band)".
 

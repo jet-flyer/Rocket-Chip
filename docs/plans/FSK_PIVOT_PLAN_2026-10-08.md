@@ -1,6 +1,6 @@
 # FSK pivot plan (draft): RC radio link rework
 
-Status: **draft plan of candidates for Nathan. Nothing is decided, except decision 5 (marked "Nathan's decision").** Not legal advice.
+Status: **draft plan of candidates for Nathan. Nothing is decided, except decisions 5 and 8 (marked as Nathan's).** Not legal advice.
 Prepared 2026-10-08 (CT). Sources: the research set in `starcom/docs/research/rc-utility-2026-10-07/`, mainly `starcom/docs/research/rc-utility-2026-10-07/rc-product-utility-map.md` (v2i), and the room inputs of 2026-10-08 (attributed). "Map §x" points to that map. "[S#]" is a section of `starcom/docs/research/rc-utility-2026-10-07/rc_utility_calcs.py` (calc only, nothing board-measured). "[V#]" is a source in map §6.2. Repo paths are relative to the repo root.
 
 Rule for older docs (Nathan, 2026-10-08): do not reference older docs, especially if they conflict. The most recent source wins. This plan cites code and board files for the current state of the hardware and the code. Other repo docs appear only in these places: the parts and pin facts that Nathan asked for (§7.1a), Buzz's cited reason in §7.1, the repo rule for plan files (§11), docs dated 2026-10-06 or later, and docs that need a fix (decision 15, F1). Current conflicts are in §13.
@@ -256,7 +256,7 @@ Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's re
 
 ## 9. Decisions for Nathan
 
-None of these is decided, except decision 5 (Nathan's decision, 2026-10-08; closed). Each item points to its evidence.
+None of these is decided, except decisions 5 and 8 (Nathan, 2026-10-08; closed). Each item points to its evidence.
 
 1. **DIO jumpers:** none, DIO2 only (frame time tag, SyncAddress), or DIO1 + DIO2 (form B′). Map §9 step 0.5, T2, map C15; pin rows in §7.1; Nathan's pin constraints in §7.1a (vehicle pins schematic-checked by Buzz; H10 closed).
 2. **Which RFM95 board or wing is on each unit.** Map §10 gear; §7.1 rows assume the #3231 wing on the vehicle and the SPI1 adapter on the station.
@@ -267,7 +267,7 @@ None of these is decided, except decision 5 (Nathan's decision, 2026-10-08; clos
    - **Nathan's decision (2026-10-08):** 235.1-R-1 (Red) also stays as a **[draft]** reference, like the Pink sheets. Conditions: each cite is clearly marked **[draft]**, and it is used for code-only work. No hardware is built from it. It is Pink reference [5]. Tier 3 PN ranging (T3-E) depends on it.
 6. **SDLS frame version and MAC length** (map E19; 355.0-B-2 §2.1: "not applicable" to Prox-1).
 7. **Prox-1 vs USLP** (map E20; `starcom/docs/research/prox1_vs_uslp.md`; whiteboard OPEN row, `AGENT_WHITEBOARD.md` l.76–78, changed 2026-10-06).
-8. **Cite-fix list** (proposed by Hamilton; includes 231.0-B-3 → 231.0-B-4 §6.2). Needs Nathan's OK.
+8. **Cite-fix list.** **Closed** (Nathan, 2026-10-08: verified corrections need no OK). Applied: 231.0-B-3 → 231.0-B-4 §6.2 in `starcom/docs/CONFORMANCE.md` and `starcom/docs/COVERAGE.md` (B-4 text checked, same content), and the 232.1-B-2 "K may never exceed 255" cite → Table 7-1 NOTE, p.7-1 (Cor. 1).
 9. **Analyzer pick:** gusmanb on the KB2040 (Buzz's candidate) or sigrok-pico on the Pico 2 W (§6).
 10. **211.2-B-3 coding option for the FSK link** (no coding, convolutional or LDPC). Map E11 / E12 give "drop" at Tier 1 as candidates only.
 11. **FSK modulation shaping and index.** If shaping is on, continuous mode needs DCLK (DS §2.1.12.2 p.70; map C15). So this decision links to decision 1.
@@ -331,7 +331,7 @@ None of these is decided, except decision 5 (Nathan's decision, 2026-10-08; clos
 - PIO1 stays empty unless a product need is opted in. Form B′ is the one candidate (map §7). It needs a `PIO_BUDGET.md` entry first (F1).
 - Features only where they give a notable advantage.
 - No IRL test runs until Nathan says go.
-- Nothing in this file is decided, except decision 5 (Nathan's decision). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
+- Nothing in this file is decided, except decisions 5 and 8 (Nathan's). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
 
 ## 12. Repo sweep (removed 2026-10-08)
 

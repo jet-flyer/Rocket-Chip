@@ -26,7 +26,6 @@ Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detai
 - H6: antenna RSSI check, antenna outside vs inside the airframe, at desk power. Needs Nathan's go.
 - H1: SX1276 DIO1 / DIO2 drive states (Sleep and "–" cells of Tables 29–30). Board test, needs Nathan's go.
 - P36: KB2040 analyzer power-up checks before any capture. Board test, needs Nathan's go.
-- CCSDS cite-fix list (e.g. 231.0-B-3 -> B-4): plan decision 8 and `starcom/docs/research/current-issue-recheck.md` l.223–227. Needs Nathan's OK.
 
 Exact state: `main` pushed at the 2026-10-08 wrap commit. Host ctest 1010/1010 on every commit. No board test ran; the one bench_sim attempt (hook only, Nathan's go) stopped at its ELF identity check: the build_flight ELF is older than this tree. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
 
