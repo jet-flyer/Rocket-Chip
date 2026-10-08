@@ -1,6 +1,6 @@
 # FSK pivot plan (draft): RC radio link rework
 
-Status: **draft plan of candidates for Nathan. Nothing is decided, except the one item marked "Nathan's decision" (decision 5).** Not legal advice.
+Status: **draft plan of candidates for Nathan. Nothing is decided, except decision 5 (marked "Nathan's decision").** Not legal advice.
 Prepared 2026-10-08 (CT). Sources: the research set in `starcom/docs/research/rc-utility-2026-10-07/`, mainly `starcom/docs/research/rc-utility-2026-10-07/rc-product-utility-map.md` (v2i), and the room inputs of 2026-10-08 (attributed). "Map §x" points to that map. "[S#]" is a section of `starcom/docs/research/rc-utility-2026-10-07/rc_utility_calcs.py` (calc only, nothing board-measured). "[V#]" is a source in map §6.2. Repo paths are relative to the repo root.
 
 Rule for older docs (Nathan, 2026-10-08): do not reference older docs, especially if they conflict. The most recent source wins. This plan cites code and board files for the current state of the hardware and the code. Other repo docs appear only in these places: the parts and pin facts that Nathan asked for (§7.1a), Buzz's cited reason in §7.1, the repo rule for plan files (§11), docs dated 2026-10-06 or later, and docs that need a fix (decision 15, F1). Current conflicts are in §13.
@@ -11,7 +11,7 @@ Labels used here:
 - **candidate** / **proposed** = an option for Nathan. It is not a decision.
 - **parked** / **open** = not yet a fact. It needs the named check.
 
-References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The lunar Prox-1 Pink sheets (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red book 235.1-R-1 are tagged **[draft]**. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft. The Pink sheets stay as **[draft]** references (Nathan's decision, decision 5). Whether 235.1-R-1 stays is open (decision 5). Other CCSDS books are background only.
+References: the Prox-1 Blue Books come first (211.0-B-6, 211.1-B-4, 211.2-B-3). The lunar Prox-1 Pink sheets (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red book 235.1-R-1 are tagged **[draft]**. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft. The Pink sheets and 235.1-R-1 stay as **[draft]** references (Nathan's decision, decision 5). 235.1-R-1 is for code-only work: no hardware is built from it. Other CCSDS books are background only.
 
 ---
 
@@ -69,7 +69,7 @@ All numbers: SX1276 split path, vehicle 2.9 dBi, ground 2 dBi, 10 dB margin, fre
 | 0.3 | Antenna match and pattern | T6, T9 |
 | 0.4 | FSK rate choice | T1, B2 |
 | 0.5 | DIO jumpers (wiring decision): DIO2 for the exact frame time tag; DIO2 + DIO1 for form B′ (map C15). None are wired today (Nathan) | T2 |
-| 0.6 | RP2350 stepping on each board (E9 scope) | T11 (§7.2), only when Nathan says go |
+| 0.6 | RP2350 stepping on each board (E9 scope). Vehicle Feather: A2; Fruit Jam: A4; Forgix: A4 (all measured 2026-10-08) | Done for the boards in hand (H9 closed, §7.2) |
 
 ### 4.2 Tier 1 phases (RFM95W, 902–928 MHz)
 
@@ -111,7 +111,7 @@ All numbers: SX1276 split path, vehicle 2.9 dBi, ground 2 dBi, 10 dB margin, fre
 | T3-B | Book PHY features: Bi-Phase-L, residual carrier, carrier-only, idle PN (map E7–E9) |
 | T3-C | Soft Viterbi, then LDPC + randomizer (map E11, E12) |
 | T3-D | Lunar S-band variant: launch-only US94 / US96 + Part 26 path (map §2.7) |
-| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red; keep or drop is open, decision 5; S-band chip rate only, so a deviation at 915 MHz); SDLS on USLP for commands |
+| T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red; code-only, no hardware is built from it, decision 5; S-band chip rate only, so a deviation at 915 MHz); SDLS on USLP for commands |
 
 ## 5. Tests: run order and gear (map §10, §10.1)
 
@@ -190,12 +190,13 @@ What the hardware docs record (facts; the pins are not decided here):
 ### 7.2 E9 and the RP2350 stepping
 
 - **E9 scope (Buzz, RP2350 DS Appendix D.5.1):** E9 affects stepping A2 only. On A2, an undriven input latches near 2.2 V. The internal pull-down cannot overcome it. The datasheet says "the pad pull-up still works".
-- **E9 on the vehicle (Buzz, datasheet only):** the Feathers are A2 (ship-date evidence below). So the E9 rule covers every vehicle input that can float, not only DIO1 / DIO2. This includes:
+- **E9 on the vehicle (Buzz):** the vehicle Feather is A2 (measured 2026-10-08, below). The other Feathers are A2 by ship date (evidence below). So the E9 rule covers every vehicle input that can float, not only DIO1 / DIO2. This includes:
   - open-drain interrupt outputs, for example the Adalogger RTC INT;
   - any INT or PPS pad before its wire is connected.
 - **Candidate workaround (Buzz):** enable the internal pull-up on each of these inputs. Do not rely on the internal pull-down. DS Appendix D.5.1 says that it cannot overcome E9. The pull-up needs no extra parts. It does no harm on A4.
+  - **Open (Nathan):** pull-up vs external pull-down. Both are in RP2350 DS D.5.1 (pull-down of 8.2 kΩ or less; the pad pull-up still works). SX1276 DIO interrupts are active-high, so with a pull-up an undriven DIO reads as a pending interrupt; with the pull-down it reads idle (Buzz, reading). HARDWARE.md l.480 names the pull-down.
 - Push-pull outputs that are always driven (for example GPS TX) do not need the pull-up.
-- Candidate: the same pull-up on the station DIO inputs until H9 closes. It does no harm on A4.
+- Candidate: the same pull-up on the station DIO inputs. **Not needed:** the Fruit Jam is A4 (measured 2026-10-08); E9 lists A2 only.
 - The KB2040 analyzer is RP2040. E9 does not apply to it (§6).
 - **Which steppings ship (Goddard):** the fix is in A3, but A3 was an internal stepping. Shipped chips are A2 or A4, so the marking to look for is A4. A4 is a drop-in part. Raspberry Pi stopped making A2 and pulled the remaining A2 stock. Sources: PCN 28, https://pip-assets.raspberrypi.com/categories/1263-pcn/documents/RP-008771-CC-2-RP235x%20A4%20stepping%20PCN.pdf (E9 "Fixed, A3"); https://www.raspberrypi.com/news/rp2350-a4-rp2354-and-a-new-hacking-challenge/ .
 - **Ship-date evidence (Nathan's Adafruit order emails):**
@@ -209,8 +210,13 @@ What the hardware docs record (facts; the pins are not decided here):
 - **Result (evidence, not proof):**
   - The Feathers and the Pico 2 Ws are A2. They shipped in February 2025, before A4 was released. The Adafruit Feather guide also says A2 (Goddard). E9 applies to them.
   - The Fruit Jam is probably A4. It shipped after the Oct 8th, 2025 PCB change. Old stock is possible.
-  - **Open check H9** stays open until the chip marking or the CHIP_ID read (T11) settles each board. T11 needs Nathan's go.
-- **T11, stepping read (Buzz; only when Nathan says go):** RP2350 DS Appendix C: CHIP_ID is at 0x40000000 (SYSINFO), and REVISION is bits 31:28 (Table 1425). One read-only OpenOCD `mdw 0x40000000` per board through the Debug Probe. The table does not map the value to a stepping, so compare the value with `rp2350_chip_version()`.
+- **Measured (2026-10-08):**
+  - Vehicle Feather RP2350: CHIP_ID `0x20004927`. REVISION (bits 31:28) is `0x2`, which is A2 (RP2350 DS Appendix C.1). Source: Buzz, SWD read. This agrees with the ship-date evidence. E9 applies to the vehicle.
+  - Forgix board: `picotool info -a` gives RP2350A, QFN60, revision A4, chip ID `0x0ea4b6bf2e39063a`, flash 2048K, program `forge_fpga_loader`. Source: Buzz. E9 does not apply to it.
+  - Fruit Jam: `picotool info -a` gives RP2350B, QFN80 (B is the QFN80 package, RP2350 DS), revision A4, chip ID `0xbec71b8edc6aebd1`. Source: Buzz. This agrees with the ship-date evidence. E9 does not apply to it (the erratum lists A2 only).
+  - **H9 is closed** for the boards in hand: vehicle Feather A2, Forgix A4, Fruit Jam A4. Only the vehicle Feather needs an E9 fix.
+  - Note: the other Feathers and the Pico 2 Ws are not measured. They are A2 by ship date. This is not an open blocker. Measure a board before the plan uses it.
+- **T11, stepping read (Buzz; only when Nathan says go):** RP2350 DS Appendix C: CHIP_ID is at 0x40000000 (SYSINFO), and REVISION is bits 31:28 (Table 1425). One read-only OpenOCD `mdw 0x40000000` per board through the Debug Probe. **Done for the vehicle Feather (2026-10-08):** REVISION `0x2` = A2 (Buzz, DS Appendix C.1).
 
 ### 7.3 PIO1 and follow-ups
 
@@ -231,13 +237,13 @@ What the hardware docs record (facts; the pins are not decided here):
 
 ### 8.1 Mandatory 211.1-B-4 PHY deviations (ROOM, Duke, 2026-10-08)
 
-Every RC tier at 902–928 MHz has these three. The reason cells are for Nathan to confirm. The text in brackets is a candidate reason only.
+Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's reasons (2026-10-08).
 
 | # | 211.1-B-4 clause (Blue, stable) | Quote | RC today | Reason |
 |---|---|---|---|---|
-| PD1 | §3.3.2.2.1–2 (p. 3-5), band | "The forward frequency band shall be from 435 to 450 MHz"; "The return frequency band shall be from 390 to 405 MHz." | 902–928 MHz in every tier | Nathan to confirm. [Candidate: US ISM band rules for a civilian, Part 15 §15.247 / §15.249 (map §2.6–§2.7).] |
-| PD2 | §3.3.4 (p. 3-8), PICS item 4 (M), polarization | "Both forward and return links shall operate with Right Hand Circular Polarization (RHCP)." | Vehicle XFire Pro is "cross polarized linear"; ground Immortal T is linear (map §2.2) | Nathan to confirm. [Candidate: antenna choice for a small vehicle and a low-cost station.] |
-| PD3 | §3.3.5.1 (p. 3-8), PICS item 5 (M), and §3.3.5.2, modulation | "The PCM data shall be Bi-Phase-L encoded and modulated directly onto the carrier." "Residual carrier shall be provided with modulation index of 60° ± 5%." In 211.1-B-4, FSK appears only for E2d (Table 3-1, p. 3-1): "a descoped receiver capable of receiving an FSK modulated carrier. These elements transmit using PSK modulation." | NRZ FSK (forms B, B′, C, D) and LoRa (forms A, A′) | Nathan to confirm. [Candidate: the SX1276 has no PCM/PM (map E9).] |
+| PD1 | §3.3.2.2.1–2 (p. 3-5), band | "The forward frequency band shall be from 435 to 450 MHz"; "The return frequency band shall be from 390 to 405 MHz." | 902–928 MHz in every tier | **Nathan's reason:** the SX1276 frequency range. DS Rev 6 Table 7 (FR) gives 137–175, 410–525 and 862–1020 MHz, so there is no 390–405 MHz return band. Also FCC Part 15 (§15.247 / §15.249; map §2.6–§2.7). |
+| PD2 | §3.3.4 (p. 3-8), PICS item 4 (M), polarization | "Both forward and return links shall operate with Right Hand Circular Polarization (RHCP)." | Vehicle XFire Pro is "cross polarized linear"; ground Immortal T is linear (map §2.2) | **Nathan's reason:** antenna size and weight. Physics: linear to linear loses cos²θ with roll angle θ, so roll causes fades. Circular to linear loses a fixed 3 dB at any roll. Same-hand RHCP at both ends loses 0 dB at any roll. Nathan may revisit this if RHCP shows a significant benefit. |
+| PD3 | §3.3.5.1 (p. 3-8), PICS item 5 (M), and §3.3.5.2, modulation | "The PCM data shall be Bi-Phase-L encoded and modulated directly onto the carrier." "Residual carrier shall be provided with modulation index of 60° ± 5%." In 211.1-B-4, FSK appears only for E2d (Table 3-1, p. 3-1): "a descoped receiver capable of receiving an FSK modulated carrier. These elements transmit using PSK modulation." | NRZ FSK (forms B, B′, C, D) and LoRa (forms A, A′) | **Nathan's reason:** the SX1276 has no PCM/PM mode (map E9). |
 
 ### 8.2 Other deviations and extensions
 
@@ -250,15 +256,15 @@ Every RC tier at 902–928 MHz has these three. The reason cells are for Nathan 
 
 ## 9. Decisions for Nathan
 
-None of these is decided, except the Pink-sheet part of decision 5 (Nathan's decision, 2026-10-08). Each item points to its evidence.
+None of these is decided, except decision 5 (Nathan's decision, 2026-10-08; closed). Each item points to its evidence.
 
 1. **DIO jumpers:** none, DIO2 only (frame time tag, SyncAddress), or DIO1 + DIO2 (form B′). Map §9 step 0.5, T2, map C15; pin rows in §7.1; Nathan's pin constraints in §7.1a (vehicle pins schematic-checked by Buzz; H10 closed).
 2. **Which RFM95 board or wing is on each unit.** Map §10 gear; §7.1 rows assume the #3231 wing on the vehicle and the SPI1 adapter on the station.
 3. **Go for the IRL tests,** including T11 (stepping read). Map §10.1; §5.
 4. **Form order:** A, then B and A′; B′ as the lab path; C after T5; D as the fallback (§3).
-5. **Pink / Red drafts** (map D7, Draft status):
+5. **Pink / Red drafts** (map D7, Draft status). **Closed** (Nathan's decision, 2026-10-08):
    - **Nathan's decision (2026-10-08):** the lunar Prox-1 Pink sheets 211.0-P-6.2, 211.1-P-4.2 and 211.2-P-3.2 stay as **[draft]** references. Reason: they are near acceptance and less likely to change. Duke: CCSDS gives Red and Pink the same stability; a Pink sheet is only not a first draft.
-   - **Open:** keep or drop 235.1-R-1 (Red). It is Pink reference [5]. Tier 3 PN ranging (T3-E) depends on it. Review closes 10/12/2026 (ROOM, Duke).
+   - **Nathan's decision (2026-10-08):** 235.1-R-1 (Red) also stays as a **[draft]** reference, like the Pink sheets. Conditions: each cite is clearly marked **[draft]**, and it is used for code-only work. No hardware is built from it. It is Pink reference [5]. Tier 3 PN ranging (T3-E) depends on it.
 6. **SDLS frame version and MAC length** (map E19; 355.0-B-2 §2.1: "not applicable" to Prox-1).
 7. **Prox-1 vs USLP** (map E20; `starcom/docs/research/prox1_vs_uslp.md`; whiteboard OPEN row, `AGENT_WHITEBOARD.md` l.76–78, changed 2026-10-06).
 8. **Cite-fix list** (proposed by Hamilton; includes 231.0-B-3 → 231.0-B-4 §6.2). Needs Nathan's OK.
@@ -304,7 +310,7 @@ None of these is decided, except the Pink-sheet part of decision 5 (Nathan's dec
 | H10 | **Closed 2026-10-08.** Vehicle DIO pins A0 = GPIO26 / A1 = GPIO27 vs the on-hand FeatherWings and the SPI IMU CS / interrupt pins (Nathan's criterion, §7.1a). Buzz checked them from the schematics. Not measured on a board; H2 still covers the continuity check | §7.1a |
 | H6 | Hop channel set and vehicle antenna for IREC users: student band 902.0–909.0 MHz vs XFire Pro rated 910–930 MHz. Was conflict K8. Detail in §10.1 | §10.1; map B6, C8 |
 | H8 | The 19 compliance-record rows with FSK pivot impact "Yes", and rows R09–R12, get a new status after the FSK sitting | `starcom/docs/research/compliance-record-draft.md` l.124–125, l.165–168 |
-| H9 | RP2350 stepping of each board. Feathers and Pico 2 Ws: A2 by ship date (February 2025, before A4). Fruit Jam: probably A4 (shipped 2026-02-11, after the 2025-10-08 PCB change); evidence, not proof, because old stock is possible. Settled by the chip marking or T11, only when Nathan says go | §7.2 |
+| H9 | **Closed 2026-10-08 for the boards in hand.** RP2350 stepping, measured by Buzz: vehicle Feather **A2** (CHIP_ID `0x20004927`, SWD read); Forgix **A4** (`picotool info -a`); Fruit Jam **A4** (RP2350B, QFN80, `picotool info -a`). Only the vehicle Feather needs an E9 fix. Note: the other Feathers and the Pico 2 Ws are A2 by ship date (February 2025, before A4), not measured; not a blocker unless the plan uses them | §7.2 |
 
 ### 10.1 H6 detail: vehicle antenna and the IREC student band (was K8)
 
@@ -325,7 +331,7 @@ None of these is decided, except the Pink-sheet part of decision 5 (Nathan's dec
 - PIO1 stays empty unless a product need is opted in. Form B′ is the one candidate (map §7). It needs a `PIO_BUDGET.md` entry first (F1).
 - Features only where they give a notable advantage.
 - No IRL test runs until Nathan says go.
-- Nothing in this file is decided, except the Pink-sheet part of decision 5 (Nathan's decision). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
+- Nothing in this file is decided, except decision 5 (Nathan's decision). Agents can amend this file while its commit is not pushed (Nathan, 2026-10-08). After the push, later edits need Nathan's OK (`docs/agents/PROTECTED_FILES.md` l.67: `docs/plans/*` "frozen on commit").
 
 ## 12. Repo sweep (removed 2026-10-08)
 

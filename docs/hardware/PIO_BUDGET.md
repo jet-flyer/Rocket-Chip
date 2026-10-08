@@ -22,7 +22,7 @@ not raw SM count.
 | Block | Program / owner | SMs | Sources |
 |-------|-----------------|-----|---------|
 | PIO0 | WS2812 status LED | 1 (claimed via `pio_claim_free_sm_and_add_program_for_gpio_range`) | `src/drivers/ws2812_status.cpp`, SDK `ws2812.pio` |
-| PIO1 | *(empty / reserved)* | 0 / 4 free | Comment in `pio_watchdog.cpp`: PIO1 reserved |
+| PIO1 | *(empty on purpose)* | 0 / 4 free | Rule `60cc4ea4`; comment in `pio_watchdog.cpp`: PIO1 empty on purpose |
 | PIO2 | Heartbeat watchdog | 1 (`pio_claim_unused_sm`) | `pio/heartbeat_watchdog.pio`, `src/safety/pio_watchdog.*` |
 | PIO2 | Backup drogue + main timers | 2 (same `backup_timer` program, two SMs) | `pio/backup_timer.pio`, `src/safety/pio_backup_timer.*` |
 | PIO2 | *(free)* | **1 SM free** | — |
