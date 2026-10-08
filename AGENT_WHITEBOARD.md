@@ -21,7 +21,6 @@
 
 Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
 
-- §8 deviation reasons to confirm: band (211.1-B-4 §3.3.2.2), RHCP (§3.3.4), Bi-Phase-L (§3.3.5).
 - K5 / D2: is Carrier_Only_Duration = 0 a deviation (DLL-152 Values Allowed blank).
 - H6: antenna RSSI check, antenna outside vs inside the airframe, at desk power. Needs Nathan's go.
 - H1: SX1276 DIO1 / DIO2 drive states (Sleep and "–" cells of Tables 29–30). Board test, needs Nathan's go.
