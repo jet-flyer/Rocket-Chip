@@ -50,7 +50,7 @@ If we decline ARM-dead RF, skip the beacon sitting — LED/`b` find-me + pyro PI
 ## First-flight note (passive Estes)
 
 No pyro on first flight. Backup timer SMs may still init but are not load-bearing for chute.
-Do not casually free PIO2 SMs without a profile gate; do not use that as an excuse to crowd PIO2 with beacon work — beacon stays on **PIO1**.
+Do not casually free PIO2 SMs without a profile gate; do not use that as an excuse to crowd PIO2 with beacon work — the beacon is never on **PIO2**.
 
 ## Related
 
