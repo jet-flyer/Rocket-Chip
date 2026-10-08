@@ -651,6 +651,7 @@ Each section gives: (1) what it does and the clause, (2) physics at RC's point, 
 3. **Cost.** Today the 30 ms is a silent timer (`byte_pump.cpp` l.536–545). Radiating 10 ms at +20 dBm would cost 1.2 mA·s per turn [S7].
 4. **Partial risk.** The tail serves a convolutional decoder; uncoded packets have none.
 5. **Verdict.** Tier 1 **adapt**: Carrier_Only → 0 (or preamble time), Acquisition_Idle → preamble bytes, Tail → 0 for uncoded. Keep MIB names. Tier 2 **adapt**. Tier 3 **keep**.
+6. **(2026-10-08, Nathan)** Carrier_Only_Duration = 1 Interval_Clock tick. This replaces "0 (or preamble time)" above. Clauses: plan `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` §13 K5.
 
 ### E8. Idle data PN (211.2-B-3 §3.3, PICS item 2 M)
 
@@ -914,7 +915,7 @@ Status: **closed** = answered by a room input in v2; **open** = still needs the 
 | ID | Check | Status |
 |---|---|---|
 | D1 | Length byte between ASM and frame | **closed**: books have none (211.2-B-3 §3.2.2, §3.2.4.2); length from V-3 Frame Length |
-| D2 | Carrier_Only = 0 allowed? / randomizer | Randomizer **closed** (LDPC only; 235.1-R-1 Note **[draft]**; B1.7.6 Scrambler; P-3.2 Note 1 **[draft]**). MIB range of Carrier_Only: **open** |
+| D2 | Carrier_Only = 0 allowed? / randomizer | Randomizer **closed** (LDPC only; 235.1-R-1 Note **[draft]**; B1.7.6 Scrambler; P-3.2 Note 1 **[draft]**). MIB range of Carrier_Only: **closed 2026-10-08** (Nathan): not a deviation; implementer value 1 Interval_Clock tick (plan `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` §13 K5) |
 | D3 | 1 ms as CUC unit | **closed**: not exact with fine octets; unit "defined in the metadata" vs §1.2 second |
 | D4 | Book fields for a rate catalog | **closed** (E15) |
 | D5 | Hard-decision LDPC loss | **closed**: ≈ 1.6 dB (Hamkins PR 42-184) |

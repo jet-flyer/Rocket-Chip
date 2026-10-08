@@ -253,6 +253,11 @@ Every RC tier at 902–928 MHz has these three. The reason cells are Nathan's re
   - It does not remove PD3: FSK is not PCM/PM, and PICS item 5 has no partial status.
   - Chip whitening stays on (T1-B).
   - Sources: SX1276 DS Rev 6 §4.2.13.7 p.78; 211.1-B-4 §3.3.5.1–§3.3.5.4 p.3-8.
+- **PD3 note: carrier-only phase on FSK (Nathan, 2026-10-08).**
+  - 211.0-B-6 §6.2.4.3 (p. 6-12): "Carrier_Only_Duration represents the time that shall be used to radiate an unmodulated carrier at the beginning of a transmission." 235.1-R-1 §5.2.3.3 (p. 5-10) **[draft]**: "Carrier_Only_Duration represents the duration for radiating an unmodulated carrier at the beginning of a transmission."
+  - 211.1-B-4 §3.3.5.2 (p. 3-8): "Residual carrier shall be provided with modulation index of 60° ± 5%." RC FSK has no residual carrier. This is PD3. It is not a new deviation.
+  - Our implementer value: Carrier_Only_Duration = 1 Interval_Clock tick (§13 K5). So the carrier-only phase lasts 1 tick.
+  - The SX1276 output during this tick is not in the repo docs. It is an open item on the whiteboard ("Next, before moving on").
 
 ### 8.2 Other deviations and extensions
 
@@ -299,7 +304,7 @@ None of these is decided, except decisions 5, 8 and 13 (Nathan, 2026-10-08; clos
 | B7 | XFire Pro pattern / "no nulls". The VAS product page shows one 915 MHz pattern plot that looks like a simulation (found 2026-10-08; map §2.2 says none was found). No measured pattern was found | map §2.2, T9 |
 | B8 | 6 dB / 20 dB BW and peak PSD | map §13, T5 (blocked) |
 | B12 | Ranging error at 1–5 km | map §4, Tier 2 hardware |
-| D2 | MIB range of Carrier_Only (PICS DLL-152 gives no range; §13 K5 clause check) | map §13; conflict K5 |
+| D2 | **Closed 2026-10-08 (Nathan).** MIB value of Carrier_Only_Duration. It is not a deviation: the implementer enters the value (211.0-B-6 §A1.2–§A1.3, p. A-2; PICS DLL-152, p. A-13). Our value: 1 Interval_Clock tick | §13 K5 |
 | G7 | Sourced prosumer segment size (university and CubeSat) | map §2.1 |
 | G9 | Part 97: launch sites vs the TX/NM box | map §13 |
 | G10 | Extreme-flight gear (ground antennas) | map §6 |
@@ -348,11 +353,11 @@ Nathan (2026-10-08): do not reference older docs, especially if they conflict. T
 
 ## 13. Current conflicts for Nathan
 
-Nathan and the team work out current conflicts together (Nathan, 2026-10-08). A conflict stays here only if the other side is current. "Current" means dated 2026-10-06 or later, or an outside fact (a CCSDS book, a rule, a band plan or a product spec). K1, K2, K3, K4, K6 and K7 are removed, because their other side was an older repo doc. K8 is now open check H6 (§10.1, 2026-10-08). The K numbers do not change. One conflict is open: K5. It is not resolved here.
+Nathan and the team work out current conflicts together (Nathan, 2026-10-08). A conflict stays here only if the other side is current. "Current" means dated 2026-10-06 or later, or an outside fact (a CCSDS book, a rule, a band plan or a product spec). K1, K2, K3, K4, K6 and K7 are removed, because their other side was an older repo doc. K8 is now open check H6 (§10.1, 2026-10-08). The K numbers do not change. No conflict is open. K5 is closed (Nathan, 2026-10-08).
 
 | # | Other side says (source) | This plan says | Note |
 |---|---|---|---|
-| K5 | Half duplex radiates Carrier Only at each turnaround (211.0-B-6 §6; outside fact) | T1-C remap: Carrier_Only → 0 or the preamble time (map E7) | Map check D2 (MIB range of Carrier_Only) is open. Duke's clause check (below) shows that K5 may be a wording conflict, not a design conflict. Nathan decides |
+| K5 | Half duplex radiates Carrier Only at each turnaround (211.0-B-6 §6; outside fact) | T1-C remap: Carrier_Only_Duration = 1 Interval_Clock tick (map E7) | **Closed 2026-10-08 (Nathan).** The state machine keeps Carrier Only at each turnaround. Our implementer value is 1 Interval_Clock tick. D2 is closed. Clauses: K5 decision (below) |
 | K8 | (Removed 2026-10-08. Moved to open check H6, §10.1.) | — | — |
 
 **K5 clause check (ROOM, Duke, 2026-10-08):**
@@ -362,6 +367,17 @@ Nathan and the team work out current conflicts together (Nathan, 2026-10-08). A 
 - The 235.1-R-1 tables are the same (E8, E48, E50) **[draft]**.
 - 211.0-B-6 §6.2.4.3 (p. 6-12): "Carrier_Only_Duration represents the time that shall be used to radiate an unmodulated carrier at the beginning of a transmission."
 - 211.0-B-6 PICS item DLL-152 (p. A-13) has status M. Its Values Allowed column is blank. It gives no minimum, no maximum and no default. It does not say anything about a value of 0.
-- Result: the state machine runs Carrier_Only at every turnaround. Map E7 sets only its value (0 or the preamble time).
-- Open: is a value of 0 a deviation? (map D2).
-- So K5 may be a wording conflict, not a design conflict. Nathan decides.
+- Result: the state machine runs Carrier_Only at every turnaround. Map E7 sets only its value.
+
+**K5 decision (Nathan, 2026-10-08):**
+- D2 is not a deviation. Carrier_Only_Duration is an MIB parameter, and the implementer enters its value:
+  - 211.0-B-6 §A1.2 (p. A-2): "The support column should also be used, when appropriate, to enter values supported for a given capability."
+  - 211.0-B-6 §A1.3 (p. A-2): "The implementer shall complete the RL by entering appropriate responses in the support or values supported column, using the notation described in A1.2."
+  - 235.1-R-1 §A1.2–§A1.3 (p. A-2) **[draft]**: the same text. PICS item 100 Carrier_Only_Duration (p. A-9) **[draft]**: status M, Values Allowed blank. Annex F (p. F-1, normative) **[draft]**: "Mandatory. Used in full-duplex, half-duplex, and simplex session establishment and COMM_CHANGE. Session static (see 5.2.3.3)."
+- Our implementer value (design choice): Carrier_Only_Duration = 1 Interval_Clock tick. In RC today, a tick is 1 ms (`starcom/docs/CONFORMANCE.md` l.121). It is our choice.
+- Timer clauses for this value:
+  - 211.0-B-6 §6.3.1.1.1 (p. 6-15): "All timers shall use the MIB parameter Interval_Clock."
+  - 211.0-B-6 §6.3.1.1.2 (p. 6-15): "when the timer equals ‘1’, the event associated with the timer shall occur;" and "when the timer equals ‘zero’ it shall be in an inactive state;"
+  - 211.0-B-6 Table 6-7 E4 and E10 (p. 6-22), Table 6-10 E32 (p. 6-27) and E40 (p. 6-28): "WT = 1 Carrier_Only_Duration Timeout".
+  - 235.1-R-1 **[draft]**: §5.3.1.1.1–§5.3.1.1.2 (p. 5-13) have the same rules ("when the timer equals ‘zero’, it shall be in an inactive state;"). Table 5-6 E4 and E10 (p. 5-19), Table 5-9 E32 (p. 5-24) and E40 (p. 5-25): "WT = 1 Carrier_Only_Duration Timeout".
+- Where the text is now: 211.0-P-6.2 **[draft]** has no Carrier_Only_Duration text (text search: 0 hits). Its Document Control (p. vi) says: "Transferred P1 state tables, diagrams, and SPDU formats." Its reference [5] (p. 1-8) is 235.1-R-1. The 211.0-B-6 and 235.1-R-1 clauses above agree. Re-check when 235.1 is issued as a Blue Book.
