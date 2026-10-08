@@ -27,7 +27,27 @@ Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detai
 - H1: SX1276 DIO1 / DIO2 drive states (Sleep and "–" cells of Tables 29–30). Board test, needs Nathan's go.
 - P36: KB2040 analyzer power-up checks before any capture. Board test, needs Nathan's go.
 
-Exact state: `main` pushed at the 2026-10-08 wrap commit. Host ctest 1010/1010 on every commit. No board test ran; the one bench_sim attempt (hook only, Nathan's go) stopped at its ELF identity check: the build_flight ELF is older than this tree. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+Exact state: `main` is ahead of `origin/main` (CHANGELOG 2026-10-08-002 and after), not pushed. The comment-fix commit passed bench_sim 2/2 on the vehicle Feather (banner `flight-136b1ae9`). Host ctest passed on every commit. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+
+## Soldering to-do (can be done today) (OPEN) (2026-10-08)
+
+Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 2026-10-08 (schematic-checked, not measured). Plan = `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
+
+- **Vehicle RFM95 DIO jumpers to the Feather RP2350.** DIO1 -> A0 (GPIO26). DIO2 -> A1 (GPIO27). DIO5 -> GPIO TBD (DIO5 is for the Manchester / Packet-mode data capture). Sources: plan l.157 (pin row), plan l.232 and l.308 (H1), plan l.309 (H2 continuity check after the jumper).
+  - **Blocker:** the E9 choice must close first (plan l.197, "Open (Nathan)": pull-up vs external pull-down). If Nathan picks the external pull-down, solder one resistor of 8.2 kΩ or less on each DIO line together with the jumpers (`docs/hardware/HARDWARE.md` l.480; RP2350 DS D.5.1). If he picks the internal pull-up, no extra parts.
+  - **DIO5 pin:** Buzz picks it from the schematics and posts it here before anyone solders.
+- **Station RFM95 DIO jumpers to the Fruit Jam.** DIO1 -> A1 (GPIO41). DIO2 -> A2 (GPIO42). DIO5 -> GPIO TBD (Buzz posts it first). Fruit Jam A0 is not on the header (plan l.158, l.161). No E9 resistor: the Fruit Jam is A4 (plan l.199).
+- **KB2040 logic analyzer.** Solder the header pins. Add the trigger jumper TX (GPIO0) -> RX (GPIO1) and the D2 PWM self-check jumper (P36 part 2). Channels 1-8 are D2-D9 (GPIO2-9). Sources: plan l.144-145, l.304 (P36). The plan does not give the other end of the D2 self-check jumper; Buzz to confirm before soldering.
+- **Pico 2 W "probe" (spare board, plan l.134). Job: open (Nathan):** logic analyzer or second SWD probe.
+  - Logic analyzer: Buzz chose the KB2040, because the gusmanb README says E9 locks bare Pico 2 inputs under PIO (plan l.146, P32). For SWD, E9 does not matter.
+  - Before soldering, Buzz reads the Pico 2 W chip revision with picotool. A4 has no E9 (plan l.218: A2 by ship date, not measured).
+  - Repo docs give no wiring for a second SWD probe. The current probe is the Adafruit #5699 (`docs/hardware/HARDWARE.md` l.58); the Feather has SWD and the Fruit Jam has no SWD (`docs/FLASHING.md` l.58, l.158).
+
+### No solder needed
+
+- **P36 part 1:** KB2040 BOOT, then the gusmanb v6.0.0.1 UF2; check that it enumerates (plan l.145, l.304).
+- **H6 part 1:** desk RSSI baseline, both boards at 2 dBm, fixed distance (plan l.327 check 2; desk power plan l.135).
+- **H6 part 2** (antenna inside the airframe) waits for the airframe setup (plan l.327).
 
 ## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
 
