@@ -20,7 +20,7 @@ bool pio_watchdog_init() {
         return true;
     }
 
-    // Use PIO2 — dedicated to safety (PIO0 = WS2812, PIO1 = reserved)
+    // Use PIO2 — dedicated to safety (PIO0 = WS2812, PIO1 = empty on purpose)
     g_pio = pio2;
 
     int sm = pio_claim_unused_sm(g_pio, false);

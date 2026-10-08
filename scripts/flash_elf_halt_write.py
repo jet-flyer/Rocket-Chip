@@ -10,6 +10,7 @@ Requires OpenOCD on :4444 (scripts/start_openocd_pico_sdk.ps1).
 from __future__ import annotations
 
 import argparse
+import re
 import socket
 import sys
 import time
@@ -131,18 +132,27 @@ def flash(elf: Path) -> int:
         "targets rp2350.cm0",
         "set vec [read_memory 0x10000000 32 2]",
         "reg msp [lindex $vec 0]",
-        "reg pc [lindex $vec 1]",
+        # PC bit 0 is RAZ/SBZ (Armv8-M ARM RXCCB); Thumb state is xPSR.T below.
+        "reg pc [format 0x%08x [expr {[lindex $vec 1] & 0xFFFFFFFE}]]",
         "reg xpsr 0x01000000",
         "resume",
+        "sleep 200",
+        "mdw 0xe000edf0",  # DHCSR: bit 17 S_HALT must be 0 after resume
     ]
     text = ocd_session(commands)
-    print(text[-3000:])
+    # Telnet IAC bytes decode to U+FFFD; a cp1252 pipe cannot print that.
+    print(text[-3000:].encode("ascii", "backslashreplace").decode("ascii"))
     ok = "verified" in text.lower()
+    m = re.search(r"0xe000edf0:\s*([0-9a-fA-F]{8})", text)
+    running = m is not None and not (int(m.group(1), 16) >> 17) & 1
     print("flash", "OK" if ok else "CHECK", "park+write+vector resume cm0, no reset")
+    if not running:
+        print("resume CHECK: core0 still halted (DHCSR",
+              m.group(1) if m else "not read", ") - docs/FLASHING.md section 4")
     if ok:
         sidecar = record_flashed_elf(elf)
         print("flash record", sidecar.as_posix())
-    return 0 if ok else 1
+    return 0 if ok and running else 1
 
 
 def dump() -> int:

@@ -40,6 +40,8 @@ inline constexpr uint8_t  kNeoPixelCount   = 1;
 inline constexpr uint8_t  kNeoPixelGpioBase = 0;   // Default PIO gpiobase
 
 // --- Pyro / PIO backup (bench pins on this pack) ---
+// GPIO 12 / 13 are HSTX pads D2P / D2N on the back connector only.
+// They are not the D12 / D13 header pads (those are GPIO 4 / 7).
 inline constexpr uint8_t kPyroDroguePin    = 12;
 inline constexpr uint8_t kPyroMainPin      = 13;
 

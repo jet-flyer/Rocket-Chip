@@ -57,8 +57,8 @@ static inline void fault_emit_visible_signal() {
 // so any AOs that still get scheduled see the new phase, then busy-loop
 // forever. PIO backup timers continue autonomously (they're independent of
 // ARM execution); the rest of the firmware effectively stops. Beacon
-// coverage during this state is a known gap (optional last-gasp beacon
-// is compile-time, default off).
+// coverage during this state is a known gap. The ARM-dead beacon is HELD;
+// see `PIO_BUDGET.md`.
 [[noreturn]] static inline void fault_degrade_in_place() {
     rc::flight_phase_observable_set(rc::FlightPhase::kFault);
     __asm volatile ("dsb" ::: "memory");
