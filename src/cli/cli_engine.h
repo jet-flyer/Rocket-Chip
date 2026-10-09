@@ -80,6 +80,9 @@ enum class ActionId : uint8_t {
     kDebugRfRates,
     kCatalogList,
     kCatalogNavNext,
+#if defined(ROCKETCHIP_DEV_MODE)
+    kForceTxTimeout,
+#endif
 };
 
 enum class Gate : uint8_t {

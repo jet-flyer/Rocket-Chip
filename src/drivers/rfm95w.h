@@ -128,6 +128,9 @@ struct rfm95w_t {
     uint32_t tx_timeout_us;  // Abort threshold for TX polling. Scales with
                              // SF/BW/payload via rfm95w_set_tx_timeout_us().
                              // Default kTxTimeoutUs until configured.
+#if defined(ROCKETCHIP_DEV_MODE)
+    bool force_tx_timeout;   // One poll takes the timeout branch, then clears.
+#endif
 };
 
 // ============================================================================

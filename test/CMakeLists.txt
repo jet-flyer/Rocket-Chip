@@ -313,6 +313,13 @@ target_include_directories(test_radio_pa_decode PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_pa_decode)
 
+# Forced radio HW TX timeout latch. Header-only. No SPI.
+add_executable(test_radio_tx_force test_radio_tx_force.cpp)
+target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_force PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_radio_tx_force)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)

@@ -28,6 +28,9 @@
 #include "station_bar_mode.h"
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
+#if defined(ROCKETCHIP_DEV_MODE)
+#include "radio_tx_force.h"
+#endif
 #include <string.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -160,6 +163,10 @@ static bool g_macReceive = true;
 static bool g_macTransmit = false;
 static bool g_macSessionActive = false;
 
+#if defined(ROCKETCHIP_DEV_MODE)
+static RadioTxForceLatch g_txForce = {};
+#endif
+
 // Hail: always-on. Active: 211.0 table 6-12 send then receive; 211.1 T3-3
 // RX off while TX.
 
@@ -167,6 +174,11 @@ static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
     if (rfm95w_send_start(&s.radio, buf, len)) {
         s.tx_active = true;
+#if defined(ROCKETCHIP_DEV_MODE)
+        if (radio_tx_force_on_start(g_txForce, true)) {
+            s.radio.force_tx_timeout = true;
+        }
+#endif
         stage_t_log_tx_start(len);
         radio_rate_inc_tx_start();
         if constexpr (job::kRadioModeRx) {
@@ -245,7 +257,15 @@ static void handle_tx_done(RadioAo* me) {
 }
 
 static void handle_tx_timeout(RadioAoState& s) {
+#if defined(ROCKETCHIP_DEV_MODE)
+    if (!radio_tx_timeout_counts(g_txForce, s.tx_consec_fail)) {
+        rc::rc_log("RADIO: TX timeout fired\n");
+        s.tx_active = false;
+        return;
+    }
+#else
     s.tx_consec_fail++;
+#endif
     if (s.tx_consec_fail >= kTxFailErrorThresh) {
         DBG_ERROR("RADIO: %u consecutive TX failures — error flag set",
                   static_cast<unsigned>(s.tx_consec_fail));
@@ -804,6 +824,12 @@ const RadioAoState* AO_Radio_get_state() {
 bool AO_Radio_tx_active() {
     return g_radioAo.state.tx_active;
 }
+
+#if defined(ROCKETCHIP_DEV_MODE)
+void AO_Radio_force_next_tx_timeout() {
+    radio_tx_force_arm(g_txForce);
+}
+#endif
 
 void AO_Radio_set_mac_dir(bool receive, bool transmit, bool session_active) {
     g_macReceive = receive;

@@ -166,6 +166,9 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     dev->mode        = rfm95w::mode::kSleep;
     dev->last_rssi   = 0;
     dev->last_snr    = 0;
+#if defined(ROCKETCHIP_DEV_MODE)
+    dev->force_tx_timeout = false;
+#endif
 
     init_gpio_and_reset(cs, rst, irq);
 
@@ -231,10 +234,20 @@ TxPollResult rfm95w_send_poll(rfm95w_t* dev) {
         return TxPollResult::kTimeout;
     }
 
+#if defined(ROCKETCHIP_DEV_MODE)
+    // One forced radio HW timeout. Cleared here, before TxDone can win.
+    const bool forced = dev->force_tx_timeout;
+    dev->force_tx_timeout = false;
+#endif
+
     // Read IRQ flags register (latched — Council C3-R3: not GPIO DIO0)
     uint8_t irq_flags = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kIrqFlags);
 
+#if defined(ROCKETCHIP_DEV_MODE)
+    if (!forced && (irq_flags & rfm95w::irq::kTxDone)) {
+#else
     if (irq_flags & rfm95w::irq::kTxDone) {
+#endif
         // TX complete — clear flags, restore DIO0 mapping, return to Standby
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
@@ -246,7 +259,11 @@ TxPollResult rfm95w_send_poll(rfm95w_t* dev) {
     // rfm95w_set_tx_timeout_us(); falls back to kTxTimeoutUs if never set.
     uint32_t threshold = (dev->tx_timeout_us != 0) ? dev->tx_timeout_us
                                                     : rfm95w::kTxTimeoutUs;
+#if defined(ROCKETCHIP_DEV_MODE)
+    if (forced || ((time_us_64() - dev->tx_start_us) > threshold)) {
+#else
     if ((time_us_64() - dev->tx_start_us) > threshold) {
+#endif
         // Timeout — clear flags, restore DIO0 mapping, return to Standby
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
