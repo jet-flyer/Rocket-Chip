@@ -17,6 +17,16 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Bench-once-per-push follow-ups (OPEN) (2026-10-08)
+
+Found while landing `grok/bench-once-per-push` (CHANGELOG 2026-10-08-003). Nothing here is decided.
+
+- Debug `o` (force one radio HW TX timeout, `f142a4db`) is compiled into the flight image and runs with runtime DEV MODE off; help only hides it. Look into compiling it out of non-DEV builds or refusing it when DEV MODE is off. Needs Nathan.
+- Soak script: report vehicle TX and station RX over the same time window, not totals since each board booted.
+- Soak score file prints the yellow-bar sentence (-80 to -100 dBm) even at -48 dBm.
+- Commit `scripts/radio_link_bench.py` (makes radio pushes blocking) after Nathan's bench run of it.
+- Merge the branch to main by PR, then delete it (`standards/GIT_WORKFLOW.md`).
+
 ## Next, before moving on (OPEN) (2026-10-08)
 
 Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
