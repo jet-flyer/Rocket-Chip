@@ -1391,6 +1391,18 @@ void cmd_radio_status() {
            static_cast<unsigned>(rs->runtime_config.nav_rate_hz),
            static_cast<unsigned>(rs->runtime_config.power_dbm));
 
+    rc::rc_log("ID: flight-%s tree=%s\n", kGitHash, kFirmwareTreeId);
+    {
+        const int8_t pa_dbm = rfm95w_read_tx_power_dbm(&rs->radio);
+        if (pa_dbm == -1) {
+            rc::rc_log("PA: unread\n");
+        } else if (pa_dbm == -2) {
+            rc::rc_log("PA: unverified\n");
+        } else {
+            rc::rc_log("PA: %d dBm (reg)\n", static_cast<int>(pa_dbm));
+        }
+    }
+
     // Boot-register audit on every `t` (InvertIQ / CRC / LNA / CFG3).
     if (rs->boot_audit_valid) {
         const rfm95w_audit_t& a = rs->boot_audit;

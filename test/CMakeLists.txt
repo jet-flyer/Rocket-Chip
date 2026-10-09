@@ -306,6 +306,13 @@ target_compile_definitions(test_version PRIVATE
     RC_REPO_ROOT="${_rc_repo_root}")
 gtest_discover_tests(test_version)
 
+# Radio HW PaConfig / PaDac decode. Header-only. No SPI.
+add_executable(test_radio_pa_decode test_radio_pa_decode.cpp)
+target_link_libraries(test_radio_pa_decode PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_pa_decode PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_radio_pa_decode)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)

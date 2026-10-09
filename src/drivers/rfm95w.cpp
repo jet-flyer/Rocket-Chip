@@ -67,6 +67,10 @@ static constexpr uint8_t kPaBoostBit       = 0x80; // PA_SELECT = PA_BOOST
 static constexpr uint8_t kMaxPowerBits     = 0x70; // MaxPower=7 (bits[6:4])
 static constexpr int8_t kPaOffsetHighPower = 5;    // OutputPower = dbm - 5 in high-power mode
 static constexpr int8_t kPaOffsetNormal    = 2;    // OutputPower = dbm - 2 in normal mode
+static_assert(kPaBoostBit == 0x80, "PA_BOOST bit");
+static_assert((kPaDacNormal & 0x07) == 0x04, "default PaDac field");
+static_assert((kPaDacHighPower & 0x07) == 0x07, "+20 PaDac field");
+static_assert(kPaOffsetNormal == 2, "default PaDac dBm offset");
 
 // Bandwidth register mask: lower nibble preserved (CR + header bits)
 static constexpr uint8_t kBwLowerNibbleMask = 0x0F;
@@ -367,6 +371,12 @@ void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
                           static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetNormal)));
     }
+}
+
+int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev) {
+    const uint8_t pa_config = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaConfig);
+    const uint8_t pa_dac = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaDac);
+    return rfm95w_decode_tx_power_dbm(pa_config, pa_dac);
 }
 
 int16_t rfm95w_rssi(const rfm95w_t* dev) {
