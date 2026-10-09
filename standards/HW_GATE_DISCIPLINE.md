@@ -86,6 +86,12 @@ Or, if a probe-attached ctest run was the verification:
 Or, if the 3-boot protocol was waived:
 > Verified: pure-software change, host ctest 788/788 PASS, no HW restart cycle required.
 
+Or, for a firmware commit (the bench runs at push, Rule 5):
+> Verified: host ctest 788/788, flight target cross-compile both roles; bench at push.
+
+Or, for the push (the line the pre-push gate prints; put it in the last commit or the CHANGELOG entry):
+> Verified at push: vehicle 2/2 PASS (flight-<sha>), station 3/3 PASS (flight-<sha>); firmware tree <hash12>; range <first>..<last>.
+
 This requirement extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist Item 4 (Documentation). The CHANGELOG entry inherits the same signal, and the WB row that depends on the gate inherits it transitively.
 
 ---
@@ -101,7 +107,7 @@ Plan documents (`docs/plans/*.md`, `docs/IVP.md`) should classify each gate as *
 
 ---
 
-## Rule 5. Gates do not get silently skipped - the hook is the line of defense
+## Rule 5. Gates do not get silently skipped - the pre-push hook is the hardware line of defense
 
 This rule addresses a separate failure mode from Rules 1-4: **gates that are claimed but never run.** The history is in `docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md`: plans list "HW verify" as a gate, commits cite it, but running the gate is honor-system. Same root cause as LL Entry 36 (bench_sim regex rot).
 
@@ -111,33 +117,57 @@ This rule addresses a separate failure mode from Rules 1-4: **gates that are cla
 
 | Role | When | Tree / board | Question |
 |------|------|--------------|----------|
-| **Pre-commit hook** | After edits are staged, before the commit exists | Needs OpenOCD `:3333`. Does **not** flash. `bench_sim` **refuses leftover**: banner `flight-<sha>` must match the ELF's `kGitHash`, the ELF must match `git describe --dirty` / firmware mtimes, and `rocketchip.elf.flashed.json` must be this ELF's sha256 (written by `flash_elf_halt_write.py` after `verify_image`) | Stop "claimed PASS, nobody ran it" (prevention / LL 36) **and** "PASS on last week's image" (desk 2026-09-07) |
+| **Pre-push gate** (`scripts/hooks/pre-push`) | Once per push, on the commit being pushed (not HEAD) | Builds that commit in the clean bench worktree. Needs OpenOCD `:3333` (started from the main checkout). Does **not** flash. `bench_sim --commit <sha>` **refuses leftover**: banner `flight-<sha>` must match the ELF's `kGitHash`, the ELF's `kFirmwareTreeId` must equal the pushed commit's firmware-tree hash (paths: `scripts/ci/firmware_paths.txt` `[elf]`), and `rocketchip.elf.flashed.json` must be this ELF's sha256 (written by `flash_elf_halt_write.py` after `verify_image`, or by `--record-only`). A PASS is stored as a git note on the bench key (firmware tree, gate files, compiler, picotool and pioasm versions, Pico SDK, CMake presets). The note records the USB serial of each benched board. A push with the same bench key skips the flash only when those boards are attached and fresh mode is off | Stop "claimed PASS, nobody ran it" (prevention / LL 36) **and** "PASS on last week's image" (desk 2026-09-07) |
 | **Flight-path canary** | *Before* editing flight-critical paths, only if that work is in play | Prefer unchanged HEAD if probe is up; see During Session in `docs/agents/SESSION_CHECKLIST.md` | Has the tool/gate itself rotted since last real run? |
-| **Recovery** | After a skip, `--no-verify`, or ambiguous hook result | Flash last-known / `HEAD~` or known-good image, then re-run | Separate "gate broken" from "this sitting's code broke it" |
+| **Recovery** | After a skip, an ambiguous hook result, or on a commit that no gate benched | Flash last-known / `HEAD~` or known-good image, then re-run | Separate "gate broken" from "this sitting's code broke it" |
 
-A full **session-start** canary on unchanged HEAD is often **not feasible** here: the probe is rarely up at session open, and the first `Read` of `src/` is the wrong moment. Prefer the checklist Flight-path canary when flight work is actually in play, plus the hook on commit.
+A full **session-start** canary on unchanged HEAD is often **not feasible** here: the probe is rarely up at session open, and the first `Read` of `src/` is the wrong moment. Prefer the checklist Flight-path canary when flight work is actually in play, plus the gate on push.
+
+The pre-commit hook stays fast: `<stdio.h>` ban, clang-tidy, host ctest, and the flight target cross-compile for both roles. It does not touch the board.
+
+**List completeness.** The build ID and the bench key hash only the `[elf]` paths. A file that the build uses but `[elf]` does not list could change, and an old PASS would still match. `scripts/ci/check_elf_paths.py` closes this gap. After each flight build it reads `ninja -t deps` (compiler dep files), `compile_commands.json`, `ninja -t inputs rocketchip.elf` (for example `.pio` programs and the linker script) and the `build.ninja` regeneration inputs (`CMakeLists.txt`, `*.cmake`). It fails when a repo file is not in `[elf]`. It ignores files outside the repo and generated files in build dirs. The pre-commit hook runs it after the cross-compile. The pre-push gate runs it again on the bench worktree build.
+
+**Why the build ID is a firmware-tree hash.** An identity gate that hashes the whole tree (`git describe --dirty`) makes every commit a rebuild and a reflash, even a docs-only one. That cost brings back the `--no-verify` habit. The firmware-tree hash covers only `[elf]` paths, so a docs commit after the flash stays valid.
 
 ### Mechanical defenses (strongest first)
 
-1. **Pre-commit hook runs the gate itself.** `scripts/hooks/pre-commit` + `scripts/ci/pre_commit_matrix.py` already do this for the bench_sim path (vehicle and station). The agent does not choose whether the gate runs - the hook runs it, observes the exit code, and blocks the commit on failure.
-2. **Flight-path canary** - During Session in `docs/agents/SESSION_CHECKLIST.md` (not a fixed numbered Session Start item): run `bench_sim.py` before editing flight-critical paths listed there, catching rot from prior `--no-verify` commits.
-3. **Bypass discipline** - `git commit --no-verify` only with explicit repo-owner approval per `docs/agents/DEBUG_PROBE_NOTES.md`. Autonomous agents must not bypass unless the human author instructed it. A bypassed commit must say so in its message and why.
+1. **Pre-push hook runs the gate itself.** `scripts/hooks/pre-push` + `scripts/ci/pre_push_gate.py` + `scripts/ci/pre_commit_matrix.py` do this for the bench_sim path (vehicle and station), once per push. The agent does not choose whether the gate runs - the hook runs it, observes the exit code, and blocks the push on failure. Install: `bash scripts/hooks/install.sh`.
+2. **Flight-path canary** - During Session in `docs/agents/SESSION_CHECKLIST.md` (not a fixed numbered Session Start item): run `bench_sim.py` before editing flight-critical paths listed there, catching rot from commits that no gate benched.
+3. **Bypass discipline** - agents never use `--no-verify`, on commit or on push. A bench failure is fixed in the unpushed commit (`git commit --fixup=<sha>`, then `git rebase -i --autosquash`).
 
 What this means in practice:
 
-- **If your change touches a path the matrix classifies as flight-critical or station-relevant, the hook will run the corresponding bench_sim and block on failure.** You do not have to remember; the hook remembers.
-- **If OpenOCD is not on `127.0.0.1:3333` when you commit, the hook fails closed.** Start OpenOCD and re-attempt - do not bypass.
+- **If your push includes a firmware or gate path, the pre-push hook benches the pushed commit and blocks on failure.** You do not have to remember; the hook remembers.
+- **Roles (Nathan, 2026-10-08).** Both roles build from one source list. A firmware (`[elf]`) change benches BOTH roles: vehicle (`bench_sim.py`) and station (`station_bench_sim.py`). A `[gate]` change benches BOTH roles. One exception: when every firmware path in the push is in `[station-only]`, only the station bench runs. A radio push benches both roles and the radio link. The role table in `scripts/ci/pre_push_gate.py` (`ROLES`) is the only place that maps a role to its build dir, preset, bench script and flash path.
+- **If OpenOCD is not on `127.0.0.1:3333` when you push, the hook fails closed.** Start OpenOCD from the main checkout and push again - do not bypass. The gate prints the main checkout folder (the first line of `git worktree list`) and the start script. Never start OpenOCD from the bench worktree: the running process locks the folder it starts in.
 - **If the chip is not this ELF, the hook fails closed.** Flash `build_flight/rocketchip.elf` (or the station ELF) with `scripts/flash_elf_halt_write.py`, wait LED+CDC per `docs/FLASHING.md`, then retry. A leftover banner or a rebuilt ELF with no new flash record is a failed gate, not a skip. `--record-only` is only for a flash that already verified by another documented method (picotool).
+- **The ELF to flash is in the bench worktree** (`<main checkout>-bench/build_flight/rocketchip.elf`, or `build_station_flight/`). The gate prints the exact paths. Both setups flash by Path 1: `picotool load -f` over USB (`-f` returns to the app by itself), then `--record-only`, then wait for LED and CDC (CLI `k` if a fresh boot is needed; no `reset halt`, per `docs/FLASHING.md` rule 2). The debug probe does not flash in this procedure; it serves only the OpenOCD check. Path 2 (`flash_elf_halt_write.py`, probe halt-write) stays an alternative for the setup with the debug probe.
 - **If the gate runs but you suspect a false PASS**, the positive-control signal was insufficient - open a Rule 1 strengthening followup; do not silently re-run until it "passes."
 - **For gates that cannot be a hook-runnable script** (most field-test / stage-exit gates), the gate is structurally soft per Rule 4.
 
-Related open work (not this rule): role-aware hook so station-only diffs use `station_bench_sim` / COM7 instead of always demanding vehicle COM5 - see WB *Pre-commit vehicle bench_sim on station-only firmware* if still present.
+### Push shape and radio pushes
+
+- **Bench notes stay local.** The PASS notes (`refs/notes/rc-bench`) are in the bench PC's clone. All pushes go from that PC, and its worktrees share `refs/notes`. Do not push the notes.
+- **Bench key and note** (`scripts/firmware_tree.py`, `scripts/ci/pre_push_gate.py`):
+  - The bench key (`rc-bench-key v2`) is a git blob id over the `arm-none-eabi-gcc --version`, `picotool version` and `pioasm --version` lines, the Pico SDK (path, `git describe --always --dirty --tags`, `git rev-parse HEAD`, `git submodule status --recursive`), the role CMake presets, and the `[elf]` and `[gate]` listings at the pushed commit.
+  - The Pico SDK is the one the flight builds use (`PICO_SDK_PATH` in their CMakeCache.txt; else what CMake would pick). It must be a git checkout. If it is not, or a git query fails, the push stops. The key never falls back to a version name.
+  - The gate finds each tool by `RC_ARM_GCC` / `RC_PICOTOOL` / `RC_PIOASM`, then by the flight build CMakeCache.txt, then by the Pico VS Code install that `CMakeLists.txt` pins, then by `PATH`. `RC_PICO_SDK` overrides the SDK. A missing tool or an empty version line blocks the push. The key never hashes an empty value.
+  - After the build, the compiler, picotool, pioasm and Pico SDK named in `CMakeCache.txt` must give the same key lines. If not, the gate blocks and names the variable to set.
+  - The PASS note (`rc-bench v2`) has a `boards:` line, for example `boards: vehicle=<USB serial> station=<USB serial>`. The note also records every `[tool]` key line (compiler, picotool, pioasm, Pico SDK, presets). The bench scripts print the serial (`board_usb_serial:`). The gate reads the attached serials by USB enumeration only. It opens no port. This line is a record. It is not a board-ID check before a flash.
+  - The gate reuses a note only when it says PASS, its `roles:` line covers the push, and each recorded board serial is attached now.
+  - The USB serial comes from the MCU board's flash chip. It does not change when the radio board changes. After a radio board swap, or a jumper, solder or antenna change, use fresh mode: `RC_BENCH_FRESH=1 git push` (`--plan --fresh` for a plan). Fresh mode ignores all notes.
+- **Push shape is an agent rule** (`docs/agents/SESSION_CHECKLIST.md` 6b). The gate prints a WARNING; it does not block.
+  - At most 5 firmware commits per push. One bench run covers the whole range, so a failure must stay traceable to one commit.
+  - A pyro/deploy, guard, radio-adapter or turnaround commit goes in a push of its own (`[isolate:*]` in `scripts/ci/firmware_paths.txt`).
+- **Radio push** (any `[radio]` path): the link has two ends, so BOTH boards are benched, even when only one image changed. Both roles build from one source list, so the file list decides only which board needs a fresh flash. The other board must run a known-good image: a clean build (no `-dirty`) whose firmware tree has a bench PASS note for that role, with the same air protocol (build ID check). Preconditions: (1) the station board is powered and runs a known-good image (clean build, bench PASS note for that role, same air protocol); (2) desk radio power stays at 2 dBm; (3) a forced radio HW TX timeout fires - a clean round trip alone does not prove the timeout works. Then the bench must show an actual radio HW TX/RX round trip between the boards. **Not built yet:** the two-board round-trip script (`scripts/radio_link_bench.py`), the forced TX-timeout hook and the 2 dBm readback. The blocking radio rule lands in the same commit as that script, not before. Until then the gate prints a WARNING, and the agent runs the two-board soak by hand and cites it (agent rule).
+
+Station-only pushes: when every firmware path is in `[station-only]`, the gate benches the station only and does not need OpenOCD (the station setup has no debug probe). All other firmware and gate pushes bench both roles.
 
 ## Rule 6. Local-commit verification ≠ audit-suite regression credit
 
 This rule distinguishes two levels of verification credit that commit messages and finding-closure claims must not conflate. Rules 1-3 already say *what* a gate must observe (positive-control signal) and *how* to cite it; Rule 6 says *at what level of credit* a given verification counts.
 
-**Local-commit verification (level 1).** A single focused commit observes its own gate - the pre-commit hook's bench_sim, the change's claimed positive-control signal, host ctest covering the touched path. This is what Rule 3 commit-message citation captures. It proves the change does what it claims at the moment of the commit, in isolation, on the author's bench.
+**Local-commit verification (level 1).** A single focused commit or push observes its own gate - the pre-push gate's bench_sim, the change's claimed positive-control signal, host ctest covering the touched path. This is what Rule 3 commit-message citation captures. It proves the change does what it claims at the moment of the commit, in isolation, on the author's bench.
 
 **Audit-suite regression credit (level 2).** The original audit's scripted check suite re-runs end-to-end *after* a remediation cycle (or a category of remediations, per `standards/AUDIT_GUIDANCE.md` Appendix C.5) and observes the full positive-control set the audit defined. This is what closes a Problem Report in `docs/PROBLEM_REPORTS.md` from `verified` to `closed`, and what signs a dated audit report's `## Remediation` row.
 
@@ -185,22 +215,27 @@ Source: project policy 2026-05-12, lived-experience case is R-3 above. Companion
 
 ---
 
+## Rule 8. Flight release is its own gate
+
+Only a tagged, bench-passed commit flies. The pre-push gate refuses a release tag (`vMAJOR.MINOR.PATCH` exactly, the form in `standards/VERSIONING.md` "How to cut a release") on a commit with no bench PASS note. Other tags (`starcom-v*`, `pre-*`, `archive/*`) are not release tags. Before flight, run the soak test and the flight checklist on that exact binary (same ELF sha256). A 6.5 s bench pass is not flight qualification. **GAP:** no tracked record yet ties a soak run and a checklist run to an ELF sha256; until one exists, this part is a soft gate (Rule 4) and the repo owner signs it.
+
+---
+
 ## How this interacts with existing standards
 
 - **Extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist** - Items 1-4 become "and the commit message cites the observed control signal."
 - **Extends `docs/agents/SESSION_CHECKLIST.md`** - Item 9 (commit) requires citing the observed control signal per Rule 3. Item 6 (session-start canary) is the Rule 5 defense against pre-existing rot.
-- **Consolidates the bypass discipline already in `docs/agents/DEBUG_PROBE_NOTES.md`** - the `--no-verify`-only-with-approval rule lives there; Rule 5 references it as one of the three Rule-5 defenses.
+- **States the bypass rule** - never use `--no-verify`, on commit or on push (Rule 5 defense 3; `standards/GIT_WORKFLOW.md` "Local history").
 - **Consolidates the gate-classification framing from `docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md`** - the "verification gates claimed but not performed" history is now codified as a normative rule.
 - **Does NOT modify `docs/CONFIG_TEST_MATRIX.md`** - the matrix specifies *which* changes trigger HW gates; this doc specifies *what* a HW gate must observe to pass and *what* discipline keeps the gate from being silently skipped.
-- **Does NOT modify the pre-commit hook itself** - the hook's mechanical triggers stay the same. This doc names the hook as the primary Rule-5 defense.
+- **Names the pre-push hook as the primary Rule-5 defense.** The pre-commit hook keeps the fast gates and the flight target cross-compile; the bench moved to pre-push (2026-10-08 council: bench once per push).
 
 ---
 
 ## When this rule does NOT apply
 
-- **Pure-software changes** (host tests, doc-only, comment-only, build-system reformatting that doesn't produce a different compiled artifact). The pre-commit hook's `pre_commit_matrix.py` already classifies these and skips HW gates entirely.
+- **Pure-software changes** (host tests, doc-only, comment-only, build-system reformatting that doesn't produce a different compiled artifact). `scripts/ci/pre_commit_matrix.py` (paths in `scripts/ci/firmware_paths.txt`) classifies these, and the pre-push gate skips HW gates for them.
 - **Off-line analysis** (replay-harness runs against logged data, post-flight log decoders, math-only refactors verified by host ctest). No live hardware, no HW gate.
-- **Emergency hotfixes with explicit `git commit --no-verify` and repo-owner approval** - the bypass discipline in `docs/agents/DEBUG_PROBE_NOTES.md` already covers this. Such commits should still cite *what* was verified, even if not by the standard gate.
 
 ---
 

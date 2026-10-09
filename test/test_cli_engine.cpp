@@ -10,6 +10,9 @@
 using rc::cli::ActionId;
 using rc::cli::Engine;
 using rc::cli::Event;
+using rc::cli::find;
+using rc::cli::Gate;
+using rc::cli::Item;
 using rc::cli::MenuId;
 using rc::cli::kEsc;
 using rc::cli::kStationItemCount;
@@ -157,6 +160,34 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
               ActionId::kDebugRfRates);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
 }
+
+#if defined(ROCKETCHIP_DEV_MODE)
+TEST(CliEngine, DebugOForcesOneTxTimeout) {
+    EXPECT_EQ(kVehicleItemCount, 60u);
+    Engine e{};
+    init(e);
+    on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    const Item* it = find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'o');
+    ASSERT_NE(it, nullptr);
+    EXPECT_EQ(it->act, ActionId::kForceTxTimeout);
+    EXPECT_EQ(it->gate, Gate::kDevRuntime);
+    const auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'o');
+    EXPECT_EQ(r.ev, Event::kAction);
+    EXPECT_EQ(r.act, ActionId::kForceTxTimeout);
+}
+#else
+TEST(CliEngine, FieldDebugHasNoForceTxTimeout) {
+    EXPECT_EQ(kVehicleItemCount, 52u);
+    Engine e{};
+    init(e);
+    on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    EXPECT_EQ(find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'o'), nullptr);
+    const auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'o');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+}
+#endif
 
 TEST(CliEngine, HelpIsNotAPush) {
     Engine e{};

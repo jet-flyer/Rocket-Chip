@@ -1,108 +1,63 @@
 #!/usr/bin/env python3
-"""Evaluate staged paths against HW-gate regexes from CONFIG_TEST_MATRIX doctrine.
+"""Classify changed paths for the commit build and the push bench.
 
-Emitted for `eval` in POSIX pre-commit hooks (single source vs duplicating grep in bash):
+Path lists live in ONE tracked file: ``scripts/ci/firmware_paths.txt``
+(read through ``scripts/firmware_tree.py``). ``cmake/rc_version.cmake``
+reads the same file for the build ID (``kFirmwareTreeId``). Do not copy
+the lists into code again (LL 40 dual-hardcode defect).
 
-  TRIGGER_FLIGHT_BENCH=0|1   # bench_sim.py when firmware-affecting paths staged
-  TRIGGER_STATION_BENCH=0|1  # station_bench_sim.py when station-scope paths staged
+Emitted for ``eval`` in ``scripts/hooks/pre-commit`` (staged paths):
 
-Patterns must stay aligned with docs/CONFIG_TEST_MATRIX.md (Tier 6b). Host `ctest`
-is handled separately in the hook when build_host/ exists.
+  TRIGGER_TARGET_BUILD=0|1   # flight target cross-compile, both roles
+  TRIGGER_FLIGHT_BENCH=0|1   # informational at commit; bench runs at push
+  TRIGGER_STATION_BENCH=0|1  # informational at commit; bench runs at push
+
+``scripts/ci/pre_push_gate.py`` imports ``match()`` and ``radio()`` and
+applies them to every path in the commits being pushed.
 
 POLICY: "categories not enumerations" (council 2026-05-16, unanimous).
+Any change that can produce a different flight image triggers the bench.
+Lived cases: LL Entry 36 (bench_sim regex rot, 2026-04-11) and LL Entry 39
+(8adab2d touched src/main.cpp + rc_log.h, outside the old enumeration, the
+hook skipped bench_sim, Core 1 IMU reads broke). Precedent: R-25-exec
+(docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md).
 
-The FLIGHT_CRITICAL regex below is intentionally broad — ANY change that can
-produce a different `rocketchip.elf` triggers bench_sim. The narrow
-enumeration that lived here through commit 8cd6368 was a known structural
-soft gate: file paths drift behind code, and the gate's scope did not catch
-up when behavior moved between files. Two lived-experience cases:
+Where the bench runs (2026-10-08 draft): ONCE PER PUSH, in the pre-push
+gate, on the commit being pushed. Pre-commit stays fast (stdio ban,
+clang-tidy, host ctest, flight target cross-compile).
 
-  - LL Entry 36 (bench_sim regex rot, 2026-04-11): the gate's regex enumerated
-    log-line tokens that the firmware later renamed; the gate kept passing on
-    the wrong shape for 5 days.
-  - LL Entry 39 (rc_log idle-drain IMU regression, 2026-05-16): commit 8adab2d
-    touched `src/main.cpp` and `include/rocketchip/rc_log.h`. Neither was in
-    the prior FLIGHT_CRITICAL enumeration, so the hook skipped bench_sim. The
-    commit landed and silently broke Core 1's IMU reads via a downstream
-    mutex/IRQ-contention path. bench_sim would have caught it instantly via
-    its "wait for sensor health: VERDICT GO" gate — IF the trigger had fired.
+Roles (Nathan, 2026-10-08): both roles build from one source list, so a
+firmware ([elf]) change benches BOTH roles (vehicle and station). One
+exception stays (2026-09-17): when every firmware path is in
+[station-only], only the station bench runs. A [gate] change benches BOTH
+roles. A radio push ([radio]) benches BOTH roles and the radio link: the
+link has two ends.
 
-Precedent: R-25-exec (2026-05-13, docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md)
-unanimous council approval to retire `NOT_CERTIFIED_FOR_FLIGHT` / dev-tier
-compile-time framing in favor of "single binary, runtime test-mode gating;
-all code on the chip is flight code." This regex applies the same principle
-to gate scope.
-
-Adding files HERE: any path that produces firmware bytes (src, include,
-CMakeLists, cmake helpers, vendored libs we link, gate scripts that are
-themselves load-bearing per LL 36 self-rot prevention).
-
-Role-aware (2026-09-17): `STATION_ONLY` prefixes suppress TRIGGER_FLIGHT_BENCH
-when every staged firmware path is station-role-only (`src/station/`, Fruit
-Jam board header, station dashboard). Shared TUs still fire vehicle
-bench_sim. Station bench_sim still runs for STATION_SCOPE / station-only.
-
-Removing files HERE: not without a council. The exemption discipline is
-per-incident (--no-verify with repo-owner approval per DEBUG_PROBE_NOTES.md),
-not category-broadening.
+Adding paths: any path that produces firmware bytes goes in [elf]; gate
+machinery goes in [gate]. Removing paths: not without a council.
 """
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-# FLIGHT_CRITICAL: anything that can change rocketchip.elf, plus the gate
-# scripts themselves (LL 36 self-rot vector).
-FLIGHT_CRITICAL = re.compile(
-    r'^('
-    # Firmware sources + headers — everything that compiles or transitively
-    # influences rocketchip.elf.
-    r'src/'
-    r'|include/'
-    # Build system — link order, compile flags, source list.
-    r'|CMakeLists\.txt'
-    r'|cmake/'
-    # Vendored libraries we link into the firmware.
-    r'|EXTERNAL/etl-'
-    r'|lib/'
-    # Gate self-rot vector: if these break, the rest of the gate can pass
-    # while a real regression slips through. Force bench_sim on changes
-    # to the gate machinery itself.
-    r'|scripts/hooks/'
-    r'|scripts/ci/'
-    r'|scripts/bench_sim\.py'
-    r'|scripts/station_bench_sim\.py'
-    r'|scripts/_rc_test_common\.py'
-    r'|scripts/flash_elf_halt_write\.py'
-    r')'
-)
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+import firmware_tree  # noqa: E402
 
-STATION_SCOPE = re.compile(
-    r'^('
-    r'src/station/'
-    r'|src/cli/rc_os_dashboard'
-    r'|src/active_objects/ao_rcos'
-    r'|src/active_objects/ao_telemetry'
-    r'|src/active_objects/ao_radio'
-    r'|src/safety/health_monitor'
-    r'|src/drivers/mcu_temp'
-    r'|include/rocketchip/board_fruit_jam'
-    r')'
-)
+_SECTIONS: Optional[Dict[str, List[str]]] = None
 
-# Station-role-only: firmware bytes that cannot affect the vehicle DUT.
-# Vehicle bench_sim (COM5) is the wrong gate. Prefixes, not a file list
-# (LL 40). Shared TUs (ao_telemetry, drivers, main, include/ except
-# Fruit Jam board) still fire vehicle bench_sim.
-STATION_ONLY = re.compile(
-    r'^('
-    r'src/station/'
-    r'|src/cli/rc_os_dashboard'
-    r'|include/rocketchip/board_fruit_jam'
-    r')'
-)
+
+def _sections() -> Dict[str, List[str]]:
+    global _SECTIONS
+    if _SECTIONS is None:
+        _SECTIONS = firmware_tree.parse(
+            (_SCRIPTS / 'ci' / 'firmware_paths.txt').read_text(encoding='utf-8'))
+    return _SECTIONS
 
 
 def _repo_root() -> str:
@@ -113,7 +68,7 @@ def _repo_root() -> str:
 def _git_staged_paths() -> list[str]:
     root = _repo_root()
     r = subprocess.run(
-        ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMR'],
+        ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMRD'],
         capture_output=True, text=True, cwd=root, check=False,
     )
     if r.returncode != 0:
@@ -121,22 +76,52 @@ def _git_staged_paths() -> list[str]:
     return [ln for ln in r.stdout.splitlines() if ln.strip()]
 
 
-def match(paths: list[str]) -> tuple[bool, bool]:
-    firmware = [p for p in paths if FLIGHT_CRITICAL.search(p)]
-    tri_s = any(STATION_SCOPE.search(p) for p in paths)
+def is_elf(path: str, sections: Optional[Dict[str, List[str]]] = None) -> bool:
+    return firmware_tree.in_section(path, sections or _sections(), 'elf')
+
+
+def is_firmware(path: str, sections: Optional[Dict[str, List[str]]] = None) -> bool:
+    s = sections or _sections()
+    return firmware_tree.in_section(path, s, 'elf') or \
+        firmware_tree.in_section(path, s, 'gate')
+
+
+def radio(paths: List[str], sections: Optional[Dict[str, List[str]]] = None) -> bool:
+    s = sections or _sections()
+    return any(firmware_tree.in_section(p, s, 'radio') for p in paths)
+
+
+def target_build(paths: List[str],
+                 sections: Optional[Dict[str, List[str]]] = None) -> bool:
+    s = sections or _sections()
+    return any(is_elf(p, s) for p in paths)
+
+
+def match(paths: List[str],
+          sections: Optional[Dict[str, List[str]]] = None) -> Tuple[bool, bool]:
+    """Return (vehicle bench needed, station bench needed).
+
+    No [elf] or [gate] path: no bench. A [radio] or [gate] path: both
+    roles. Every firmware path in [station-only]: station only. Any other
+    firmware change: both roles.
+    """
+    s = sections or _sections()
+    firmware = [p for p in paths if is_firmware(p, s)]
     if not firmware:
-        return False, tri_s
-    # Role-aware: skip vehicle bench_sim when every ELF-affecting path is
-    # station-role-only. Mixed or shared paths still need COM5 (LL 39).
-    tri_f = any(not STATION_ONLY.search(p) for p in firmware)
-    if not tri_f:
-        tri_s = True
-    return tri_f, tri_s
+        return False, False
+    if radio(firmware, s):
+        return True, True
+    if any(firmware_tree.in_section(p, s, 'gate') for p in firmware):
+        return True, True
+    if all(firmware_tree.in_section(p, s, 'station-only') for p in firmware):
+        return False, True
+    return True, True
 
 
 def main() -> int:
     paths = _git_staged_paths()
     f, s = match(paths)
+    print(f'TRIGGER_TARGET_BUILD={1 if target_build(paths) else 0}')
     print(f'TRIGGER_FLIGHT_BENCH={1 if f else 0}')
     print(f'TRIGGER_STATION_BENCH={1 if s else 0}')
     return 0

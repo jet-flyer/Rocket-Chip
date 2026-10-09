@@ -4,9 +4,16 @@
 # 1) <stdio.h> no-new-include gate (per docs/decisions/STDIO_REPLACEMENT_PLAN.md)
 # 2) clang-tidy size/complexity on staged flight-classified C++ (see below)
 # 3) Host ctest when build_host/ exists
-# 4) Tier 6b: HW gates driven by scripts/ci/pre_commit_matrix.py (patterns in code + matrix doc)
+# 4) Flight target cross-compile (both roles) when a firmware path is staged
+#    (scripts/ci/firmware_paths.txt [elf], via scripts/ci/pre_commit_matrix.py).
+#    Keeps every commit buildable for git bisect.
 #
-# Emergency bypass: git commit --no-verify **only after receiving explicit permission from the repo owner in this session**
+# The bench (bench_sim / station_bench_sim) does NOT run here. It runs ONCE
+# PER PUSH in scripts/hooks/pre-push on the commit being pushed
+# (standards/HW_GATE_DISCIPLINE.md Rule 5).
+#
+# If a gate fails, Git makes no commit. Fix the cause, stage again, and run
+# the same commit again. Do not use --no-verify.
 
 CLANG_TIDY="C:/Program Files/LLVM/bin/clang-tidy.exe"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -40,7 +47,7 @@ if [[ -n "${STAGED_CPP}" ]]; then
         printf "  %b" "${STDIO_VIOLATIONS}"
         echo ""
         echo "Use rc::rc_log / rc::rc_snprintf / rc::strbuf (rocketchip/rc_log.h)."
-        echo "Bypass only after receiving explicit permission from the repo owner in this session: git commit --no-verify"
+        echo "Fix the cause, stage again, and run the same commit again. Do not use --no-verify."
         exit 1
     fi
 fi
@@ -64,7 +71,7 @@ if [[ -x "${CLANG_TIDY}" ]] && [[ -f "${BUILD_DIR}/compile_commands.json" ]]; th
         if ! bash "${REPO_ROOT}/scripts/audit/full_tree_clang_tidy.sh" ${STAGED_FILES}; then
             echo ""
             echo "Commit blocked: fix the flagged functions / returns / coverage before committing."
-            echo "Bypass only after receiving explicit permission from the repo owner in this session: git commit --no-verify"
+            echo "Fix the cause, stage again, and run the same commit again. Do not use --no-verify."
             exit 1
         fi
     fi
@@ -84,75 +91,47 @@ if [[ -d "${HOST_BUILD}" ]] && [[ -f "${HOST_BUILD}/CTestTestfile.cmake" ]]; the
     echo "pre-commit: host tests OK"
 fi
 
-# Tier 6b — MATRIX-driven triggers (scripts/ci/pre_commit_matrix.py)
-#
-# Policy 2026-05-16 (council unanimous, citing R-25-exec precedent +
-# LL Entries 36 + 39): "categories not enumerations." The matrix
-# triggers TRIGGER_FLIGHT_BENCH=1 on ANY change that can produce a
-# different rocketchip.elf — not just specific flight-director paths.
-# Pure-doc / pure-test / pure-tooling changes are exempt by virtue of
-# not matching the regex, NOT by explicit carve-out. Rationale in
-# scripts/ci/pre_commit_matrix.py header comment.
-TRIGGER_FLIGHT_BENCH=0
-TRIGGER_STATION_BENCH=0
+# ============================================================================
+# Gate 4: flight target cross-compile (both roles) + list completeness
+# ============================================================================
+# Policy 2026-05-16 (council unanimous, R-25-exec precedent, LL 36 + 39):
+# "categories not enumerations." Any staged path in
+# scripts/ci/firmware_paths.txt [elf] can produce a different image, so
+# both role images must still build. Bench = pre-push (Rule 5), not here.
+# The build uses the WORKING TREE (same as Gate 3). If the tree holds
+# changes this commit does not include, commit from a clean worktree
+# (docs/agents/SESSION_CHECKLIST.md item 4b).
+TRIGGER_TARGET_BUILD=0
 eval "$(python "${REPO_ROOT}/scripts/ci/pre_commit_matrix.py")"
 
-if [[ "${TRIGGER_FLIGHT_BENCH}" == "1" ]]; then
-    echo "pre-commit: firmware-affecting path touched — HW verification needed"
-
-    HW_READY=0
-    if netstat -an 2>/dev/null | grep -q "127.0.0.1:3333.*LISTENING"; then
-        HW_READY=1
-    fi
-
-    if [[ ${HW_READY} -eq 1 ]]; then
-        echo "pre-commit: running bench sim (auto-detecting target port)..."
-        if ! python -u "${REPO_ROOT}/scripts/bench_sim.py"; then
+if [[ "${TRIGGER_TARGET_BUILD}" == "1" ]]; then
+    for pair in "build_flight:vehicle-flight" "build_station_flight:station-flight"; do
+        dir="${pair%%:*}"
+        preset="${pair##*:}"
+        if [[ ! -f "${REPO_ROOT}/${dir}/CMakeCache.txt" ]]; then
             echo ""
-            echo "PRE-COMMIT BLOCKED: bench sim HW test failed"
+            echo "PRE-COMMIT BLOCKED: firmware path staged but ${dir}/ is not configured"
+            echo "  Configure once:  cmake --preset ${preset} -G Ninja"
+            echo "  Then run the same commit again. Do not use --no-verify."
             exit 1
         fi
-        echo "pre-commit: bench sim OK"
-    else
-        echo ""
-        echo "HW VERIFICATION NEEDED BUT OPENOCD NOT ON localhost:3333"
-        echo "(bench_sim gate — see docs/CONFIG_TEST_MATRIX.md, LL Entry 36 + 39)"
-        echo "Start OpenOCD per docs/agents/DEBUG_PROBE_NOTES.md, or use"
-        echo "--no-verify only after receiving explicit permission from the repo owner in this session."
-        exit 1
-    fi
-fi
-
-if [[ "${TRIGGER_STATION_BENCH}" == "1" ]]; then
-    echo "pre-commit: station-relevant path touched — station HW verification needed"
-
-    STATION_PRESENT=0
-    if python -c "
-import serial.tools.list_ports, sys
-for p in serial.tools.list_ports.comports():
-    if p.vid == 0x2E8A and p.pid == 0x0009:
-        sys.exit(0)
-sys.exit(1)
-" 2>/dev/null; then
-        STATION_PRESENT=1
-    fi
-
-    if [[ ${STATION_PRESENT} -eq 1 ]]; then
-        echo "pre-commit: running station bench sim..."
-        python -u "${REPO_ROOT}/scripts/station_bench_sim.py"
-        STATION_RC=$?
-        if [[ ${STATION_RC} -eq 0 ]]; then
-            echo "pre-commit: station bench sim OK"
-        elif [[ ${STATION_RC} -eq 2 ]]; then
-            echo "pre-commit: station bench sim SKIPPED (no station firmware on bus)"
-        else
+        echo "pre-commit: flight target cross-compile (${preset})..."
+        if ! cmake --build "${REPO_ROOT}/${dir}"; then
             echo ""
-            echo "PRE-COMMIT BLOCKED: station bench sim failed (rc=${STATION_RC})"
+            echo "PRE-COMMIT BLOCKED: ${preset} cross-compile failed"
+            echo "Fix the cause, stage again, and run the same commit again. Do not use --no-verify."
             exit 1
         fi
-    else
+    done
+    echo "pre-commit: flight target cross-compile OK (both roles)"
+    # List completeness: every repo file the two builds used must be in
+    # [elf] of scripts/ci/firmware_paths.txt. Else the build ID and the
+    # bench key miss it, and an old PASS could match new code.
+    if ! python "${REPO_ROOT}/scripts/ci/check_elf_paths.py" "${REPO_ROOT}/build_flight" "${REPO_ROOT}/build_station_flight"; then
         echo ""
-        echo "STATION HW VERIFICATION NEEDED BUT BOARD NOT PRESENT"
+        echo "PRE-COMMIT BLOCKED: a file the flight build used is not in [elf]"
+        echo "Add the path to [elf] in scripts/ci/firmware_paths.txt, stage it,"
+        echo "and run the same commit again. Do not use --no-verify."
         exit 1
     fi
 fi

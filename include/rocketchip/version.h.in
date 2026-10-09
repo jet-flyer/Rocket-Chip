@@ -39,4 +39,9 @@ constexpr const char* kBuildConfig = "@RC_BUILD_CONFIG@";
 constexpr const char* kGitHash        = "@RC_GIT_HASH@";
 constexpr const char* kBuildIdentity  = "@RC_BUILD_IDENTITY@";
 
+// Firmware-tree hash: blob id of `git ls-tree -r HEAD -- <[elf] paths>`
+// (scripts/ci/firmware_paths.txt). Read by the bench gate from this
+// generated header, not from the image. A docs-only commit keeps it.
+constexpr const char* kFirmwareTreeId = "@RC_FIRMWARE_TREE_ID@";
+
 #endif // ROCKETCHIP_VERSION_H

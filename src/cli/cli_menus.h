@@ -76,6 +76,10 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'e', false, "ESKF live",  MenuId::kNone, ActionId::kDebugEskfLive},
     {MenuId::kDebug, 'y', true,  "pyro log",   MenuId::kNone, ActionId::kDebugPyroLog},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'o', true,  "force 1 TX timeout", MenuId::kNone,
+     ActionId::kForceTxTimeout, Gate::kDevRuntime},
+#endif
     {MenuId::kDebug, 'h', true,  "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, '?', false, "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},

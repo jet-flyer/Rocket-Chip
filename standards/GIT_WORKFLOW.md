@@ -81,8 +81,21 @@ git push origin --delete <branch-name>
 - Include "Test plan" section with verification steps
 - Link to related issues if applicable
 
+## Local history
+
+- Commit at milestones. Push only at the end of the sitting.
+- Before the push, fix unpushed commits in place:
+  - the last commit: `git commit --amend`;
+  - an older unpushed commit: `git commit --fixup=<sha>`, then
+    `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <remote>/<branch>`.
+- You may amend, fix up or autosquash unpushed commits without asking the repo owner.
+- Never amend, rebase or squash a commit that is on the remote. Never force-push.
+- Never use `--no-verify`, on commit or on push. If a hook fails, fix the cause and run the same commit or push again.
+- The bench runs once per push, in the pre-push hook (`standards/HW_GATE_DISCIPLINE.md` Rule 5). A bench failure is fixed in the unpushed commit, not in a new fix commit.
+- The bench PASS notes (`refs/notes/rc-bench`) stay local. Push only from the bench PC; its worktrees share the notes. Do not push `refs/notes/*`. Notes are keyed on the firmware tree, the gate files, the compiler, picotool and pioasm versions, the Pico SDK and the CMake presets. An amend or autosquash that keeps all of these the same keeps the PASS. The gate reuses a PASS only when the same boards (USB serial) are attached. After a hardware change on the bench, push with `RC_BENCH_FRESH=1 git push`.
+
 ## Pushing Changes
 
 - Always use `git push -u origin <branch-name>` for first push
 - Retry on network errors (up to 4 times with exponential backoff)
-- Never force push to main/master without explicit approval
+- Never force-push.

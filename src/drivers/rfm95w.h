@@ -128,6 +128,9 @@ struct rfm95w_t {
     uint32_t tx_timeout_us;  // Abort threshold for TX polling. Scales with
                              // SF/BW/payload via rfm95w_set_tx_timeout_us().
                              // Default kTxTimeoutUs until configured.
+#if defined(ROCKETCHIP_DEV_MODE)
+    bool force_tx_timeout;   // One poll takes the timeout branch, then clears.
+#endif
 };
 
 // ============================================================================
@@ -199,6 +202,37 @@ void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz);
 
 // Uses PA_BOOST pin. Valid range: 2-20 dBm.
 void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm);
+
+// RegPaConfig + RegPaDac -> dBm. No SPI. PaDac is bits 2-0 (mask 0x07).
+// PA_BOOST (bit 0x80) clear -> -1 (unread).
+// radio HW datasheet Rev 6 Table 33 p.83: PaDac 0x04, dBm = OutputPower + 2.
+// Rev 6 p.105: PaDac 0x07 and OutputPower 15 -> 20 dBm.
+// Any other PaDac, or PaDac 0x07 with OutputPower != 15 -> -2 (unverified).
+inline int8_t rfm95w_decode_tx_power_dbm(uint8_t pa_config, uint8_t pa_dac) {
+    constexpr uint8_t kBoostBit = 0x80;
+    constexpr uint8_t kDacMask = 0x07;
+    constexpr uint8_t kDacDefault = 0x04;
+    constexpr uint8_t kDac20 = 0x07;
+    constexpr uint8_t kOutMask = 0x0F;
+    constexpr uint8_t kOut20 = 0x0F;
+    constexpr int8_t kOffsetDefault = 2;
+
+    if ((pa_config & kBoostBit) == 0U) {
+        return -1;
+    }
+    const uint8_t dac = static_cast<uint8_t>(pa_dac & kDacMask);
+    const uint8_t out = static_cast<uint8_t>(pa_config & kOutMask);
+    if (dac == kDacDefault) {
+        return static_cast<int8_t>(static_cast<int>(out) + kOffsetDefault);
+    }
+    if ((dac == kDac20) && (out == kOut20)) {
+        return 20;
+    }
+    return -2;
+}
+
+// Read RegPaConfig and RegPaDac on the radio HW, then decode. SPI is in the .cpp.
+int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev);
 
 // RSSI in dBm (negative value, e.g., -80)
 int16_t rfm95w_rssi(const rfm95w_t* dev);

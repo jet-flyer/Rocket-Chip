@@ -97,4 +97,9 @@ const rc::RadioConfig* AO_Radio_get_runtime_config();
 // confirmation "yes, THIS packet is from the intentional change".
 bool AO_Radio_consume_just_changed();
 
+#if defined(ROCKETCHIP_DEV_MODE)
+// Latch the next radio_start_tx send as one forced radio HW timeout.
+void AO_Radio_force_next_tx_timeout();
+#endif
+
 #endif // ROCKETCHIP_AO_RADIO_H

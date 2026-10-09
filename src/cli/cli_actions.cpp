@@ -364,6 +364,12 @@ void run_action(ActionId act) {
         case ActionId::kDebugRfRates:
             radio_rate_counters_dump();
             break;
+#if defined(ROCKETCHIP_DEV_MODE)
+        case ActionId::kForceTxTimeout:
+            AO_Radio_force_next_tx_timeout();
+            rc::rc_log("RADIO: TX timeout armed\n");
+            break;
+#endif
         case ActionId::kCatalogList:
             catalog_list();
             break;
