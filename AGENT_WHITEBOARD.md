@@ -45,10 +45,9 @@ Exact state: the final docs commit of CHANGELOG 2026-10-08-002 pushes all 2026-1
 
 Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 2026-10-08 (schematic-checked, not measured). Plan = `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
 
-- **Vehicle RFM95 DIO jumpers to the Feather RP2350.** DIO1 -> A0 (GPIO26). DIO2 -> A1 (GPIO27). DIO5 -> GPIO TBD (DIO5 is for the Manchester / Packet-mode data capture). Sources: plan l.157 (pin row), plan l.234 and l.317 (H1), plan l.318 (H2 continuity check after the jumper). E9: the internal pull-up is chosen (Nathan, 2026-10-08), so no resistor (plan §7.2).
+- **Vehicle RFM95 DIO jumpers to the Feather RP2350.** DIO1 -> A0 (GPIO26). DIO2 -> A1 (GPIO27). DIO5: no wire (no plan pin; Manchester is not adopted, rev 1 8.1). S7 only clips the analyzer on the DIO5 pad. Sources: plan l.157 (pin row), plan l.234 and l.317 (H1), plan l.318 (H2 continuity check after the jumper). E9: the internal pull-up is chosen (Nathan, 2026-10-08), so no resistor (plan §7.2).
   - The H1 capture (KB2040 on DIO1 / DIO2 / DIO5) also measures the DIO levels through reset, setup and each mode (plan §7.2, §7.3).
-  - **DIO5 pin:** Buzz picks it from the schematics and posts it here before anyone solders.
-- **Station RFM95 DIO jumpers to the Fruit Jam.** DIO1 -> A1 (GPIO41). DIO2 -> A2 (GPIO42). DIO5 -> GPIO TBD (Buzz posts it first). Fruit Jam A0 is not on the header (plan l.158, l.161). No E9 resistor: the Fruit Jam is A4 (plan l.201).
+- **Station RFM95 DIO jumpers to the Fruit Jam.** DIO1 -> A1 (GPIO41). DIO2 -> A2 (GPIO42). DIO5: no wire. Fruit Jam A0 is not on the header (plan l.158, l.161). No E9 resistor: the Fruit Jam is A4 (plan l.201).
 - **KB2040 logic analyzer.** Solder the header pins. Add the trigger jumper TX (GPIO0) -> RX (GPIO1) and the D2 PWM self-check jumper (P36 part 2). Channels 1-8 are D2-D9 (GPIO2-9). Sources: plan l.144-145, l.313 (P36). The plan does not give the other end of the D2 self-check jumper; Buzz to confirm before soldering.
 - **Pico 2 W "probe" (spare board, plan l.134). Job: open (Nathan):** logic analyzer or second SWD probe.
   - Logic analyzer: Buzz chose the KB2040, because the gusmanb README says E9 locks bare Pico 2 inputs under PIO (plan l.146, P32). For SWD, E9 does not matter.
