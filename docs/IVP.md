@@ -2070,7 +2070,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 3. **QM installation.** Install QM (Quantum Modeler) on development machine. Open, create trivial 3-state model matching the test above.
 
-4. **STARS autocoder.** Clone `github.com/JPLOpenSource/STARS`. Run STARS JAR against the QM model. Verify it generates: C++ (QEP state handlers), Promela (SPIN model), Python (interactive simulator).
+4. **STARS autocoder.** Clone `github.com/JPLOpenSource/STARS`. Run STARS JAR against the QM model. Verify it generates: C++ (QEP state handlers). *(2026-10-11: this step first also expected Promela (SPIN model) and Python (interactive simulator) output. Neither is confirmed in the current STARS README, which lists C, C++, F' and Quantum Framework (QP) back ends; the README also shows STARS as a Python tool (`Stars.py`), not a JAR. Source: https://github.com/JPLOpenSource/STARS.)*
 
 5. **SPIN verification.** Install SPIN. Write one trivial LTL safety property (`[] !(state == IDLE && action_fired)`). Verify against generated Promela model.
 
@@ -2082,7 +2082,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 - QEP compiles and links against Pico SDK ARM Cortex-M33 target
 - Trivial HSM runs on RP2350 hardware with correct state transitions
 - QM installs and opens on development machine
-- STARS generates C++, Promela, and Python from QM model
+- STARS generates C++ from QM model (Promela and Python output not confirmed in the current STARS README; see step 4)
 - Generated C++ compiles and links against Pico SDK
 - SPIN verifies trivial safety property against generated Promela
 - Python simulator responds to simulated events

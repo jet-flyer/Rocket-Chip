@@ -60,6 +60,10 @@ Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 20
 - **H6 part 1:** desk RSSI baseline, both boards at 2 dBm, fixed distance (plan l.336 check 2; desk power plan l.135).
 - **H6 part 2** (antenna inside the airframe) waits for the airframe setup (plan l.336).
 
+## Re-check paywall / commercial-tool decisions (LATER) (2026-10-11)
+
+- STARS was rejected as a commercial autocoder, but it is open source (Apache-2.0, docs/flight_director/TOOLCHAIN_EVALUATION.md). Re-check every other tool or standard that the docs rejected as paid, commercial or paywalled; confirm the licence and price from the source before the decision stands (Nathan, 2026-10-11).
+
 ## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
 
 Owner, this sitting. Two flight modes. Do not start the work from this row.

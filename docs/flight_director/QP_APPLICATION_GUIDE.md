@@ -284,7 +284,7 @@ void run_flight_director() {
 
 **Step 2: LED Engine as Active Object**
 
-New Active Object with its own QEP state machine managing NeoPixel patterns. Receives pattern-change events from other Active Objects. Nobody else touches the NeoPixel.
+New Active Object that manages NeoPixel patterns. Its QEP state machine has a single state (`led_engine_running`, entered from the initial transition); pattern changes are handled by a layer compositor inside that state, not by separate QEP states. Receives pattern-change events (`SIG_LED_PATTERN`, from AO_Notify since IVP-116). Nobody else touches the NeoPixel.
 
 ```
 AO_FlightDirector                    AO_LedEngine
