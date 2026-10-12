@@ -60,6 +60,15 @@ Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 20
 - **H6 part 1:** desk RSSI baseline, both boards at 2 dBm, fixed distance (plan l.336 check 2; desk power plan l.135).
 - **H6 part 2** (antenna inside the airframe) waits for the airframe setup (plan l.336).
 
+## AO / QEP audit items: settle before FSK pivot work starts (OPEN) (2026-10-11)
+
+Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nathan decides the split before any FSK pivot code.
+
+- **Before the pivot:** measure the ESKF rate on the board, USB plugged and unplugged (it runs in the core 0 idle hook). Idle-hook blocking work: GPS reinit busy-waits >= 250 ms, station GPS poll is blocking I2C. Hamilton: fix before the FSK bench, since a stall can look like FIFO overruns in S3/S10. Goddard: after. Nathan to pick.
+- **With the pivot:** Radio's ~9 mode flags to real QEP states; the ~100 ms flash write out of the Radio handler; Telemetry split. The pivot rewrites this code.
+- **Anytime (not during a bench run):** QP 8.1.3 to 8.1.5 (re-vendored files).
+- **After the pivot:** RCOS / calibration wizard split; station GPS poll to core 1; STARS re-evaluation; paywall re-check (below).
+
 ## Re-check paywall / commercial-tool decisions (LATER) (2026-10-11)
 
 - STARS was rejected as a commercial autocoder, but it is open source (Apache-2.0, docs/flight_director/TOOLCHAIN_EVALUATION.md). Re-check every other tool or standard that the docs rejected as paid, commercial or paywalled; confirm the licence and price from the source before the decision stands (Nathan, 2026-10-11).
