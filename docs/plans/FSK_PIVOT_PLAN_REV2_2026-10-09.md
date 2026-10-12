@@ -1,6 +1,6 @@
 # FSK pivot plan, rev 2 (rough draft): RC radio link rework
 
-Status: **rough draft for the session of 2026-10-09. This file contains no decisions.** Items that Nathan closed before rev 2 keep the name of Nathan and the date. This file is not a legal document.
+Status: **rough draft. §3.1 records the decisions of 2026-10-11. Open rows stay open.** Items that Nathan closed before rev 2 keep the name of Nathan and the date. This file is not a legal document.
 
 Hamilton (agent) prepared this file on 2026-10-08, 23:00–24:00 CT, with Duke's book check (2026-10-08, 23:45 CT), Buzz's datasheet results (2026-10-08, 23:35–24:00 CT) and Goddard's prior art (plan date 2026-10-09). Local commit only, not pushed.
 
@@ -46,27 +46,31 @@ Find the radio link form that makes Rocket Chip (RC) clearly better than other e
 
 ## 3. Decisions needed (Nathan)
 
-Nathan made no decision on these items. "Inputs to come" = room material for the session.
+Closed rows point at §3.1. "Inputs to come" = room material that is still open.
 
 | # | Decision | Alternatives | Applicable facts (§4) | Inputs to come |
 |---|---|---|---|---|
-| D1 | Form order (rev 1 decision 4) | A, then B and A′. B′ as the lab path. C after T5. D if the others do not operate (rev 1 §3) | F-R1, F-S1, F-S9, Q14, F-G6 to F-G8 (no SX127x packet-FSK range data that RC can use, GI8) | Bench B2 / S5 |
-| D2 | FSK rate set (new) | (a) Prox-1 rates only. (b) Keep 38.4 / 4.8 kb/s (rev 1 form B). (c) The two sets, with the rates that are not in the book as a stated deviation | F-P9, F-S1, F-S4. 211.1-B-4 §3.3.6.1: 13 rates, not 38.4 or 4.8 kb/s. DS sensitivity points: 1.2 / 4.8 / 38.4 / 250 kb/s | Buzz: limits at the selected rates |
-| D3 | 211.2-B-3 coding alternative on FSK (rev 1 decision 10, the FEC bench item on the whiteboard, commit `66db80f`) | (a) Uncoded. (b) Convolutional K=7 r=1/2. (c) LDPC (2048,1024). (d) Keep LoRa and do not code the FSK link | F-P3 to F-P8, F-R4, F-S5, F-D4 to F-D6, F-G1 to F-G5, F-G9, Q22, Q24, Q27, Q32, Q33, Q40 | §4.7. F-B8. S6 |
-| D4 | FSK modulation shaping and index (rev 1 decision 11) | No shaping. Gaussian BT 1.0 / 0.5 / 0.3 | F-S2, F-S3, Q19 | Buzz |
-| D5 | DIO jumpers (rev 1 decision 1) | No jumper. DIO2 only. DIO1 + DIO2 (B′) | Rev 1 §7. F-S8 | Buzz (H1 capture, after approval) |
-| D6 | TX power for each form, with the chip duty limit (new, Q14) | +20 dBm only at ≤ 1 % TX duty. ≤ +17 dBm for continuous TX. Other | F-S10 | Buzz |
-| D7 | SX1276 DS Rev 7 in the repo (new, Q16) | Replace Rev 4. Keep the two. No change | F-R5 | — |
-| D8 | Chip preamble before the Prox-1 Acquisition sequence (new, Q18). Duke (2026-10-08): deviation, not an extension | (a) Keep it as a stated deviation with a PICS exception. (b) 0-byte TX preamble, if RX gets bit sync without it (Q25) | F-P2, F-S7, F-D1, F-D2 | Bench Q25 (after approval) |
-| D9 | Board / FeatherWing for each unit (rev 1 decision 2) | — | Rev 1 §7.1 | Buzz |
-| D10 | Approval of the §6 bench and IRL steps (rev 1 decision 3) | For each step | — | — |
-| D11 | Analyzer (rev 1 decision 9) | gusmanb on the KB2040, or sigrok-pico on the Pico 2 W | Rev 1 §6 | — |
-| D12 | SDLS frame version and MAC length. Prox-1 or USLP (rev 1 decisions 6, 7) | — | Rev 1 §9 | Not for this session |
-| D13 | Catalog index in SET PL EXTENSIONS Mode Select + Scrambler (new, Q13). Duke (2026-10-08): deviation | (a) Keep as a stated deviation. (b) Move it to a mission-data field. Inference from Duke: Transmitter Mode "Mission Specific" (§B1.2.7) | F-D7 to F-D9 | Duke. Buzz (effect on the code) |
+| D1 | Form order (rev 1 decision 4) | **Open.** Proposed: A, then B and A′. B′ as the lab path. C after T5. D if the others do not operate. Letter key: §3.1 | F-R1, F-S1, F-S9, Q14, F-G6 to F-G8 | Bench B2 / S5 |
+| D2 | FSK rate set | **Closed §3.1.** Eight book rates the chip can clock. 38.4 and 4.8 kb/s stay Table 8 bench points | F-P9, F-S1, 211.0-B-6 §B1.2.6 | — |
+| D3 | 211.2-B-3 coding alternative on FSK | **Narrowed §3.1. The session value is open.** (a) Uncoded. (b) Convolutional K=7 r=1/2. (c) LDPC (2048,1024). (d) Keep LoRa and do not code the FSK link | F-P3 to F-P8, Q40 | Nathan |
+| D4 | FSK modulation shaping and index | **Open.** No shaping, or Gaussian BT 1.0 / 0.5 / 0.3. BT is a register. D5 wires DCLK. §3.1 | F-S2, F-S3, Q19 | Nathan |
+| D5 | DIO jumpers | **Closed §3.1.** Wire DIO1 and DIO2. DIO5 stays open | Rev 1 §7. F-S5, F-S8 | H1, H2 after solder |
+| D6 | TX power and the chip +20 dBm limit | **Narrowed §3.1.** Manufacturer 1 % limit stays. Track heat and on-time. Desk stays 2 dBm. Flight dBm is open | F-S10, F-B4 | Nathan (flight number) |
+| D7 | SX1276 DS Rev 7 in the repo | **Closed §3.1.** Cite Rev 7. Keep the Rev 4 file | F-R5 | — |
+| D8 | Chip preamble before the Prox-1 Acquisition sequence | **Closed §3.1.** Keep the preamble as a stated deviation until S9 | F-P2, F-S7, F-D1, F-D2 | Bench Q25 |
+| D9 | Board / FeatherWing for each unit | **Closed §3.1.** Vehicle #3231 pinout. Station SPI1 adapter | Rev 1 §7.1. Board headers | — |
+| D10 | Approval of the §6 bench and IRL steps | For each step | — | — |
+| D11 | Analyzer | **Closed §3.1.** gusmanb on the KB2040 | Rev 1 §6 | — |
+| D12 | SDLS on Prox-1. Prox-1 or USLP | **SDLS closed §3.1.** USLP stays parked | 355.0-B-2 §2.1. Rev 1 §9 | Not for this session |
+| D13 | Catalog index in Mode Select + Scrambler | **Closed §3.1.** Rate uses the Data Rate field. Those two fields keep their book meanings | F-D7 to F-D9. 211.0-B-6 §B1.2.6, §B1.2.7 | — |
+| D14 | Two senders on APID 0x003 | **Closed §3.1.** One application per APID. Command and ACK do not share. The new number is not assigned | 133.0-B-2 §4.1.3.3.4.2, §4.1.3.4.3.3, §2.2.1 NOTE | — |
 
-**D3: items that change with the selection.**
+**D3: items that change with the selection.** The session value is open (§3.1). These limits are closed.
 
-- Alternative (a), uncoded, is fully open. Rev 1 §8.2 gives the deviation note for uncoded NRZ FSK (PD3).
+- The output stream uses one of the three codes at a time. 211.2-B-3 §3.4.2.2 Note 1 selects it with the Transmitter Data Encoding field. `starcom/docs/CONFORMANCE.md` already claims uncoded, convolutional encode, and LDPC encode. Decode stays on the Pi.
+- One chip packet per LDPC codeword is out. 211.2-B-3 §3.4.4.8 forbids bits between a codeword and the next CSM. The chip preamble would insert those bits (F-D5).
+- The Pink-sheet limit of uncoded to Bi-Phase-L stays information only (Nathan, 2026-10-08, decision 5).
+- Alternative (a), uncoded, stays available. Rev 1 §8.2 gives the deviation note for uncoded NRZ FSK (PD3). Q40, the receiver, stays open.
 - The two book codes are rate 1/2. 211.0-B-6 §B1.2.6.4 (p.B-5) gives "Rd = .5 * Rcs" for the convolutional code and "Rd = .48484 * Rcs" for LDPC.
 - Decoders and prior art (§4.7): only (b) or (c). CSM (F-P5), derandomizer (F-P13) and LDPC randomizer (211.2-B-3 §3.4.5): only (c).
 - Manchester (DcFree) is not a coding alternative. Nathan did not select it (rev 1 §8.1, Nathan 2026-10-08).
@@ -93,6 +97,51 @@ Nathan made no decision on these items. "Inputs to come" = room material for the
      - Fast stop (Buzz): after SyncAddress, the firmware reads the first FIFO bytes. If the software check does not find the sync, it sets RestartRxWithoutPllLock in RegRxConfig (§2.1.7.1, p.60), approximately 1 ms for each incorrect start (Buzz, not measured). p.60: "ModeReady must be at logic level 1 for a new RestartRx command to be taken into account." Time until ModeReady: not in the DS (S16).
      - **calc (Goddard):** with fast stop, 1-byte sync holds RX approximately 30 % of the time. 2-byte sync starts incorrectly approximately one time in each 65,536 noise bits (approximately 0.85 s at 76.8 k symbols/s), but in the model it is approximately 0.4–0.5 dB worse at 1 % FER.
   3. Packet mode with SyncOn = 0: in unlimited-length mode, no CRC detection, no PayloadReady, no whitening (DS p.74). When the FIFO starts to fill is not in the DS (bench).
+
+### 3.1 Decisions closed (Nathan, 2026-10-11)
+
+Book clauses and repo files named here were checked on 2026-10-11. A calc stays a calc.
+
+**Form key for D1 (open).** Rev 1 §3 defines the letters. D1 does not pick the order.
+
+| Letter | What it is |
+|---|---|
+| A | LoRa, bandwidth 500 kHz, SF7 / SF8 / SF9. One fixed channel. DTS path |
+| B | Hopping FSK, packet mode, 38.4 / 4.8 kb/s in the rev 1 range table. FHSS path |
+| A′ | LoRa, bandwidth 125 kHz, with the chip frequency hop |
+| B′ | Hopping FSK, continuous bits on DIO2 (DATA) and DIO1 (DCLK). Lab path. Same rates as B |
+| C | Wide FSK. DTS only if the 6 dB bandwidth is at least 500 kHz. T5 is blocked |
+| D | Fixed FSK under §15.249. Fallback. No power gain over that rule |
+
+**D2, catalog rates.** 211.0-B-6 §B1.2.6.1 puts the rate in SET TRANSMITTER PARAMETERS, in kb/s before encoding. §B1.2.6.3 gives 2, 4, 8, 16, 32, 64, 128, and 256 kb/s. The NC and C marks on 8, 32, 128, and 256 mean non-coherent PSK and coherent PSK. They are tied to the modulation bit (§B1.2.6.1 NOTE). They do not mean coded and uncoded. 1, 512, 1024, and 2048 kb/s belong to SET PL EXTENSIONS (§B1.2.6.5). The SX1276 FSK range is 1.2 to 300 kb/s (F-S1), so 1 kb/s and every rate from 512 kb/s up drop out. A convolutional selection at 256 kb/s needs 512 ksymbol/s (§B1.2.6.4, Rd = 0.5 × Rcs), so that pair drops out. 38.4 and 4.8 kb/s stay bench points beside Table 8. They are absent from the directive.
+
+**D13, catalog fields.** The rate uses the Data Rate field. Mode Select and Scrambler keep the meanings in §B1.7.7 and §B1.7.6. Transmitter Mode for this link is `001`, Proximity-1 Protocol (§B1.2.7). The five Mission Specific codes point at informative Annex F (Odyssey tone beacon and transmit standby). They are not a Rocket Chip index field.
+
+**Q6, chip whitening.** Off. LDPC uses the 211.2-B-3 §3.4.5 randomizer (§3.4.4.4). The chip whitener is a different polynomial (F-B3). The uncoded and convolutional text name no whitener. Continuous mode has no chip whitening (F-B3). S11 still checks the 16-bit edge rule.
+
+**Q12, the 1-tick carrier.** 211.0-B-6 §6.2.4.3: radiate an unmodulated carrier. The duration stays 1 Interval_Clock tick (Nathan, 2026-10-08). FSK with the data held at one level sits off the channel by the deviation (F-D3). OOK with the power amplifier on sits on the channel frequency. That is the working rule. S9 (Q26) measures the OOK-to-FSK change time.
+
+**D8, chip preamble.** Keep the 0x55 or 0xAA preamble. Record it as the deviation Duke named (F-D1). The datasheet asks for at least 12 bits of that preamble (F-S7). S9 (Q25) is the test of a 0-byte preamble.
+
+**D5, DIO wires.** Wire DIO1 and DIO2. DIO5 stays open (Manchester stays out). Vehicle: DIO1 to A0 (GPIO26), DIO2 to A1 (GPIO27). Station: DIO1 to A1 (GPIO41), DIO2 to A2 (GPIO42). Rev 1 §7.1. Those MCU pins have no other firmware assignment. On the radio, DIO2 is DATA in continuous mode, and it is the frame time-tag pin. DIO1 is DCLK. The pair is the best-effort continuous bearer in `starcom/docs/CONFORMANCE.md` (FSK / bitstream bearer). The pair does not make a 211.1 PHY. Station GPIO41 and GPIO42 need PIO1 with GPIOBASE 16 (rev 1 §7.1). That use of PIO1 is the opt-in for this bearer. A `docs/hardware/PIO_BUDGET.md` entry still comes before the firmware uses PIO1. H1 and H2 stay open until the solder is checked.
+
+**D4, what BT has to do with DIO.** BT is ModulationShaping in RegPaRamp (F-S3). It is not a pin. The register values are Gaussian BT 1.0, 0.5, and 0.3. The datasheet text names 0.5 and 1.0. In continuous mode, shaping requires DCLK on DIO1 (F-S3). Packet mode can use shaping with no DCLK. D5 makes DCLK available. D5 does not pick the BT value or the deviation. Both stay open. The chip deviation range is 0.6 to 200 kHz (F-S2).
+
+**D6 and Q29, the +20 dBm limit.** The 1 % figure is the SX1276 manufacturer limit (DS Rev 7 p.84, F-S10). It is not an FCC rule. The page states +20 dBm, a transmission duty of 1 % maximum, and VSWR of 3:1 maximum, over −40 to +85 °C (F-B4). The page gives no time window and does not name heat as the cause. Table 6 gives 120 mA typical at +20 dBm and 87 mA typical at +17 dBm. Nathan (2026-10-11): treat the limit as a thermal limit to track. Airflow can reduce the heating. The 1 % number stays the recorded chip limit. Desk power stays 2 dBm. A full-power bench test, including an indoor test, records TX on-time and temperature. The plan does not invent a window for Q29. The flight power number at or below the tracked limit stays open. The boot value is 20 dBm (F-R3). Nav duty in the rev 1 airtime calc is above 1 % for form A and form B (F-B4). That boot value stays a tracked item. This edit changes no code.
+
+**D7.** Cite SX1276 DS Rev 7 (May 2020). Keep the Rev 4 file in the repo. Decision 8 (Nathan, 2026-10-08): a verified cite correction needs no further OK.
+
+**D9.** The vehicle header is the #3231 FeatherWing pinout (`include/rocketchip/board_feather_rp2350.h`, CS GPIO10, RST GPIO11, IRQ GPIO6). The station header is the SPI1 adapter (`include/rocketchip/board_fruit_jam.h`, CS GPIO10, RST GPIO6, IRQ GPIO5). `docs/hardware/HARDWARE.md` names breakout #3072 as the current ground receiver.
+
+**D11.** The analyzer is gusmanb on the KB2040. Nathan (2026-10-08) set agent drivability as the criterion. The KB2040 is an RP2040, so E9 does not apply. The spare Pico 2 W stays a spare (rev 1 §6, P32).
+
+**D12.** 355.0-B-2 §2.1: the Security Protocol is not applicable to Proximity-1. This plan adds no SDLS to the Prox-1 frames. Prox-1 versus USLP stays the parked whiteboard row.
+
+**Q39.** No PIO oversampling of DATA. 211.2-B-3 §3.4.3.3 recommends soft bits. It does not use "shall". F-B8: this chip delivers hard bits. PIO1 opt-in is the D5 bearer only.
+
+**Q37 and the log ring.** Decode stays on the Pi (`starcom/docs/CONFORMANCE.md`, FSK / bitstream row and the coding row). The 200 KiB vehicle log ring stays as it is. Buffered versus sliding window is a later host detail.
+
+**D14, APID 0x003.** An APID is not a device address. 133.0-B-2 §4.1.3.3.4.2: the APID names the managed data path. §4.1.3.4.3.3: the sequence count belongs to the one user application named by that APID. The spacecraft address on the Prox-1 Version-3 frame is the SCID (`starcom/src/ccsds/v3.cpp`). §2.2.1 NOTE says two directions should use two managed data paths. The project implements that "should" (Nathan, 2026-10-01). Command and ACK are two applications. They do not share one APID. The code today uses `kApidCmdAck` 0x003 for both. The new APID number is not assigned here. APID 0x002 stays the reserved diagnostics value.
 
 ## 4. Verified facts (new in rev 2)
 
@@ -204,7 +253,7 @@ Datasheet-only (DS Rev 7 unless given). **calc** = a value that Buzz calculated,
 - Thus, chip whitening operates in packet mode (also unlimited, with SyncOn = 1). Continuous mode (B′) has no whitening and no Manchester.
 - **Book status (Duke, 2026-10-08):** chip whitening is not the 211.2-B-3 randomizer (§3.4.5.2.8, F-P5). The books give the on-air bit stream, and no clause lets you add extensions (211.2-B-3 §3.3.3.1, A1.3). Thus, it is a **stated deviation with a PICS exception**, not a PHY extension (same cause as Q18).
 - **calc (Buzz):** longest sequences of the same bit: 5 bits in the PN 352EF853 (when it starts again), 5 bits in the ASM FAF320, 6 bits in the CSM. Uncoded frame data has no limit (two zero bytes give 16+ bits). Thus, uncoded B′ must have a software scrambler or bit stuffing.
-- **Replaced by rev 2: the rev 1 §8.1 line "Chip whitening stays on (T1-B)",** and "whitening on" in the T1-B row. On or off is for Nathan (Q6): a deviation, not in continuous mode (F-B3). With it off, uncoded data must have a scrambler or bit stuffing (F-S7). Examine a scrambler against the books before use.
+- **Replaced by rev 2: the rev 1 §8.1 line "Chip whitening stays on (T1-B)",** and "whitening on" in the T1-B row. **Closed §3.1: off.** It is a deviation, and it does not run in continuous mode (F-B3). With it off, uncoded data must have a scrambler or bit stuffing if S11 shows the 16-bit edge rule fails (F-S7). Examine a scrambler against the books before use.
 
 **Q14 / D6: power.**
 - **F-B4.** Table 33 (p.83): PA_BOOST "+2 to +17dBm", "Pout=17-(15-OutputPower)". Table 34 (p.84): RegPaDac 0x87 for +20 dBm. p.105: 0x07 = +20 dBm with OutputPower=1111. p.84: the 1 % limit applies at -40 to +85 C. Table 6 (p.14): IDDT typ 120 mA at +20 dBm, 87 mA at +17 dBm. p.95: "Default Imax = 100mA". p.83: adjust OcpTrim.
@@ -337,7 +386,7 @@ The book items are 211.2-B-3 §3.4.3.1 (K=7, r=1/2, G2 inverted, not punctured) 
 
 ## 5. Open-question register
 
-Count after the inputs from Duke, Buzz and Goddard (with the fit checks of 2026-10-09): 19 answered, 7 facts added, 6 partly, 33 open. A calc gives the result for Q32, not a book fact. 13 of the open items are G and P checks that are not for this session.
+Count after the inputs from Duke, Buzz and Goddard (with the fit checks of 2026-10-09): 19 answered, 7 facts added, 6 partly, 33 open. Closures of 2026-10-11 are in §3.1 and in the status column below. A calc gives the result for Q32, not a book fact. 13 of the open items are G and P checks that are not for this session.
 
 Status words: **answered** (a fact in §4 closes the item). **facts added** (§4 gives the facts, Nathan selects). **partly** (facts close a part). **open** (the plan gives the person who can close it).
 
@@ -350,14 +399,14 @@ Status words: **answered** (a fact in §4 closes the item). **facts added** (§4
 | Q3 | T1-B: FIFO servicing | **answered** (timing is calc). Bench S10 | F-S6, F-B1 |
 | Q4 | T1-B: ASM = chip sync word | **answered:** FAF320 is a fit | F-C1 |
 | Q5 | T1-B: chip CRC off, book CRC-32 | **answered:** the chip CRC is only 16-bit | F-C4 |
-| Q6 | T1-B: chip whitening on | **partly** (§4.6). Open: the 16-bit edge rule for B′ (F-S7). A scrambler must have the same book check | Nathan. Duke. Bench S11 |
-| Q7 | T1-E: FSK catalog on the Prox-1 rate set, while form B uses 38.4 / 4.8 kb/s | **facts added.** D2 | F-P9, F-S1. Nathan |
+| Q6 | T1-B: chip whitening on | **closed §3.1.** Off. S11 still checks the 16-bit edge rule | F-B3. 211.2-B-3 §3.4.4.4 |
+| Q7 | T1-E: FSK catalog on the Prox-1 rate set, while form B uses 38.4 / 4.8 kb/s | **closed §3.1.** D2. Eight book rates. 38.4 and 4.8 kb/s stay bench points | 211.0-B-6 §B1.2.6 |
 | Q8 | T1-D2: hop time | **answered:** TS_HOP 20–50 µs. T7 will measure it | F-S9 |
-| Q9 | Decision 11: shaping and index | **facts added.** D4 | F-S2, F-S3. Nathan. Buzz |
-| Q10 | Decision 10: coding alternative | **facts added.** D3 | F-G1 to F-G5a (and D3 row). Nathan |
+| Q9 | Decision 11: shaping and index | **open.** D4. BT is a register. D5 wires DCLK. §3.1 | F-S2, F-S3. Nathan |
+| Q10 | Decision 10: coding alternative | **narrowed §3.1.** D3. The session value is open | F-P3. Nathan |
 | Q11 | T1-D1: SF8 / SF9 catalog rows | **answered:** none | F-R2 |
-| Q12 | Rev 1 §8.1 PD3: the SX1276 signal in the 1-tick carrier-only phase | **facts added** (F-D3). The FSK code must set the tick (Nathan, 2026-10-08). Tone frequency: Q26 | Nathan. Bench Q26 |
-| Q13 | Map E15: catalog bits change the function of book fields | **answered** (Duke, 2026-10-08): deviation. D13 | F-D7 to F-D9 |
+| Q12 | Rev 1 §8.1 PD3: the SX1276 signal in the 1-tick carrier-only phase | **closed §3.1.** OOK, power amplifier on, at the channel frequency. Q26 measures the mode-change time | 211.0-B-6 §6.2.4.3. F-D3 |
+| Q13 | Map E15: catalog bits change the function of book fields | **closed §3.1.** D13. Data Rate field. Mode `001` | 211.0-B-6 §B1.2.6, §B1.2.7 |
 | B2 | FSK PER at each signal level | **open** (S5). No prior data that RC can use (F-G6 to F-G8). Semtech PER method (F-G14) | Buzz |
 | B3 | Crystal offset (desk) | **partly:** 10 ppm / 1 ppm (F-P11), < 0.1 % (F-P10). No crystal ppm in the two DS (F-S12, F-B6). Bench S2 | Buzz |
 | B6 | Does XFire Pro agree with 902–910 MHz? | **open** (T6 blocked, H6) | rev 1 §10.1 |
@@ -377,11 +426,11 @@ Status words: **answered** (a fact in §4 closes the item). **facts added** (§4
 
 | ID | Item | Status | Person |
 |---|---|---|---|
-| Q14 | +20 dBm only for "duty cycled operation", 1 % max (F-S10), but rev 1 range limits use it. Duty and power for each form? | **facts added** (F-B4, calc duty). D6 | Nathan |
+| Q14 | +20 dBm only for "duty cycled operation", 1 % max (F-S10), but rev 1 range limits use it. Duty and power for each form? | **narrowed §3.1.** D6. Track on-time and temperature. Flight dBm is open | F-S10. Nathan, 2026-10-11 |
 | Q15 | Prox-1 1000 b/s is below the DS minimum of 1.2 kb/s. Only if D2 selects 1000 b/s | **answered** | F-S1 |
-| Q16 | The repo DS PDF is Rev 4. The newest is Rev 7 (F-R5) | **facts added.** Buzz and Duke agree. D7 | Nathan |
-| Q17 | Boot power 20 dBm (F-R3) against the 2 dBm desk rule (Nathan) | **facts added** (F-B5). No code change | Nathan |
-| Q18 | Chip 0x55 / 0xAA preamble of ≥ 12 bits (F-S7) before the PN Acquisition sequence (F-P2): extension or deviation? | **answered** (Duke, 2026-10-08): deviation with a PICS exception. D8 | F-D1, F-D2 |
+| Q16 | The repo DS PDF is Rev 4. The newest is Rev 7 (F-R5) | **closed §3.1.** D7. Cite Rev 7. Keep Rev 4 | F-R5 |
+| Q17 | Boot power 20 dBm (F-R3) against the 2 dBm desk rule (Nathan) | **tracked §3.1.** Desk stays 2 dBm. Boot 20 dBm stays in the code. No code change | F-B5. D6 |
+| Q18 | Chip 0x55 / 0xAA preamble of ≥ 12 bits (F-S7) before the PN Acquisition sequence (F-P2): extension or deviation? | **closed §3.1.** D8. Keep it. Deviation. S9 tests 0 bytes | F-D1, F-D2 |
 | Q19 | BT values on the RC chip | **answered** (Buzz, §4.6). Bench S12 | F-S3 |
 | Q20 | BRA ≤ 250 ppm (F-S1) against < 0.1 % (F-P10), plus crystal error | **partly** (F-B6, calc). B3 gives the crystal part | Buzz |
 | Q21 | 211.2-B-3 refers to "annex A" of 211.0-B-5. 211.0-B-6 uses Annex B | **answered** (cite note) | F-P12 |
@@ -392,7 +441,7 @@ Status words: **answered** (a fact in §4 closes the item). **facts added** (§4
 | Q26 | FSK frequency with the data at one level? Frf ± Fdev (inference, Duke) | **open** (bench, Duke 2026-10-08) | Buzz. S9 |
 | Q27 | Unlimited mode: can the MCU fill the FIFO with no space in the coded stream (DS p.76)? | **open** (bench, Duke 2026-10-08) | Buzz. S9 |
 | Q28 | +20 dBm with the default OCP (100 mA, p.95) at 120 mA typ (Table 6)? Inference from Buzz | **open** (Buzz 2026-10-08). T5 is necessary (blocked) | Buzz |
-| Q29 | Time window for the 1 % duty limit? Not in the DS | **open** (Buzz 2026-10-08) | Nathan (select a safe window) |
+| Q29 | Time window for the 1 % duty limit? Not in the DS | **closed §3.1.** No window invented. Track on-time and temperature | Nathan, 2026-10-11 |
 | Q30 | Which Table 8 row applies to the RFM95W? | **open** (Buzz 2026-10-08) | Buzz |
 | Q31 | F-B2: FIFO 64 bytes (p.66) or 66 bytes (p.104 FifoFull) | **open.** Use 64 (Buzz) | Buzz |
 | Q32 | Constant chip sync word for the coded ASM (GI5)? | **answered (calc, not a book fact):** only the end. The 4 bytes from symbol 17 are `D1 0E A6 14` (§8 item 13) | Duke. Hamilton (S14) |
@@ -400,10 +449,10 @@ Status words: **answered** (a fact in §4 closes the item). **facts added** (§4
 | Q34 | 131.0 issue and section for the (2048,1024) code | **answered** (Duke, 2026-10-08): F-P5, F-G4. [draft] 211.2-P-3.2 cites 131.0-B-6 as "Forthcoming" | F-G4 |
 | Q35 | Same k=1024 r=1/2 H in 131.0-B-3 and 131.0-B-6? | **answered** (Duke): same full H in B-2, B-3, B-4 and B-6 | F-D11, F-D12 |
 | Q36 | Can the decoder decode an unterminated stream (F-D13, F-D4)? | **answered** (Goddard 2026-10-09): not as released. libcorrect ~12 lines, Karn ~10 lines, viterbi-rs +31 lines | F-G15 |
-| Q37 | Buffered transmission or sliding window (U-I1)? SRAM: Q33 | **open** (Goddard 2026-10-09) | Nathan. Buzz |
+| Q37 | Buffered transmission or sliding window (U-I1)? SRAM: Q33 | **closed for the vehicle §3.1.** Decode stays on the Pi. Host detail later | CONFORMANCE.md |
 | Q38 | Labrador hard-input decoder for the punctured code, and its RAM (F-B8, F-G5)? | **answered** (Goddard 2026-10-09): decode_bf 3,136 B, decode_ms hard 23,552 B. Open: LH-I1, LH-I2 | F-G16 |
-| Q39 | After the primary work: PIO oversampling of DATA (inference from Buzz, F-B8). Not recommended | **open** (Buzz 2026-10-09) | Nathan |
-| Q40 | Coded-link sync: chip sync with zero bit errors, or a software detector that accepts some bit errors (how many)? Continuous mode (D5 jumpers) necessary? Refer to the D3 host model and Q40 sync facts (§3), D8, Q24, Q25, F-B7 | **open** (new, Goddard model 2026-10-09). Bench: S16 | Nathan. Buzz |
+| Q39 | After the primary work: PIO oversampling of DATA (inference from Buzz, F-B8). Not recommended | **closed §3.1.** No | F-B8. F-P4 |
+| Q40 | Coded-link sync: chip sync with zero bit errors, or a software detector that accepts some bit errors (how many)? Continuous mode (D5 jumpers) necessary? Refer to the D3 host model and Q40 sync facts (§3), D8, Q24, Q25, F-B7 | **open.** §3.1 narrows D3. The receiver stays open. D5 wires are in. Bench: S16 | Nathan. Buzz |
 
 ## 6. Bench and test steps for approval
 
@@ -456,7 +505,7 @@ Do not fill a slot with an inference. Each entry must have its source.
 
 ## 9. Rules for this plan
 
-- No decisions in this file. Only Nathan makes decisions.
+- Only Nathan makes decisions. His decisions are in §3.1. Agents do not add decisions.
 - Prox-1 211.x Blue first. Lunar drafts for information only, marked **[draft]**.
 - Remove deviations where possible. Record the cause of each one that stays.
 - Add a function only if it makes RC clearly better, not because a standard has it.
