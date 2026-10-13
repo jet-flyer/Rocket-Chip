@@ -192,7 +192,7 @@ T8 is not on the base RC board for comms. FSK / bitstream is the RFM95 lab path.
 
 Max on existing RFM95: RP 211.0 plus T8 211.2 encode and FSK continuous bitstream as the lab path. Bit-bang / FSK is not 211.1. Full 211.1 PHY is not offered. Hamilton: no PHY approximations.
 
-A 2026-10-01 survey of other physical layers is `starcom/docs/DESIGN.md` (note of that date) and the URL-only rows in `standards/starcom/README.md`. SatNOGS-COMMS is an AT86RF215 LVDS I/Q port into a Zynq-7020. That image is Category A GMSK/FSK/BPSK/QPSK, not 211.1. The on-desk snickerdoodle one is the Zynq-7010 and is not that radio. Snickerdoodle black is the 7020. Range ascent telemetry is RCC 106, and the sounding-rocket umbilical circuit list is `docs/hardware/HARDWARE.md`.
+A 2026-10-01 survey of other physical layers is `starcom/docs/DESIGN.md` (note of that date) and the URL-only rows in `starcom/standards/README.md`. SatNOGS-COMMS is an AT86RF215 LVDS I/Q port into a Zynq-7020. That image is Category A GMSK/FSK/BPSK/QPSK, not 211.1. The on-desk snickerdoodle one is the Zynq-7010 and is not that radio. Snickerdoodle black is the 7020. Range ascent telemetry is RCC 106, and the sounding-rocket umbilical circuit list is `docs/hardware/HARDWARE.md`.
 
 **AT86RF215 I/Q port, FPGA fit (Tier 3, rev 1 plan 4.4 T3-A; datasheet only, not board-checked, 2026-10-12).** The I/Q port is LVDS (about 200 mV swing, about 64 MHz DDR, Goddard). Can take it: iCE40 LP/HX (LVDS25 inputs in I/O Bank 3 only, external 100 ohm across each pair, Buzz), ECP5, Lattice CrossLink-NX (Buzz; the FPGA in OpenHT-hw), Efinix T8 in the Q144 package only (6 LVDS RX pairs, T8 data sheet v5.5, Buzz). Cannot: iCE40UP5K (pico2-ice; no LVDS in FPGA-DS-02008-2.4, Goddard), iCE5LP4K (Oak FeatherWing; iCE40 Ultra, single-ended LVCMOS only, Buzz), T8F49 (Forgix; no LVDS in the F49/F81 packages, Buzz). Reference designs only, not for sale: CaribouLite (no longer orderable on Crowd Supply), OpenHT-hw (M17 Project, AT86RF215 + CrossLink-NX LIFCL-40), and the udayVsSharda and maribu AT86RF215 breakouts (maribu: untested, author says do not order yet).
 
@@ -253,6 +253,6 @@ Paths from repo root. One-line why; do not treat this hub as a copy of those doc
 
 - `docs/hardware/FPGA/standards/README.md` - FPGA / space-electronics index (pointers only; not a cert kit; folder rename TBD)
 - `docs/hardware/FPGA/standards/PMOD.md` - Digilent Pmod 6-pin vs 2x6; pico2-ice / Galaxia / UPduino
-- `standards/starcom/README.md` - NASA / ESA FPGA handbook shelf (not a cert kit)
-- `standards/starcom/fpga/README.md` - PDF index (NASA-HDBK-4008/4011, ESA ASIC/001, GSFC 500-PG)
+- `starcom/standards/README.md` - NASA / ESA FPGA handbook shelf (not a cert kit)
+- `starcom/standards/fpga/README.md` - PDF index (NASA-HDBK-4008/4011, ESA ASIC/001, GSFC 500-PG)
 - `docs/decisions/Telem+logging/telemetry_comparison.md` - FPGA + LVDS SpaceWire as a Nova concept

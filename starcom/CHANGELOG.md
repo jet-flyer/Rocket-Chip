@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-13-001 | Grok Hamilton (Grok Bot) | documentation
+
+**SpaceWire work (preliminary placeholder).** New `starcom/spacewire/README.md`. It has ECSS-E-ST-50-12C Rev.1 references, prior-art cores with maturity and conformance rows, and open items. It is self-contained and can be removed. Moved `standards/starcom/` to `starcom/standards/` with `git mv`, and fixed the links. There is no dedicated SpaceWire changelog yet; this file records the SpaceWire work until one exists. No version bump. No tag.
+
+Verified: documentation only, no library source in this change.
+
 ### 2026-10-04-002 | Grok 4.7 (Build CLI) | documentation
 
 **Consumer guide in Simplified Technical English.** `docs/USER_GUIDE.md` now helps a reader who does not know CCSDS. The Version-3 / Version-4 choice is one example. That file uses ASD-STE100. The other documents do not. No version bump. No tag. The later standard is root `CHANGELOG.md` 2026-10-04-001 and `AGENT_WHITEBOARD.md` (LATER).

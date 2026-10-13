@@ -286,7 +286,7 @@ Checkout: /workspace/audit_rc2 (remote https://github.com/jet-flyer/Rocket-Chip,
 - `starcom/docs/comparison.md` (lines 51, 117–121): two-tier source rule; "Grok's specific values are profile-sourced, not CCSDS-primary-verified".
 - `starcom/docs/DESIGN.md:172`: "Pluto … is not a JPL User Terminal and does not hail MRO/Pathfinder … RHCP is explicit in 211.1-B-4 §3.3.4 (current HW is linear)."
 - `starcom/docs/CONFORMANCE.md:41`: JPL User Terminal / Electra interop "Out of scope" as a product claim.
-- `standards/starcom/ccsds/` holds the local CCSDS-211.0-B-6, 211.1-B-4 and 211.2-B-3 PDFs.
+- `starcom/standards/ccsds/` holds the local CCSDS-211.0-B-6, 211.1-B-4 and 211.2-B-3 PDFs.
 
 **Checks of repo legal text against eCFR.**
 - ccsds_domain_claude.md §7.2:

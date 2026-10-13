@@ -50,11 +50,11 @@ When the sitting touches a Blue Book clause (new codec, leftover option, CONFORM
 3. Code against the PDF. SAD/ICD are working copies.
 4. In the **same commit** as the TU: set Status, Claim, Code/test, Neighbors. **Full** needs a test pointer. Do not retcon [`CONFORMANCE.md`](CONFORMANCE.md) from a row here.
 
-Do not ingest `standards/starcom/ccsds/*.pdf` into graphify. This file is the map; the PDF is the authority.
+Do not ingest `starcom/standards/ccsds/*.pdf` into graphify. This file is the map; the PDF is the authority.
 
 All eight shelf books below are filled at section grain.
 
-PDFs: [`../../standards/starcom/ccsds/`](../../standards/starcom/ccsds/).
+PDFs: [`../../starcom/standards/ccsds/`](../standards/ccsds/).
 
 ---
 
@@ -273,7 +273,7 @@ Issue 2, June 2020 (Editorial Change 1 October 2020, Editorial Change 2 Septembe
 
 ## 211.1-B-4 — Physical Layer (filled)
 
-Issue 4, Dec 2013 (EC 1 Jan 2018). `CCSDS-211.1-B-4-EC1.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**. CCSDS 401.0-B is a different physical layer (Earth station and spacecraft) and is not walked here; URL only in `standards/starcom/README.md`. Range ascent telemetry is RCC 106, also not this book. Note: `DESIGN.md` 2026-10-01.
+Issue 4, Dec 2013 (EC 1 Jan 2018). `CCSDS-211.1-B-4-EC1.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**. CCSDS 401.0-B is a different physical layer (Earth station and spacecraft) and is not walked here; URL only in `starcom/standards/README.md`. Range ascent telemetry is RCC 106, also not this book. Note: `DESIGN.md` 2026-10-01.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|

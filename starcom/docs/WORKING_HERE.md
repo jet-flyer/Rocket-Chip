@@ -52,7 +52,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 ### Documentation
 
 - **Do** treat the CCSDS Blue Books (and other named primary sources) as the authority. SAD / ICD / DESIGN field tables are working copies. Open the cited book first; if they disagree, the book wins.
-- **Do** open the cited PDF under `standards/starcom/ccsds/` **before** writing a MAC / COP-P / C&S / PHY workaround. Walk [`COVERAGE.md`](COVERAGE.md) **Neighbors**. If table 6-12, 6-14, or §7 already names the event, implement that event — do not mint a dwell, a second retry layer, or a token substitute. Desk 2026-09-17: leftover hail FIFO and a sticky `Carrier_Loss_Timer` were invented; 211.0 E34 / 6.5.2 / E48 already specified the behavior.
+- **Do** open the cited PDF under `starcom/standards/ccsds/` **before** writing a MAC / COP-P / C&S / PHY workaround. Walk [`COVERAGE.md`](COVERAGE.md) **Neighbors**. If table 6-12, 6-14, or §7 already names the event, implement that event — do not mint a dwell, a second retry layer, or a token substitute. Desk 2026-09-17: leftover hail FIFO and a sticky `Carrier_Loss_Timer` were invented; 211.0 E34 / 6.5.2 / E48 already specified the behavior.
 - **Do** open [`COVERAGE.md`](COVERAGE.md) when implementing or changing a Blue Book clause: find the row, walk **Neighbors**, then the PDF. Update that row in the same commit as the TU. Full still needs a test pointer. CONFORMANCE is the published tick — do not retcon it from the matrix.
 - **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
@@ -107,7 +107,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ### Documentation mistakes
 
-- **Don't** ingest Blue Book PDFs (`standards/starcom/ccsds/`) into graphify. Clause walk and neighbors live in [`COVERAGE.md`](COVERAGE.md); the PDF stays the authority.
+- **Don't** ingest Blue Book PDFs (`starcom/standards/ccsds/`) into graphify. Clause walk and neighbors live in [`COVERAGE.md`](COVERAGE.md); the PDF stays the authority.
 - **Don't** retcon a CONFORMANCE Level to Full because a `COVERAGE.md` row looks done. CONFORMANCE is the published tick; Full there still needs a test pointer.
 - **Don't** scatter new Starcom library docs under `docs/research/` at repo root — they belong in `starcom/docs/`.
 - **Don't** edit `DESIGN.md` substantively until the condensation session merges the six research artifacts into one canonical record.

@@ -7,7 +7,7 @@ TASK: Add the CCSDS 133.0-B-2 Space Packet Protocol service layer to Starcom (ho
 READ FIRST
 - starcom/docs/CONFORMANCE.md (Space Packet row, Annex A PICS, managed-parameter table, APID table, Known gaps)
 - src/starcom_adapt/byte_pump.cpp (current pack/unpack code)
-- standards/starcom/ccsds/CCSDS-133.0-B-2-EC2.pdf (133.0-B-2 with EC1 and EC2; the clauses quoted below)
+- starcom/standards/ccsds/CCSDS-133.0-B-2-EC2.pdf (133.0-B-2 with EC1 and EC2; the clauses quoted below)
 - AGENT_WHITEBOARD.md (open items)
 Use the branch/worktree already set up. Do NOT touch the ~12 modified files from the other session (src/flight_director/*, test/*, scripts/config_wizard/core/*). No git push. Never use --no-verify.
 

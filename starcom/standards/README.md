@@ -2,7 +2,7 @@
 
 This folder holds **primary-source PDFs** used while designing Starcom FPGA HDL and the CCSDS stack. It is a working reference shelf, **not** a certification library, an ECSS/NASA compliance kit, or a claim that Rocket-Chip is flight-qualified.
 
-Files here are public, freely redistributable specs that verified as real PDFs (`%PDF` magic, not an HTML error page, size > 50 KB). Markdown research stays in [`starcom/docs/`](../../starcom/docs/); do not treat this tree as a relocation of that work.
+Files here are public, freely redistributable specs that verified as real PDFs (`%PDF` magic, not an HTML error page, size > 50 KB). Markdown research stays in [`starcom/docs/`](../docs/); do not treat this tree as a relocation of that work.
 
 ## Layout
 
@@ -10,13 +10,13 @@ Files here are public, freely redistributable specs that verified as real PDFs (
 |---|---|
 | [`fpga/`](fpga/) | NASA / ESA / GSFC FPGA–HDL handbooks |
 | [`ccsds/`](ccsds/) | CCSDS Blue Books used this sitting |
-| [`../protocols/SPACEWIRE_LITE.md`](../protocols/SPACEWIRE_LITE.md) | SpaceWire-Lite draft (stays put; not copied here) |
+| [`../../standards/protocols/SPACEWIRE_LITE.md`](../../standards/protocols/SPACEWIRE_LITE.md) | SpaceWire-Lite draft (stays put; not copied here) |
 
-CCSDS notes and research remain in [`starcom/docs/`](../../starcom/docs/) (especially `research/ccsds_domain_*.md`). This `ccsds/` directory is the Blue Books themselves.
+CCSDS notes and research remain in [`starcom/docs/`](../docs/) (especially `research/ccsds_domain_*.md`). This `ccsds/` directory is the Blue Books themselves.
 
 ## HDL pedagogy (JPL C analog)
 
-[`../CODING_STANDARDS.md`](../CODING_STANDARDS.md) already absorbs the JPL C institutional rules. For HDL, the pedagogical analog is:
+[`../../standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) already absorbs the JPL C institutional rules. For HDL, the pedagogical analog is:
 
 - **NASA-HDBK-4008 §7.3** — FPGA/PLD design practices (synchronous design, clocks, FSMs, resets, testability)
 - **NASA-HDBK-4011** — VHDL style (readability, reviewability, maintainability)
@@ -43,7 +43,7 @@ JPL C coding standard (lars-lab) did not serve a public PDF from this environmen
 | [`ccsds/CCSDS-232.0-B-4-EC1-Cor1.pdf`](ccsds/CCSDS-232.0-B-4-EC1-Cor1.pdf) | TC Space Data Link Protocol | Blue Book, Issue 4, October 2021, with Technical Corrigendum 1 (Oct 2023) and Editorial Change 1 (Oct 2024) | <https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2025/01/232x0b4e1c1.pdf> (also <https://ccsds.org/Pubs/232x0b4e1c1.pdf>) | CLCW field format 4.2.1 |
 | [`ccsds/CCSDS-232.1-B-2-EC2-Cor1.pdf`](ccsds/CCSDS-232.1-B-2-EC2-Cor1.pdf) | Communications Operation Procedure-1 | Blue Book, Issue 2, September 2010, with Editorial Change 1 (Dec 2018), Editorial Change 2 (Apr 2019) and Technical Corrigendum 1 (Apr 2019) | <https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2025/01/232x1b2e2c1.pdf> (also <https://ccsds.org/Pubs/232x1b2e2c1.pdf>) | FOP-1 / FARM-1 tables |
 | [`ccsds/CCSDS-732.1-B-3-EC1.pdf`](ccsds/CCSDS-732.1-B-3-EC1.pdf) | Unified Space Data Link Protocol | Blue Book, Issue 3, June 2024, with Editorial Change 1 (Oct 2024) | <https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2025/01/732x1b3e1.pdf> (also <https://ccsds.org/Pubs/732x1b3e1.pdf>) | Version-4 frame in a PLTU |
-| *(URL only)* [`../protocols/SPACEWIRE_LITE.md`](../protocols/SPACEWIRE_LITE.md) | SpaceWire-Lite draft (Rocket-Chip) | 0.1 Draft, 2026-01-19 | (in-repo) | Draft stays under `standards/protocols/`; not duplicated here |
+| *(URL only)* [`../../standards/protocols/SPACEWIRE_LITE.md`](../../standards/protocols/SPACEWIRE_LITE.md) | SpaceWire-Lite draft (Rocket-Chip) | 0.1 Draft, 2026-01-19 | (in-repo) | Draft stays under `standards/protocols/`; not duplicated here |
 
 ## URL-only (no PDF in tree)
 

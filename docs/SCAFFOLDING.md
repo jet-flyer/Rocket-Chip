@@ -88,7 +88,7 @@ rocketchip/
 │   │   └── FPGA/
 │   │       ├── README.md              # FPGA/PIO hub (form vs pin functions)
 │   │       └── standards/
-│   │           ├── README.md          # NASA/ESA index; PDFs stay in standards/starcom/fpga/
+│   │           ├── README.md          # NASA/ESA index; PDFs stay in starcom/standards/fpga/
 │   │           └── PMOD.md            # Digilent Pmod connector note
 │   ├── icd/
 │   │   ├── EXPANSION_CONNECTOR_ICD.md

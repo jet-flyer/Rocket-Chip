@@ -24,7 +24,7 @@ Hamilton (agent) prepared this file on 2026-10-08, 23:00–24:00 CT, with Duke's
 
 ## Sources used in rev 2
 
-- Prox-1 Blue Books in `standards/starcom/ccsds/`: `CCSDS-211.0-B-6-EC1.pdf` (July 2020), `CCSDS-211.1-B-4-EC1.pdf` (December 2013), `CCSDS-211.2-B-3.pdf` (October 2019). Page numbers are the numbers on the pages.
+- Prox-1 Blue Books in `starcom/standards/ccsds/`: `CCSDS-211.0-B-6-EC1.pdf` (July 2020), `CCSDS-211.1-B-4-EC1.pdf` (December 2013), `CCSDS-211.2-B-3.pdf` (October 2019). Page numbers are the numbers on the pages.
 - SX1276/77/78/79 datasheet Rev 7 (May 2020). The Semtech SX1276 page shows 2020-05-26 (https://www.semtech.com/products/wireless-rf/lora-connect/sx1276, read 2026-10-08). Hamilton's copy: https://4donline.ihs.com/images/VipMasterIC/IC/SEMT/SEMT-S-A0014128031/SEMT-S-A0014128100-1.pdf ("Rev. 7 - May 2020"). Cites: "DS Rev 7" + table or title + page. Rev 6 has the same pages, but other section numbers ("DC-Free Data Mechanisms": §4.2.13.7 in Rev 6, §2.1.13.7 in Rev 7, p.78). DS Rev 7 Table 51 (p.131): the only Rev 7 change is "Make reference to the 'Wafer Delivery Specification', governing document for the SX1276WS" (Buzz, Duke and Goddard agree).
 - Repo at `f03773a1`. Room inputs (agent box files or `gb-prompts`, not in the repo):
   - Duke: `fsk-preamble-sync-coding.md` (2026-10-08) and `ldpc-b3-vs-b6.md`, "Follow-up (2026-10-09 CT)". Hamilton examined `H_b6.npy` (1536 × 2560, 7680 ones, rank 1536), not B-2 or B-4.
@@ -251,7 +251,7 @@ Book clauses and repo files named here were checked on 2026-10-11. A calc stays 
 
 **Q34 / Q35: the LDPC (2048,1024) code in 131.0.**
 - **F-D11 (2026-10-08).** 131.0-B-3 (September 2017, Silver copy, https://public.ccsds.org/Pubs/131x0b3s.pdf, named in 211.2-B-3 ref [2]) and the repo 131.0-B-6 (Issue 6, April 2026): the code (k=1024, r=1/2) is the same in B-3 §7.4 and B-6 §8.4. Same: M = 512 (Table 7-2 / Table 8-2), H1/2 (§7.4.2.2 / §8.4.2.2), πk(i) (§7.4.2.4 / §8.4.2.4), θk and φk (Tables 7-3 / 7-4 and 8-3 / 8-4). Also the same: last-M-column puncture (§7.4.2.5 / §8.4.2.5), G = [I W] with W = (P⁻¹Q)ᵀ (§7.4.3 / §8.4.3), bit numbers, marker 034776C7272895B0 (ASM → CSM). Only some words changed.
-- Hamilton's sample check in `standards/starcom/ccsds/CCSDS-131.0-B-6-EC1.pdf`: Table 8-2 (p.8-7): k=1024, rate 1/2 → 512. §8.4.2.2 (p.8-7): the 3 × 5 block layout agrees with Duke.
+- Hamilton's sample check in `starcom/standards/ccsds/CCSDS-131.0-B-6-EC1.pdf`: Table 8-2 (p.8-7): k=1024, rate 1/2 → 512. §8.4.2.2 (p.8-7): the 3 × 5 block layout agrees with Duke.
 - **F-D12 (2026-10-09, closes the F-D11 limit).** 131.0-B-2 (Issue 2, Aug 2011, with Editorial Change 1, May 2012, https://public.ccsds.org/Pubs/131x0b2ec1s.pdf) and 131.0-B-4 (Issue 4, April 2022, https://public.ccsds.org/Pubs/131x0b4s.pdf). B-2 and B-4 §7.4, pp.7-7 to 7-11 (B-3 clause numbers): M = 512 (Table 7-2), §7.4.2.2, §7.4.2.4, puncturing, G = [I W], n = 2048 (Table 7-5), MSB first (§1.6.3). θ/φ tables (Tables 7-3, 7-4): 52 rows × 16 values each, the same. A word-level diff of the full §7.4 text found no change. H from B-6 §8.4.2.2, §8.4.2.4 and Tables 8-3 / 8-4: 1536 × 2560, 7680 ones, GF(2) rank 1536, code dimension 2560 − 1536 = 1024. H from B-3 Tables 7-3/7-4 is the same bit for bit. Result: the same code in 131.0-B-2, B-3, B-4 and B-6.
 
 **C17: applicable issue.**
@@ -339,7 +339,7 @@ The book items are 211.2-B-3 §3.4.3.1 (K=7, r=1/2, G2 inverted, not punctured) 
 
 **D3 / S6: LDPC (2048,1024) decoders.**
 
-- **F-G4, code family and cite.** Goddard cited 131.0-B-5 §7.4 (Table 7-5: k=1024 rate 1/2 → n=2048). Applicable (Duke, 2026-10-08, Q34): 131.0-B-6 (Issue 6, April 2026), replaces B-5. B-5 §7.4.1–7.4.3 agrees with B-6 §8.4.1–8.4.3 (`starcom/docs/CONFORMANCE.md` l.204). B-6 §8.4 (p.8-7) and §8.4.1: nine punctured codes, k=1024 bits, 4096 bits, and 16384 bits (repo PDF `standards/starcom/ccsds/CCSDS-131.0-B-6-EC1.pdf`, read 2026-10-08). Plan cite: F-P5. Goddard's file uses it at this date ("B-5 numbering; same text is B-6 sec 8.4").
+- **F-G4, code family and cite.** Goddard cited 131.0-B-5 §7.4 (Table 7-5: k=1024 rate 1/2 → n=2048). Applicable (Duke, 2026-10-08, Q34): 131.0-B-6 (Issue 6, April 2026), replaces B-5. B-5 §7.4.1–7.4.3 agrees with B-6 §8.4.1–8.4.3 (`starcom/docs/CONFORMANCE.md` l.204). B-6 §8.4 (p.8-7) and §8.4.1: nine punctured codes, k=1024 bits, 4096 bits, and 16384 bits (repo PDF `starcom/standards/ccsds/CCSDS-131.0-B-6-EC1.pdf`, read 2026-10-08). Plan cite: F-P5. Goddard's file uses it at this date ("B-5 numbering; same text is B-6 sec 8.4").
 
 | ID | Item | Licence | Fit grade | Primary data |
 |---|---|---|---|---|

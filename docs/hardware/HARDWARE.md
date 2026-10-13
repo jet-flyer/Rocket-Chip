@@ -600,7 +600,7 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 
 ### Range hardline and flight termination
 
-NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `standards/starcom/README.md`.
+NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `starcom/standards/README.md`.
 
 The sounding-rocket umbilical reference is NASA/TP–20230006855, *NASA Sounding Rockets User Handbook*, May 2023, document 810-HB-SRP:
 

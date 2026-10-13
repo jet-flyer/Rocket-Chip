@@ -42,6 +42,13 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+
+### 2026-10-13-002 | Grok Hamilton (Grok Bot) | documentation
+
+**FPV whiteboard row and Starcom standards move.** `AGENT_WHITEBOARD.md` has a new LOOK row: differential analog FPV video for the Telestar FPV board (AD8132 driver, AD8130 receiver). The Starcom standards moved from `standards/starcom/` to `starcom/standards/`. See `starcom/CHANGELOG.md` 2026-10-13-001.
+
+Verified: pure-docs change; no firmware path changed.
+
 ### 2026-10-13-001 | Grok Hamilton (Grok Bot) | documentation, tooling
 
 **Off-main work landed on main (cleanup pass from Gene's check).** Three items were off main for days. Nathan approved each one in the Rocket Chip group chat on 2026-10-13.

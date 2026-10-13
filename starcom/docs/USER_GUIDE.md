@@ -40,7 +40,7 @@ This section is one example of a choice the books make. It is not the only choic
 
 A Proximity-1 session sends one frame version. CCSDS 211.0-B-6 §3.3 says you can send a Version-4 frame in the place of a Version-3 frame. CCSDS 211.2-B-3 §3.2.4 says one stream uses one version. The marker stays `FAF320`. The link check stays the PLTU CRC-32.
 
-Version-4 has a different header. The field map in the book is 732.1-B-3 Annex C. The local file is `standards/starcom/ccsds/CCSDS-732.1-B-3-EC1.pdf`. Copies of the two headers are in [`SAD.md`](SAD.md). When a copy and a book differ, use the book.
+Version-4 has a different header. The field map in the book is 732.1-B-3 Annex C. The local file is `starcom/standards/ccsds/CCSDS-732.1-B-3-EC1.pdf`. Copies of the two headers are in [`SAD.md`](SAD.md). When a copy and a book differ, use the book.
 
 | You have this on Version-3 | You have this on Version-4 |
 |---|---|

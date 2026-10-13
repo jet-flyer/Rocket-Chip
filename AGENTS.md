@@ -40,7 +40,7 @@
 - Never silently modify another agent's work.
 - Coding standards are mandatory — no deviations without explicit approval (see `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`).
 - **Prior art research required** before implementing hardware interfaces or novel functionality (see CODING_STANDARDS.md).
-- **CCSDS Blue Books first** for Starcom / MAC / COP-P / air: open the cited PDF in `standards/starcom/ccsds/` and `starcom/docs/COVERAGE.md` neighbors **before** writing a workaround. Do not invent a dwell, token substitute, or retry layer when the book names the event. Detail: `starcom/docs/WORKING_HERE.md`.
+- **CCSDS Blue Books first** for Starcom / MAC / COP-P / air: open the cited PDF in `starcom/standards/ccsds/` and `starcom/docs/COVERAGE.md` neighbors **before** writing a workaround. Do not invent a dwell, token substitute, or retry layer when the book names the event. Detail: `starcom/docs/WORKING_HERE.md`.
 - Repository files are authoritative. When a discrepancy between agent memory and repo content is flagged, the repository is almost always the correct, double check with user to update your memory.
 - Write in ASD-STE100 Simplified Technical English (the current issue, https://www.asd-ste100.org/). This covers chat replies, new commit messages, and new CHANGELOG entries. Use short sentences. Put one topic in each sentence. Keep technical names, book cites, and operational numbers. `starcom/docs/USER_GUIDE.md` is the wording example. It is not the limit of the rule.
 - Content rules for commit messages still apply (for example `standards/HW_GATE_DISCIPLINE.md` Rule 3).

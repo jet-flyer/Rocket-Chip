@@ -37,7 +37,7 @@ STANDARD mode searches CCSDS text only. IMPLEMENTATION mode also searches code-c
 
 ## Books
 
-| Id | PDF (under `standards/starcom/ccsds/`) |
+| Id | PDF (under `starcom/standards/ccsds/`) |
 |---|---|
 | 133.0-B-2 | `CCSDS-133.0-B-2-EC2.pdf` (Space Packet Protocol) |
 | 211.0-B-6 | `CCSDS-211.0-B-6-EC1.pdf` (Data Link Layer) |
@@ -51,7 +51,7 @@ Titles and issue/date are taken from each book's cover and Authority page.
 Needs Python 3 and PyMuPDF (`pip install pymupdf`). Nothing else (stdlib only).
 
 ```
-python standards/starcom/ccsds/navigator/build_navigator.py
+python starcom/standards/ccsds/navigator/build_navigator.py
 ```
 
 This rewrites `data/standard.json`, `data/implementation.json`, `index.html` and `starcom/docs/SHALL_MATRIX.md`. It never writes `data/evidence.json` if that file already exists.
