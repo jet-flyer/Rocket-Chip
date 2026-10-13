@@ -113,6 +113,8 @@ All numbers: SX1276 split path, vehicle 2.9 dBi, ground 2 dBi, 10 dB margin, fre
 | T3-D | Lunar S-band variant: launch-only US94 / US96 + Part 26 path (map §2.7) |
 | T3-E | PN ranging per 235.1-R-1 Annex E **[draft]** (Red, decision 5). It is the only Prox-family source: no 211.x Blue or Pink book defines PN ranging (Duke). Re-check when 235.1 is issued as a Blue Book. S-band chip rate only, so a deviation at 915 MHz; SDLS on USLP for commands |
 
+T3-A FPGA note (2026-10-12): the AT86RF215 I/Q port is LVDS, so T3-A needs an FPGA with LVDS inputs (iCE40 LP/HX, ECP5, CrossLink-NX, or T8 Q144). The UP5K, iCE5LP4K and T8F49 cannot take it. Fit list and sources: `docs/hardware/FPGA/README.md` (Starcom section).
+
 ## 5. Tests: run order and gear (map §10, §10.1)
 
 Nothing runs until Nathan says go.

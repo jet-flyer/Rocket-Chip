@@ -42,6 +42,12 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-12-001 | Grok Hamilton (Grok Bot) | hardware, documentation
+
+**FPGA notes from Goddard's DM with Nathan.** This commit comes mainly from Goddard's DM thread with Nathan (2026-10-12), finalized in the Rocket Chip group chat with Buzz's datasheet checks. `docs/hardware/FPGA/README.md`: full Forgix RP-T8 wiring (GPIO1-6 and GPIO19, own 32 MHz oscillator, part T8F49I2X), Nathan's jumper-trace idea for Rocket Chip proper, Nathan's point that a PIO-only watchdog is not independent, and which FPGAs can take the AT86RF215 LVDS I/Q port (LP/HX, ECP5, CrossLink-NX, T8 Q144; not UP5K, iCE5LP4K or T8F49), with reference designs marked not for sale. FSK plan rev 1 section 4.4 T3-A points there.
+
+Verified: pure-docs change; datasheet facts not board-checked.
+
 ### 2026-10-11-001 | Grok Hamilton (Grok Bot) | documentation
 
 **FSK plan rev 2, STARS correction, reports folder.** `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` is trimmed about 40% and adds the D3 host model, Q40 (receiver sync options) and S16; section 3.1 records Nathan's 2026-10-11 decisions (edited in the Grok Build session). STARS is JPL open source (Apache-2.0), not commercial: fixed in `docs/flight_director/TOOLCHAIN_EVALUATION.md`, the QP C vs C++ note and `IVP.md`. `docs/reports/` is now tracked (rules in its `README.md`), with Goddard's AO/QEP audit. Whiteboard: DIO5 gets no wire; OPEN item to settle the before/with/after-pivot split of the audit items before FSK pivot work; LATER item to re-check paywall decisions.
