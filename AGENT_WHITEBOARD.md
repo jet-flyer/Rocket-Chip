@@ -35,6 +35,13 @@ Found while landing `grok/bench-once-per-push` (CHANGELOG 2026-10-08-003). Nothi
 - Commit `scripts/radio_link_bench.py` (makes radio pushes blocking) after Nathan's bench run of it.
 - Merge the branch to main by PR, then delete it (`standards/GIT_WORKFLOW.md`).
 
+## Station link stats on the Starcom path (OPEN) (2026-10-13)
+
+- Stash {2} (2026-09-02) counted Starcom nav packets and kept their last RSSI, SNR and age for station `status` and the LED RSSI bar. It did not land on main (no `nav_count` / `last_nav_rssi`).
+- Inference, not measured: with Starcom on, station "Pkts" and RSSI may still read the raw radio counters.
+- Bench check (Buzz): compare station `status` count and RSSI and the LED bar with the vehicle TX count and a direct radio RSSI read.
+- Code reference: `Documents\rc-stash-archive\stash2.patch` (outside the repo).
+
 ## Next, before moving on (OPEN) (2026-10-08)
 
 Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.

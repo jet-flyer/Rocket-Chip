@@ -49,6 +49,7 @@ A note on reliability: brand and model are almost always in your context, but th
 - CCSDS Prox-1 navigator and `starcom/docs/SHALL_MATRIX.md`. The work was done on 2026-10-03 on branch `ccsds-navigator`. The three commits keep their 2026-10-03 dates.
 - Starcom whiteboard rows: dead code vs unused Starcom features, and cite the book section for each function. The work was done on 2026-10-04 on branch `dead-code-note`. One squashed commit.
 - AGENTS.md ASD-STE100 rule. The first draft was saved on 2026-10-07 and not committed. Nathan revised the wording on 2026-10-13. The rule now covers chat replies, new commit messages and new CHANGELOG entries, and names the current issue, not a date.
+- Old git stashes (9) triaged on 2026-10-13. All are done, superseded or abandoned except stash 2: its station link stats (Starcom nav count, RSSI, SNR, age) did not land. New whiteboard item for a bench check. The patches are archived outside the repo before the stashes are dropped.
 
 Verified: pure-docs and tooling change; no firmware path changed.
 
