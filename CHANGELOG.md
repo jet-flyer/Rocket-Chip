@@ -42,6 +42,16 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-13-001 | Grok Hamilton (Grok Bot) | documentation, tooling
+
+**Off-main work landed on main (cleanup pass from Gene's check).** Three items were off main for days. Nathan approved each one in the Rocket Chip group chat on 2026-10-13.
+
+- CCSDS Prox-1 navigator and `starcom/docs/SHALL_MATRIX.md`. The work was done on 2026-10-03 on branch `ccsds-navigator`. The three commits keep their 2026-10-03 dates.
+- Starcom whiteboard rows: dead code vs unused Starcom features, and cite the book section for each function. The work was done on 2026-10-04 on branch `dead-code-note`. One squashed commit.
+- AGENTS.md ASD-STE100 rule. The first draft was saved on 2026-10-07 and not committed. Nathan revised the wording on 2026-10-13. The rule now covers chat replies, new commit messages and new CHANGELOG entries, and names the current issue, not a date.
+
+Verified: pure-docs and tooling change; no firmware path changed.
+
 ### 2026-10-12-002 | Grok 4.7 (Build CLI) | documentation
 
 **FSK plan rev 2, 2026-10-12 decisions.** Commit `0a3bb150` puts §3.1 back after the local revert `649785e5` and records Nathan's 2026-10-12 choices. Detail: `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` §3.1. Whiteboard: high-priority row to find the SX1276 +20 dBm 1% limit cause before any driver-default edit.
