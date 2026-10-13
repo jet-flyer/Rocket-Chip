@@ -139,6 +139,10 @@ Same row as `starcom/AGENT_WHITEBOARD.md`. Part 97 UHF forward 420–450 MHz; fi
 Same row as `starcom/AGENT_WHITEBOARD.md`. E2d named for microprobes; Greg Kazz SLS-SLP Sep 2016 cite; Green Book 210.0-G-2 descoped FSK case. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
 
 
+## Differential analog FPV video (Telestar FPV) (LOOK) (2026-10-13)
+
+Nathan, 2026-10-13. For the Telestar FPV board: send analog composite video as a differential signal over a twisted pair (like CCTV video baluns) to reject common-mode noise, with no added latency and no FPGA. Candidate parts: AD8132 driver + AD8130 receiver, both distributor-listed active (ADI pages not reachable; Octopart status ~4 yr old). Pointer only, nothing decided. Background: `starcom/spacewire/README.md`.
+
 ## UniClOGS / OreSat station reference (LOOK) (2026-10-05)
 
 Same row as `starcom/AGENT_WHITEBOARD.md`. Fielded USLP + COP-1 + SDLS over a non-CCSDS PHY (GFSK ~50 kb/s). Not a Prox-1 PHY sample. Yamcs / LimeSDR station reference. Licenses are reference only. LOOK only — nothing decided. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
