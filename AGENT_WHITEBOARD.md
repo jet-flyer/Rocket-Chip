@@ -64,7 +64,7 @@ Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 20
 
 Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nathan decides the split before any FSK pivot code.
 
-- **Before the pivot:** measure the ESKF rate on the board, USB plugged and unplugged (it runs in the core 0 idle hook). Idle-hook blocking work: GPS reinit busy-waits >= 250 ms, station GPS poll is blocking I2C. Hamilton: fix before the FSK bench, since a stall can look like FIFO overruns in S3/S10. Goddard: after. Nathan to pick.
+- **Before the pivot:** measure the ESKF rate on the board, USB plugged and unplugged (it runs in the core 0 idle hook). Idle-hook blocking work: GPS reinit busy-waits >= 250 ms, station GPS poll is blocking I2C. Fix both before the FSK bench, since a stall can look like FIFO overruns in S3/S10 (Nathan, 2026-10-12).
 - **With the pivot:** Radio's ~9 mode flags to real QEP states; the ~100 ms flash write out of the Radio handler; Telemetry split. The pivot rewrites this code.
 - **Anytime (not during a bench run):** QP 8.1.3 to 8.1.5 (re-vendored files).
 - **After the pivot:** RCOS / calibration wizard split; station GPS poll to core 1; STARS re-evaluation; paywall re-check (below).
