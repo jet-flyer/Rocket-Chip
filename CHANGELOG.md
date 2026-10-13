@@ -42,6 +42,12 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-12-002 | Grok 4.7 (Build CLI) | documentation
+
+**FSK plan rev 2, 2026-10-12 decisions.** Commit `0a3bb150` puts §3.1 back after the local revert `649785e5` and records Nathan's 2026-10-12 choices. Detail: `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` §3.1. Whiteboard: high-priority row to find the SX1276 +20 dBm 1% limit cause before any driver-default edit.
+
+Verified: pure-docs change.
+
 ### 2026-10-12-001 | Grok Hamilton (Grok Bot) | hardware, documentation
 
 **FPGA notes from Goddard's DM with Nathan.** This commit comes mainly from Goddard's DM thread with Nathan (2026-10-12), finalized in the Rocket Chip group chat with Buzz's datasheet checks. `docs/hardware/FPGA/README.md`: full Forgix RP-T8 wiring (GPIO1-6 and GPIO19, own 32 MHz oscillator, part T8F49I2X), Nathan's jumper-trace idea for Rocket Chip proper, Nathan's point that a PIO-only watchdog is not independent, and which FPGAs can take the AT86RF215 LVDS I/Q port (LP/HX, ECP5, CrossLink-NX, T8 Q144; not UP5K, iCE5LP4K or T8F49), with reference designs marked not for sale. FSK plan rev 1 section 4.4 T3-A points there. Goddard's neural-net sizing report (inference-labelled) is `docs/reports/2026-10-12_goddard_t8-neural-nets.md`. Adaptive frame size research (books, prior art, radio limits; post-pivot) is `docs/reports/2026-10-12_hamilton_adaptive-frame-size.md`.
