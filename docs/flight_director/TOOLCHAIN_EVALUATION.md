@@ -13,7 +13,7 @@ IVP-67 required evaluating four tools for the Flight Director state machine impl
 | Tool | Decision | When to Revisit |
 |------|----------|-----------------|
 | **QP/C QEP** | Adopted (vendored `lib/qep/`) | N/A — in use |
-| **STARS** | Not adopted (commercial) | If budget allows commercial tooling |
+| **STARS** | Not adopted (statechart too small) | Nathan asked 2026-10-11 to re-evaluate a QM/PlantUML → STARS → QP workflow |
 | **QM** | Deferred | If statechart grows beyond ~15 states |
 | **SPIN** | Deferred | Stage 9 (Active Object concurrency) |
 
@@ -58,19 +58,21 @@ IVP-67 required evaluating four tools for the Flight Director state machine impl
 
 ---
 
-## STARS Autocoder — Not Adopted
+## STARS Autocoder — Not Adopted (re-evaluation requested)
 
-**What it is:** SafeState Systems' commercial autocoder. Takes UML statechart models and generates verified QP/C state handler code. Targets DO-178C / IEC 62304 certification workflows.
+**What it is:** STARS (State Autocoding for Real time Systems), a JPL open-source state-chart autocoder written in Python, licensed Apache-2.0. Inputs: QM (Quantum Modeler) models, PlantUML text, or MagicDraw Cameo models (the README says "MagicDraw is not a free tool"; QM and PlantUML are free). Outputs (`Stars.py -backend {c,qf,c++,fprime}`): C, C++, F' component state machine code plus F' FPP, or Quantum Framework (QP) state machine code. The current README does not list Promela/SPIN output. Source: https://github.com/JPLOpenSource/STARS (now redirects to https://github.com/fprime-community/STARS; last commit 2026-09-16).
 
-**Why not adopted:**
-- Commercial license required — no open-source version available
-- Introduces a proprietary code generation dependency
+**Correction (2026-10-11):** an earlier version of this section called STARS a "SafeState Systems" commercial autocoder with no open-source version. No source for that was found; the STARS repository above shows an open-source JPL tool under Apache-2.0.
+
+**Why not adopted (2026-03-15 decision, unchanged):**
+- The Flight Director statechart has 9 states (7 top-level + 2 descent sub-phases). At this size, hand-written QEP handlers are simpler than keeping a model and generated code in sync (same size reasoning as QM, below).
+- Introduces a code generation tool dependency
 - The generated code would be QP/C state handler functions — the same ~50-line switch-on-signal functions we write by hand
 - Hand-authored handlers are more transparent for code review and git diff
 
 **Fallback (adopted):** Hand-authored QEP state handlers. This is the standard approach used by the majority of QP/C projects. The QEP dispatch engine (`QHsm_dispatch_`) provides the formal state machine semantics — state handlers are straightforward signal dispatch functions.
 
-**When to revisit:** If RocketChip pursues DO-178C certification (unlikely for hobbyist product), or if a commercial license becomes available through a partnership.
+**When to revisit:** Nathan asked on 2026-10-11 for a QM/PlantUML → STARS → QP workflow to be re-evaluated (request recorded in `docs/reports/2026-10-11_goddard_ao_qep_audit.md` §5). Also revisit if the statechart grows beyond ~15 states.
 
 ---
 
@@ -113,6 +115,6 @@ IVP-67 required evaluating four tools for the Flight Director state machine impl
 - [QP/C Framework](https://www.state-machine.com/qpc) — Quantum Leaps
 - [QP/C on GitHub](https://github.com/QuantumLeaps/qpc) — Source code, examples, ports
 - [SPIN Model Checker](https://spinroot.com/) — Gerard Holzmann
-- [STARS Autocoder](https://www.safestatesystems.com/) — SafeState Systems
+- [STARS Autocoder](https://github.com/JPLOpenSource/STARS) — JPL open source, Apache-2.0 (now redirects to fprime-community/STARS)
 - `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md` — Earlier research on formalism selection
 - `docs/plans/STAGE8_FLIGHT_DIRECTOR.md` — Full Stage 8 implementation plan

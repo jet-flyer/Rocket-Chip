@@ -26,6 +26,7 @@
 #include "fusion/confidence_gate.h"
 #include "calibration/calibration_manager.h"
 #include "ao_flight_director.h"
+#include "rocketchip/vehicle_met.h"
 #include "flight_director/flight_director.h"
 #include "ao_telemetry.h"
 #include "core1/sensor_core1.h"
@@ -177,6 +178,9 @@ static void populate_baro_fields(rc::FusedState& fused,
     // Short dt: this call does not write fused.baro_alt_rate_mps.
 }
 
+static rc::VehicleMet g_vehicleMet = {};
+static bool g_metMission = false;
+
 void AO_Logger_populate_fused_state(rc::FusedState& fused,
                                     const shared_sensor_data_t& snap) {
     fused_copy_eskf_state(fused);
@@ -212,9 +216,19 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
         ? static_cast<uint8_t>(AO_FlightDirector_get_director()->state.current_phase)
         : 0;
 #ifndef ROCKETCHIP_HOST_TEST
-    fused.met_ms = to_ms_since_boot(get_absolute_time());
+    uint8_t met_start = rc::kDefaultRocketProfile.met_start_phase;
+    if (AO_FlightDirector_is_initialized() &&
+        AO_FlightDirector_get_director()->profile != nullptr) {
+        met_start = AO_FlightDirector_get_director()->profile->met_start_phase;
+    }
+    const uint32_t boot_ms = to_ms_since_boot(get_absolute_time());
+    const rc::VehicleMetSample sample = rc::vehicle_met_step(
+        &g_vehicleMet, met_start, fused.flight_state, boot_ms);
+    fused.met_ms = sample.met_ms;
+    g_metMission = sample.mission;
 #else
     fused.met_ms = 0;
+    g_metMission = false;
 #endif
 }
 
@@ -271,6 +285,33 @@ static void init_logging_ring() {
     }
 }
 
+static void stamp_telem_clock(rc::TelemetryState& telem,
+                               const shared_sensor_data_t& snap) {
+    if (g_metMission) {
+        telem.flags = static_cast<uint8_t>(telem.flags | rc::kFlagsMetMission);
+    }
+    const rc::MissionProfile* met_prof = &rc::kDefaultRocketProfile;
+    if (AO_FlightDirector_is_initialized() &&
+        AO_FlightDirector_get_director()->profile != nullptr) {
+        met_prof = AO_FlightDirector_get_director()->profile;
+    }
+    if (met_prof->met_show_days) {
+        telem.flags = static_cast<uint8_t>(telem.flags | rc::kFlagsMetDays);
+    }
+    if (!snap.gps_time_valid) {
+        return;
+    }
+    telem.utc_hour = snap.gps_hour;
+    telem.utc_minute = snap.gps_minute;
+    telem.utc_second = snap.gps_second;
+    telem.flags = static_cast<uint8_t>(telem.flags | rc::kFlagsUtcValid);
+    if (snap.gps_date_valid && snap.gps_year >= 2000U) {
+        telem.utc_year = static_cast<uint8_t>(snap.gps_year - 2000U);
+        telem.utc_month = snap.gps_month;
+        telem.utc_day = snap.gps_day;
+    }
+}
+
 // ============================================================================
 // Logging tick
 // ============================================================================
@@ -303,8 +344,10 @@ static void logging_tick() {
     }
 
     // Convert to wire format and push to ring buffer
+    averaged.met_ms = fused.met_ms;
     rc::TelemetryState telem = {};
     rc::fused_to_telemetry(averaged, telem);
+    stamp_telem_clock(telem, snap);
 
     rc::PcmFrameStandard frame = {};
     rc::pcm_encode_standard(telem, averaged.met_ms, frame);

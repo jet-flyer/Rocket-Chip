@@ -653,8 +653,17 @@ void strbuf_printf(strbuf* sb, const char* fmt, ...) {
 // into USB CDC. Non-blocking; only writes what the CDC has room for.
 // ===========================================================================
 #ifndef ROCKETCHIP_HOST_TEST
+static bool g_cdc_hold = false;
+
+extern "C" void rc_log_hold_cdc(int hold) {
+    g_cdc_hold = (hold != 0);
+}
+
 extern "C" void rc_log_drain_to_cdc(void) {
     using namespace target_sink;
+    if (g_cdc_hold) {
+        return;
+    }
     // Ring-empty fast path: when called from qv_idle_bridge every
     // idle tick, the ring is empty most of the time. Skip all
     // TinyUSB calls in that case to avoid mutex/IRQ contention with
@@ -721,4 +730,5 @@ extern "C" void host_capture_reset() { ::host_test::s_capture_len = 0; }
 // Host stubs for ring-health getters (no real ring on host).
 extern "C" uint32_t rc_log_dropped_bytes(void) { return 0U; }
 extern "C" uint32_t rc_log_high_water(void) { return 0U; }
+extern "C" void rc_log_hold_cdc(int) {}
 #endif

@@ -543,7 +543,7 @@ This approach respects the standard while still delivering high value today.
   - Waveforms: BPSK, PCM/PM, PCM/PSK/PM, GMSK + PN ranging, filtered OQPSK, spread-spectrum options.
   - Coding: LDPC (multiple rates), convolutional.
   - ASM usage in the sync/coding layer.
-  - Hailing and session control via Proximity-1 + CCSDS 235.1.
+  - Hailing and session control via Proximity-1 + CCSDS 235.1 (a Red Book draft, 235.1-R-1, May 2026; not a Blue Book).
   - Explicitly SDR-friendly with variable rates/coding/modulation.
 
 - **SSTL Lunar Pathfinder Service Guide V2.2**: https://www.sstl.co.uk/getmedia/edaaa697-405c-458d-8394-97f83130d54a/Lunar-Pathfinder-Service-Guide-V2-2.pdf

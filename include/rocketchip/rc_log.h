@@ -63,6 +63,10 @@ constexpr size_t kRcLogRingBytes = 8192U;
 // output queues into the ring and is never emitted to the wire.
 extern "C" void rc_log_drain_to_cdc(void);
 
+// While true, drain_to_cdc is a no-op so binary USB (QGC MAVLink) is not
+// mixed with log text. Logs stay in the ring (drop-oldest).
+extern "C" void rc_log_hold_cdc(int hold);
+
 // Ring health (HW_GATE Rule 1 / LL 36): dropped_bytes > 0 means output
 // was lost; high_water approaching rc::kRcLogRingBytes means the ring is tight.
 extern "C" uint32_t rc_log_dropped_bytes(void);

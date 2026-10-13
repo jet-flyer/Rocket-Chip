@@ -5,19 +5,21 @@
 // Technique: \033[H (cursor home) + \033[K (clear to EOL) per line.
 // No \033[2J (clear screen) — that causes visible flicker.
 // Entire frame built in a static buffer, written via tud_cdc_write.
-// Target: 80 columns, ~18 rows. 115200 baud USB CDC.
+// Target: 80 columns, ~19 rows. 115200 baud USB CDC.
 // Colors: green/yellow/red/cyan/default. No bold, no background.
 
 #include "rc_os_dashboard.h"
+#include "rc_os_dashboard_format.h"
 #include "rocketchip/rc_debug.h"
 #include "rocketchip/rc_log.h"
+#include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/time_sync.h"
 #include "diag/radio_rate_counters.h"
 #include "safety/health_monitor.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "active_objects/station_bar_mode.h"
 #include "starcom_adapt/sc_air.h"
-#include "active_objects/ao_rf_manager.h"
 #include "flight_director/flight_state.h"
 #include <string.h>
 #include <stdint.h>
@@ -125,6 +127,22 @@ static void send_frame(const char* buf, size_t len) {
 #endif
 }
 
+// Vehicle GPS civil time from the nav packet. Used when this board
+// has no GPS time of its own. Not the mission clock.
+struct VehClock {
+    bool time_ok;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    bool date_ok;
+    int year;
+    uint8_t month;
+    uint8_t day;
+    bool pos_ok;
+    int32_t lat_1e7;
+    int32_t lon_1e7;
+};
+
 // Decoded display values — populated by decode_telem_fields()
 struct DisplayFields {
     float alt_m, baro_m, vvel, speed, batt_v;
@@ -146,6 +164,9 @@ struct DisplayFields {
     bool     veh_cfg_known;    // false -> dashboard shows "?" for vehicle
     bool     cfg_mismatch;     // true -> yellow-highlight the row
     bool     cfg_just_changed; // true for one frame after a transition
+    bool     met_mission;
+    bool     met_show_days;
+    VehClock veh_clock;
 };
 
 // Decode telemetry + radio state into display-ready values
@@ -178,12 +199,9 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     }
     g_prevFlightState = t.flight_state;
 
-    // Packet loss: RfManager already counts seq-gap misses (14-bit
-    // CCSDS wrap vs free-running rx_count pegs a local expected to 0).
-    d.lost = 0;
-    if (const rc::RfManagerState* rf = rc::AO_RfManager_get_state()) {
-        d.lost = rf->packets_missed;
-    }
+    // CRC fail count (211.2 Quality Indicator analog). Not RfManager
+    // 10 Hz miss slots — HD table 6-10 does not owe commanded nav_hz.
+    d.lost = rs->rx_crc_errors;
     (void)seq;
 
     // Signal age
@@ -199,10 +217,14 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.rssi_clr  = rssi_color(rs->last_rx_rssi);
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+        const bool copp_lock =
+            sc.peer_plcw && (sc.mac_mode == 3U);
         const StationBarMode bar = station_bar_mode(
-            sc.nav_sdu || sc.peer_plcw, rs->rx_count, d.age_ms);
+            copp_lock, rs->rx_count, d.age_ms);
         if (bar == StationBarMode::Waiting) {
             d.rssi_clr = kYellow;
+        } else if (bar == StationBarMode::RfHeard) {
+            d.rssi_clr = kCyan;
         }
     }
 
@@ -226,7 +248,7 @@ static void decode_telem_fields(const rc::TelemetryState& t,
 static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
     if (!d.veh_cfg_known) {
         return rc::rc_snprintf(out, n,
-            "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: ?",
+            "Radio: BW%u %uHz SF%u CR%u",
             static_cast<unsigned>(d.stn_bw),
             static_cast<unsigned>(d.stn_nav),
             static_cast<unsigned>(d.stn_sf),
@@ -245,89 +267,44 @@ static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
         d.cfg_just_changed ? " [CHANGED]" : "");
 }
 
-// R-32 R0: soak captures the ANSI dashboard, not CLI `t` (dashboard
-// poll_dashboard_keys eats t/q/d). Same RATE: tokens as radio_rate_counters_dump.
-static int format_rate_row(char* out, size_t n) {
-    const RadioRateCounters& c = g_radioRateCounters;
-#ifndef ROCKETCHIP_HOST_TEST
-    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
-#else
-    const uint32_t window_ms = 0;
-#endif
-    return rc::rc_snprintf(
-        out, n,
-        "RATE: window_ms=%lu nav_submit=%lu pltu_post=%lu tx_start=%lu "
-        "tx_done=%lu tx_busy_drop=%lu tx_hold_replace=%lu "
-        "rx_crc_ok=%lu rx_crc_fail=%lu station_tx=%lu",
-        (unsigned long)window_ms,
-        (unsigned long)c.nav_submit_n,
-        (unsigned long)c.pltu_post_n,
-        (unsigned long)c.tx_start_n,
-        (unsigned long)c.tx_done_n,
-        (unsigned long)c.tx_busy_drop_n,
-        (unsigned long)c.tx_hold_replace_n,
-        (unsigned long)c.rx_crc_ok_n,
-        (unsigned long)c.rx_crc_fail_n,
-        (unsigned long)c.station_tx_n);
-}
-
-// CRC-good RX Hz tenths — same formula as radio_rate_counters dump_hz_field.
-static void format_rx_hz_token(char* out, size_t n, uint8_t desired_hz) {
-#ifndef ROCKETCHIP_HOST_TEST
-    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
-#else
-    const uint32_t window_ms = 0;
-#endif
-    if (window_ms < 1000U) {
-        rc::rc_snprintf(out, n, "RX --/%u Hz",
-                        static_cast<unsigned>(desired_hz));
-        return;
-    }
-    const uint32_t window_s = window_ms / 1000U;
-    const uint32_t hz10 = static_cast<uint32_t>(
-        (static_cast<uint64_t>(g_radioRateCounters.rx_crc_ok_n) * 10U) /
-        window_s);
-    rc::rc_snprintf(out, n, "RX %lu.%lu/%u Hz",
-                    (unsigned long)(hz10 / 10U),
-                    (unsigned long)(hz10 % 10U),
-                    static_cast<unsigned>(desired_hz));
-}
-
-// RF Link glance — same thresholds as FD pre-arm (kTrack + LQ>=65 green;
-// kTrackDegraded or LQ<65 yellow; kAcq/kTentative/no RX red).
-// Returns pair (color, row text) via out parameters.
+// RF Link glance — COP-P lock + CRC-ok LQ. Not RfManager 10 Hz TRACK.
 static void format_rf_link_row(char* out, size_t n, const char*& colour,
                                const DisplayFields& d) {
-    // Denom is CFG nav_rate_hz; vehicle echo is the TM command rate.
-    uint8_t desired = d.stn_nav;
-    if (d.veh_cfg_known && d.veh_nav != 0) {
-        desired = d.veh_nav;
+    (void)d;
+    const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+    const RadioAoState* rs = AO_Radio_get_state();
+    uint32_t gap = kStationBarHoldMs;
+    uint32_t rxn = 0;
+    if (rs != nullptr) {
+        rxn = rs->rx_count;
+#ifndef ROCKETCHIP_HOST_TEST
+        gap = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
+#endif
     }
-    char rxhz[24];
-    format_rx_hz_token(rxhz, sizeof(rxhz), desired);
-
-    const rc::RfManagerState* rf = rc::AO_RfManager_get_state();
-    if (rf == nullptr || !rf->anchor_valid) {
-        colour = kRed;
-        rc::rc_snprintf(out, n, "RF Link: NO RX YET %s [!!]", rxhz);
-        return;
+    const bool rf_live = (rxn > 0U) && (gap < kStationBarHoldMs);
+    const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U) && rf_live;
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t window_ms = 0;
+#endif
+    const uint32_t ok = g_radioRateCounters.rx_crc_ok_n;
+    const uint32_t fail = g_radioRateCounters.rx_crc_fail_n;
+    const uint8_t lq = rc::dash::crc_lq_pct(ok, fail);
+    const bool hz_ok = (window_ms >= 1000U);
+    uint32_t hz10 = 0;
+    if (hz_ok) {
+        hz10 = static_cast<uint32_t>(
+            (static_cast<uint64_t>(ok) * 10U) / (window_ms / 1000U));
     }
-    const uint8_t lq  = rf->lq_pct;
-    const int     st  = static_cast<int>(rf->state);
-    const char*   st_name = rc::link_state_name(rf->state);
-    const char* tag = "[!!]";
-    // kTrack=2, kTrackDegraded=3
-    if (st == 2 && lq >= 65U) {
+    if (copp_lock) {
         colour = kGreen;
-        tag = "[OK]";
-    } else if (st == 2 || st == 3) {
+    } else if (rf_live) {
         colour = kYellow;
-        tag = "[--]";
     } else {
         colour = kRed;
     }
-    rc::rc_snprintf(out, n, "RF Link: %s LQ %u%% %s %s",
-                    st_name, static_cast<unsigned>(lq), rxhz, tag);
+    rc::dash::format_rf_link_row(out, n, copp_lock, rf_live, lq, hz_ok, hz10);
 }
 
 // Short command name for the CMD row. Stable across retries.
@@ -390,29 +367,188 @@ static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
     rc::rc_snprintf(out, n, "CMD: ---");
 }
 
-// Build ANSI frame string into s_frame, return length
+static rc::dash::ZuluRun g_zuluRun = {};
+static rc::dash::TMinus g_tminus = {};
+static rc::MetRun g_metRun = {};
+static bool g_latencyValid = false;
+static int32_t g_latencyS = 0;
+
+static uint32_t pad_mono_ms() {
+#ifndef ROCKETCHIP_HOST_TEST
+    return to_ms_since_boot(get_absolute_time());
+#else
+    return 0;
+#endif
+}
+
+// MET is not consulted. Station GPS time wins. Otherwise the vehicle's.
+static void format_clock_row(char* out, size_t n, bool met_mission,
+                             uint32_t veh_met_ms, bool show_days,
+                             const VehClock& veh) {
+    rc::met_run_observe(&g_metRun, met_mission, veh_met_ms, pad_mono_ms());
+    const uint32_t shown_met = rc::met_run_at(g_metRun, pad_mono_ms());
+    shared_sensor_data_t snap = {};
+    const bool got = seqlock_read(&g_sensorSeqlock, &snap);
+    const bool local_gps = got && snap.gps_time_valid;
+    const rc::dash::TimePick time_pick = rc::dash::choose_time_source(
+        local_gps, veh.time_ok, false, false);
+    const bool use_local = time_pick == rc::dash::TimePick::kLocalGps;
+    const bool use_peer = time_pick == rc::dash::TimePick::kPeerGps;
+    const uint8_t src_h = use_local ? snap.gps_hour : veh.hour;
+    const uint8_t src_m = use_local ? snap.gps_minute : veh.minute;
+    const uint8_t src_s = use_local ? snap.gps_second : veh.second;
+    bool zulu_ok = false;
+    uint8_t zh = 0;
+    uint8_t zm = 0;
+    uint8_t zs = 0;
+    rc::dash::zulu_run_apply(&g_zuluRun, use_local || use_peer, src_h, src_m,
+                             src_s, pad_mono_ms(), &zulu_ok, &zh, &zm, &zs);
+
+    bool local_ok = false;
+    int16_t off = 0;
+    const bool stn_pos = got && (snap.gps_valid || snap.gps_lat_1e7 != 0 ||
+                                 snap.gps_lon_1e7 != 0);
+    const bool stn_date = got && snap.gps_date_valid;
+    int32_t lat = 0;
+    int32_t lon = 0;
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    bool have_pos = false;
+    bool have_date = false;
+    if (stn_pos) {
+        lat = snap.gps_lat_1e7;
+        lon = snap.gps_lon_1e7;
+        have_pos = true;
+    } else if (veh.pos_ok) {
+        lat = veh.lat_1e7;
+        lon = veh.lon_1e7;
+        have_pos = true;
+    }
+    if (stn_date) {
+        year = snap.gps_year;
+        month = snap.gps_month;
+        day = snap.gps_day;
+        have_date = true;
+    } else if (veh.date_ok) {
+        year = veh.year;
+        month = veh.month;
+        day = veh.day;
+        have_date = true;
+    }
+    if (zulu_ok && have_pos && have_date) {
+        off = rc::dash::tz_offset_min(lat, lon, year, month, day, zh, zm, zs);
+        local_ok = true;
+    }
+    bool met_on = false;
+    int32_t met_signed_s = 0;
+    if (g_tminus.on) {
+        // Remaining time until the mark is a negative MET.
+        const int32_t left_s = rc::dash::tminus_remaining_s(g_tminus, pad_mono_ms());
+        met_on = true;
+        met_signed_s = -left_s;
+    } else if (g_metRun.on) {
+        met_on = true;
+        met_signed_s = static_cast<int32_t>(shown_met / 1000U);
+    }
+    rc::dash::format_met_zulu(out, n, met_on, met_signed_s, show_days,
+                              zulu_ok, zh, zm, zs, local_ok, off);
+}
+
+static bool current_zulu_sod(uint32_t* sod) {
+    bool ok = false;
+    uint8_t h = 0;
+    uint8_t m = 0;
+    uint8_t s = 0;
+    rc::dash::zulu_run_apply(&g_zuluRun, false, 0, 0, 0, pad_mono_ms(),
+                             &ok, &h, &m, &s);
+    if (!ok || sod == nullptr) {
+        return false;
+    }
+    *sod = rc::dash::hms_to_sod(h, m, s);
+    return true;
+}
+
+static void fill_station_gps(char* out, size_t n) {
+    shared_sensor_data_t snap = {};
+    const bool got = seqlock_read(&g_sensorSeqlock, &snap);
+    rc::dash::format_station_gps_row(
+        out, n, got && snap.gps_read_count > 0U,
+        got ? snap.gps_fix_type : 0U, got ? snap.gps_satellites : 0U,
+        got && snap.gps_time_valid, pad_mono_ms() / 1000U);
+}
+
+void ansi_dashboard_set_tminus_minutes(uint16_t minutes, uint32_t now_ms) {
+    rc::dash::tminus_arm(&g_tminus, now_ms,
+                         static_cast<uint32_t>(minutes) * 60U);
+}
+
+bool ansi_dashboard_set_tminus_zulu(uint8_t h, uint8_t m, uint8_t s,
+                                    uint32_t now_ms) {
+    uint32_t now_sod = 0;
+    if (!current_zulu_sod(&now_sod)) {
+        return false;
+    }
+    const uint32_t delta = rc::dash::tminus_zulu_delta_s(
+        now_sod, rc::dash::hms_to_sod(h, m, s));
+    rc::dash::tminus_arm(&g_tminus, now_ms, delta);
+    return true;
+}
+
+void ansi_dashboard_clear_tminus() {
+    g_tminus.on = false;
+}
+
+bool ansi_dashboard_retarget_tminus_sod(uint32_t accepted_sod, uint32_t now_ms) {
+    uint32_t now_sod = 0;
+    if (!current_zulu_sod(&now_sod)) {
+        return false;
+    }
+    const uint32_t delta = rc::dash::tminus_zulu_delta_s(now_sod, accepted_sod);
+    rc::dash::tminus_arm(&g_tminus, now_ms, delta);
+    return true;
+}
+
+void ansi_dashboard_note_latency(bool valid, int32_t latency_s) {
+    g_latencyValid = valid;
+    g_latencyS = latency_s;
+}
+
+bool ansi_dashboard_latency(int32_t* latency_s) {
+    if (!g_latencyValid || latency_s == nullptr) {
+        return false;
+    }
+    *latency_s = g_latencyS;
+    return true;
+}
+
 static void format_starcom_row(char* out, int n, const char*& colour) {
     const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
-    if (!sc.on) {
-        colour = kReset;
-        rc::rc_snprintf(out, n, "Air: %s", rc::kAirDialect);
-        return;
+    const RadioAoState* rs = AO_Radio_get_state();
+    uint32_t gap = kStationBarHoldMs;
+    uint32_t rxn = 0;
+    if (rs != nullptr) {
+        rxn = rs->rx_count;
+#ifndef ROCKETCHIP_HOST_TEST
+        gap = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
+#endif
     }
-    if (sc.peer_plcw) {
+    const bool rf_live = (rxn > 0U) && (gap < kStationBarHoldMs);
+    if (sc.on && sc.peer_plcw && rf_live && (sc.mac_mode == 3U)) {
         colour = kGreen;
-        rc::rc_snprintf(out, n, "Air: %s  COP-P lock  N(R)=%u V(S)=%u%s",
-                        rc::kAirDialect,
-                        static_cast<unsigned>(sc.nn_r),
-                        static_cast<unsigned>(sc.v_s),
-                        sc.nav_sdu ? "  nav" : "");
-        return;
+    } else if (sc.on) {
+        colour = kYellow;
+    } else {
+        colour = kReset;
     }
-    colour = kYellow;
-    rc::rc_snprintf(out, n, "Air: %s  COP-P waiting peer PLCW", rc::kAirDialect);
+    rc::dash::format_air_row(out, static_cast<size_t>(n), rc::kAirDialect, sc.on,
+                             sc.peer_plcw, rf_live, sc.nav_sdu,
+                             sc.nn_r, sc.v_s, sc.farm_vr,
+                             sc.mac_mode, sc.mac_state);
 }
 
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
-                        uint16_t seq) {
+                        uint16_t seq, uint32_t met_ms) {
     // Radio row colour: cyan one frame after a change, yellow if mismatch.
     char radio_row[96];
     format_radio_row(radio_row, sizeof(radio_row), d);
@@ -430,26 +566,34 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     const char* cmd_clr = kReset;
     format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
 
+    char clock_row[80];
+    format_clock_row(clock_row, sizeof(clock_row), d.met_mission, met_ms,
+                     d.met_show_days, d.veh_clock);
+    char stn_row[72];
+    fill_station_gps(stn_row, sizeof(stn_row));
+
     rc::strbuf sb;
     rc::strbuf_init(&sb, g_frame, sizeof(g_frame));
 
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
-        "State: %s%-8s%s     MET: %lu:%02lu.%lu%s\n"
-        "-------------------------------------------%s\n",
+        "%s%s\n"
+        "State: %s%-14s%s%s\n"
+        "%s%s\n"
+        "------------------------------------------------------------------------%s\n",
         kHome,
         kClrEol,
-        d.phase_clr, d.phase, kReset,
-        (unsigned long)(d.met_s / 60), (unsigned long)(d.met_s % 60),
-        (unsigned long)d.met_ds, kClrEol,
+        clock_row, kClrEol,
+        d.phase_clr, d.phase, kReset, kClrEol,
+        stn_row, kClrEol,
         kClrEol);
 
     rc::strbuf_printf(&sb,
-        "Alt:  %7.1f m            Max: %.1f m%s\n"
-        "Vvel: %+6.1f m/s          Spd: %.1f m/s%s\n"
-        "Baro: %7.1f m            GPS: %s (%usat)%s\n"
-        "-------------------------------------------%s\n",
+        "Alt:  %7.1f m        Max: %.1f m%s\n"
+        "Vvel: %+6.1f m/s      Spd: %.1f m/s%s\n"
+        "Baro: %7.1f m         GPS (veh): %s (%usat)%s\n"
+        "------------------------------------------------------------------------%s\n",
         static_cast<double>(d.alt_m),
         static_cast<double>(g_maxAltM), kClrEol,
         static_cast<double>(d.vvel), static_cast<double>(d.speed), kClrEol,
@@ -459,7 +603,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 
     rc::strbuf_printf(&sb,
         "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
-        "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n",
+        "Pkts: %-6lu CRC: %-4lu  %sLast: %lu.%lus%s%s\n",
         d.rssi_clr, static_cast<int>(rs->last_rx_rssi), kReset,
         static_cast<int>(rs->last_rx_snr),
         d.rssi_clr, d.bar, kReset, d.rssi_pct, kClrEol,
@@ -469,31 +613,35 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         radio_clr, radio_row, kReset, kClrEol);
-    char rate_row[256];
-    format_rate_row(rate_row, sizeof(rate_row));
-    rc::strbuf_printf(&sb, "%s%s\n", rate_row, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         rflink_clr, rflink_row, kReset, kClrEol);
     rc::strbuf_printf(&sb, "%s%s%s%s\n",
         cmd_clr, cmd_row, kReset, kClrEol);
 
-    char sc_row[80];
+    char sc_row[96];
     const char* sc_clr = kReset;
     format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
     rc::strbuf_printf(&sb, "%s%s%s%s\n", sc_clr, sc_row, kReset, kClrEol);
 
+    char up_row[24];
+    if (d.met_mission) {
+        rc::rc_snprintf(up_row, sizeof(up_row), "Veh up: --");
+    } else {
+        rc::rc_snprintf(up_row, sizeof(up_row), "Veh up: %lus",
+                        (unsigned long)(met_ms / 1000U));
+    }
     rc::strbuf_printf(&sb,
-        "-------------------------------------------%s\n"
+        "------------------------------------------------------------------------%s\n"
         "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
         "Lat: %.7f  Lon: %.7f%s\n"
-        "%s\n"
+        "%s%s\n"
         "'a' ARM  'D' DISARM  'x' menu%s\n",
         kClrEol,
         static_cast<double>(d.batt_v), static_cast<int>(d.temp_c),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,
         static_cast<unsigned>(seq), kClrEol,
         d.lat, d.lon, kClrEol,
-        kClrEol,
+        up_row, kClrEol,
         kClrEol);
 
     return static_cast<int>(rc::strbuf_len(&sb));
@@ -536,45 +684,54 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
         d.cfg_just_changed = rx->echo_just_changed;
     }
 
-    int pos = build_frame(d, rs, seq);
+    d.met_mission = (t.flags & rc::kFlagsMetMission) != 0;
+    d.met_show_days = (t.flags & rc::kFlagsMetDays) != 0;
+    d.veh_clock.time_ok = (t.flags & rc::kFlagsUtcValid) != 0;
+    d.veh_clock.hour = t.utc_hour;
+    d.veh_clock.minute = t.utc_minute;
+    d.veh_clock.second = t.utc_second;
+    d.veh_clock.date_ok = t.utc_month >= 1 && t.utc_month <= 12;
+    d.veh_clock.year = 2000 + t.utc_year;
+    d.veh_clock.month = t.utc_month;
+    d.veh_clock.day = t.utc_day;
+    d.veh_clock.pos_ok = ((t.gps_fix_sats >> 4) & 0x0F) >= 2;
+    d.veh_clock.lat_1e7 = t.lat_1e7;
+    d.veh_clock.lon_1e7 = t.lon_1e7;
+    int pos = build_frame(d, rs, seq, met_ms);
     send_frame(g_frame, static_cast<size_t>(pos));
 }
 
 void ansi_dashboard_render_waiting(const RadioAoState* rs) {
     const char* sig_msg = "\033[33mWaiting for vehicle packets...\033[0m";
 
-#ifndef ROCKETCHIP_HOST_TEST
-    uint32_t uptime_s = to_ms_since_boot(get_absolute_time()) / 1000;
-#else
-    uint32_t uptime_s = 0;
-#endif
-
     rc::strbuf sb;
     rc::strbuf_init(&sb, g_frame, sizeof(g_frame));
-    char sc_row[80];
+    char sc_row[96];
     const char* sc_clr = kReset;
     format_starcom_row(sc_row, static_cast<int>(sizeof(sc_row)), sc_clr);
-    char rate_row[256];
-    format_rate_row(rate_row, sizeof(rate_row));
+    char clock_row[80];
+    format_clock_row(clock_row, sizeof(clock_row), false, 0, false, VehClock{});
+    char stn_row[72];
+    fill_station_gps(stn_row, sizeof(stn_row));
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
         "%s%s\n"
-        "%s%s%s%s\n"
-        "-------------------------------------------%s\n"
-        "RX: %lu pkts  CRC err: %lu%s\n"
         "%s%s\n"
-        "Uptime: %lus%s\n"
+        "%s%s\n"
+        "%s%s%s%s\n"
+        "------------------------------------------------------------------------%s\n"
+        "RX: %lu pkts  CRC err: %lu%s\n"
         "%s\n"
         "'a' ARM  'D' DISARM  'x' menu%s\n",
         kHome,
         kClrEol,
         sig_msg, kClrEol,
+        clock_row, kClrEol,
+        stn_row, kClrEol,
         sc_clr, sc_row, kReset, kClrEol,
         kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors, kClrEol,
-        rate_row, kClrEol,
-        (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);
     send_frame(g_frame, rc::strbuf_len(&sb));

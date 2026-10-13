@@ -18,7 +18,7 @@ wrap `2026-08-24-003`). Combined overlay: `L2P5_GROK_CLAUDE_OVERLAY.md`. Log:
 `L2P5_DISPOSITION_LOG.md`. Rem WB deleted. Worktree `grok/l2p5-disposition` removed.
 
 **Still open (later sittings, on `AGENT_WHITEBOARD.md`):** first-flight prod strip of
-test/inject, Notify/LED overhaul, leftover sittings (HAB `EMERG_DEPLOY`, PIO WDT,
+test/inject, leftover sittings (HAB `EMERG_DEPLOY`, PIO WDT,
 Estes vs station ARM, Tiny 2350 pin map), codegen audit, early-impl table (RC_OS
 sittings 0–5 closed; classified leftovers remain). Sitting 6 RF skipped (WN-100).
 **Next:** those rows when scheduled; Stage 17 tapered buildup; L2-P10 CLA-RBM when

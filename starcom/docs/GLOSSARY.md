@@ -44,6 +44,9 @@ Key concepts for a first read also sit in [`../README.md`](../README.md). Agent 
 | **DUPLEX** | MAC variable: full, half, or simplex. | 211.0 §6 |
 | **Full duplex** | Both directions at once (book PHY: two frequencies). | 211.0 §6; 211.1 |
 | **Half duplex** | Both directions, not at the same time. | 211.0 §6 |
+| **Send_Duration** | MIB: maximum time a half-duplex transmitter radiates data-services before it must relinquish the token. Local to each transceiver — the library does not pick the value. | 211.0 §6.2.4.17, table 6-10 E38 |
+| **Receive_Duration** | MIB: how long the half-duplex receiver expects the peer to keep transmitting (cover the peer's S51–S58, not Send_Duration alone). | 211.0 §6.2.4.18, table 6-10 E44/E48 |
+| **Token (HD)** | SET CONTROL PARAMETERS with the pass bit. Table 6-10 E39 after Send_Duration and NEED_PLCW false. Not a consumer retry layer. | 211.0 §6.3.3.2.5, table 6-10 E39 |
 | **Simplex** | One direction only. No hailing on that session. | 211.0 §6 |
 | **DFC ID** | Data Field Construction Identifier. `11` = user-defined data (opaque octets; not Annex F). | 211.0 Table 3-1 |
 | **Repeater** | Regenerative forward of a valid PLTU (same octets out). Starcom/RC capability; not a Blue Book product name. | 211.2 C&S check; 133.0 §2.4 (subnetwork store-and-forward) |

@@ -480,8 +480,8 @@ static void start_active_objects() {
         }
         rc::AO_RfManager_start(7U, nav_ms);
     }
+    AO_Notify_start(5U);             // 33Hz — intent hub, every role
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        AO_Notify_start(5U);         // 33Hz — notification intent hub
         // PSRAM ring only if addressing self-test AND flash-safe (QMI
         // restore across erase) both passed. Else SRAM fallback.
         AO_Logger_start(4U, g_psramSize,
@@ -490,11 +490,8 @@ static void start_active_objects() {
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
     }
-    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        AO_LedEngine_start(2U);     // 33Hz — Vehicle only (flight phase patterns)
-    }
-    // Station/Relay: AO_Radio owns NeoPixels exclusively (RSSI bar).
-    // AO_LedEngine disabled to prevent PIO contention (LL Entry 32 pattern).
+    // One chain writer. Station/relay patterns arrive as notify intents.
+    AO_LedEngine_start(2U);
     AO_RCOS_start(1U);              // 20Hz — CLI/dashboard, all roles
 }
 

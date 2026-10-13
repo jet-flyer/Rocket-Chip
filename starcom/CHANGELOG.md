@@ -6,6 +6,90 @@ Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONI
 
 ## Unreleased
 
+### 2026-10-04-002 | Grok 4.7 (Build CLI) | documentation
+
+**Consumer guide in Simplified Technical English.** `docs/USER_GUIDE.md` now helps a reader who does not know CCSDS. The Version-3 / Version-4 choice is one example. That file uses ASD-STE100. The other documents do not. No version bump. No tag. The later standard is root `CHANGELOG.md` 2026-10-04-001 and `AGENT_WHITEBOARD.md` (LATER).
+
+Verified: documentation only, no library source in this change.
+
+### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
+
+**Unadopted hardware option.** `docs/DESIGN.md` note 2026-10-04. An AT86RF215 MR-FSK transceiver is one later candidate. It is not a selected radio. No version bump. No tag. No modem work.
+
+Verified: documentation only, no library source in this change.
+
+### 2026-10-03-001 | Grok 4.7 (Build CLI) | documentation
+
+**Which Proximity-1 applies, by year.** `docs/DESIGN.md` note 2026-10-03. Shelf URLs for the 2026 pinks, 235.1-R-1, and LunaNet v5 are root `standards/starcom/README.md`. The 915 MHz regulatory lines are root `docs/hardware/HARDWARE.md`. No version bump. No tag. No modem work. Root `CHANGELOG.md` has no row for this sitting.
+
+Verified: documentation only, no library source in this change.
+
+### 2026-10-01-002 | Grok 4.7 (Build CLI) | feature
+
+**Space Packet service primitives, not wired in yet.** `space_packet_service` is PACKET and OCTET_STRING request and indication, assembly, transfer, extraction, and reception (133.0-B-2). No Data Loss Indicator. `PACKET.request` copies the packet as formatted. Sequence flags `11` are the packet field, not 211.0-B-6 Table 3-4. It is not wired in yet because `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), a self-implemented service already written in Rocket-Chip, still packs nav, command, and ACK and hands those frames to COP-P. No version bump. No tag.
+
+The on-air count is root `CHANGELOG.md` 2026-10-01-003 (`1f23b35`).
+
+Verified: `test_space_packet_service` 9/9 and host ctest 1010/1010.
+
+### 2026-10-01-001 | Grok 4.7 (Build CLI) | documentation
+
+**401, SatNOGS, and range telemetry are not 211.1.** `docs/DESIGN.md` note 2026-10-01. `docs/COVERAGE.md` points at it from the 211.1 header. No version bump. No tag. No modem work.
+
+The umbilical circuit list and RCC 319 note are root `CHANGELOG.md` 2026-10-01-001 (`docs/hardware/HARDWARE.md`).
+
+Verified: documentation only, no library source in this change.
+
+### 2026-09-29-002 | Grok 4.7 (Build CLI) | bugfix
+
+**Table 6-10 data-services rows.** `mac.cpp`: E38 sets persistence and does not reload Send_Duration. A pass token that is the first frame in S62 takes carrier lock, then E49. E42 does not count a failed pass. E50 does. `test_mac.cpp` follows those rows. No version bump. No tag.
+
+RC listen windows, the station pass cadence, and the pad score are root `CHANGELOG.md` 2026-09-29-002 (`40b83fc`, `37acb21`).
+
+Verified: host MAC tests in the `40b83fc` pre-commit suite.
+
+### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation
+
+**On-hand fabric figure is snickerdoodle one (~17.6k LUT).** `docs/DESIGN.md` and `AGENT_WHITEBOARD.md` had been counting ~53k LUT. Encode stays the small job. LDPC decode stays Pi/GCS software. No version bump. No tag.
+
+RC hardware inventory is root `CHANGELOG.md` 2026-09-23-001.
+
+Verified: docs only, no firmware path in this tree.
+
+### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix
+
+**Responder reconnect hail while active.** `macOnHailReceived`: half-duplex responder in data-services goes S2 then E30 (211.0 table 6-12 E82/E85, table 6-10 E30). Test `test_half_rehail_while_active`. No version bump. No tag.
+
+RC adapter (same-catalog hail vs E69) is root `CHANGELOG.md` 2026-09-21-001.
+
+Verified: `starcom.unit`.
+
+### 2026-09-18-002 | Grok 4.6 (Build CLI) | documentation
+
+**Half-duplex MIB is consumer-owned.** USER_GUIDE + GLOSSARY: `Send_Duration` / `Receive_Duration` / E39 token are book; N and wait-vs-RX Hz are not Starcom defaults. Rocket-Chip example table labeled **not universal**. RC product numbers: root `CHANGELOG.md` 2026-09-18-002 / `src/starcom_adapt/README.md`. No version bump. No tag.
+
+Verified: docs only, no firmware path in this tree.
+
+### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix
+
+**Half-duplex MAC/COP-P: E38, E83 role, `coppReset`.** Table 6-12 E38 keeps S50 (reload `Send_Duration`) while `NEED_PLCW` is set; PERSISTENCE only after the PLCW. E83 reconnect hail is caller-only; responder failed-token returns S2. `coppReset` is SE0/RE0 (re-init FOP/FARM, keep SCIDs). Tests: `test_half_e83_responder_listens`, E38 keep-send in `test_half_token_octets`. No version bump. No tag.
+
+RC pad ARM/DISARM ACK and PHY/AO wiring are root `CHANGELOG.md` 2026-09-18-001 (`f79f7dc`), not this row.
+
+Verified: `starcom.unit` / host MAC tests; desk ACK is the root entry.
+
+### 2026-09-17-002 | Grok 4.6 (Build CLI) | bugfix
+
+**`macTickPlcw` arms `plcw_left` from the MIB interval.** `applyTable66` left `plcw_left` at 0 so the repeat timer never fired. Host `test_plcw_repeat_arms`. No version bump. No tag.
+
+Verified: `starcom.unit` / host MAC tests; RC consumer classify is the root changelog.
+
+### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation
+
+**Whiteboard: Starcom-owned leftovers live here.** Moved from RC `AGENT_WHITEBOARD.md`: FSK bitstream bearer, station readiness bit on air, SDLS 355.0. Hail / SET OTA / CFDP / FPGA PHY already on this board. RC air is always COP-P (no dual-build flag). Living consumer docs no longer say default-OFF / STOP-GAP air. No version bump. No tag.
+
+Verified: docs only, no firmware path, no HW reseat required.
+
 ### 2026-09-11-001 | Grok 4.6 (Build CLI) | documentation
 
 **Blue Book clause coverage ledger.** New living `docs/COVERAGE.md`: section-grain walk of the eight shelf books (status, CONFORMANCE claim, test pointer, neighbors). 211.2 PICS Idle (item 2, M) is 0 in the core; 211.0 timing / segment reassembly / Type-1 SPDUs other than SET V(R) are M-not-in-core; 232.1 is not “§5 Full” (E30–E34 / E41–E46 still 0); two SET V(R)s (Prox-1 B1.5 vs COP-1 BC) are cross-linked. CONFORMANCE stays the published tick. Agent recipe in COVERAGE + WORKING_HERE Dos/Don’ts (no PDF graphify ingest; no CONFORMANCE retcon). Pointers from README, ICD, SAD, glossary, `src/ccsds/README.md`. No version bump. No tag.

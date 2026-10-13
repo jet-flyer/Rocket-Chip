@@ -1,0 +1,120 @@
+# RocketChip firmware path list - ONE tracked source of truth.
+#
+# Readers (keep them in step; do not copy this list into code):
+#   - cmake/rc_version.cmake          [elf]  -> kFirmwareTreeId in version.h
+#   - scripts/firmware_tree.py        all    -> build-ID gate, bench-note key
+#   - scripts/ci/pre_commit_matrix.py all    -> pre-commit build trigger,
+#                                               pre-push bench trigger
+#   - scripts/ci/check_elf_paths.py   [elf]  -> list-completeness check: every
+#                                               repo file a flight build used
+#                                               must be in [elf]
+#
+# Entry forms:
+#   dir/       every path under dir/
+#   name       that exact path, or every path under name/ (git literal pathspec)
+#   prefix*    any path that starts with prefix (NOT allowed in [elf])
+# Lines starting with '#' are comments. Paths are repo-relative, '/' only.
+#
+# Changing this file changes which commits get a bench run. Removing a path
+# needs the repo owner's OK (and a council, per the matrix policy).
+
+[elf]
+# Every path whose bytes can reach a flight image (vehicle or station).
+# The firmware-tree hash (build ID) is computed over these paths only, so a
+# docs-only commit after the flash keeps the same hash.
+src/
+include/
+CMakeLists.txt
+CMakePresets.json
+cmake/
+pico_sdk_import.cmake
+RC_VERSION
+pio/
+profiles/
+lib/
+EXTERNAL/
+pico-sdk
+starcom/CMakeLists.txt
+starcom/STARCOM_VERSION
+starcom/cmake/
+starcom/include/
+starcom/src/
+starcom/third_party/
+starcom/adapters/rp2350/
+
+[elf-exempt]
+# Read by the CMake configure step (build.ninja regeneration inputs), but
+# NOT in [elf] on purpose. scripts/ci/check_elf_paths.py accepts them.
+# Adding a path here needs the repo owner's OK; never add source code here.
+#   .git/   git metadata. cmake/rc_version.cmake re-runs on a new commit to
+#           refresh kGitHash / kBuildIdentity. Those strings change with
+#           every commit by design; the build ID is the firmware-tree hash.
+#   scripts/ci/firmware_paths.txt   this list. Its [elf] entries are the
+#           firmware-tree hash input itself, and the file is in [gate], so
+#           the bench key covers it.
+.git/
+scripts/ci/firmware_paths.txt
+
+[gate]
+# Gate machinery. A change here triggers the bench (self-rot check, LL 36)
+# but does not change the build ID.
+scripts/hooks/
+scripts/ci/
+scripts/firmware_tree.py
+scripts/bench_sim.py
+scripts/station_bench_sim.py
+scripts/_rc_test_common.py
+scripts/flash_elf_halt_write.py
+
+[station-only]
+# Role rule (Nathan, 2026-10-08): a firmware ([elf]) change benches BOTH
+# roles. A [gate] change benches BOTH roles. One exception (2026-09-17,
+# 73ae8dd1): when EVERY firmware path in a change is here, only the station
+# bench runs.
+# NOTE: CMakeLists.txt has ONE source list for both roles, so these files are
+# also compiled into the vehicle image. The skip is a role decision, not a
+# "bytes cannot change" fact.
+src/station/
+src/cli/rc_os_dashboard*
+include/rocketchip/board_fruit_jam*
+
+[radio]
+# Radio / link code. Built into BOTH images (one source list in
+# CMakeLists.txt; Starcom linked into both). A change here is a RADIO PUSH:
+# bench BOTH boards and run the two-board radio round trip.
+src/drivers/rfm95w*
+src/active_objects/ao_radio*
+src/active_objects/ao_rf_manager*
+src/active_objects/ao_telemetry*
+src/telemetry/
+src/starcom_adapt/
+src/logging/radio_config_storage*
+src/diag/radio_rate_counters*
+include/rocketchip/radio_config*
+include/rocketchip/telemetry_encoder*
+starcom/include/
+starcom/src/
+starcom/third_party/
+starcom/adapters/rp2350/
+
+# Isolation classes: a commit that touches one of these goes in a push with
+# no other firmware commit. (Lists are a first draft - owner to confirm.)
+[isolate:pyro-deploy]
+src/flight_director/action_executor*
+src/flight_director/flight_actions*
+src/active_objects/ao_flight_director*
+src/safety/pyro_edge_logger*
+pio/backup_timer.pio
+
+[isolate:guard]
+src/flight_director/guard_*
+
+[isolate:radio-adapter]
+src/starcom_adapt/
+src/drivers/rfm95w*
+src/active_objects/ao_radio*
+starcom/adapters/rp2350/
+
+[isolate:turnaround]
+starcom/src/ccsds/mac.cpp
+starcom/include/starcom/ccsds/mac.hpp

@@ -19,6 +19,31 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 - **Power** - Solar charging, extended battery
 - **RC Link + Video (Telstar)** - ELRS receiver (CRSF/MAVLink), 5.8 GHz FPV VTx, RID module support. Designed for standalone use as well as RocketChip integration.
 
+### Timekeeping
+
+The RP2350 always-on timer runs from its internal low-power RC oscillator
+(about 26–39 kHz untrimmed, and it moves with temperature and supply
+voltage). A tighter clock is an external 32.768 kHz **clock signal** on
+GPIO 12, 14, 20, or 22 — the pin the board leaves free. A bare watch
+crystal does not drive that pin; the board needs an oscillator. That
+timer still dies when the chip's always-on supply drops, so the coin
+cell on this option has to hold that supply.
+
+A separate I2C RTC (PCF8523 class, or a compensated DS3231 when the
+tighter spec is wanted) has its own coin-cell pin and keeps calendar
+time while the RP2350 is off. The Adalogger FeatherWing on the bench is
+the PCF8523 version of that part.
+
+| Option | Core | Main | Titan |
+|--------|:----:|:----:|:-----:|
+| Internal RC only | included | included | — |
+| 32.768 kHz oscillator into the always-on timer, coin cell holds that rail | — | optional | included |
+| I2C RTC with its own coin cell | — | optional | included |
+
+The Feather and Fruit Jam prototypes have neither option. The GPS
+modules on both of those boards do have coin cells; those cells keep
+the GPS clock only.
+
 ---
 
 ## Current Prototype Hardware
@@ -114,10 +139,29 @@ Available for testing but not in active prototype:
 |------|--------------|-------|
 | Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
 | KB2040 | #5302 | RP2040 Pro Micro form factor |
-| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350A, 4 MB QSPI flash, tiny footprint with castellations - evaluating for Core board candidate. Detail: "Tiny 2350 (PIM721)" below |
 | ESP32-S3 Reverse TFT Feather | #5691 | Built-in display + WiFi/BT, 4MB flash, 2MB PSRAM |
 | Feather M0 RFM69HCW | #3176 | Older M0 with integrated radio - potential for dedicated GCS/relay tasks |
 | Feather M0 Adalogger | #2796 | Older M0 with SD card - potential for dedicated logging tasks |
+
+#### Tiny 2350 (PIM721)
+
+Source: product page https://shop.pimoroni.com/products/tiny-2350, and SDK 2.2.0 `pimoroni_tiny2350.h`.
+
+- Product number PIM721 (package label).
+- RP2350A, 4 MB QSPI flash. The product page lists no PSRAM.
+- RGB LED: GP18 red, GP19 green, GP20 blue, active low (product page). The SDK sets `PICO_DEFAULT_LED_PIN` to 19.
+- BOOT button: user switch on GP23, active low (product page).
+- Qw/St (Qwiic) I2C: GP12 SDA, GP13 SCL (SDK: "routed to Qw/St connector").
+- Stepping is per unit. The product page says current stock is A4. Measured unit: "Important Notes" item 2 below.
+- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2. `include/rocketchip/board_tiny_2350_plus.h` l.3 ("Pimoroni Tiny 2350+ (the Plus variant)") is a mix-up.
+
+Known conflicts in the repo map (`include/rocketchip/board_tiny_2350_common.h`):
+
+- l.24, l.84: GPIO 21 is both I2C SCL and PSRAM CS (CW-B02-03). The product page lists no PSRAM, so remove the PSRAM CS line.
+- l.23-24: I2C is on GPIO 20 / 21. GPIO 20 is the blue LED. The Qwiic I2C is on GPIO 12 / 13.
+- l.54: `kLedPin` is 25. The LED is RGB on GPIO 18-20, active low.
+- l.44: `kNeoPixelPin` is 23. GPIO 23 is the BOOT switch. The board has no NeoPixel.
 
 ### Sensors
 | Part | Adafruit P/N | Notes |
@@ -372,13 +416,13 @@ This ensures users can stack standard FeatherWings (displays, sensors, storage) 
 
 | Arduino Name | Feather RP2350 GPIO | Notes |
 |--------------|---------------------|-------|
-| D5 | GPIO5 | Digital pins map directly |
+| D5 | GPIO5 | Most digital pins map directly (not D12 / D13) |
 | D6 | GPIO6 | |
 | D9 | GPIO9 | |
 | D10 | GPIO10 | Common SPI CS for FeatherWings |
 | D11 | GPIO11 | Common RST for FeatherWings |
-| D12 | GPIO12 | |
-| D13 | GPIO13 | |
+| D12 | GPIO4 | The D12 pad is GPIO4, not GPIO12 |
+| D13 | GPIO7 | The D13 pad is GPIO7 (red LED), not GPIO13 |
 | A0 | GPIO26 | Analog pins start at GPIO26 |
 | A1 | GPIO27 | |
 | A2 | GPIO28 | |
@@ -414,9 +458,9 @@ When Adafruit documentation says "CS on pin 10", they mean GPIO10 (silkscreen la
 | UART RX | GPIO1 | RX | Standard UART |
 | I2C SDA | GPIO2 | SDA | Qwiic/STEMMA QT |
 | I2C SCL | GPIO3 | SCL | Qwiic/STEMMA QT |
-| SPI RX | GPIO16 | MISO | Standard SPI |
-| SPI SCK | GPIO18 | SCK | Standard SPI |
-| SPI TX | GPIO19 | MOSI | Standard SPI |
+| SPI RX | GPIO20 | MISO | Standard SPI (SPI0) |
+| SPI SCK | GPIO22 | SCK | Standard SPI (SPI0) |
+| SPI TX | GPIO23 | MOSI | Standard SPI (SPI0) |
 | ADC0 | GPIO26 | A0 | Analog input |
 | ADC1 | GPIO27 | A1 | Analog input |
 | ADC2 | GPIO28 | A2 | Analog input |
@@ -452,7 +496,13 @@ The 22-pin HSTX connector on the back provides:
 ### Important Notes
 
 1. **PSRAM (GPIO 8)**: If board has 8MB PSRAM installed, GPIO 8 is reserved for PSRAM CS. Do not use as general GPIO.
-2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pulldowns. Use 8.2K or smaller external pull-down resistors where needed.
+2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pull-downs. RP2350 datasheet Appendix D.5.1 gives two fixes: an external pull-down of 8.2 kΩ or less, or the pad pull-up (it still works). **Chosen for the vehicle Feather (Nathan, 2026-10-08): the internal pad pull-up** (no extra parts). Firmware rule: ignore the radio DIO lines until the radio is configured, because an undriven DIO reads high. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` section 7.2.
+   - **Measured RP2350 stepping (2026-10-08):**
+     - Vehicle Feather RP2350: CHIP_ID `0x20004927`. REVISION (bits 31:28) is `0x2`, which is stepping A2 (RP2350 datasheet, Appendix C.1). Source: Buzz, SWD read, 2026-10-08. E9 applies to this board.
+     - Forgix board: `picotool info -a` gives RP2350A, QFN60, revision A4, chip ID `0x0ea4b6bf2e39063a`, flash 2048K. The program on it is `forge_fpga_loader`. Source: Buzz, 2026-10-08. E9 does not apply to A4 (PCN 28: E9 fixed in A3).
+     - Fruit Jam (station): `picotool info -a` gives RP2350B, QFN80 (B is the QFN80 package, RP2350 datasheet), revision A4, chip ID `0xbec71b8edc6aebd1`. Source: Buzz, 2026-10-08. E9 does not apply to A4 (the erratum lists A2 only).
+     - Tiny 2350 (Pimoroni PIM721, per the package label): `picotool info -a -f` gives RP2350, QFN60 (RP2350A), revision A2, chip ID `0x4747c69945b9afb3`, flash 4 MB, `pico_board: pimoroni_tiny2350`. Source: Buzz, 2026-10-08. E9 applies to this unit. Stepping is per unit: the product page says current stock is A4.
+     - The other Feathers and the Pico 2 Ws are not measured. They are A2 by ship date (`docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` section 7.2).
 3. **LED Pin**: Always use `PICO_DEFAULT_LED_PIN` instead of hardcoding GPIO 7. The Pico SDK defines the correct pin for each board variant. Hardcoding GPIO 7 may work on some boards but fail on others.
 
 ---
@@ -544,10 +594,30 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 ## Regulatory Notes
 
 ### Telemetry (US)
-- **915MHz ISM Band** - License-free but power-limited
-- FCC Part 15 limits apply
-- Duty cycle and power restrictions for license-free operation
-- Check local regulations for non-US deployments
+- **915 MHz ISM** — current air bearer. IREC 2026 Frequency Student Band Plan Rev D (14 April 2026) places student-built 33 cm telemetry in 902.0–909.0 MHz as Part 15 wideband, Part 15 hopping, or narrowband amateur. Narrowband amateur needs a license, a callsign, and no encryption. 70 cm student telemetry is amateur in 420.6–438.0 MHz. Part 15 power and bandwidth limits still apply on the ISM path.
+- Mars Proximity-1 hails (404.4 MHz, 435.6 MHz, and the Channel 0 pair) and lunar S-band (2025–2110 MHz and 2200–2290 MHz) are not this radio’s frequencies. Which book applies in which year: `starcom/docs/DESIGN.md` note 2026-10-03.
+- Check local regulations for non-US deployments.
+
+### Range hardline and flight termination
+
+NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `standards/starcom/README.md`.
+
+The sounding-rocket umbilical reference is NASA/TP–20230006855, *NASA Sounding Rockets User Handbook*, May 2023, document 810-HB-SRP:
+
+<https://www.nasa.gov/wp-content/uploads/2015/03/sounding-rocket-user-handbook.pdf>
+
+That handbook does not publish one pin number list. The experimenter defines the connector. The circuits it names are:
+
+- 28 V and power return.
+- Ground-support discretes that exist only while the connector is mated: +28 V or ground, momentary or latched. Events that must not fire on the ground are inhibited separately.
+- A breakwire. Opening it is T-0. The flight timer starts on that opening or on a lift-off switch. Housekeeping reports the umbilical breakwire and the eject breakwire.
+- The baseband PCM pair the blockhouse displays and the S-band exciter modulates after release: bit clock, data, and major-frame sync. Shielded pair or coax, with the shield ground end named on the interface drawing. Wallops encoders (WFF93, Axon, and the others in that handbook) emit an IRIG 106 Chapter 4 frame as Bi-phase-L, NRZ, or randomized NRZ.
+- A calibration tone switched in from the ground station, into a 75 ohm load, up to 1 V RMS, so the receiver and recorder are set before release.
+- On a pointed payload, attitude-control target angles from the control station while the vehicle is still on the rail.
+
+Agency release is a lanyard or a latch, with vehicle motion as the backup. A magnetic shell is a local mechanical choice. The avionics event at release is still the breakwire opening.
+
+Flight termination is a second radio. RCC 319-25 (June 2025) requires the termination uplink to operate independently of the telemetry transmitter and of the flight-control command link. Telemetry, or this hardline while it is mated, reports receiver signal strength, power, command-output state, and safe-and-arm. Once that receiver’s fail-safe is enabled, loss of its uplink is a termination condition. Command tones and the ordnance path stay in 319. They are not part of the proximity modem.
 
 ### Pyro Channels
 - Safety interlocks required in firmware

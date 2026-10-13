@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCSDS Prox-1 navigator</title>
+<script>
+(function(){var t=null;try{t=localStorage.getItem('ccsds-nav-theme');}catch(e){}
+var m=/[#&]th=(light|dark)/.exec(location.hash);if(m)t=m[1];
+if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+document.documentElement.setAttribute('data-theme',t);})();
+</script>
+<style>
+/* four palettes: <html data-theme=light|dark> x <body class=mode-std|mode-impl> */
+:root,html[data-theme="light"] body.mode-std,body.mode-std{--bg:#f4f4f1;--panel:#ffffff;--ink:#1d2127;--mute:#566069;--line:#cfd3d8;--accent:#2f5d8a;--accent2:#e3ecf5;--onaccent:#ffffff;--link:#1f5a99;
+--shall:#2f5d8a;--should:#7a5c00;--may:#44662f;--hl:#fff1a8;--chip:#e8eaed;--warn:#8a3b12}
+html[data-theme="dark"] body.mode-std{--bg:#12161b;--panel:#1b2128;--ink:#e4e8ec;--mute:#a3aeba;--line:#38424d;--accent:#6fa8dc;--accent2:#223449;--onaccent:#0b1622;--link:#8dc0ee;
+--shall:#6fa8dc;--should:#dcc062;--may:#93c47c;--hl:#5c5114;--chip:#2a323b;--warn:#f0a070}
+html[data-theme="light"] body.mode-impl{--bg:#fbf5e4;--panel:#fffcf2;--ink:#2b2106;--mute:#6a5724;--line:#d9c486;--accent:#8f5200;--accent2:#fbe3a6;--onaccent:#ffffff;--link:#8a4d00;
+--shall:#8f5200;--should:#6a5000;--may:#4d5d1c;--hl:#ffdf80;--chip:#f1e4bd;--warn:#a03c00}
+html[data-theme="dark"] body.mode-impl,body.mode-impl{--bg:#14110b;--panel:#1d1810;--ink:#f1e6cf;--mute:#bba983;--line:#4a3c1c;--accent:#ffb000;--accent2:#33290f;--onaccent:#14110b;--link:#ffb000;
+--shall:#ffb000;--should:#e8c46a;--may:#c9b37a;--hl:#5a4306;--chip:#2c2412;--warn:#ff8a3d}
+html[data-theme="light"] body.mode-impl{color-scheme:light}
+html[data-theme="light"]{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+body.mode-impl header{border-bottom:3px solid var(--accent)}
+body.mode-std header{border-bottom:1px solid var(--line)}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0;font-weight:700;white-space:nowrap}
+.toggle{display:inline-flex;border:1px solid var(--accent);border-radius:6px;overflow:hidden}
+.toggle button{border:0;background:transparent;color:var(--ink);padding:5px 12px;font:inherit;cursor:pointer}
+.toggle button.on{background:var(--accent);color:var(--onaccent);font-weight:700}
+.search{flex:1 1 220px;display:flex;gap:8px;align-items:center;min-width:180px}
+.search input[type=search]{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.search label{white-space:nowrap;color:var(--mute);font-size:13px}
+.search select{padding:6px 4px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;max-width:150px}
+#theme{font:inherit;padding:5px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;cursor:pointer;white-space:nowrap}
+#theme:hover{border-color:var(--accent)}
+.rel{margin-top:5px;font-size:12.5px;color:var(--mute)}
+.rel a{cursor:pointer;text-decoration:underline;text-underline-offset:2px;margin-right:8px;white-space:nowrap}
+.rel a.hit{font-weight:700}
+.res.sel{border-color:var(--accent);background:var(--accent2)}
+.tips{font-size:12.5px;color:var(--mute);margin:4px 0 8px}
+.tips code{background:var(--chip);padding:0 4px;border-radius:3px}
+.note-sup{font-size:12px;color:var(--mute);margin:2px 0}
+#banner{display:none;background:#ffb000;color:#14110b;font-weight:800;letter-spacing:.02em;padding:7px 12px;border-bottom:3px solid #14110b;text-align:center}
+body.mode-impl #banner{display:block}
+#tabs{display:none}
+main{flex:1;min-height:0;display:grid;grid-template-columns:270px minmax(280px,1fr) minmax(320px,1.2fr);gap:0}
+.panel{overflow:auto;padding:10px 12px;border-right:1px solid var(--line);min-height:0;background:var(--bg)}
+.panel:last-child{border-right:0}
+.panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:2px 0 8px}
+.layer{display:block;width:100%;text-align:left;border:2px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);padding:9px 11px;margin:0 0 4px;cursor:pointer;font:inherit}
+.layer:hover{border-color:var(--accent)}
+.layer.sel{border-color:var(--accent);background:var(--accent2)}
+.layer b{font-size:15px}
+.layer .t{display:block;font-size:12px;color:var(--mute);margin-top:2px}
+.layer .c{display:block;font-size:12px;margin-top:3px}
+.joint{height:10px;margin:0 0 4px 22px;border-left:2px dashed var(--line)}
+.chip{display:inline-block;font-size:11px;line-height:16px;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;background:var(--chip);color:var(--ink);white-space:nowrap}
+.chip.shall{background:var(--shall);color:var(--onaccent)}
+.chip.should{background:var(--should);color:var(--onaccent)}.chip.may{background:var(--may);color:var(--onaccent)}
+.chip.b-title,.chip.b-text{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+.chip.b-pics{background:var(--accent2);color:var(--ink);border:1px solid var(--accent)}
+.chip.b-code{background:var(--accent);color:var(--onaccent)}
+.chip.b-exact{background:var(--ink);color:var(--bg)}
+.chip.lvl-read-in-code{background:#56667c;color:#fff}.chip.lvl-host-test{background:#2f7d5b;color:#fff}.chip.lvl-board-confirmed{background:#1f5fbf;color:#fff}
+.chip.unchecked{background:transparent;border:1px dashed var(--mute);color:var(--mute)}
+.chip.cite{background:var(--accent);color:var(--onaccent)}
+.tree{list-style:none;margin:0;padding:0}
+.tree ul{list-style:none;margin:0;padding-left:16px;border-left:1px solid var(--line)}
+.node{display:flex;gap:4px;align-items:baseline;padding:3px 4px;border-radius:5px;cursor:pointer}
+.node:hover{background:var(--accent2)}
+.node.sel{background:var(--accent);color:var(--onaccent)}
+.node.sel .mute{color:inherit;opacity:.85}
+.node.xout{outline:2px solid var(--accent);outline-offset:-2px}
+.node.xin{outline:2px dotted var(--accent);outline-offset:-2px}
+.tw{width:16px;flex:none;text-align:center;color:var(--mute);user-select:none}
+.node.sel .tw{color:inherit}
+.k{font-weight:700;flex:none}
+.ttl{flex:1;min-width:0}
+.mute{color:var(--mute)}
+.dim{opacity:.6}
+.xrefbar{margin:8px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.xrefbar a,.lnk,.rel a{color:var(--link);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.res{padding:7px 8px;border:1px solid var(--line);background:var(--panel);border-radius:6px;margin:0 0 6px;cursor:pointer}
+.res:hover{border-color:var(--accent)}
+.res .sn{font-size:12.5px;color:var(--mute);margin-top:3px}
+mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
+mark.m-shall{box-shadow:inset 0 -2px 0 var(--shall)}
+mark.m-should{box-shadow:inset 0 -2px 0 var(--should)}
+mark.m-may{box-shadow:inset 0 -2px 0 var(--may)}
+.det h3{margin:0 0 2px;font-size:17px}
+.det .sub{color:var(--mute);margin-bottom:10px}
+.sec{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);border-top:1px solid var(--line);padding-top:8px}
+.blk{margin:6px 0;padding:6px 9px;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.blk.item{margin-left:18px}.blk.note{border-style:dashed}.blk.caption{font-style:italic}
+.blk .lab{font-weight:700;margin-right:6px;color:var(--mute)}
+.pg{color:var(--mute);font-size:12px}
+.quote{border-left:4px solid var(--shall);padding:6px 10px;margin:8px 0;background:var(--panel)}
+.quote.should{border-left-color:var(--should)}.quote.may{border-left-color:var(--may)}
+table.t{border-collapse:collapse;width:100%;font-size:12.5px;margin:4px 0}
+table.t td{border:1px solid var(--line);padding:3px 5px;vertical-align:top}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.cite-row{padding:6px 8px;margin:5px 0;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--panel);border-radius:4px;word-break:break-word}
+.none{color:var(--mute);font-style:italic}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 10px}
+.kv div:nth-child(odd){color:var(--mute)}
+button.small,.btn{font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;cursor:pointer}
+@media (max-width:700px){
+ body{height:auto;min-height:100%}
+ header{position:sticky;top:0;z-index:5}
+ #tabs{display:flex;position:sticky;top:0;z-index:4;background:var(--panel);border-bottom:1px solid var(--line)}
+ #tabs button{flex:1;padding:9px 4px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--ink);font:inherit;font-weight:600}
+ #tabs button.on{border-bottom-color:var(--accent);color:var(--accent)}
+ main{display:block}
+ .panel{border-right:0;overflow:visible;padding:10px 10px 40px}
+ body[data-tab="books"] #p-map,body[data-tab="books"] #p-detail,
+ body[data-tab="map"] #p-books,body[data-tab="map"] #p-detail,
+ body[data-tab="detail"] #p-books,body[data-tab="detail"] #p-map{display:none}
+ header h1{font-size:14px}
+ .search{flex-basis:100%;flex-wrap:wrap}
+ .search input[type=search]{flex:1 1 100%}
+ .toggle button{padding:5px 8px}
+ #theme{margin-left:auto}
+}
+@media (min-width:701px) and (max-width:1000px){ main{grid-template-columns:210px 1fr 1.3fr} }
+</style>
+</head>
+<body class="mode-std" data-tab="books">
+<header>
+ <h1>CCSDS Prox-1 navigator</h1>
+ <div class="toggle" role="group" aria-label="View mode">
+  <button id="b-std" class="on" type="button">STANDARD</button><button id="b-impl" type="button">IMPLEMENTATION</button>
+ </div>
+ <button id="theme" type="button" aria-label="Switch colour theme" title="Switch between light and dark theme"></button>
+ <div class="search">
+  <input id="q" type="search" placeholder='clause number (3.4.5), word, or "phrase"' aria-label="Search clause number, word or quoted phrase" autocomplete="off">
+  <select id="scope" aria-label="Search scope"><option value="all">all books</option><option value="book">this book</option></select>
+  <label><input id="shallonly" type="checkbox"> shall only</label>
+ </div>
+</header>
+<div id="banner" role="note">IMPLEMENTATION VIEW: this is our code, not the standard</div>
+<nav id="tabs" aria-label="Panels"><button data-t="books" class="on" type="button">Books</button><button data-t="map" type="button">Clause map</button><button data-t="detail" type="button">Detail</button></nav>
+<main>
+ <section class="panel" id="p-books" aria-label="Books"><h2>Books (top layer first)</h2><div id="stack"></div></section>
+ <section class="panel" id="p-map" aria-label="Clause map"><h2 id="maph">Clause map</h2><div id="map"></div></section>
+ <section class="panel" id="p-detail" aria-label="Clause detail"><h2>Clause detail</h2><div id="detail" class="det"><p class="none">Select a clause.</p></div></section>
+</main>
+<script id="d-std" type="application/json">__STANDARD_JSON__</script>
+<script id="d-impl" type="application/json">__IMPLEMENTATION_JSON__</script>
+<script id="d-ev" type="application/json">__EVIDENCE_JSON__</script>
+<script>
+"use strict";
+(function(){
+const STD=JSON.parse(document.getElementById('d-std').textContent);
+const IMPL=JSON.parse(document.getElementById('d-impl').textContent);
+const EV=JSON.parse(document.getElementById('d-ev').textContent);
+const LEVELS=['read-in-code','host-test','board-confirmed'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const books=STD.books, B={}, C={}, KIDS={}, SENT={}, SBYCL={}, PICSBY={}, XOUT={}, XIN={}, CITES={}, FT={};
+books.forEach(b=>{
+ B[b.id]=b; C[b.id]={}; KIDS[b.id]={'':[]}; SBYCL[b.id]={}; PICSBY[b.id]={}; XOUT[b.id]={}; XIN[b.id]={}; CITES[b.id]={}; FT[b.id]={};
+ b.clauses.forEach(c=>{C[b.id][c.key]=c; KIDS[b.id][c.key]=[];});
+ b.clauses.forEach(c=>{(KIDS[b.id][c.parent||'']||(KIDS[b.id][c.parent||'']=[])).push(c.key);});
+ b.sentences.forEach(s=>{SENT[s.id]=s; (SBYCL[b.id][s.clause||'__front']=SBYCL[b.id][s.clause||'__front']||[]).push(s);});
+ b.pics.forEach((r,i)=>{r._i=i; (r.ref_clauses||[]).forEach(k=>{(PICSBY[b.id][k]=PICSBY[b.id][k]||[]).push(r);});});
+ b.crossrefs.forEach(x=>{(XOUT[b.id][x.source_clause]=XOUT[b.id][x.source_clause]||[]).push(x);
+  if(x.target_kind==='clause'&&x.scope==='internal'&&x.resolved){(XIN[b.id][x.target]=XIN[b.id][x.target]||[]).push(x);}});
+ b.figures_tables.forEach(f=>{FT[b.id][f.label.toLowerCase()]=f;});
+});
+(IMPL.citations||[]).forEach(c=>{
+ let k=c.target, bid=c.book;
+ if(c.target_kind!=='clause'){const f=FT[bid]&&FT[bid][c.target.toLowerCase()]; if(!f||!f.clause) {(CITES[bid]=CITES[bid]||{})['__nokey']=(CITES[bid]['__nokey']||[]).concat([c]);return;} k=f.clause; c=Object.assign({},c,{via:c.target});}
+ if(!CITES[bid])return; (CITES[bid][k]=CITES[bid][k]||[]).push(c);
+});
+function ownShall(b,k){return (SBYCL[b][k]||[]).filter(s=>s.counts.shall).length;}
+const SUB={};
+function sub(b,k){const id=b+'|'+k; if(id in SUB)return SUB[id];
+ let n={shall:ownShall(b,k),cite:(CITES[b][k]||[]).length};
+ (KIDS[b][k]||[]).forEach(ch=>{const m=sub(b,ch);n.shall+=m.shall;n.cite+=m.cite;}); SUB[id]=n; return n;}
+function evFor(b,k){return EV[b+' '+k]||[];}
+function levelsFor(b,k){const s=new Set(evFor(b,k).map(e=>e.level)); return LEVELS.filter(l=>s.has(l));}
+const S={mode:'std',book:books[0].id,clause:null,pics:null,q:'',shall:false,scope:'all',expanded:{},theme:document.documentElement.getAttribute('data-theme')||'light',pv:''};
+function readHash(){const h=location.hash.replace(/^#/,''); if(!h)return; const p={}; h.split('&').forEach(x=>{const i=x.indexOf('='); if(i>0)p[x.slice(0,i)]=decodeURIComponent(x.slice(i+1));});
+ if(p.m==='impl')S.mode='impl'; if(p.b&&B[p.b])S.book=p.b; if(p.c){S.clause=p.c; if(p.c==='__front'||(C[S.book]&&C[S.book][p.c])) expandTo(S.book,p.c);} if(p.p!=null&&B[S.book].pics[+p.p]){S.pics=+p.p;S.clause=null;}
+ if(p.sc==='book'){S.scope='book';$('scope').value='book';} if(p.q){S.q=p.q;$('q').value=p.q;} if(p.s==='1'){S.shall=true;$('shallonly').checked=true;} if(p.th==='light'||p.th==='dark')applyTheme(p.th,false); if(p.t&&/^(books|map|detail)$/.test(p.t))setTab(p.t);}
+function writeHash(){const p=['m='+S.mode,'b='+encodeURIComponent(S.book)]; if(S.clause)p.push('c='+encodeURIComponent(S.clause)); if(S.pics!=null)p.push('p='+S.pics); if(S.q)p.push('q='+encodeURIComponent(S.q)); if(S.scope==='book')p.push('sc=book'); if(S.shall)p.push('s=1');
+ try{history.replaceState(null,'','#'+p.join('&'));}catch(e){}}
+function applyTheme(t,store){S.theme=t; document.documentElement.setAttribute('data-theme',t); const bt=$('theme'); bt.textContent=t==='dark'?'\u2600 Light':'\u263E Dark'; bt.setAttribute('aria-label','Switch to '+(t==='dark'?'light':'dark')+' theme'); bt.setAttribute('aria-pressed',t==='dark'?'true':'false');
+ if(store){try{localStorage.setItem('ccsds-nav-theme',t);}catch(e){}}}
+function expandTo(b,k){let c=C[b][k]; while(c&&c.parent){S.expanded[b+'|'+c.parent]=true;c=C[b][c.parent];}}
+function setTab(t){document.body.dataset.tab=t; document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));}
+function pg(o){return 'p. '+esc(o.page||'no printed label')+' (PDF p.'+o.pdf_page+')';}
+function go(b,k){S.book=b;S.clause=k;S.pics=null; if(k)expandTo(b,k); render(); if(k)setTab('detail'); writeHash();}
+function setMode(m){S.mode=m; document.body.classList.toggle('mode-std',m==='std'); document.body.classList.toggle('mode-impl',m==='impl');
+ $('b-std').classList.toggle('on',m==='std'); $('b-impl').classList.toggle('on',m==='impl'); render(); writeHash();}
+/* ---------- stack */
+function renderStack(){let h='';
+ books.forEach((b,i)=>{const nsh=b.sentences.filter(s=>s.counts.shall).length; let extra='<span class="chip">'+b.clauses.length+' clauses</span><span class="chip shall">'+nsh+' shall</span>';
+  if(S.mode==='impl'){const n=Object.keys(CITES[b.id]).reduce((a,k)=>a+(k==='__nokey'?0:CITES[b.id][k].length),0); extra='<span class="chip cite">'+n+' code citations</span>';}
+  h+=(i?'<div class="joint"></div>':'')+'<button class="layer'+(b.id===S.book?' sel':'')+'" data-b="'+esc(b.id)+'"><b>CCSDS '+esc(b.id)+'</b><span class="t">'+esc(b.title)+'</span><span class="t">'+esc(b.issue||'')+' &middot; '+esc(b.date||'')+'</span><span class="c">'+extra+'</span></button>';});
+ $('stack').innerHTML=h;
+ $('stack').querySelectorAll('.layer').forEach(el=>el.onclick=()=>{S.book=el.dataset.b;S.clause=null;S.pics=null;S.q='';$('q').value='';render();setTab('map');writeHash();});}
+/* ---------- tree */
+function nodeVisible(b,k){return !S.shall||sub(b,k).shall>0;}
+function nodeLabel(b,c){if(c.title)return esc(c.title); const t=(c.content[0]&&c.content[0].text)||''; return '<span class="mute">'+esc(t.length>70?t.slice(0,70)+'\u2026':t)+'</span>';}
+function treeHtml(b,k,sel,xo,xi){const kids=(KIDS[b][k]||[]).filter(ch=>nodeVisible(b,ch)); if(!kids.length)return '';
+ let h='<ul'+(k===''?' class="tree"':'')+'>';
+ kids.forEach(ch=>{const c=C[b][ch], has=(KIDS[b][ch]||[]).some(x=>nodeVisible(b,x)), open=!!S.expanded[b+'|'+ch]; const m=sub(b,ch);
+  let chips='';
+  if(S.mode==='std'){const n=ownShall(b,ch); if(n)chips+='<span class="chip shall">'+n+' shall</span>';}
+  else{const oc=(CITES[b][ch]||[]).length; if(oc)chips+='<span class="chip cite">'+oc+' cited</span>'; else if(m.cite)chips+='<span class="chip dim">\u00b7 '+m.cite+' below</span>';
+   const lv=levelsFor(b,ch); chips+= lv.length? lv.map(l=>'<span class="chip lvl-'+l+'">'+l+'</span>').join(''):'<span class="chip unchecked">unchecked</span>';}
+  h+='<li><div class="node'+(sel===ch?' sel':'')+(xo.has(ch)?' xout':'')+(xi.has(ch)?' xin':'')+'" data-k="'+esc(ch)+'"><span class="tw" data-t="'+(has?'1':'')+'">'+(has?(open?'\u25be':'\u25b8'):'')+'</span><span class="k">'+esc(ch)+'</span><span class="ttl">'+nodeLabel(b,c)+'</span>'+chips+'</div>';
+  if(has&&open)h+=treeHtml(b,ch,sel,xo,xi); h+='</li>';});
+ return h+'</ul>';}
+function renderMap(){const b=S.book, bk=B[b]; $('maph').textContent='Clause map: CCSDS '+b; $('scope').options[1].textContent='this book ('+b+')';
+ if(S.q.trim()){return renderSearch();}
+ const sel=S.clause; const xo=new Set(), xi=new Set(); let bar='';
+ if(sel&&C[b][sel]){(XOUT[b][sel]||[]).forEach(x=>{if(x.target_kind==='clause'&&x.scope==='internal'&&x.resolved)xo.add(x.target);}); (XIN[b][sel]||[]).forEach(x=>xi.add(x.source_clause));
+  const o=[...xo].map(k=>'<a data-go="'+esc(k)+'">'+esc(k)+'</a>').join(', ')||'<span class="none">none recorded</span>'; const i=[...xi].map(k=>'<a data-go="'+esc(k)+'">'+esc(k)+'</a>').join(', ')||'<span class="none">none recorded</span>';
+  bar='<div class="xrefbar"><b>Cross-references of '+esc(sel)+'</b><br>refers to (solid outline): '+o+'<br>referred to by (dotted outline): '+i+'</div>';}
+ let h=bar+treeHtml(b,'',sel,xo,xi);
+ const fr=(SBYCL[b]['__front']||[]).filter(s=>!S.shall||s.counts.shall); 
+ h+='<ul class="tree"><li><div class="node'+(sel==='__front'?' sel':'')+'" data-k="__front"><span class="tw"></span><span class="k">front matter</span><span class="ttl mute">sentences before clause 1 (clause: unattributed)</span><span class="chip">'+fr.length+'</span></div></li>';
+ if(bk.pics.length)h+='<li><div class="node'+(S.pics!=null?' sel':'')+'" data-k="__pics"><span class="tw"></span><span class="k">Annex A</span><span class="ttl">PICS requirements list rows</span><span class="chip">'+bk.pics.length+'</span></div></li>';
+ h+='</ul>';
+ if(S.mode==='impl'){const nk=(CITES[b]['__nokey']||[]); if(nk.length)h+='<div class="sec">Table / figure citations without a clause</div>'+nk.map(citeRow).join('');}
+ $('map').innerHTML=h;
+ $('map').querySelectorAll('.node').forEach(el=>el.onclick=ev=>{const k=el.dataset.k; if(ev.target.classList.contains('tw')&&ev.target.dataset.t){S.expanded[b+'|'+k]=!S.expanded[b+'|'+k];renderMap();return;}
+  if(k==='__pics'){S.clause=null;S.pics=0;render();setTab('detail');writeHash();return;} go(b,k);});
+ $('map').querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(b,el.dataset.go));}
+/* ---------- search: offline inverted index (BM25, light stemming, phrases) */
+const SUFFIX=[['ization',''],['izer',''],['izing',''],['ized',''],['ize',''],['ational','ate'],['ation','ate'],['ement',''],['ment',''],
+ ['ness',''],['ity',''],['able',''],['ible',''],['ously',''],['ous',''],['ively',''],['ive',''],['ical',''],['ing',''],['edly',''],['ed',''],['ly',''],['er','']];
+function stem(w){
+ if(w.length<4||/\d/.test(w))return w;
+ if(/ies$/.test(w)&&w.length>4)w=w.slice(0,-3)+'y';
+ else if(/sses$/.test(w))w=w.slice(0,-2);
+ else if(/s$/.test(w)&&!/(ss|us|is)$/.test(w))w=w.slice(0,-1);
+ for(let pass=0;pass<2;pass++){let hit=false;
+  for(const [suf,rep] of SUFFIX){if(w.length>suf.length+2&&w.endsWith(suf)){w=w.slice(0,-suf.length)+rep;hit=true;break;}}
+  if(!hit)break;}
+ if(w.length>3&&w.endsWith('e'))w=w.slice(0,-1);
+ if(w.length>3&&/([^aeiouls])\1$/.test(w))w=w.slice(0,-1);
+ return w;}
+/* clause numbers (3.4.5, C1.3) and table numbers (6-12) stay whole; everything else is a lower-case word */
+const TOKRE=/[a-z]?\d+(?:\.\d+)+|\d+(?:-\d+)+|[a-z0-9]+/g;
+function tokens(text){const out=[]; const t=String(text||'').toLowerCase(); let m; TOKRE.lastIndex=0;
+ while((m=TOKRE.exec(t))){const w=m[0]; out.push({raw:w,i:m.index,len:w.length,st:(/\./.test(w)||/\d-\d/.test(w))?w:stem(w)});} return out;}
+function Index(){this.docs=[];this.post=new Map();this.len=[];this.total=0;this.vocab=null;}
+Index.prototype.add=function(meta,title,parts){
+ const id=this.docs.length; this.docs.push(meta); const tf=new Map(), pos=new Map(); let p=0;
+ const feed=(txt,w,keepPos)=>{for(const t of tokens(txt)){tf.set(t.st,(tf.get(t.st)||0)+w); let a=pos.get(t.st); if(!a){a=[];pos.set(t.st,a);} a.push(p); p++;}};
+ if(title){feed(title,3); p+=10;}
+ parts.forEach(x=>{feed(x,1); p+=10;});
+ let dl=0; tf.forEach((v,k)=>{dl+=v; let e=this.post.get(k); if(!e){e={d:[],f:[],p:[]}; this.post.set(k,e);} e.d.push(id); e.f.push(v); e.p.push(pos.get(k));});
+ this.len.push(dl); this.total+=dl;};
+Index.prototype.idf=function(n){const N=this.docs.length; return Math.log(1+(N-n+0.5)/(n+0.5));};
+Index.prototype.bm=function(tf,dl,idf){const k1=1.2,b=0.75,avg=this.total/Math.max(1,this.docs.length); return idf*tf*(k1+1)/(tf+k1*(1-b+b*dl/avg));};
+Index.prototype.expand=function(item){ /* stems for a single-word item; falls back to a prefix match when the word is unknown */
+ const st=item.terms[0]; if(this.post.has(st))return [st];
+ const raw=item.tok||st; if(raw.length<3||/\./.test(raw))return [];
+ if(!this.vocab)this.vocab=[...this.post.keys()].sort(); const out=[];
+ for(const v of this.vocab){if(v.startsWith(raw)||v.startsWith(st)){out.push(v); if(out.length>=40)break;}} return out;};
+Index.prototype.run=function(items,allow){
+ const pos=items.filter(i=>!i.neg), neg=items.filter(i=>i.neg); const hset=new Set(); const per=[];
+ const hits=(it)=>{const m=new Map();
+  if(it.terms){const stems=this.expand(it); stems.forEach(st=>{hset.add(st); const e=this.post.get(st); if(!e)return; const idf=this.idf(e.d.length);
+    e.d.forEach((d,j)=>{if(allow&&!allow(this.docs[d]))return; m.set(d,(m.get(d)||0)+this.bm(e.f[j],this.len[d],idf));});});}
+  else{const lists=it.phrase.map(st=>this.post.get(st)); it.phrase.forEach(st=>hset.add(st)); if(lists.some(x=>!x))return m;
+   let small=0; lists.forEach((l,i)=>{if(l.d.length<lists[small].d.length)small=i;}); const idf=lists.reduce((a,l)=>a+this.idf(l.d.length),0);
+   lists[small].d.forEach(d=>{if(allow&&!allow(this.docs[d]))return; const ps=lists.map(l=>{const j=l.d.indexOf(d); return j<0?null:l.p[j];}); if(ps.some(x=>x===null))return;
+    let n=0; ps[0].forEach(p0=>{for(let i=1;i<ps.length;i++){if(ps[i].indexOf(p0+i)<0)return;} n++;});
+    if(n)m.set(d,this.bm(n,this.len[d],idf)*1.5);});}
+  return m;};
+ pos.forEach(it=>per.push(hits(it)));
+ let ids=null, partial=false;
+ if(pos.length){ids=[...per[0].keys()].filter(d=>per.every(m=>m.has(d)));
+  if(!ids.length&&pos.length>1){const need=Math.ceil(pos.length/2), cnt=new Map(); per.forEach(m=>m.forEach((v,d)=>cnt.set(d,(cnt.get(d)||0)+1)));
+   ids=[...cnt.keys()].filter(d=>cnt.get(d)>=need); partial=ids.length>0;}}
+ else ids=[];
+ if(neg.length){const bad=new Set(); neg.forEach(it=>hits(it).forEach((v,d)=>bad.add(d))); ids=ids.filter(d=>!bad.has(d));}
+ const rows=ids.map(d=>({d,score:per.reduce((a,m)=>a+(m.get(d)||0),0),meta:this.docs[d]}));
+ rows.sort((x,y)=>y.score-x.score||x.d-y.d);
+ return {rows,hset,partial};};
+function parseQuery(s){const items=[]; const re=/(-?)"([^"]*)"|(-?)(\S+)/g; let m;
+ while((m=re.exec(s))){const neg=!!(m[1]||m[3]);
+  if(m[2]!==undefined){const tk=tokens(m[2]); if(tk.length===1)items.push({neg,terms:[tk[0].st],tok:tk[0].raw,raw:m[2]}); else if(tk.length)items.push({neg,phrase:tk.map(t=>t.st),raw:m[2],quoted:true});}
+  else{const tk=tokens(m[4]); if(tk.length===1)items.push({neg,terms:[tk[0].st],tok:tk[0].raw,raw:m[4]}); else if(tk.length>1)items.push({neg,phrase:tk.map(t=>t.st),raw:m[4]});}}
+ return items;}
+const IX={std:null,shall:null,impl:null,ms:0};
+function buildStdIndex(){const t0=Date.now(); const ix=new Index(), sx=new Index();
+ books.forEach(bk=>{
+  const fr=(SBYCL[bk.id]['__front']||[]); if(fr.length)ix.add({t:'c',b:bk.id,k:'__front'},'front matter',fr.map(s=>s.text));
+  bk.clauses.forEach(c=>{const parts=[]; c.content.forEach(it=>{if(it.t==='table')parts.push(it.rows.map(r=>r.join(' ')).join(' ; ')); else if(it.text)parts.push(it.text);});
+   ix.add({t:'c',b:bk.id,k:c.key},c.title||'',parts);});
+  bk.pics.forEach((r,i)=>ix.add({t:'p',b:bk.id,i},'',[r.item,r.description,r.reference,r.status,r.group||'']));
+  bk.sentences.forEach(s=>{if(!s.counts.shall)return; sx.add({t:'c',b:bk.id,k:s.clause||'__front',sid:s.id},'',[s.text].concat(s.continues_in_items||[],s.continues_in_next_block?[s.continues_in_next_block]:[]));});});
+ IX.std=ix; IX.shall=sx; IX.ms=Date.now()-t0;}
+function buildImplIndex(){const ix=new Index(); const all=(IMPL.citations||[]).concat(IMPL.mentions_without_clause||[]);
+ all.forEach((c,i)=>ix.add({t:'code',b:c.book,i,k:null},'',[c.file||'',c.text||'',(c.book||'')+' '+(c.target||'')])); ix.cites=all; IX.impl=ix;}
+buildStdIndex();
+const EXACTRE=/^(?:annex\s*)?[a-z]?\d+(?:\.\d+)*$|^annex\s*[a-z]$/i;
+function normKey(q){q=q.trim().toUpperCase(); const m=/^ANNEX\s*([A-Z])$/.exec(q); return m?'ANNEX '+m[1]:q.replace(/^ANNEX\s*/,'');}
+function relatedOf(b,k){const out=[], inn=[]; (XOUT[b][k]||[]).forEach(x=>{if(x.target_kind==='clause'&&x.scope==='internal'&&x.resolved&&x.target!==k&&out.indexOf(x.target)<0)out.push(x.target);});
+ (XIN[b][k]||[]).forEach(x=>{if(x.source_clause!==k&&inn.indexOf(x.source_clause)<0)inn.push(x.source_clause);}); return {out,inn};}
+function passageFor(b,k,hset,shallOnly){
+ const c=k==='__front'?null:C[b][k]; const cands=[];
+ const score=t=>{const seen=new Set(); tokens(t).forEach(x=>{if(hset.has(x.st))seen.add(x.st);}); return seen.size;};
+ const pref={shall:3,should:2,may:1,title:0.5,text:0};
+ if(k==='__front'){(SBYCL[b]['__front']||[]).forEach(s=>cands.push({text:s.text,kind:s.kind}));}
+ else{ if(c.title&&!shallOnly)cands.push({text:c.title,kind:'title'});
+  c.content.forEach(it=>{const t=it.t==='table'?it.rows.map(r=>r.join(' ')).join(' ; '):it.text; if(!t)return;
+   (it.sids||[]).forEach(id=>{const s=SENT[id]; if(shallOnly&&!s.counts.shall)return; cands.push({text:s.text,kind:s.kind});});
+   if(!shallOnly)cands.push({text:t,kind:'text'});});
+  (SBYCL[b][k]||[]).forEach(s=>{if(s.continues_in_items&&s.continues_in_items.length&&(!shallOnly||s.counts.shall))cands.push({text:s.text+' '+s.continues_in_items.join(' '),kind:s.kind});});}
+ let best=null; cands.forEach(x=>{x.n=score(x.text); if(!best||x.n>best.n||(x.n===best.n&&pref[x.kind]>pref[best.kind]))best=x;});
+ return best||{text:(c&&c.title)||'',kind:'title',n:0};}
+function snipHtml(text,hset,phrases){text=String(text||''); const tk=tokens(text); let first=-1; tk.forEach(x=>{if(first<0&&hset.has(x.st))first=x.i;});
+ let a=0; if(first>90){a=text.lastIndexOf(' ',first-70); if(a<0)a=0;} let e=Math.min(text.length,a+260); if(e<text.length){const sp=text.lastIndexOf(' ',e); if(sp>a+120)e=sp;}
+ let h='', p=a; tk.forEach(x=>{if(x.i<a||x.i+x.len>e||!hset.has(x.st))return; h+=esc(text.slice(p,x.i))+'<mark>'+esc(text.slice(x.i,x.i+x.len))+'</mark>'; p=x.i+x.len;});
+ h+=esc(text.slice(p,e)); return (a>0?'\u2026':'')+h+(e<text.length?'\u2026':'');}
+function searchRows(){
+ const q=S.q.trim(); const items=parseQuery(q); const shallOnly=S.shall; const scopeBook=(S.scope==='book');
+ const allow=m=>!scopeBook||m.b===S.book; const info={q,items,partial:false,exact:false,note:''}; const rows=[]; const seen=new Set();
+ const hitKeys=new Set();
+ const push=r=>{const key=r.t+'|'+r.b+'|'+(r.k!=null?r.k:r.i); if(seen.has(key))return; seen.add(key); rows.push(r);};
+ const hset=new Set();
+ // exact clause number: the clause itself first, then its sub-clauses
+ if(EXACTRE.test(q)){const nk=normKey(q); const order=books.slice(); if(!scopeBook){order.sort((x,y)=>(y.id===S.book)-(x.id===S.book));}
+  order.forEach(bk=>{if(scopeBook&&bk.id!==S.book)return; const c=C[bk.id][nk]; if(!c)return; if(shallOnly&&sub(bk.id,nk).shall===0)return; info.exact=true; push({t:'c',b:bk.id,k:nk,exact:true,score:1e9});});
+  order.forEach(bk=>{if(scopeBook&&bk.id!==S.book)return; if(!C[bk.id][nk])return; let n=0;
+   bk.clauses.forEach(c=>{if(n<30&&c.key.startsWith(nk+'.')&&(!shallOnly||sub(bk.id,c.key).shall>0)){push({t:'c',b:bk.id,k:c.key,subc:true,score:1e8});n++;}});});}
+ if(items.length){
+  if(shallOnly){const r=IX.shall.run(items,allow); r.hset.forEach(x=>hset.add(x)); info.partial=r.partial;
+   const bestBy=new Map(); r.rows.forEach(x=>{const key=x.meta.b+'|'+x.meta.k; if(!bestBy.has(key))bestBy.set(key,x);});
+   bestBy.forEach(x=>push({t:'c',b:x.meta.b,k:x.meta.k,score:x.score}));}
+  else{const r=IX.std.run(items,allow); r.hset.forEach(x=>hset.add(x)); info.partial=r.partial;
+   r.rows.forEach(x=>{const m=x.meta; if(m.t==='p')push({t:'p',b:m.b,i:m.i,score:x.score}); else push({t:'c',b:m.b,k:m.k,score:x.score});});
+   if(S.mode==='impl'){if(!IX.impl)buildImplIndex(); const ri=IX.impl.run(items,allow); ri.hset.forEach(x=>hset.add(x)); ri.rows.forEach(x=>push({t:'code',b:x.meta.b,i:x.meta.i,score:x.score}));}}}
+ rows.forEach(r=>{if(r.t==='c')hitKeys.add(r.b+'|'+r.k);});
+ return {rows,hset,hitKeys,info};}
+function badgeHtml(kind){const m={shall:'shall',should:'should',may:'may',title:'b-title',text:'b-text',pics:'b-pics',code:'b-code',exact:'b-exact'}; const lab={title:'clause title',text:'clause text',pics:'Annex A row',code:'code citation',exact:'clause number',sub:'sub-clause'}; return '<span class="chip '+(m[kind]||'b-text')+'">'+esc(lab[kind]||kind)+'</span>';}
+function relHtml(b,k,hitKeys){ if(k==='__front'||!C[b][k])return ''; const r=relatedOf(b,k); if(!r.out.length&&!r.inn.length)return '';
+ const lk=x=>'<a data-go="'+esc(x)+'" data-b="'+esc(b)+'" class="'+(hitKeys.has(b+'|'+x)?'hit':'')+'" title="'+esc((C[b][x]&&C[b][x].title)||'')+(hitKeys.has(b+'|'+x)?' (also in these results)':'')+'">'+esc(x)+(C[b][x]&&C[b][x].title?' '+esc(C[b][x].title.length>28?C[b][x].title.slice(0,28)+'\u2026':C[b][x].title):'')+'</a>';
+ return '<div class="rel">related clauses (recorded cross-references): '+(r.out.length?'refers to '+r.out.slice(0,6).map(lk).join('')+(r.out.length>6?' +'+(r.out.length-6)+' more ':''):'')+(r.inn.length?'referred to by '+r.inn.slice(0,6).map(lk).join('')+(r.inn.length>6?' +'+(r.inn.length-6)+' more':''):'')+'</div>';}
+let SHOWN=60;
+function renderSearch(){const res=searchRows(), rows=res.rows, info=res.info, hs=res.hset;
+ const scopeTxt=S.scope==='book'?'in CCSDS '+S.book:'in all four books';
+ let h='<div class="xrefbar"><b>'+rows.length+' result'+(rows.length===1?'':'s')+'</b> for &ldquo;'+esc(info.q)+'&rdquo; '+scopeTxt+(S.shall?' (shall sentences only)':'')+(S.mode==='impl'?' (standard text and code citations)':' (CCSDS text only)')+' <button class="small" id="clr" type="button">clear</button>'
+  +(info.partial?'<div class="pg">No clause contains all of the words; showing those that contain at least half of them.</div>':'')+'</div>';
+ if(!rows.length)h+='<p class="none">No results. Check the spelling, remove a word, or search a clause number such as 3.4.5.</p>';
+ h+='<details class="tips"><summary>search syntax</summary>Clause number such as <code>3.4.5</code> or <code>C1.3</code> shows that clause first. Words are matched by stem (randomizer, randomization and randomize match each other). All words must match; <code>"frame sequence"</code> in quotes matches the exact phrase; <code>-word</code> excludes. Results are ranked (BM25).</details>';
+ rows.slice(0,SHOWN).forEach(r=>{
+  if(r.t==='c'){const k=r.k, c=k==='__front'?null:C[r.b][k]; const sel=(r.b===S.book&&k===S.clause);
+   let badge, sn;
+   if(r.exact||r.subc){badge=badgeHtml(r.exact?'exact':'sub'); const t=c?((c.content[0]||{}).text||''):''; sn=c&&c.title?'':esc(t.slice(0,200));}
+   else{const ps=passageFor(r.b,k,hs,S.shall); badge=ps.kind==='shall'||ps.kind==='should'||ps.kind==='may'?badgeHtml(ps.kind):badgeHtml(ps.kind); sn=snipHtml(ps.text,hs);}
+   if(r.exact||r.subc){const ps=passageFor(r.b,k,hs,S.shall); if(ps.n){badge+=badgeHtml(ps.kind);sn=snipHtml(ps.text,hs);}}
+   h+='<div class="res'+(sel?' sel':'')+'" data-b="'+esc(r.b)+'" data-k="'+esc(k)+'"><span class="chip">'+esc(r.b)+'</span><b>'+(k==='__front'?'front matter':esc(k))+'</b> '+esc(c&&c.title?c.title:'')+' '+badge+'<div class="sn">'+sn+'</div>'+relHtml(r.b,k,res.hitKeys)+'</div>';}
+  else if(r.t==='p'){const p=B[r.b].pics[r.i]; h+='<div class="res" data-b="'+esc(r.b)+'" data-p="'+r.i+'"><span class="chip">'+esc(r.b)+'</span><b>Annex A '+esc(p.item)+'</b> '+badgeHtml('pics')+'<div class="sn">'+snipHtml(p.description+' \u00b7 reference '+p.reference+' \u00b7 status '+p.status,hs)+'</div></div>';}
+  else if(r.t==='code'){const c=IX.impl.cites[r.i]; const ck=(c.target_kind==='clause'?c.target:null); h+='<div class="res" data-b="'+esc(c.book)+'"'+(ck&&C[c.book]&&C[c.book][ck]?' data-k="'+esc(ck)+'"':'')+'><span class="chip">'+esc(c.book)+'</span><b class="code">'+esc(c.file)+':'+c.line+'</b> '+badgeHtml('code')+(ck?' <span class="chip">cites '+esc(ck)+'</span>':'')+'<div class="sn code">'+snipHtml(c.text,hs)+'</div></div>';}});
+ if(rows.length>SHOWN)h+='<button class="small" id="more" type="button">show '+Math.min(60,rows.length-SHOWN)+' more of '+(rows.length-SHOWN)+' remaining</button>';
+ $('map').innerHTML=h;
+ $('clr').onclick=()=>{S.q='';$('q').value='';SHOWN=60;render();writeHash();};
+ const mo=$('more'); if(mo)mo.onclick=()=>{SHOWN+=60;renderMap();};
+ $('map').querySelectorAll('.res').forEach(el=>el.onclick=ev=>{ if(ev.target.closest('a'))return;
+  if(el.dataset.p!=null){S.book=el.dataset.b;S.pics=+el.dataset.p;S.clause=null;renderStack();renderMap();renderDetail();setTab('detail');writeHash();return;}
+  go(el.dataset.b,el.dataset.k||null);});
+ $('map').querySelectorAll('.rel a').forEach(a=>a.onclick=ev=>{ev.stopPropagation();go(a.dataset.b,a.dataset.go);});
+ // exact clause number: show it in the detail panel straight away (the list stays as it is)
+ const ex=rows[0]&&rows[0].exact?rows[0]:null; const pvk=S.q+'|'+S.scope+'|'+S.shall+'|'+S.mode; if(ex&&S.pv!==pvk){S.pv=pvk;S.book=ex.b;S.clause=ex.k;S.pics=null;expandTo(ex.b,ex.k);renderStack();renderDetail();$('maph').textContent='Search results';writeHash();}
+ else{if(!ex)S.pv=''; $('maph').textContent='Search results';}}
+/* ---------- detail */
+function markItem(it){const t=it.text; if(!it.sids)return esc(t); const marks=[]; it.sids.forEach(id=>{const s=SENT[id]; const i=t.indexOf(s.text); if(i>=0)marks.push([i,i+s.text.length,s]);}); marks.sort((a,b)=>a[0]-b[0]);
+ let h='',p=0; marks.forEach(m=>{if(m[0]<p)return; h+=esc(t.slice(p,m[0]))+'<mark class="m-'+m[2].kind+'" title="'+m[2].kind+', '+esc(pg(m[2]).replace(/<[^>]+>/g,''))+'">'+esc(t.slice(m[0],m[1]))+'</mark>'; p=m[1];}); return h+esc(t.slice(p));}
+const NOTE_SUP='<div class="note-sup">Notation: in equations, X^32 is X with superscript 32 and M_0 is M with subscript 0 (position taken from the PDF text layer).</div>';
+function contentHtml(c){ if(!c.content.length)return '<p class="none">none recorded</p>'; let h=c.content.some(it=>/[\^_]/.test(it.text||''))?NOTE_SUP:'';
+ c.content.forEach(it=>{ if(S.shall&&!(it.sids&&it.sids.some(id=>SENT[id].counts.shall)))return;
+  if(it.t==='table'){h+='<div class="blk"><table class="t">'+it.rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</table><span class="pg">table, '+pg(it)+'</span></div>';return;}
+  h+='<div class="blk '+it.t+'">'+(it.num?'<span class="lab">'+esc(it.num)+'</span>':'')+(it.label?'<span class="lab">'+esc(it.label)+'</span>':'')+markItem(it)+' <span class="pg">'+pg(it)+'</span></div>';});
+ return h||'<p class="none">no shall sentence in this clause</p>';}
+function sentHtml(list){ if(!list.length)return '<p class="none">none recorded</p>'; return list.map(s=>{const ks=Object.keys(s.counts).map(k=>'<span class="chip '+k+'">'+k+(s.counts[k]>1?' \u00d7'+s.counts[k]:'')+'</span>').join('');
+  return '<div class="quote '+s.kind+'">'+ks+'<span class="pg">'+pg(s)+(s.pdf_page_end?' &rarr; continues to PDF p.'+s.pdf_page_end:'')+'</span><br>&ldquo;'+esc(s.text)+'&rdquo;'
+   +(s.continues_in_items.length?'<div class="pg">followed in the PDF by list items:</div>'+s.continues_in_items.map(x=>'<div>'+esc(x)+'</div>').join(''):'')
+   +(s.continues_in_next_block?'<div class="pg">The sentence continues in the following paragraph(s) of the PDF'+(s.incomplete?' (no full stop reached)':'')+': &ldquo;'+esc(s.continues_in_next_block)+'&rdquo;</div>':'')
+   +(s.lead_in?'<div class="pg">lead-in paragraph: '+esc(s.lead_in)+'</div>':'')
+   +'<div class="pg">Does not apply when: '+(s.does_not_apply_when?esc(s.does_not_apply_when):'<span class="none">none recorded</span>')+' &middot; Option tag: '+(s.option_tag?esc(s.option_tag):'<span class="none">none recorded</span>')+'</div></div>';}).join('');}
+function picsHtml(b,k){const rows=PICSBY[b][k]||[]; if(!rows.length)return '<p class="none">none recorded</p>';
+ return rows.map(r=>'<div class="blk"><a class="lnk" data-pics="'+r._i+'"><b>'+esc(r.item)+'</b></a> '+esc(r.description)+'<div class="pg">Annex A, '+pg(r)+' &middot; Reference column: '+esc(r.reference)+' &middot; Status column as printed: '+esc(r.status)+'</div></div>').join('');}
+function xrefHtml(b,k){const out=XOUT[b][k]||[], inn=XIN[b][k]||[]; let h='<div class="sec">Cross-references from this clause (explicit in the text)</div>';
+ if(!out.length)h+='<p class="none">none recorded</p>';
+ out.forEach(x=>{let tgt;
+  if(x.target_kind==='clause'&&x.scope==='internal'){tgt=x.resolved?'<a class="lnk" data-go="'+esc(x.target)+'">'+esc(x.mention)+' &rarr; '+esc(x.target)+'</a>':esc(x.mention)+' (target clause not in extracted tree)';}
+  else if(x.scope==='external'){const r=B[b].references.find(z=>z.label==='['+x.external_ref+']'); tgt=esc(x.mention)+' of reference ['+esc(x.external_ref)+']'+(r?' &mdash; <span class="pg">'+esc(r.text)+'</span>':'');}
+  else if(x.target_kind==='reference'){const r=B[b].references.find(z=>z.label==='['+x.target+']'); tgt='reference ['+esc(x.target)+']'+(r?' &mdash; <span class="pg">'+esc(r.text)+'</span>':'');}
+  else{const f=FT[b][x.target.toLowerCase()]; tgt=esc(x.mention)+(f?' &mdash; <span class="pg">'+esc(f.caption)+', '+pg(f)+'</span>':'');}
+  h+='<div class="blk">'+tgt+'<div class="pg">source sentence ('+pg(x)+'): &ldquo;'+esc(x.sentence)+'&rdquo;</div></div>';});
+ h+='<div class="sec">Referred to by (explicit in the text of this book)</div>';
+ if(!inn.length)h+='<p class="none">none recorded</p>';
+ inn.forEach(x=>{h+='<div class="blk"><a class="lnk" data-go="'+esc(x.source_clause)+'">'+esc(x.source_clause)+'</a> <span class="pg">'+pg(x)+'</span><div class="pg">&ldquo;'+esc(x.sentence)+'&rdquo;</div></div>';});
+ return h;}
+function citeRow(c){return '<div class="cite-row"><span class="chip">'+esc(c.book)+'</span><b class="code">'+esc(c.file)+':'+c.line+'</b>'+(c.via?' <span class="chip">cites '+esc(c.via)+'</span>':' <span class="chip">cites '+esc(c.target)+'</span>')+(c.resolved===false?' <span class="chip">clause not in extracted tree</span>':'')+'<div class="code">'+esc(c.text)+'</div></div>';}
+function implHtml(b,k){const cs=CITES[b][k]||[]; let h='<div class="sec">Code citations (explicit clause references found in this repository)</div>'+(cs.length?cs.map(citeRow).join(''):'<p class="none">none recorded</p>');
+ const ev=evFor(b,k), lv=levelsFor(b,k);
+ h+='<div class="sec">Evidence (data/evidence.json)</div><div>Review status derived from evidence: '+(lv.length?lv.map(l=>'<span class="chip lvl-'+l+'">'+l+'</span>').join(''):'<span class="chip unchecked">unchecked</span>')+'</div>';
+ h+=ev.length?ev.map(e=>'<div class="cite-row"><span class="chip lvl-'+esc(e.level)+'">'+esc(e.level)+'</span> <span class="code">'+esc(e.ref)+'</span><div class="pg">'+esc(e.date||'')+' &middot; '+esc(e.by||'')+'</div></div>').join(''):'<p class="none">none recorded</p>';
+ return h;}
+function renderDetail(){const b=S.book, bk=B[b], el=$('detail');
+ if(S.pics!=null){const r=bk.pics[S.pics]; if(!r){el.innerHTML='<p class="none">none recorded</p>';return;}
+  let h='<h3>CCSDS '+esc(b)+' Annex A row '+esc(r.item)+'</h3><div class="sub">PICS requirements list, '+pg(r)+'</div>';
+  h+='<div class="kv"><div>Item</div><div>'+esc(r.item)+'</div><div>Description</div><div>'+esc(r.description)+'</div><div>Reference</div><div>'+esc(r.reference)+'</div><div>Status (as printed)</div><div>'+esc(r.status)+'</div>'+(r.values_allowed!=null?'<div>Values allowed</div><div>'+(esc(r.values_allowed)||'<span class="none">none recorded</span>')+'</div>':'')+'<div>Support column</div><div>'+(esc(r.support)||'<span class="none">none recorded</span>')+'</div><div>Group</div><div>'+(esc(r.group)||'<span class="none">none recorded</span>')+'</div><div>Does not apply when</div><div>'+(r.does_not_apply_when?esc(r.does_not_apply_when):'<span class="none">none recorded</span>')+'</div><div>Option tag</div><div>'+(r.option_tag?esc(r.option_tag):'<span class="none">none recorded</span>')+'</div></div>';
+  h+='<div class="sec">Clauses named in the Reference column</div>'; const cl=(r.ref_clauses||[]);
+  h+=cl.length?cl.map(k=>C[b][k]?'<div class="blk"><a class="lnk" data-go="'+esc(k)+'">'+esc(k)+'</a> '+esc(C[b][k].title||'')+'</div>':'<div class="blk">'+esc(k)+' <span class="pg">(not in extracted tree)</span></div>').join(''):'<p class="none">none recorded</p>';
+  if(r.ref_external){const rf=bk.references.find(z=>z.label==='['+r.ref_external+']'); h+='<div class="blk">Reference column names reference ['+esc(r.ref_external)+']'+(rf?' &mdash; <span class="pg">'+esc(rf.text)+'</span>':'')+'</div>';}
+  if(S.mode==='impl'){}
+  el.innerHTML=h; wire(el); return;}
+ const k=S.clause; if(!k){el.innerHTML='<p class="none">Select a clause in the map.</p>'; return;}
+ if(k==='__front'){const l=(SBYCL[b]['__front']||[]).filter(s=>!S.shall||s.counts.shall); el.innerHTML='<h3>CCSDS '+esc(b)+' front matter</h3><div class="sub">Sentences before clause 1; clause: unattributed.</div>'+sentHtml(l); return;}
+ const c=C[b][k]; if(!c){el.innerHTML='<p class="none">none recorded</p>';return;}
+ let h='<h3>CCSDS '+esc(b)+' &sect;'+esc(c.key)+(c.title?' &mdash; '+esc(c.title):'')+'</h3><div class="sub">'+pg(c)+(c.parent?' &middot; inside <a class="lnk" data-go="'+esc(c.parent)+'">'+esc(c.parent)+'</a>':'')+'</div>';
+ h+='<div class="sec">Text as printed (verbatim, page numbers)</div>'+contentHtml(c);
+ if(c.graphic_text_omitted)h+='<div class="note-sup">Not extracted: text inside figures or drawn tables on '+c.graphic_text_omitted.map(o=>'p. '+esc(o.page)+' (PDF p.'+o.pdf_page+')').join('; ')+'. Check the PDF page.</div>';
+ if(!c.content.length&&(KIDS[b][k]||[]).length){const ds=[]; (function walk(x){(KIDS[b][x]||[]).forEach(ch=>{ds.push(ch); walk(ch);});})(k);
+  const shown=ds.filter(x=>C[b][x].content.length&&(!S.shall||sub(b,x).shall>0)); const CAP=40;
+  h+='<div class="sec">Text of the sub-clauses (verbatim, in clause order)</div>'+(shown.length?shown.slice(0,CAP).map(x=>{const cc=C[b][x]; return '<div class="blk"><a class="lnk" data-go="'+esc(x)+'"><b>'+esc(x)+'</b></a> '+(cc.title?esc(cc.title):'')+contentHtml(cc)+'</div>';}).join('')+(shown.length>CAP?'<p class="none">'+(shown.length-CAP)+' more sub-clauses: open the sub-clauses listed below.</p>':''):'<p class="none">no text of its own</p>');}
+ h+='<div class="sec">Normative-word sentences in this clause (shall / should / may)</div>'+sentHtml((SBYCL[b][k]||[]).filter(s=>!S.shall||s.counts.shall));
+ h+='<div class="sec">Annex A (PICS) rows that name this clause</div>'+picsHtml(b,k);
+ h+=xrefHtml(b,k);
+ const kids=(KIDS[b][k]||[]); h+='<div class="sec">Sub-clauses</div>'+(kids.length?kids.map(x=>'<a class="lnk" data-go="'+esc(x)+'">'+esc(x)+'</a>').join(', '):'<span class="none">none recorded</span>');
+ if(S.mode==='impl')h+=implHtml(b,k);
+ el.innerHTML=h; wire(el);}
+function wire(el){el.querySelectorAll('[data-go]').forEach(a=>a.onclick=()=>go(S.book,a.dataset.go)); el.querySelectorAll('[data-pics]').forEach(a=>a.onclick=()=>{S.pics=+a.dataset.pics;S.clause=null;render();writeHash();});}
+function render(){renderStack();renderMap();renderDetail();}
+$('b-std').onclick=()=>setMode('std'); $('b-impl').onclick=()=>setMode('impl');
+$('q').oninput=e=>{S.q=e.target.value; SHOWN=60; renderMap(); if(S.q.trim())setTab('map'); writeHash();};
+$('q').onkeydown=e=>{if(e.key==='Enter'){const f=$('map').querySelector('.res'); if(f)f.click();}};
+$('scope').onchange=e=>{S.scope=e.target.value; SHOWN=60; renderMap(); writeHash();};
+$('shallonly').onchange=e=>{S.shall=e.target.checked; render(); writeHash();};
+$('theme').onclick=()=>applyTheme(S.theme==='dark'?'light':'dark',true);
+if(window.matchMedia){try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{let st=null;try{st=localStorage.getItem('ccsds-nav-theme');}catch(x){} if(!st)applyTheme(e.matches?'dark':'light',false);});}catch(e){}}
+document.querySelectorAll('#tabs button').forEach(x=>x.onclick=()=>setTab(x.dataset.t));
+window.addEventListener('hashchange',()=>{readHash();setMode(S.mode);});
+applyTheme(S.theme,false); readHash(); setMode(S.mode);
+window.__nav={stem,tokens,parseQuery,books,IX,S,SENT,C};
+window.__navReady=true;
+})();
+</script>
+</body>
+</html>

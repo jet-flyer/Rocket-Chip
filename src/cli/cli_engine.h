@@ -25,6 +25,8 @@ enum class MenuId : uint8_t {
     kFlight,
     kDebug,
     kSettings,
+    kClock,
+    kGps,
     kNone = 255
 };
 
@@ -45,6 +47,9 @@ enum class ActionId : uint8_t {
     kStationDistance,
     kStationArmConfirm,
     kStationDisarm,
+    kTMinusMinutes,
+    kTMinusZulu,
+    kTMinusClear,
     kCalGyro,
     kCalLevel,
     kCalBaro,
@@ -72,8 +77,12 @@ enum class ActionId : uint8_t {
     kDebugEskfLive,
     kDebugPyroLog,
     kDebugDiag,
+    kDebugRfRates,
     kCatalogList,
     kCatalogNavNext,
+#if defined(ROCKETCHIP_DEV_MODE)
+    kForceTxTimeout,
+#endif
 };
 
 enum class Gate : uint8_t {

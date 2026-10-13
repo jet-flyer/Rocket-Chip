@@ -3,9 +3,9 @@
 //============================================================================
 // AO_Telemetry — Telemetry Protocol Active Object (IVP-94)
 //
-// Protocol-only: CCSDS/MAVLink encoding, APID mux, rate dividers.
+// Air: Starcom COP-P. USB GCS: station gcs_mavlink (QGC / Mission Planner).
 // No radio hardware references. Posts SIG_RADIO_TX to AO_Radio.
-// Receives SIG_RADIO_RX for decode + output.
+// Receives SIG_RADIO_RX for decode + station USB re-encode.
 //============================================================================
 #ifndef ROCKETCHIP_AO_TELEMETRY_H
 #define ROCKETCHIP_AO_TELEMETRY_H
@@ -86,6 +86,9 @@ struct StarcomLinkStatus {
     bool nav_sdu = false;
     uint8_t v_s = 0;
     uint8_t nn_r = 0;
+    uint8_t farm_vr = 0;
+    uint8_t mac_mode = 0;   // MacMode
+    uint8_t mac_state = 0;  // MacState S-number
 };
 StarcomLinkStatus AO_Telemetry_get_starcom_link();
 

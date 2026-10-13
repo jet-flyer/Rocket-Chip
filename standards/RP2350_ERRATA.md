@@ -1,13 +1,15 @@
 # RP2350 Silicon Errata — Compliance Matrix
 
-**Status:** Initial sweep complete 2026-04-22. 28 errata documented.
-**Last datasheet revision checked:** local `docs/hardware/datasheets/rp2350-datasheet.pdf` as of 2026-04-22.
+**Status:** Initial sweep complete 2026-04-22. This doc covers E1-E28: 28 of the 31 errata in datasheet build 80d627281ed5. E29-E31 are not covered (Nathan judged them not relevant, 2026-10-08).
+**Last datasheet revision checked:** RP2350 datasheet build 80d627281ed5 (01/10/2026), Appendix D. Checked by Duke 2026-10-08 (stepping and section/page only). Before that: local `docs/hardware/datasheets/rp2350-datasheet.pdf` as of 2026-04-22.
 **Last pico-sdk version checked:** 2.2.0.
 **Last full-sweep date:** 2026-04-22.
 
 **Scope:** All documented RP2350 silicon errata, their applicability to
-our hardware (RP2350A on Adafruit Feather, RP2350B on Adafruit Fruit
-Jam — both A2 stepping), and our handling status for each.
+our hardware (RP2350A on the Adafruit Feather, RP2350B on the Adafruit
+Fruit Jam, and other RP2350 boards on hand), and our handling status for
+each. Stepping is per board, not per model. Measured steppings: "Silicon
+stepping reference" below.
 
 **Why this document exists:** the RP2350 is early-life silicon with an
 active errata list. Relying on the SDK to transparently handle every
@@ -55,7 +57,7 @@ was asked.
 | **Name** | One-line title from the datasheet (or our coinage for `R-` entries) |
 | **Datasheet ref** | Section / page in the RP2350 datasheet |
 | **Affected steppings** | A0 / A1 / A2 / A3 / A4 / "all" |
-| **Our stepping** | Whether we're in the affected set (currently A2) |
+| **Our stepping** | Which of our boards are in the affected set, per board (measured steppings: "Silicon stepping reference") |
 | **Silicon block** | IP block or subsystem |
 | **Description** | 2-3 sentences of what's broken and when |
 | **Trigger conditions** | *All* mentioned trigger paths, not just the primary one |
@@ -75,13 +77,15 @@ readable.
 
 ## Silicon stepping reference
 
-**Our hardware:**
-- **Vehicle — Adafruit Feather RP2350 HSTX:** RP2350**A** package (QFN-60), stepping A2
-- **Station — Adafruit Fruit Jam:** RP2350**B** package (QFN-80), stepping A2
+**Our hardware (measured 2026-10-08, Buzz):**
+- **Adafruit Feather RP2350 HSTX (vehicle setup):** RP2350**A** package (QFN-60), stepping A2 (SWD read of CHIP_ID).
+- **Adafruit Fruit Jam (station setup):** RP2350**B** package (QFN-80), stepping A4 (`picotool info -a`).
+- **Forgix:** RP2350**A** package (QFN-60), stepping A4 (`picotool info -a`).
+- **Pimoroni Tiny 2350:** RP2350**A** package (QFN-60), stepping A2 (`picotool info -a -f`).
 
-**Stepping claim source:** product pages, whiteboard notes. **Open item:**
-document a procedure for reading the chip's stepping register directly
-to self-verify (deferred from this sweep — see "Open items").
+**Stepping source:** the measured list in `docs/hardware/HARDWARE.md`,
+"Important Notes" item 2 (chip IDs and read method per board). Stepping
+is per board. A board that is not measured has no confirmed stepping.
 
 **A4 silicon is now shipping on new Adafruit Feather HSTX boards** (as
 of 2026-03-20 per Adafruit product page revision history). A4 "fixes
@@ -89,7 +93,7 @@ E9 and others." If we buy replacement boards, they will likely be A4 —
 **the `Affected steppings` and `Our stepping` columns in this document
 must be re-checked at that point**, because a non-trivial number of
 errata rows move from "affected" to "fixed-in-A3" or "fixed-in-A4" on
-that silicon. Fruit Jam remains A2-only as of 2026-04-22.
+that silicon. The Fruit Jam (station setup) is A4 (measured 2026-10-08).
 
 **Procurement note — prefer A4 silicon on future purchases.** On A4
 our active-attention errata list shrinks from {E2, E12} down toward
@@ -103,7 +107,8 @@ which errata profile during debug.
 **RP2350A vs RP2350B:** different *package* (QFN-60 vs QFN-80, different
 pin-out), same silicon die and therefore same errata. An erratum in the
 SIO block affects both; a pinout-specific note may differ. Only one
-erratum currently differentiates by package: **E3** (QFN-60 only).
+erratum currently differentiates by package: **E3** (A2, QFN-60 package
+only).
 
 ---
 
@@ -134,9 +139,9 @@ the bottom, each with the one-line reason we're not at risk.
 |---|---|
 | **ID** | E2 |
 | **Name** | SIO SPINLOCK writes mirrored at +0x80 offset (writes to new SIO registers at offsets 0x128-0x17c alias the spinlock registers at 0x108-0x17c) |
-| **Datasheet ref** | Appendix E, page 1373 |
+| **Datasheet ref** | Appendix D, D.9.2, page 1365 (build 80d627281ed5) |
 | **Affected steppings** | A2, A3, A4 (all shipped silicon) |
-| **Our stepping** | A2 — **affected** |
+| **Our stepping** | Per board: Feather (vehicle) A2, Tiny 2350 A2, Fruit Jam (station) A4, Forgix A4 — **all affected** |
 | **Silicon block** | SIO — spinlock hardware |
 | **Description** | SIO address decoder detects writes to spinlocks by decoding bit 7 of the address. Writes in the range 0x128-0x17c (new RP2350 registers: Doorbells, PERL_NONSEC, RISC-V soft IRQ, RISC-V MTIME, TMDS encoder) are spuriously detected as writes to the corresponding spinlock address 128 bytes below (range 0x108-0x17c). Writing to these high-addressed SIO registers silently sets the corresponding lock to unclaimed. Only affects writes to spinlock registers; reads are correctly decoded. |
 | **Trigger conditions** | <ul><li>**Primary (datasheet):** any code writing to SIO registers at offsets 0x128-0x17c while hardware spinlocks are in use. SDK 2.2.0 default of SW spinlocks avoids the primary path.</li><li>**Observed in-tree — warm-reboot path (R-1):** After `picotool -f` calls (USB vendor reboot into BOOTSEL + back), the next boot can hit an E2-signature deadlock. Recovery requires full board VBUS cycle + probe depower. Target reset alone does not clear it.</li><li>**Observed in-tree — SWD halt path (R-2):** `monitor halt` during an in-progress `spin_lock_blocking` wait leaves Core 0 unable to resume cleanly. Same full-power-cycle recovery.</li></ul> |
@@ -202,9 +207,9 @@ datasheet-gap report.
 |---|---|
 | **ID** | E9 |
 | **Name** | Increased leakage current on Bank 0 GPIO when pad input enabled (in undefined logic region between V_L and V_H) |
-| **Datasheet ref** | Appendix E, page 1366-1367 |
+| **Datasheet ref** | Appendix D, D.5.1, page 1358 (build 80d627281ed5) |
 | **Affected steppings** | A2 |
-| **Our stepping** | A2 — **affected** |
+| **Our stepping** | Per board: Feather (vehicle) A2 and Tiny 2350 A2 — **affected**. Fruit Jam (station) A4 and Forgix A4 — not affected. |
 | **Silicon block** | GPIO (bank 0 pads 0-47 only) |
 | **Description** | When a Bank 0 GPIO pad is configured as input-enabled (IE=1), output-disabled, isolation-clear, and the pad voltage sits in the undefined logic region (~0.8V-2.0V), leakage current can latch the pad at ~2.2V. Peak current ~30µA. Only ≤8.2kΩ external pull-down or a low-impedance driver overcomes this. Adafruit's guidance on both Feather HSTX and Fruit Jam learn guides matches: if a pull-down is used, it must be ≤8.2kΩ. A4 silicon fixes this entirely; current Adafruit Feather HSTX stock as of 2026-03-20+ is A4 and unaffected. |
 | **Trigger conditions** | Bank 0 pad with **IE=1**, no active driver, no ≤8.2kΩ external pull, idle voltage in the 0.8V-2.0V undefined region. The load-bearing condition is **IE=1** — at reset, `PADS_BANK0_GPIO*_IE_RESET = 0` (pico-sdk `hardware/regs/pads_bank0.h`). Pads we never configure stay at IE=0 and are **not E9-vulnerable regardless of external pulls**. `gpio_init()` and `gpio_set_function()` both explicitly set IE=1. |
@@ -213,7 +218,7 @@ datasheet-gap report.
 | **Our status** | `workaround-applied` by-construction — per-pin audit 2026-04-22 (see table below) finds zero pins with actual E9 exposure that affects functionality. Two pins (SPI MISO on each board) are technically exposed during CS-high idle periods but the SPI peripheral doesn't sample during those windows, so leakage-induced voltage has no functional impact. Every other pin is either (a) left at reset IE=0 by our firmware never touching it, (b) actively driven by us or an external device, or (c) externally pulled by Adafruit board-level resistors. |
 | **Workaround reference** | Per-pin audit tables below. If a new pin is configured in the future as a floating input (IE=1, no driver, no pull), a new row must be added to the at-risk table and either (a) an external ≤8.2kΩ pull added, (b) the input disabled when not actively reading, or (c) the pin moved to an A4-silicon board. |
 | **Fixed in stepping** | A3 |
-| **Notes** | Adafruit product page for the Feather HSTX notes A4 now shipping (post-2026-03-20) which fixes E9. Fruit Jam is still A2. If we upgrade to A4 Feathers, this whole row becomes historical (move to Not-Applicable). Until then, the audit tables below are the authoritative check. |
+| **Notes** | Measured 2026-10-08: the vehicle Feather is A2 (affected); the Fruit Jam (station setup) is A4 (not affected). Stepping is per board. Shop note: the Adafruit product page for the Feather HSTX says A4 ships after 2026-03-20; a new Feather can be A4, so read its stepping. The Feather audit table below is the authoritative check for A2 boards. The Fruit Jam table is historical. The Tiny 2350 (A2) has no per-pin audit yet (no firmware bring-up). |
 
 **Per-pin E9 audit — Feather RP2350 HSTX (vehicle, RP2350A QFN60, GPIOs 0-29)**
 
@@ -248,6 +253,10 @@ GitHub repo (R-designators R7/R15/R16/R17 verified via schematic fetch
 **Feather verdict:** Zero functionally-exposed pins. Safe without action.
 
 **Per-pin E9 audit — Fruit Jam (station, RP2350B QFN80, GPIOs 0-47)**
+
+> **Historical (2026-10-08).** The Fruit Jam is A4 (measured). E9 affects
+> A2 only, so this audit does not apply to this board. The text stays as
+> a record of the 2026-04-22 audit.
 
 | GPIO | Our config | IE after config | Idle driver / pull | E9 exposure | Notes |
 |---|---|---|---|---|---|
@@ -295,9 +304,9 @@ GitHub repo (R-designators R7/R15/R16/R17 verified via schematic fetch
 |---|---|
 | **ID** | E11 |
 | **Name** | XIP cache clean by set/way operation modifies tag of dirty lines |
-| **Datasheet ref** | Appendix E, page 1374 |
+| **Datasheet ref** | Appendix D, D.10.1, page 1365 (build 80d627281ed5) |
 | **Affected steppings** | A2, A3, A4 (all shipped silicon) |
-| **Our stepping** | A2 — **affected** |
+| **Our stepping** | Per board: Feather (vehicle) A2, Tiny 2350 A2, Fruit Jam (station) A4, Forgix A4 — **all affected** |
 | **Silicon block** | XIP (execute-in-place cache) |
 | **Description** | Cache clean-by-set/way maintenance, when applied to a dirty line, both writes the dirty data downstream (correct) AND erroneously updates the line's tag to the address bits 25-13 of the maintenance write that initiated the clean (incorrect). This breaks the cache's address-to-tag invariant. Subsequent reads from the originally cached address can hit the now-mistagged line and return stale data from the wrong downstream window (e.g., PSRAM data returned for a flash address, or vice versa). |
 | **Trigger conditions** | XIP cache clean by set/way on dirty lines when multiple QMI windows are in use and an address in one window aliases in the cache to data previously cached from another window. Spurious cache hits possible after the clean operation. |
@@ -316,9 +325,9 @@ GitHub repo (R-designators R7/R15/R16/R17 verified via schematic fetch
 |---|---|
 | **ID** | E12 |
 | **Name** | USB: Inadequate synchronisation of USB status signals |
-| **Datasheet ref** | Appendix E, page 1375-1376 |
+| **Datasheet ref** | Appendix D, D.11.1, page 1366 (build 80d627281ed5) |
 | **Affected steppings** | A2, A3 (mitigated on A3 — hardware timing fixes applied but software "must not rely on these fixes"), A4 |
-| **Our stepping** | A2 — **affected** |
+| **Our stepping** | Per board: Feather (vehicle) A2, Tiny 2350 A2, Fruit Jam (station) A4, Forgix A4 — **all affected** |
 | **Silicon block** | USB |
 | **Description** | Certain Host and Device controller events cross from `clk_usb` to `clk_sys` inside the USB peripheral without appropriate synchronisation. Events can be lost when `clk_sys` ≤ `clk_usb` (datasheet: "Many of these signals don't have appropriate synchronisation methods to ensure that they are correctly registered when `clk_sys` is equal to or slower than `clk_usb`"). Affected signals: SIE_STATUS fields (TRANS_COMPLETE, SETUP_REC, STALL_REC, NAK_REC, RX_SHORT_PACKET, ACK_REC, DATA_SEQ_ERROR, RX_OVERFLOW) and INTR fields (HOST_SOF, ERROR_CRC, ERROR_BIT_STUFF, ERROR_RX_OVERFLOW, ERROR_RX_TIMEOUT, ERROR_DATA_SEQ). |
 | **Trigger conditions** | Any USB operation where `clk_sys` ≤ `clk_usb` frequency. Datasheet highlights the USB bootloader as particularly vulnerable because it derives `clk_sys` from `pll_usb` making the two frequencies identical. Quasi-static states (reset, suspend, resume) are unaffected. Not TinyUSB-specific — hardware-level CDC issue. Affects both Host and Device modes. |
@@ -336,36 +345,40 @@ GitHub repo (R-designators R7/R15/R16/R17 verified via schematic fetch
 (E9 moved to active rows after the per-pin audit 2026-04-22 found one
 low-residual-risk pin category worth tracking — see E9 row above.)
 
-For each, the one-line reason we're not at risk. If any of these conditions
+For each, the datasheet section, start page and affected steppings
+(build 80d627281ed5, Appendix D), and the one-line reason we're not at risk.
+Rows with "A2 only" or "A2, A3" affect the Feather (vehicle) and the
+Tiny 2350 (A2). They do not affect the Fruit Jam (station) or the
+Forgix (A4). Rows with "A2, A3, A4" affect all four boards. If any of these conditions
 change (we start using the affected silicon block, switch steppings, change
 security posture), the row must be re-promoted to the active matrix above.
 
-| ID | Silicon block | Why not applicable to us |
-|---|---|---|
-| E1 | SIO interpolator | We don't use the interpolator. No `interp_*` calls in `src/`. |
-| E3 | ACCESSCTRL (QFN-60) | Feather is QFN-60 (affected package), but we don't use Non-secure mode or PADS register access control. All our pad access is from Secure. |
-| E4 | Hazard3 (RISC-V) | We build ARM only (`rp2350-arm-s`), never RISC-V. Hazard3-specific errata N/A. |
-| E5 | DMA CHAIN_TO + ABORT | We don't use DMA. No `dma_channel_*` claims in `src/`. |
-| E6 | Hazard3 PMPCFG | RISC-V only — N/A. |
-| E7 | Hazard3 mstatus.mie | RISC-V only — N/A. |
-| E8 | DMA zero-length CHAIN_TO | No DMA use — N/A. |
-| E10 | Bootrom UF2 drag-drop with partition table | We don't use partition tables. Standard UF2 flashing. Handled by picotool regardless. |
-| E13 | Bootrom invalid IMAGE_DEF before valid | We have a single valid IMAGE_DEF. SDK's IGNORED item handling is used. |
-| E14 | Bootrom connect_internal_flash() CS1 pin | We don't call this function. Flash connected to pin 0 by default on Adafruit boards. |
-| E15 | OTP otp_access() permissions | We don't program or read OTP. |
-| E16 | OTP USB_OTP_VDD disruption | No OTP use. Requires physical attack. |
-| E17 | OTP guarded ECC read on paired row | No OTP use. |
-| E18 | Bootrom FLASH_PARTITION_SLOT_SIZE ECC | We don't program this OTP row. |
-| E19 | Bootrom reboot hang with FRCE_OFF bits | We don't use WATCHDOG or POWMAN boot paths with non-default FRCE_OFF. Standard reboot only. |
-| E20 | Bootrom reboot() glitch attack | Physical attack. We don't ship secure-boot firmware; no adversary model includes physical glitch attacks. |
-| E21 | OTP glitch attack in BOOTSEL | Physical attack, same as E20. |
-| E22 | Bootrom "lollipop" block loop | Block loops are SDK-generated; SDK doesn't produce lollipops. |
-| E23 | PICOBOOT GET_INFO PACKAGE_SEL | We don't call GET_INFO from firmware. picotool already handles the workaround. |
-| E24 | Bootrom signature-check bypass glitch attack | Physical attack on secure boot. Not our threat model. |
-| E25 | LOAD_MAP non-word sizes | SDK uses word-sized, word-aligned linker sections. N/A. |
-| E26 | RCP delay side-channel | We don't use the Redundancy Coprocessor. |
-| E27 | BUS_PRIORITY wrong-wire | We don't set bus priorities (`BUSCTRL`). Default round-robin arbitration. |
-| E28 | OTP lock-word key protection | No OTP use. |
+| ID | Silicon block | Datasheet ref; steppings | Why not applicable to us |
+|---|---|---|---|
+| E1 | SIO interpolator | D.9.1 p.1364; A2, A3, A4 | We don't use the interpolator. No `interp_*` calls in `src/`. |
+| E3 | ACCESSCTRL (QFN-60) | D.1.1 p.1351; A2, QFN-60 only | Feather (vehicle) and Tiny 2350 are A2 QFN-60 (affected); Forgix (A4) and Fruit Jam (station, A4, QFN-80) are not. We don't use Non-secure mode or PADS register access control. All our pad access is from Secure. |
+| E4 | Hazard3 (RISC-V) | D.6.1 p.1360; A2, A3, A4 | We build ARM only (`rp2350-arm-s`), never RISC-V. Hazard3-specific errata N/A. |
+| E5 | DMA CHAIN_TO + ABORT | D.4.1 p.1357; A2, A3, A4 | We don't use DMA. No `dma_channel_*` claims in `src/`. |
+| E6 | Hazard3 PMPCFG | D.6.2 p.1360; A2, A3, A4 | RISC-V only — N/A. |
+| E7 | Hazard3 mstatus.mie | D.6.3 p.1361; A2, A3, A4 | RISC-V only — N/A. |
+| E8 | DMA zero-length CHAIN_TO | D.4.2 p.1358; A2, A3, A4 | No DMA use — N/A. |
+| E10 | Bootrom UF2 drag-drop with partition table | D.2.1 p.1351; A2 only | We don't use partition tables. Standard UF2 flashing. Handled by picotool regardless. |
+| E13 | Bootrom invalid IMAGE_DEF before valid | D.2.2 p.1352; A2 only | We have a single valid IMAGE_DEF. SDK's IGNORED item handling is used. |
+| E14 | Bootrom connect_internal_flash() CS1 pin | D.2.3 p.1352; A2 only | We don't call this function. Flash connected to pin 0 by default on Adafruit boards. |
+| E15 | OTP otp_access() permissions | D.2.4 p.1352; A2 only | We don't program or read OTP. |
+| E16 | OTP USB_OTP_VDD disruption | D.7.1 p.1362; A2 only | No OTP use. Requires physical attack. |
+| E17 | OTP guarded ECC read on paired row | D.7.2 p.1363; A2, A3, A4 | No OTP use. |
+| E18 | Bootrom FLASH_PARTITION_SLOT_SIZE ECC | D.2.5 p.1353; A2, A3 | We don't program this OTP row. |
+| E19 | Bootrom reboot hang with FRCE_OFF bits | D.2.6 p.1353; A2 only | We don't use WATCHDOG or POWMAN boot paths with non-default FRCE_OFF. Standard reboot only. |
+| E20 | Bootrom reboot() glitch attack | D.2.7 p.1353; A2 only | Physical attack. We don't ship secure-boot firmware; no adversary model includes physical glitch attacks. |
+| E21 | OTP glitch attack in BOOTSEL | D.2.8 p.1354; A2 only | Physical attack, same as E20. |
+| E22 | Bootrom "lollipop" block loop | D.2.9 p.1355; A2 only | Block loops are SDK-generated; SDK doesn't produce lollipops. |
+| E23 | PICOBOOT GET_INFO PACKAGE_SEL | D.2.10 p.1355; A2 only | We don't call GET_INFO from firmware. picotool already handles the workaround. |
+| E24 | Bootrom signature-check bypass glitch attack | D.2.11 p.1355; A2, A3 | Physical attack on secure boot. Not our threat model. |
+| E25 | LOAD_MAP non-word sizes | D.2.12 p.1356; A2, A3 | SDK uses word-sized, word-aligned linker sections. N/A. |
+| E26 | RCP delay side-channel | D.8.1 p.1364; A2, A3, A4 | We don't use the Redundancy Coprocessor. |
+| E27 | BUS_PRIORITY wrong-wire | D.3.1 p.1356; A2, A3, A4 | We don't set bus priorities (`BUSCTRL`). Default round-robin arbitration. |
+| E28 | OTP lock-word key protection | D.7.3 p.1363; A2, A3, A4 | No OTP use. |
 
 ---
 
@@ -401,11 +414,10 @@ security posture), the row must be re-promoted to the active matrix above.
 
 ## Open items / deferred
 
-1. **Silicon-stepping read procedure.** Currently claim A2 based on
-   Adafruit product pages. Adafruit now ships A4 on the Feather HSTX
-   (post 2026-03-20) which fixes E9 and others, so self-verification
-   matters more than it did a few weeks ago. Need a documented
-   procedure for reading the chip's stepping register.
+1. **Silicon-stepping read procedure.** Closed 2026-10-08. `picotool
+   info -a` gives the stepping (the vehicle Feather was read by SWD
+   CHIP_ID). All four boards are measured: `docs/hardware/HARDWARE.md`,
+   "Important Notes" item 2.
 
 2. **E2 incident tracking.** Log every R-1 / R-2 occurrence in the
    Incident log table above. Re-assess whether to file an upstream

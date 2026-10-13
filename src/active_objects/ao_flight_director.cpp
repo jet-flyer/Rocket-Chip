@@ -133,7 +133,8 @@ static void fd_tick(FdAo* me) {
     // clear. See docs/USER_GUIDE.md "Safety State Model".
     if (rc::flight_director_phase(&me->director) == rc::FlightPhase::kArmed &&
         rc::health_monitor_critical_fault()) {
-        rc::rc_log("[FD] CRITICAL FAULT while ARMED — auto-DISARM + LAUNCH ABORT\n");
+        rc::rc_log("[FD] CRITICAL FAULT while ARMED — auto-DISARM + LAUNCH ABORT crit=0x%02x\n",
+                   static_cast<unsigned>(rc::health_monitor_get_state()->critical));
         rc::flight_director_dispatch_signal(&me->director, rc::SIG_DISARM);
         rc::flight_director_set_launch_abort();
     }

@@ -53,6 +53,7 @@ endif()
 
 set(RC_GIT_HASH "unknown")
 set(RC_BUILD_IDENTITY "unknown")
+set(RC_FIRMWARE_TREE_ID "unknown")
 set(RC_BUILD_NUMBER 0)
 
 find_package(Git QUIET)
@@ -83,6 +84,63 @@ if(Git_FOUND OR GIT_FOUND)
     )
     if(NOT _rc_desc_rv EQUAL 0 OR RC_BUILD_IDENTITY STREQUAL "")
         set(RC_BUILD_IDENTITY "${RC_GIT_HASH}")
+    endif()
+
+    # Firmware-tree hash (build ID for the bench gate). Paths come from the
+    # ONE tracked list, scripts/ci/firmware_paths.txt [elf]. Same recipe as
+    # scripts/firmware_tree.py elf_tree_id(): blob id of
+    # `git ls-tree -r HEAD -- <[elf] paths>`. A docs-only commit keeps it.
+    # "-dirty" when a firmware path differs from HEAD at configure time.
+    set(_rc_fw_list "${CMAKE_SOURCE_DIR}/scripts/ci/firmware_paths.txt")
+    if(EXISTS "${_rc_fw_list}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_rc_fw_list}")
+        file(STRINGS "${_rc_fw_list}" _rc_fw_lines)
+        set(_rc_fw_section "")
+        set(_rc_fw_paths "")
+        foreach(_rc_fw_line IN LISTS _rc_fw_lines)
+            string(STRIP "${_rc_fw_line}" _rc_fw_line)
+            if(_rc_fw_line STREQUAL "" OR _rc_fw_line MATCHES "^#")
+                continue()
+            endif()
+            if(_rc_fw_line MATCHES "^\\[(.+)\\]$")
+                set(_rc_fw_section "${CMAKE_MATCH_1}")
+                continue()
+            endif()
+            if(_rc_fw_section STREQUAL "elf")
+                list(APPEND _rc_fw_paths "${_rc_fw_line}")
+            endif()
+        endforeach()
+        set(_rc_fw_listing "${CMAKE_BINARY_DIR}/rc_firmware_tree.txt")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} -c core.quotePath=true ls-tree -r HEAD -- ${_rc_fw_paths}
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_FILE "${_rc_fw_listing}"
+            ERROR_QUIET
+            RESULT_VARIABLE _rc_fw_ls_rv
+        )
+        if(_rc_fw_ls_rv EQUAL 0 AND _rc_fw_paths)
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} hash-object --no-filters "${_rc_fw_listing}"
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE _rc_fw_id
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE _rc_fw_hash_rv
+            )
+            if(_rc_fw_hash_rv EQUAL 0 AND NOT _rc_fw_id STREQUAL "")
+                set(RC_FIRMWARE_TREE_ID "${_rc_fw_id}")
+                execute_process(
+                    COMMAND ${GIT_EXECUTABLE} -c core.quotePath=true status --porcelain --untracked-files=all -- ${_rc_fw_paths}
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE _rc_fw_dirty
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET
+                )
+                if(NOT _rc_fw_dirty STREQUAL "")
+                    string(APPEND RC_FIRMWARE_TREE_ID "-dirty")
+                endif()
+            endif()
+        endif()
     endif()
 
     execute_process(
@@ -186,4 +244,4 @@ configure_file(
     @ONLY
 )
 
-message(STATUS "RocketChip ${RC_VERSION_STRING}  git ${RC_GIT_HASH}  identity ${RC_BUILD_IDENTITY}  build ${RC_BUILD_NUMBER}")
+message(STATUS "RocketChip ${RC_VERSION_STRING}  git ${RC_GIT_HASH}  identity ${RC_BUILD_IDENTITY}  fwtree ${RC_FIRMWARE_TREE_ID}  build ${RC_BUILD_NUMBER}")

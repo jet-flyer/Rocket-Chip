@@ -147,9 +147,10 @@ not write again until the LED is on.
 - `s` twice, a second or two apart: `I=` must increase. Stuck `I=`
   after a 13/13 banner is a fail.
 
-`python scripts/bench_sim.py` is the land gate when firmware paths
-changed. It talks to whatever image is already on the chip; flash
-first.
+The pre-push gate (`scripts/hooks/pre-push`) runs
+`scripts/bench_sim.py --commit <sha>` once per push when firmware paths
+changed. It talks to whatever image is already on the chip and refuses
+an image that is not the pushed build; flash first, then push.
 
 ---
 

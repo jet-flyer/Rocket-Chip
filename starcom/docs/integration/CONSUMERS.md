@@ -4,7 +4,7 @@
 
 Dependency is always **consumer → Starcom**. Starcom never includes consumer headers, AO/QP types, board pins, or radio objects.
 
-Starcom does **not** ship a stop-gap command/retry layer. RC's `telemetry_encoder` is pre-Starcom firmware (council deferred CCSDS past Stage 17). It is replaced at IVP increment 22 by COP, not by another temporary path.
+Starcom does **not** ship a temporary command/retry layer. RC LoRa air is COP-P (IVP 22). `telemetry_encoder` remains the USB/host packer, not the RF path.
 
 ## Now (`0.2.25`, IVP 0–25; FPGA PHY/decode held)
 

@@ -26,7 +26,7 @@
 // Compile-time struct size validation
 // ============================================================================
 
-static_assert(sizeof(rc::TelemetryState) == 45, "TelemetryState size");
+static_assert(sizeof(rc::TelemetryState) == 51, "TelemetryState size");
 // SensorSnapshot sizeof check lived here when the type was a public ICD.
 // Type parked 2026-08-20 (WN-045 / DF-001); assert remains in the parked header.
 

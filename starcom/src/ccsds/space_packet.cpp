@@ -48,9 +48,12 @@ Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
   const unsigned seq = static_cast<unsigned>(fields.seq_count) & 0x3FFFu;
   const unsigned flags = static_cast<unsigned>(fields.seq_flags) & 0x03u;
   const unsigned c = static_cast<unsigned>(data.size() - 1u);
+  // 133.0-B-2 §4.1.3.3.3.4: Idle Packet secondary header flag is 0.
+  const bool secondary =
+      fields.secondary_header && apid != static_cast<unsigned>(kIdleApid);
 
   out[0] = std::byte((fields.telecommand ? 0x10u : 0u) |
-                     (fields.secondary_header ? 0x08u : 0u) |
+                     (secondary ? 0x08u : 0u) |
                      ((apid >> 8) & 0x07u));
   out[1] = std::byte(apid & 0xFFu);
   out[2] = std::byte((flags << 6) | ((seq >> 8) & 0x3Fu));

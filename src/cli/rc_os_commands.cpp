@@ -5,6 +5,7 @@
 // sensor seqlock, owns no state.
 
 #include "cli/rc_os_commands.h"
+#include "cli/rc_os_dashboard.h"
 
 #include "ao_rcos.h"
 #include "rocketchip/ao_signals.h"
@@ -85,7 +86,12 @@ static void cmd_radio_config_cycle() {
     // On first press we don't know what the vehicle is on — start at index 0
     // (the default config) and advance from there.
     static size_t g_cycleIdx = 0;
-    g_cycleIdx = (g_cycleIdx + 1) % rc::kRadioConfigTableSize;
+    const uint8_t next = rc::radio_config_next_fit(g_cycleIdx);
+    if (next == rc::kRadioConfigNoIndex) {
+        rc::rc_log("[CMD] SET_RADIO_CONFIG: no catalog row fits nav ToA\n");
+        return;
+    }
+    g_cycleIdx = next;
     const auto& target = rc::kRadioConfigTable[g_cycleIdx];
 
     rc::rc_log("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",
@@ -908,10 +914,15 @@ void cli_print_boot_summary() {
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         if (sc.on) {
-            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u%s\n",
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("  COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
                        sc.peer_plcw ? "lock" : "waiting peer PLCW",
                        static_cast<unsigned>(sc.nn_r),
                        static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
                        sc.nav_sdu ? "  nav" : "");
         }
     }
@@ -1060,12 +1071,23 @@ void cli_print_station_status() {
     {
         const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
         if (sc.on) {
-            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u%s\n",
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
                        sc.peer_plcw ? "lock" : "waiting peer PLCW",
                        static_cast<unsigned>(sc.nn_r),
                        static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
                        sc.nav_sdu ? "  nav" : "");
         }
+    }
+    int32_t latency_s = 0;
+    if (ansi_dashboard_latency(&latency_s)) {
+        rc::rc_log("Link age: %ld s (both GPS)\n", (long)latency_s);
+    } else {
+        rc::rc_log("Link age: -- (needs GPS time on both)\n");
     }
     if (!rx->valid) {
         rc::rc_log("Waiting for vehicle packets...\n");
@@ -1344,6 +1366,22 @@ void cmd_radio_status() {
                (unsigned long)rs->tx_count,
                static_cast<unsigned>(rs->tx_consec_fail),
                rs->tx_active ? "busy" : "idle");
+        rc::rc_log("RX: %lu pkts  %lu CRC err\n",
+               (unsigned long)rs->rx_count,
+               (unsigned long)rs->rx_crc_errors);
+        {
+            const StarcomLinkStatus sc = AO_Telemetry_get_starcom_link();
+            static const char* kMacMode = "ILTA";
+            const char mc =
+                (sc.mac_mode < 4) ? kMacMode[sc.mac_mode] : '?';
+            rc::rc_log("COP-P: %s  N(R)=%u V(S)=%u V(R)=%u  MAC %c/s%u%s\n",
+                       sc.peer_plcw ? "lock" : "waiting peer PLCW",
+                       static_cast<unsigned>(sc.nn_r),
+                       static_cast<unsigned>(sc.v_s),
+                       static_cast<unsigned>(sc.farm_vr),
+                       mc, static_cast<unsigned>(sc.mac_state),
+                       sc.nav_sdu ? "  nav" : "");
+        }
     }
 
     rc::rc_log("CFG: BW=%u SF=%u CR=%u nav=%uHz pwr=%udBm\n",
@@ -1352,6 +1390,18 @@ void cmd_radio_status() {
            static_cast<unsigned>(rs->runtime_config.coding_rate),
            static_cast<unsigned>(rs->runtime_config.nav_rate_hz),
            static_cast<unsigned>(rs->runtime_config.power_dbm));
+
+    rc::rc_log("ID: flight-%s tree=%s\n", kGitHash, kFirmwareTreeId);
+    {
+        const int8_t pa_dbm = rfm95w_read_tx_power_dbm(&rs->radio);
+        if (pa_dbm == -1) {
+            rc::rc_log("PA: unread\n");
+        } else if (pa_dbm == -2) {
+            rc::rc_log("PA: unverified\n");
+        } else {
+            rc::rc_log("PA: %d dBm (reg)\n", static_cast<int>(pa_dbm));
+        }
+    }
 
     // Boot-register audit on every `t` (InvertIQ / CRC / LNA / CFG3).
     if (rs->boot_audit_valid) {
@@ -1405,13 +1455,20 @@ void cmd_station_gps() {
 
     shared_sensor_data_t snap = {};
     (void)seqlock_read(&g_sensorSeqlock, &snap);
-    rc::rc_log("  G=%lu E=%lu RMC=%c GGA=%u sats=%u valid=%u\n",
+    rc::rc_log("  G=%lu E=%lu RMC=%c GGA=%u sats=%u valid=%u time=%u\n",
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count,
            snap.gps_rmc_valid ? 'A' : 'V',
            snap.gps_gga_fix,
            snap.gps_satellites,
-           snap.gps_valid ? 1U : 0U);
+           snap.gps_valid ? 1U : 0U,
+           snap.gps_time_valid ? 1U : 0U);
+    if (snap.gps_time_valid) {
+        rc::rc_log("  UTC %02u:%02u:%02uZ\n",
+               static_cast<unsigned>(snap.gps_hour),
+               static_cast<unsigned>(snap.gps_minute),
+               static_cast<unsigned>(snap.gps_second));
+    }
 
     const uint8_t* raw = nullptr;
     size_t raw_len = 0;

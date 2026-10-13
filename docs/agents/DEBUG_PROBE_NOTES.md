@@ -47,13 +47,28 @@ power cycle so the next attach is not a stale DAP.
 `Start-Process -ArgumentList` in PowerShell splits `-c "adapter speed
 5000"`. Use the `.ps1`; it passes one `.Arguments` string.
 
-### Pre-commit `bench_sim`
+Start OpenOCD from the **main checkout**, never from a worktree. The
+main checkout is the first line of `git worktree list` (the gate reads
+`git worktree list --porcelain` and prints that folder). The running
+OpenOCD process locks the folder it starts in.
 
-Firmware-path commits need OpenOCD on `:3333` **and** vehicle CDC so
-`python scripts/bench_sim.py` can find the board. The hook does not
-flash; it talks to whatever image is already on the chip. Flash first
-(`docs/FLASHING.md`), then commit. `--no-verify` needs explicit
-repo-owner approval in this session.
+### Pre-push `bench_sim`
+
+The bench runs once per push (`scripts/hooks/pre-push`), on the commit
+being pushed. A firmware or gate change benches both roles (vehicle and
+station). It needs OpenOCD on `:3333` **and** the CDC port of each board
+it benches. A push where every firmware path is in `[station-only]`
+benches the station only and does not need OpenOCD. The gate
+builds the pushed commit in the bench worktree (`<main checkout>-bench`)
+and does not flash. Flash the ELF it names, then push again. Both setups
+flash by Path 1: `picotool load -f` over USB, then `--record-only`, then
+wait for LED + CDC. No `reset halt` (`docs/FLASHING.md` rule 2). The
+debug probe does not flash in this procedure; it serves only the OpenOCD
+check. Path 2 (probe halt-write) stays an alternative for the setup with
+the debug probe. Flash first, then push. Never use `--no-verify`.
+The PASS notes (`refs/notes/rc-bench`) stay in this clone; do not push them.
+After a hardware change on the bench (radio board swap, jumper, solder or
+antenna change), push with `RC_BENCH_FRESH=1 git push`.
 
 ## Flash
 

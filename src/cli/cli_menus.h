@@ -68,6 +68,7 @@ inline constexpr Item kVehicleItems[] = {
 
     // debug — mutators omitted
     {MenuId::kDebug, 's', true,  "sensors",    MenuId::kNone, ActionId::kDebugSensors},
+    {MenuId::kDebug, 'r', true,  "RF rates",   MenuId::kNone, ActionId::kDebugRfRates},
     {MenuId::kDebug, 'i', true,  "I2C scan",   MenuId::kNone, ActionId::kDebugI2cScan},
     {MenuId::kDebug, 'k', true,  "I2C quiesce+reboot", MenuId::kNone, ActionId::kDebugI2cQuiesce},
     {MenuId::kDebug, 'u', true,  "I2C park (probe flash)", MenuId::kNone, ActionId::kDebugI2cPark},
@@ -75,6 +76,10 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'e', false, "ESKF live",  MenuId::kNone, ActionId::kDebugEskfLive},
     {MenuId::kDebug, 'y', true,  "pyro log",   MenuId::kNone, ActionId::kDebugPyroLog},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'o', true,  "force 1 TX timeout", MenuId::kNone,
+     ActionId::kForceTxTimeout, Gate::kDevRuntime},
+#endif
     {MenuId::kDebug, 'h', true,  "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, '?', false, "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},
@@ -96,9 +101,9 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kMain, 'h', true,  "help",         MenuId::kNone,     ActionId::kHelp},
     {MenuId::kMain, '?', false, "help",         MenuId::kNone,     ActionId::kHelp},
     {MenuId::kMain, 'p', true,  "preflight",    MenuId::kNone,     ActionId::kPreflight},
+    {MenuId::kMain, 'c', true,  "clock",        MenuId::kClock,    ActionId::kNone},
+    {MenuId::kMain, 'g', true,  "gps",          MenuId::kGps,      ActionId::kNone},
     {MenuId::kMain, 't', true,  "radio status", MenuId::kNone,     ActionId::kRadioStatus},
-    {MenuId::kMain, 'g', true,  "station GPS",  MenuId::kNone,     ActionId::kStationGps},
-    {MenuId::kMain, 'd', true,  "distance",     MenuId::kNone,     ActionId::kStationDistance},
     {MenuId::kMain, 'b', true,  "beacon",       MenuId::kNone,     ActionId::kBeacon},
     {MenuId::kMain, 'a', false, "ARM confirm",  MenuId::kNone,     ActionId::kStationArmConfirm},
     {MenuId::kMain, 'X', false, "DISARM",       MenuId::kNone,     ActionId::kStationDisarm},
@@ -107,7 +112,23 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kMain, 's', true,  "settings",     MenuId::kSettings, ActionId::kNone},
     {MenuId::kMain, 'z', true,  "pad",          MenuId::kNone,     ActionId::kReturnPad},
 
+    {MenuId::kClock, 'n', true,  "T- in N minutes", MenuId::kNone, ActionId::kTMinusMinutes},
+    {MenuId::kClock, 't', true,  "T- at Zulu",      MenuId::kNone, ActionId::kTMinusZulu},
+    {MenuId::kClock, 'c', true,  "clear T-",        MenuId::kNone, ActionId::kTMinusClear},
+    {MenuId::kClock, 'h', true,  "help",            MenuId::kNone, ActionId::kHelp},
+    {MenuId::kClock, '?', false, "help",            MenuId::kNone, ActionId::kHelp},
+    {MenuId::kClock, 'z', true,  "back",            MenuId::kNone, ActionId::kBack},
+    {MenuId::kClock, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
+
+    {MenuId::kGps, 's', true,  "station GPS", MenuId::kNone, ActionId::kStationGps},
+    {MenuId::kGps, 'd', true,  "distance",    MenuId::kNone, ActionId::kStationDistance},
+    {MenuId::kGps, 'h', true,  "help",        MenuId::kNone, ActionId::kHelp},
+    {MenuId::kGps, '?', false, "help",        MenuId::kNone, ActionId::kHelp},
+    {MenuId::kGps, 'z', true,  "back",        MenuId::kNone, ActionId::kBack},
+    {MenuId::kGps, static_cast<char>(kEsc), false, "back", MenuId::kNone, ActionId::kBack},
+
     {MenuId::kDebug, 's', true,  "RX status",  MenuId::kNone, ActionId::kDebugSensors},
+    {MenuId::kDebug, 'r', true,  "RF rates",   MenuId::kNone, ActionId::kDebugRfRates},
     {MenuId::kDebug, 'i', true,  "I2C scan",   MenuId::kNone, ActionId::kDebugI2cScan},
     {MenuId::kDebug, 'k', true,  "I2C quiesce+reboot", MenuId::kNone, ActionId::kDebugI2cQuiesce},
     {MenuId::kDebug, 'u', true,  "I2C park (probe flash)", MenuId::kNone, ActionId::kDebugI2cPark},

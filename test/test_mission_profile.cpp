@@ -130,7 +130,8 @@ TEST(MissionProfileStruct, NoPointers) {
     // This is a heuristic check — if sizeof grows unexpectedly, investigate.
     // IVP-83: PhaseQRTable adds ~257 bytes (8 phases × 32 bytes + ramp_steps)
     // IVP-120: +12 bytes (baro landing + backstop fields)
-    EXPECT_LE(sizeof(rc::MissionProfile), 400u);
+    // Opening-shock fields: 2 floats + uint32.
+    EXPECT_LE(sizeof(rc::MissionProfile), 416u);
 }
 
 TEST(MissionProfileStruct, AllTimeoutsPositive) {

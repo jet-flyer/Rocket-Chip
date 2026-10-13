@@ -135,10 +135,17 @@ def strip_ansi_text(text: str) -> str:
 
 
 def last_rate(text: str, key: str) -> int | None:
-    # Dashboard RATE sits on a CSI-wrapped line. Strip first, then take
-    # the last RATE: line's token so home/clear refreshes don't glue keys.
+    # Pad has no RATE row. CLI `t` / debug `r` dump is:
+    #   RATE window_ms=...
+    #     nav_submit=...  pltu_post=...
     clean = strip_ansi_text(text)
-    return last_int(clean, rf"RATE:[^\n]*\b{re.escape(key)}\s*=\s*(\d+)")
+    same = last_int(clean, rf"RATE:?[^\n]*\b{re.escape(key)}\s*=\s*(\d+)")
+    if same is not None:
+        return same
+    hits = list(re.finditer(rf"(?m)^\s*{re.escape(key)}\s*=\s*(\d+)", clean))
+    if not hits:
+        return None
+    return int(hits[-1].group(1))
 
 
 def rate_hz(count: int | None, window_ms: int | None) -> str | None:
@@ -333,10 +340,10 @@ def main() -> int:
 
             if not cfg_sent and elapsed >= 4.0:
                 veh.send(b"t")
-                # Station stays on ANSI dash here so `a`/`D` ARM still work.
-                # RATE is on the dashboard frame (poll_dashboard_keys eats `t`).
+                # Station stays on ANSI dash so `a`/`D` ARM still work.
+                # RATE is CLI `t` / debug `r`, scored from the end dump.
                 cfg_sent = True
-                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG); stn RATE via dash")
+                log(f"  t={elapsed:.0f}s vehicle CLI t (CFG); stn RATE at end CLI t")
 
             if not diag_sent and elapsed >= 8.0:
                 veh.send(b"q")

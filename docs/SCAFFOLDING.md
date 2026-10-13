@@ -80,7 +80,7 @@ rocketchip/
 │   │   └── RESEARCH.md
 │   ├── hardware/
 │   │   ├── HARDWARE.md            # Hardware specs, pin assignments
-│   │   ├── STATUS_INDICATORS.md   # LED patterns and status feedback
+│   │   ├── STATUS_INDICATORS.md   # 2026-02 bring-up sketch; live LEDs in USER_GUIDE.md
 │   │   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
 │   │   ├── TELSTAR_BOOSTER_PACK.md    # ELRS RC link + FPV video Booster Pack
 │   │   ├── ESP32_S3_PIVOT_ANALYSIS.md
@@ -114,7 +114,7 @@ rocketchip/
 │   └── starcom/                  # Starcom primary-source PDFs (not the stack)
 │       ├── README.md             # Index; ECSS URL-only
 │       ├── fpga/                 # NASA-HDBK-4008/4011, ESA ASIC/001, GSFC 500-PG-8700.2.7
-│       └── ccsds/                # 211.0-B-6, 211.1-B-4, 211.2-B-3, 131.0-B-5, 133.0-B-2
+│       └── ccsds/                # 211.0-B-6, 211.1-B-4, 211.2-B-3, 131.0-B-6 (April 2026), 133.0-B-2
 │
 ├── include/
 │   └── rocketchip/
@@ -161,7 +161,8 @@ rocketchip/
 │   │   └── sensor_core1.cpp/.h    # IMU/baro/GPS reads, seqlock write, cal feed
 │   │
 │   ├── station/                   # Station-role idle-bridge path (Stage 16C)
-│   │   └── station_idle_tick.cpp/.h  # Core 0 idle-bridge GPS poll + MCU temp capture (IVP-140/141/142a)
+│   │   ├── station_idle_tick.cpp/.h  # Core 0 idle-bridge GPS poll + MCU temp capture (IVP-140/141/142a)
+│   │   └── gcs_mavlink.cpp/.h        # USB MAVLink for QGC / Mission Planner (Starcom air stays COP-P)
 │   │
 │   ├── fusion/                    # Sensor Fusion (Stage 5 + Stage 13)
 │   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
@@ -204,7 +205,8 @@ rocketchip/
 │   │   └── rc_log.cpp             # rc::rc_log + rc_snprintf + strbuf parser (rc_log.h)
 │   │
 │   ├── telemetry/                 # Telemetry (Stage 7 + 12A)
-│   │   └── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
+│   │   ├── telemetry_encoder.cpp/.h  # CCSDS packers (legacy/host) + MAVLink v2 packers
+│   │   └── mavlink_rx.cpp            # USB MAVLink command ACK factory (header in include/rocketchip)
 │   │
 │   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A + 13 + 14)
 │   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz, prio 7)
@@ -310,6 +312,7 @@ rocketchip/
 │   │   ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
 │   │   ├── rocketchip_ao.pml         # Full AO topology (5 safety + 3 mission)
 │   │   ├── rocketchip_station.pml    # Station RX/ACK/retry (IVP-147: 2/2)
+│   │   ├── proximity1_hd.pml         # 211.0-B-6 Table 6-10 half duplex (E38–E50)
 │   │   └── README.md                 # SPIN usage, model mapping, run recipes
 │   └── scratch/                   # One-off debug tools (not maintained — see CODING_STANDARDS.md "Scratch Tools and Dead-Code Discipline")
 │       └── i2c_bare_test/         # Fruit Jam I2C probe, 2026-04-17, LL Entry 41
@@ -355,12 +358,12 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
 | **calibration_storage** | Dual-sector flash persistence for calibration data |
 | **rc_os** | CLI command handlers — "local GCS" translating keystrokes to commands |
-| **ao_radio** | AO priority 8 — RFM95W, tx_active lock, RX polling, RSSI bar, relay |
+| **ao_radio** | AO priority 8 — RFM95W, tx_active lock, RX polling, station link post, relay |
 | **ao_flight_director** | AO priority 7 — HSM: IDLE→ARMED→BOOST→...→LANDED, pyro commands |
 | **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
 | **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio); Stage L adds beacon overlay, pre-arm-fail + boot-init visuals |
 | **ao_logger** | AO priority 4 — PSRAM buffer → flash page flush, flight log lifecycle |
-| **ao_telemetry** | AO priority 3 — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
+| **ao_telemetry** | AO priority 3 — Starcom COP-P air; station USB GCS via gcs_mavlink |
 | **ao_led_engine** | AO priority 2 — NeoPixel animation rendering (Vehicle only) |
 | **ao_rcos** | AO priority 1 — CLI dispatch, USB CDC poll, serial I/O |
 | **starcom_adapt** | RC Starcom consumer — byte_pump, nav/cmd/ACK SDUs, COP-P air |

@@ -92,7 +92,7 @@ Nothing on that list requires a framework swap. The issues that looked C++-only 
 - We adopt QM autocoder **C++** output as the Flight Director SSOT, or
 - We buy a **SafeQP/C++** certification kit for a real SIL/ASIL claim.
 
-Neither is planned. STARS/QM were already deferred (statechart too small; STARS commercial). SafeQP is commercial-only.
+Neither is planned. STARS/QM were already deferred (statechart too small: 9 Flight Director states). STARS is JPL open source under Apache-2.0, not commercial (https://github.com/JPLOpenSource/STARS); Nathan asked on 2026-10-11 for a QM/PlantUML → STARS → QP workflow to be re-evaluated (`docs/reports/2026-10-11_goddard_ao_qep_audit.md`). SafeQP is commercial-only.
 
 ---
 

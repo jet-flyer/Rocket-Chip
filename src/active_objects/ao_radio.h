@@ -71,9 +71,8 @@ const RadioAoState* AO_Radio_get_state();
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();
 
-// MAC view from macPhy() (COMM_CHANGE apply-RX). The modem listens
-// whenever a send is not in flight; SIG_RADIO_TX is not gated on transmit.
-void AO_Radio_set_mac_dir(bool receive, bool transmit);
+// MAC view from macPhy() (211.0 6.5 / 211.1 T3-3). session_active = MacMode::active.
+void AO_Radio_set_mac_dir(bool receive, bool transmit, bool session_active);
 bool AO_Radio_mac_receive();
 
 // Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
@@ -97,5 +96,10 @@ const rc::RadioConfig* AO_Radio_get_runtime_config();
 // config packet after a transition, giving the station explicit UX
 // confirmation "yes, THIS packet is from the intentional change".
 bool AO_Radio_consume_just_changed();
+
+#if defined(ROCKETCHIP_DEV_MODE)
+// Latch the next radio_start_tx send as one forced radio HW timeout.
+void AO_Radio_force_next_tx_timeout();
+#endif
 
 #endif // ROCKETCHIP_AO_RADIO_H

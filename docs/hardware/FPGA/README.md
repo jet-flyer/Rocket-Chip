@@ -90,6 +90,7 @@ Electrical: Forgix is RP2354+T8 on Teensy holes, **not** Teensy 4.0 pin function
 | **Oak Lattice FeatherWing** | iCE5LP4K (no MCU on the wing) | FeatherWing | True Feather pin functions on the carrier (mechanical **and** electrical). | Same iCE5LP4K | Most practical FPGA add-on on the current Feather stack. |
 | **Galaxia** | Certus-NX LFD2NX-40 + Pico | Bench / space-dev board (not Teensy / Pico / Feather / rocket FC). | Edge 2x6 90 deg plugs **are** real Digilent PMOD 2x6 (80 I/O = ten ports: 8 I/O + 3.3 V + GND each). | 40k LUTs, 2.5 Mbit BRAM, 56 DSP 18x18 | ~$988 bench/space-dev. Not a rocket FC. |
 | **UPduino v3.1** | iCE40 UP5K only (FTDI programmer; no RP) | Custom DIP stick ~2.2 cm x 6.2 cm. Two **single** 0.1" rows, one on each long edge (~Pico-like **row spacing**, not 0.1" dual-row). Not Teensy/Pico/Feather/PMOD 2x6. Tindie $36, quantity only; bag of two unsoldered 24-pin 0.1" headers. **No PMOD SKU on Tindie.** | UP5K GPIO on those DIP holes. "PMOD compatible" is pin **order** on a 1x6 (27/26/25/23/GND/3V3), not Teensy/Pico/Feather/Digilent 2x6. | UP5K 1 Mbit SPRAM + 120 kbit DPRAM, 8x MAC16 | FPGA-only eval, not Feather/Pico/Teensy drop-in. |
+| **snickerdoodle one** | Xilinx Zynq-7010 (dual Cortex-A9 + Artix-7, 17,600 LUT-6) | 2.0" × 3.5" SoM. Not Feather / Teensy / Pico. | Not a Feather pinout. Schematic: [krtkl/open-source-schematics](https://github.com/krtkl/open-source-schematics) `snickerdoodle/snickerdoodle-schematic-r4p1.pdf`. krtkl docs page also lists rev 4.11. | — | On desk. |
 
 ### Forgix - RP2354 + T8
 
@@ -102,6 +103,8 @@ Electrical: Forgix is RP2354+T8 on Teensy holes, **not** Teensy 4.0 pin function
 - RP-T8 chip link is passive config SPI: CS/SCK/MOSI only (RP GPIO1/2/3 to T8 G3/F3/F2). MISO is unconnected. After DONE, those three wires can be SPIBone (3-wire) or UART on CLK/MOSI. Not a 4-wire MCU SPI you can mux header pins onto.
 - Practical: T8 owns SPI on 11/12/13 and I2C on 18/19 as a real bus; mailbox to RP over the 3-wire link. Not practical: bitstream-mux those header pins onto the RP hardware SPI/I2C (no copper). Do not treat T8 as a Teensy-SPI compatibility shim.
 - Debug: Tag-Connect TC2030, not Teensy USB/debug.
+- RP to T8, all wires (Adiuvo schematic, Goddard 2026-10-12): only RP GPIO1-6 reach the T8, plus GPIO19 for the oscillator enable. GPIO1-3 are the config SPI above. GPIO4 is CRESET, GPIO5 is CDONE. No shared clock: the T8 runs from its own 32 MHz oscillator. The FPGA part is T8F49I2X (49-ball, no LVDS).
+- Header pins 2/3 (GPIO22/23) can be jumpered to T8 pins for extra RP-T8 lines.
 
 T8 is not on the base Rocket-Chip board for comms. Forgix is the eval vehicle for T8-on-stamp. T8 on the core stamp is gated: only if inhibit / MAC work PIO cannot do proves worth fabric, Efinity, and power.
 
@@ -139,7 +142,13 @@ The board is a custom DIP stick ~2.2 cm x 6.2 cm with **two single 0.1" rows**, 
 
 **Electrical:** UP5K GPIO on those DIP holes. "PMOD compatible" means the **pin order** on a 1x6 of those holes (27, 26, 25, 23, GND, 3V3), so you can jumper to a PMOD accessory — not Teensy/Pico/Feather/PMOD 2x6. tinyVision's own shop (not Tindie) will solder a 6-pin PMOD for a fee. That is a shop service, not a Tindie option.
 
+### snickerdoodle one (on desk) and the Gryphon baseboard
+
+Gryphon was the ArduPilot baseboard krtkl announced with the October 2015 Crowd Supply campaign and then withdrew before it was sold (50-unit gate, then removed 17 October 2015). Ryan said a cheaper babyGryphon would be posted with its schematic. That schematic is not in [krtkl/open-source-schematics](https://github.com/krtkl/open-source-schematics). The folders there are the SoM plus breakyBreaky, piSmasher, shieldBuddy, giggleBits, and whiteRhino. Specs Ryan posted for Gryphon itself, never shipped: TI TMS570LS0714 lockstep Cortex-R4F, Lattice MachXO2-7000 CSI-2 bridge, u-blox EVA-M8M, three MPU-9250, two MS5611, and the Samtec TFM stack that mates the snickerdoodle. Source: [drones-discuss, 6–17 October 2015](https://groups.google.com/g/drones-discuss/c/pnhlsQX3giY).
+
 ---
+
+**Rocket Chip proper (Nathan, 2026-10-12, idea):** whatever FPGA the board pairs with the RP2350 (the T8 is only an example), add cut-or-solder jumper traces between spare RP2350 GPIOs and FPGA pins, for example to widen the PIO bus.
 
 ## Redundancy
 
@@ -148,6 +157,8 @@ Dissimilar (FPGA watching MCU) catches design bugs. Identical copies catch rando
 T8 = dumb discrete voter (heartbeat, disagree, cutoff), not a third flight computer and not a fusion brain. Multi-IMU voting stays on the M33.
 
 Gemini + Titan could be dissimilar triplicate if someone truly wants that. Gemini pyro voting today is discrete AND/OR gates, not fabric - see `docs/hardware/GEMINI_CARRIER_BOARD.md`.
+
+Independence (Nathan, 2026-10-12): a PIO-only watchdog is not independent, because it shares the die, clock and power with the MCU. Independence needs a separate chip such as the T8. A PIO heartbeat is at most one more signal for the T8 to watch.
 
 UVLO / overcurrent stay analog, outside the fabric, so the voter still works if the 3.3 V rail dies.
 
@@ -180,6 +191,10 @@ A PID / IMU anomaly net could be smaller than this vision CNN, but still consume
 T8 is not on the base RC board for comms. FSK / bitstream is the RFM95 lab path.
 
 Max on existing RFM95: RP 211.0 plus T8 211.2 encode and FSK continuous bitstream as the lab path. Bit-bang / FSK is not 211.1. Full 211.1 PHY is not offered. Hamilton: no PHY approximations.
+
+A 2026-10-01 survey of other physical layers is `starcom/docs/DESIGN.md` (note of that date) and the URL-only rows in `standards/starcom/README.md`. SatNOGS-COMMS is an AT86RF215 LVDS I/Q port into a Zynq-7020. That image is Category A GMSK/FSK/BPSK/QPSK, not 211.1. The on-desk snickerdoodle one is the Zynq-7010 and is not that radio. Snickerdoodle black is the 7020. Range ascent telemetry is RCC 106, and the sounding-rocket umbilical circuit list is `docs/hardware/HARDWARE.md`.
+
+**AT86RF215 I/Q port, FPGA fit (Tier 3, rev 1 plan 4.4 T3-A; datasheet only, not board-checked, 2026-10-12).** The I/Q port is LVDS (about 200 mV swing, about 64 MHz DDR, Goddard). Can take it: iCE40 LP/HX (LVDS25 inputs in I/O Bank 3 only, external 100 ohm across each pair, Buzz), ECP5, Lattice CrossLink-NX (Buzz; the FPGA in OpenHT-hw), Efinix T8 in the Q144 package only (6 LVDS RX pairs, T8 data sheet v5.5, Buzz). Cannot: iCE40UP5K (pico2-ice; no LVDS in FPGA-DS-02008-2.4, Goddard), iCE5LP4K (Oak FeatherWing; iCE40 Ultra, single-ended LVCMOS only, Buzz), T8F49 (Forgix; no LVDS in the F49/F81 packages, Buzz). Reference designs only, not for sale: CaribouLite (no longer orderable on Crowd Supply), OpenHT-hw (M17 Project, AT86RF215 + CrossLink-NX LIFCL-40), and the udayVsSharda and maribu AT86RF215 breakouts (maribu: untested, author says do not order yet).
 
 Living claims and order live in the Starcom docs, not here:
 

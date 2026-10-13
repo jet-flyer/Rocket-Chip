@@ -22,7 +22,7 @@ not raw SM count.
 | Block | Program / owner | SMs | Sources |
 |-------|-----------------|-----|---------|
 | PIO0 | WS2812 status LED | 1 (claimed via `pio_claim_free_sm_and_add_program_for_gpio_range`) | `src/drivers/ws2812_status.cpp`, SDK `ws2812.pio` |
-| PIO1 | *(empty / reserved)* | 0 / 4 free | Comment in `pio_watchdog.cpp`: PIO1 reserved |
+| PIO1 | *(empty on purpose)* | 0 / 4 free | Rule `60cc4ea4`; comment in `pio_watchdog.cpp`: PIO1 empty on purpose |
 | PIO2 | Heartbeat watchdog | 1 (`pio_claim_unused_sm`) | `pio/heartbeat_watchdog.pio`, `src/safety/pio_watchdog.*` |
 | PIO2 | Backup drogue + main timers | 2 (same `backup_timer` program, two SMs) | `pio/backup_timer.pio`, `src/safety/pio_backup_timer.*` |
 | PIO2 | *(free)* | **1 SM free** | — |
@@ -50,9 +50,9 @@ If we decline ARM-dead RF, skip the beacon sitting — LED/`b` find-me + pyro PI
 ## First-flight note (passive Estes)
 
 No pyro on first flight. Backup timer SMs may still init but are not load-bearing for chute.
-Do not casually free PIO2 SMs without a profile gate; do not use that as an excuse to crowd PIO2 with beacon work — beacon stays on **PIO1**.
+Do not casually free PIO2 SMs without a profile gate; do not use that as an excuse to crowd PIO2 with beacon work — the beacon is never on **PIO2**.
 
 ## Related
 
-- WB: Early-impl table *Fault beacon (last-gasp)*; research row *PIO beacon + SPI last-gasp*.
+- WB: *Fault beacon last-gasp (HELD)*; research row *PIO beacon + SPI last-gasp*.
 - `docs/audits/EARLY_IMPL_REWORK_2026-08-31.md` (PIO backup-timer KEEP).

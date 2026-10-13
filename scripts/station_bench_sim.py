@@ -22,9 +22,9 @@ Hardware target: REQUIRES STATION FIRMWARE — refuses to run on vehicle.
 The script auto-detects USB CDC ports by VID:PID 0x2E8A:0x0009 and
 classifies the banner. If no station banner ('Ground Station',
 'Fruit Jam', 'Station RX') is found, exits cleanly with code 2 ("no
-station to test"). The pre-commit hook treats exit 2 as "skip", not
-"fail", so commits that touch shared code paths can proceed when only
-the vehicle is plugged in.
+station to test"). The pre-push gate treats exit 2 as FAIL when the
+push needs the station bench (every firmware or gate push, since
+2026-10-08): a skipped station is a gate that did not run.
 
 DO NOT remove the station guard. Tests 2 and 3 navigate via the debug
 menu, where 'x' from main menu is bound to Erase-Flights on vehicle
@@ -44,7 +44,7 @@ Exit codes:
     0 = all 3 tests pass, no assertions
     1 = one or more test failures (regression — fix firmware/test)
     2 = no station present, tool self-check failed, or watchdog fired
-        (pre-commit treats this as SKIP, not failure)
+        (the pre-push gate treats this as FAIL when the station is required)
 """
 
 import argparse
@@ -68,6 +68,7 @@ from _rc_test_common import (  # noqa: E402
     ensure_station_in_dashboard_state,
     find_target_port,
     open_classified_port,
+    print_board_usb_serial,
     peek_banner,
     rc_test,
     refuse_stale_tree_and_elf,
@@ -391,6 +392,9 @@ def main():
                         help='Wall-clock deadline (default 60s, hard-killed by watchdog)')
     parser.add_argument('--allow-non-station', action='store_true',
                         help=argparse.SUPPRESS)  # debugging only — never set in CI
+    parser.add_argument('--commit', default=None,
+                        help='Sha being pushed (pre-push gate). The ELF must be a '
+                             'clean build of that firmware tree. Default: working tree.')
     args = parser.parse_args()
 
     # Wall-clock watchdog: hard kill after deadline, regardless of where
@@ -418,7 +422,7 @@ def main():
         meta = reason
 
         repo = Path(_SCRIPTS_DIR).resolve().parent
-        expected, ident_err = refuse_stale_tree_and_elf(repo, 'station')
+        expected, ident_err = refuse_stale_tree_and_elf(repo, 'station', commit=args.commit)
         if ident_err:
             print('ERROR: leftover / unflashed image would make this gate a lie.')
             print(f'  {ident_err}')
@@ -436,6 +440,7 @@ def main():
                   'the attribution until kmenu (VERSIONING.md SWE-084)')
 
     print(f'using station port: {port_name}')
+    print_board_usb_serial(port_name)
     if meta.is_known():
         print(f'  ({meta.short_summary()})')
 

@@ -1,0 +1,340 @@
+
+==============================================================================
+S1  FSPL and free-space range ceilings at 915 MHz (LOS, no cable loss)
+==============================================================================
+FSPL(1 km, 915 MHz) = 91.68 dB ; +20 dB per decade of distance
+LoRa raw bit rates (CR4/5): SF7/125 5.47, SF7/250 10.94, SF7/500 21.88, SF12/125 0.293 kb/s
+
+Ceiling = max distance where Prx >= sensitivity + margin. Pol/pattern margin NOT included here (see S4).
+mode                       sens |  0 dBi m0 0 dBi m10 | 2+2.9 dBi m0  2+2.9 m10 | 15.249 m10
+1.2 kb/s FDA 5k shared     -119 |     232.3      73.5 |        408.4      129.1 |       8.01
+1.2 kb/s FDA 5k split      -123 |     368.2     116.4 |        647.3      204.7 |      12.69
+4.8 kb/s FDA 5k shared     -115 |     146.6      46.4 |        257.7       81.5 |       5.05
+4.8 kb/s FDA 5k split      -119 |     232.3      73.5 |        408.4      129.1 |       8.01
+38.4 kb/s FDA 40k shared     -105 |      46.4      14.7 |         81.5       25.8 |       1.60
+38.4 kb/s FDA 40k split     -109 |      73.5      23.2 |        129.1       40.8 |       2.53
+250 kb/s FDA 62.5k shared      -92 |      10.4       3.3 |         18.2        5.8 |       0.36
+250 kb/s FDA 62.5k split      -96 |      16.4       5.2 |         28.9        9.1 |       0.57
+LoRa SF7 BW125 split       -123 |     368.2     116.4 |        647.3      204.7 |      12.69
+LoRa SF7 BW250 split       -120 |     260.7      82.4 |        458.2      144.9 |       8.99
+LoRa SF7 BW500 split       -116 |     164.5      52.0 |        289.1       91.4 |       5.67
+LoRa SF12 BW125 split      -136 |    1644.7     520.1 |       2891.2      914.3 |      56.70
+
+S1b Tier 2 parts, same antennas (2.0 + 2.9 dBi), 10 dB margin, free space. Criteria differ per datasheet row.
+  SX1276 FSK 38.4k split         915 MHz  20.0 dBm  -109 dBm ->    40.8 km   [SX1276 DS Rev7 T8 p.16, 0.1% BER]
+  SX1262 FSK 38.4k boost         915 MHz  22.0 dBm  -109 dBm ->    51.4 km   [SX1261/2 DS Rev1.1 T3-8 p.19 / p.21]
+  SX1262 FSK 250k boost          915 MHz  22.0 dBm  -104 dBm ->    28.9 km   [SX1261/2 DS Rev1.1 T3-8 p.19]
+  SX1262 LoRa SF7/125            915 MHz  22.0 dBm  -124 dBm ->   289.1 km   [SX1261/2 DS Rev1.1 T3-8 p.19]
+  LR1121 FSK 38.4k boost         915 MHz  22.0 dBm  -111 dBm ->    64.7 km   [LR1121 DS Rev2.1 T3-8 p.17; +22 dBm sec 1.2.1]
+  LR1121 FSK 250k boost          915 MHz  22.0 dBm  -105 dBm ->    32.4 km   [LR1121 DS Rev2.1 T3-8 p.17]
+  LR1121 LoRa SF7/125 S-band    2100 MHz  13.0 dBm  -118 dBm ->    22.4 km   [LR1121 DS Rev2.1 T3-9; +13 dBm HF sec 1.2.1]
+  SX1280 LoRa SF7/1625 HS       2440 MHz  12.5 dBm  -108 dBm ->     5.8 km   [SX1280 DS Rev3.2 p.22 / p.26]
+  LR1110 FSK 4.8k RxBoosted      915 MHz  22.0 dBm  -119 dBm ->   162.6 km   [LR1110 DS Rev1.5 T3-12 p.19 (room note B10)]
+  LR1110 FSK 38.4k RxBoosted     915 MHz  22.0 dBm  -111 dBm ->    64.7 km   [LR1110 DS Rev1.5 T3-12 p.19 (room note B10)]
+  LR1110 FSK 250k RxBoosted      915 MHz  22.0 dBm  -105 dBm ->    32.4 km   [LR1110 DS Rev1.5 T3-12 p.19 (room note B10)]
+  LR1110 LoRa SF7/BW500          915 MHz  22.0 dBm  -121 dBm ->   204.7 km   [LR1110 DS Rev1.5 T3-12 p.19, 1% PER 64 B (room note B10)]
+  LR1110 LoRa SF12/BW500         915 MHz  22.0 dBm  -134 dBm ->   914.3 km   [LR1110 DS Rev1.5 T3-12 p.19 (room note B10)]
+  SX1280 FSK 250k               2440 MHz  12.5 dBm   -98 dBm ->     1.8 km   [SX1280 DS Rev3.3 p.25 (room note B10)]
+  SX1280 FSK 1M HS              2440 MHz  12.5 dBm   -94 dBm ->     1.1 km   [SX1280 DS Rev3.3 p.25 (room note B10)]
+  SX1280 LoRa SF12/BW203        2440 MHz  12.5 dBm  -132 dBm ->    91.2 km   [SX1280 DS Rev3.3 p.25 (room note B10)]
+  AT86RF215 2FSK 50ks noFEC      915 MHz  14.5 dBm  -109 dBm ->    21.7 km   [AT86RF215 DS 42415E p.1 / T10-17 p.195 (868 MHz, PER<10%)]
+  AT86RF215 2FSK 50ks FEC        915 MHz  14.5 dBm  -114 dBm ->    38.6 km   [AT86RF215 DS 42415E T10-17 p.195 (25 kb/s info)]
+
+Antenna gain sum 4.9 dB multiplies range by 1.758
+Repo standards/RF_COMPLIANCE.md uses 3 dBi + 3 dBi; TBS pages give 2.0 and 2.9 dBi.
+
+==============================================================================
+S2  Frequency scaling of FSPL (same gains, power, sensitivity)
+==============================================================================
+2250 MHz vs 915 MHz: +7.82 dB FSPL; range ceiling / 2.46
+2440 MHz vs 915 MHz: +8.52 dB FSPL; range ceiling / 2.67
+
+==============================================================================
+S3  47 CFR 15.249 fundamental limit as EIRP
+==============================================================================
+50 mV/m at 3 m -> EIRP = -1.25 dBm (0.750 mW)
+vs +20 dBm conducted + 2.9 dBi (= 22.9 dBm EIRP): 24.1 dB lower; range / 16.1
+
+S3b SX1276 FSK occupied bandwidth bound vs the 15.247(a)(2) 500 kHz 6 dB minimum
+  FDA   62.5 kHz, BR  250.0 kb/s: chip-legal=True, Carson BW =  375.0 kHz
+  FDA  200.0 kHz, BR  100.0 kb/s: chip-legal=True, Carson BW =  500.0 kHz
+  FDA  100.0 kHz, BR  300.0 kb/s: chip-legal=True, Carson BW =  500.0 kHz
+  FDA    5.0 kHz, BR    4.8 kb/s: chip-legal=True, Carson BW =   14.8 kHz
+  FDA   20.0 kHz, BR   38.4 kb/s: chip-legal=True, Carson BW =   78.4 kHz
+  Max Carson BW allowed by the chip = 2*250 = 500 kHz. The 6 dB BW of a chip setting is NOT computed here;
+  it must be measured (open check B8 / IRL test T5).
+
+S3c FHSS dwell vs MAC contact (15.247(a)(1)(i): <=0.4 s per channel per 20 s if 20 dB BW < 250 kHz, >=50 channels)
+  RC vehicle Send_Duration N=11 at 10 Hz = 1.1 s (starcom_adapt/README.md) > 0.4 s -> must hop inside one contact.
+  SX1276 hop time 20-50 us (DS Rev 7 Table 7 p.15, TS_HOP; room note cites p.16).
+  50 channels in 910-928 MHz (XFire Pro stated range) -> spacing 360 kHz; in 902-928 -> 520 kHz.
+
+==============================================================================
+S4  Linear-to-linear polarization mismatch 20log10(cos theta)
+==============================================================================
+theta  0 deg -> loss  -0.00 dB
+theta 30 deg -> loss   1.25 dB
+theta 45 deg -> loss   3.01 dB
+theta 60 deg -> loss   6.02 dB
+theta 70 deg -> loss   9.32 dB
+theta 80 deg -> loss  15.21 dB
+theta 85 deg -> loss  21.19 dB
+theta 89 deg -> loss  35.16 dB
+
+==============================================================================
+S5  Residual carrier (211.1-B-4 3.3.5.2: 60 deg +/-5%)
+==============================================================================
+beta 57 deg: carrier 29.7% , data 70.3% -> data loss 1.53 dB
+beta 60 deg: carrier 25.0% , data 75.0% -> data loss 1.25 dB
+beta 63 deg: carrier 20.6% , data 79.4% -> data loss 1.00 dB
+Bi-Phase-L: two symbol transitions per bit -> main lobe about 2x NRZ (CCSDS 413.0-G-3 background).
+
+==============================================================================
+S6  Overhead bytes and airtime
+==============================================================================
+Nav PLTU = 3+5+6+51+4 = 69 B (repo kRadioConfigNavPltuBytes = 69)
+Overhead 18 B = 26.1% of the PLTU
+PLCW / token P-frame PLTU = 14 B (byte_pump.cpp static_assert 14)
+
+LoRa ToA (explicit header, chip CRC on, 8-sym preamble, CR4/5):
+  SF7/BW125: 69 B 128.26 ms | 51 B raw user 102.66 ms | 14 B report 46.34 ms | overhead cost 25.60 ms (20%)
+  SF7/BW250: 69 B  64.13 ms | 51 B raw user  51.33 ms | 14 B report 23.17 ms | overhead cost 12.80 ms (20%)
+  SF7/BW500: 69 B  32.06 ms | 51 B raw user  25.66 ms | 14 B report 11.58 ms | overhead cost  6.40 ms (20%)
+
+FSK packet ToA. Option A: ASM FAF320 used AS the chip sync word (3 B), PLTU after ASM = 66 B,
+  book CRC-32 kept, chip CRC off. Option B: chip 2-B sync + full 69-B PLTU + chip CRC-16 (double sync, double CRC).
+     4.8 kb/s: A  121.67 ms | B  128.33 ms | raw 51 B + chip CRC  100.00 ms | max nav Hz (A, 1 pkt/slot)    8.2
+    38.4 kb/s: A   15.21 ms | B   16.04 ms | raw 51 B + chip CRC   12.50 ms | max nav Hz (A, 1 pkt/slot)   65.8
+    50.0 kb/s: A   11.68 ms | B   12.32 ms | raw 51 B + chip CRC    9.60 ms | max nav Hz (A, 1 pkt/slot)   85.6
+   100.0 kb/s: A    5.84 ms | B    6.16 ms | raw 51 B + chip CRC    4.80 ms | max nav Hz (A, 1 pkt/slot)  171.2
+   250.0 kb/s: A    2.34 ms | B    2.46 ms | raw 51 B + chip CRC    1.92 ms | max nav Hz (A, 1 pkt/slot)  428.1
+Preamble 3 B = 24 bits >= 12-bit minimum (DS Rev 7 sec 2.1.3.3 p.51).
+FSK FIFO = 64 B (DS p.66); a 69-B PLTU (or 70+ B packet) needs FifoThreshold refill (DS p.76).
+
+==============================================================================
+S7  MAC turnaround cost (byte_pump.cpp flight_mac_mib lines 27-29: 10+10+10 ms)
+==============================================================================
+N=11: vehicle send 1100 ms ; one turn 30 ms = 2.7% of the cycle (silent timer, not radiated)
+N= 1: vehicle send 100 ms ; one turn 30 ms = 23.1% of the cycle (silent timer, not radiated)
+If the 10 ms carrier-only were RADIATED at +20 dBm: 1.20 mA*s per turn, no FSK receiver benefit (see S8).
+
+==============================================================================
+S8  Doppler at 915 MHz (example inputs, not customer data)
+==============================================================================
+v =   100 m/s: df =     305 Hz (0.33 ppm; 1 ppm = 915 Hz)
+v =   300 m/s: df =     916 Hz (1.00 ppm; 1 ppm = 915 Hz)
+v =  1000 m/s: df =    3052 Hz (3.34 ppm; 1 ppm = 915 Hz)
+10 g: df/dt =    299 Hz/s ; drift in a 50 ms packet after lock =  15.0 Hz
+20 g: df/dt =    599 Hz/s ; drift in a 50 ms packet after lock =  29.9 Hz
+211.1-B-4 3.4.5.1: UHF Doppler +/-10 kHz, 100 Hz/s (non-coherent), 200 Hz/s (coherent) -- Mars UHF figures.
+
+==============================================================================
+S9  CCSDS K=7 r=1/2 conv code, HARD decisions, Monte Carlo
+==============================================================================
+noncoh BFSK : Eb/N0 for BER 1e-3 uncoded 10.94 dB, coded 10.02 dB -> gain 0.93 dB
+              Eb/N0 for 1% PER (69 B) uncoded 13.10 dB, coded 10.85 dB -> gain 2.25 dB
+coh BPSK    : Eb/N0 for BER 1e-3 uncoded  6.78 dB, coded  4.75 dB -> gain 2.04 dB
+              Eb/N0 for 1% PER (69 B) uncoded  9.31 dB, coded  5.70 dB -> gain 3.60 dB
+
+S9b What 0.1% BER means for a 69-B frame (the SX1276 FSK sensitivity criterion, DS p.16):
+  PER = 1-(1-1e-3)^552 = 0.42  (LoRa sensitivity criterion is 1% PER, 64-B payload, DS p.19)
+  noncoh BFSK: uncoded Eb/N0 shift from BER 1e-3 to 1% PER(69 B) = 2.16 dB (model)
+  coh BPSK: uncoded Eb/N0 shift from BER 1e-3 to 1% PER(69 B) = 2.52 dB (model)
+(Monte Carlo, 1500 frames per point, bisection; treat as +/-0.3 dB.)
+Gain is at EQUAL INFORMATION RATE. At a FIXED chip bit rate the coded frame takes 2x airtime (2.022x incl. tail); at FIXED airtime the info rate halves.
+Cross-check: 130.1-G-3 p.3-6: soft-decision gain about 5.5 dB at BER 1e-5 (BPSK, AWGN);
+             130.1-G-3 4.5 p.4-7: hard decision loses > 2 dB vs soft.
+Vendor cross-check (different code: 802.15.4g NRNSC K=4 + interleaver, AT86RF215 Table 10-17 p.195):
+  2FSK h=1: FEC at 100 ksym/s (50 kb/s info) -111 dBm vs no FEC at 50 ksym/s (50 kb/s) -109 dBm -> 2 dB net
+  2FSK h=0.5/1: FEC 100 ksym/s h=0.5 -109 vs no-FEC 50 ksym/s h=1 -109 -> 0 dB net
+Viterbi cost: 128 add-compare-select per info bit; 69-B PLTU = 71424 ACS; traceback memory 4464 B (1 bit/state/step).
+
+==============================================================================
+S10 LDPC (2048,1024) r=1/2 (211.2-B-3 3.4.4; 131.0-B-5 7.4)
+==============================================================================
+Codeword + CSM = 2112 bits = 264 B per 1024 info bits (128 B); Rd/Rcs = 0.48485 (211.0 B1.7.11 lists .48484)
+One 69-B PLTU in one codeword: 264 B on air vs 69 B uncoded = 3.83x (rest is idle PN fill)
+    38.4 kb/s: one codeword   55.0 ms vs uncoded PLTU  14.4 ms
+    50.0 kb/s: one codeword   42.2 ms vs uncoded PLTU  11.0 ms
+   100.0 kb/s: one codeword   21.1 ms vs uncoded PLTU   5.5 ms
+   250.0 kb/s: one codeword    8.4 ms vs uncoded PLTU   2.2 ms
+H1/2 (131.0-B-5 7.4.2.2): 15 circulant/permutation blocks x M=512 -> 7680 edges, 2560 variable nodes (512 punctured)
+  10 iterations: ~  1.5 Mcycles -> ~ 10.2 ms at 150 MHz (RP2350 DS p.13) [ESTIMATE, bench to confirm]
+  25 iterations: ~  3.8 Mcycles -> ~ 25.6 ms at 150 MHz (RP2350 DS p.13) [ESTIMATE, bench to confirm]
+  50 iterations: ~  7.7 Mcycles -> ~ 51.2 ms at 150 MHz (RP2350 DS p.13) [ESTIMATE, bench to confirm]
+  RAM (int8 messages + int8 LLR): ~10.0 KiB (+ index tables ~15 KiB if 16-bit) [ESTIMATE]
+
+==============================================================================
+S11 SDLS 355.0-B-2 USLP baseline (Annex E4.2/E4.3, p.E-4/E-5)
+==============================================================================
+    38.4 kb/s: +30 B = + 6.25 ms per frame
+    50.0 kb/s: +30 B = + 4.80 ms per frame
+   100.0 kb/s: +30 B = + 2.40 ms per frame
+   250.0 kb/s: +30 B = + 0.96 ms per frame
+  LoRa SF7/BW250: 69 B 64.13 ms -> 69+30 B 84.61 ms
+  As a share of the nav PLTU: 30% of the protected frame
+  355.0-B-2 2.1 p.2-1: 'not applicable for use with the Proximity-1 Space Data Link Protocol.'
+
+==============================================================================
+S12 CCSDS Unsegmented Code (301.0-B-4 3.2, p.3-1/3-2) vs raw uint32 ms
+==============================================================================
+raw met_ms: 4 B, 1 ms, wraps after 49.7 days
+CUC implicit P-field, 2 coarse + 2 fine: 4 B, resolution 0.01526 ms, range 0.76 days
+CUC implicit P-field, 3 coarse + 1 fine: 4 B, resolution 3.906 ms, range 194.18 days
+CUC implicit P-field, 4 coarse + 0 fine: 4 B, resolution 1000 ms, range 49710.27 days
+CUC implicit P-field, 4 coarse + 2 fine: 6 B, resolution 0.01526 ms, range 49710.27 days
+
+==============================================================================
+S13 Ranging numbers
+==============================================================================
+round-trip timing error    0.1 us -> range error     15.0 m
+round-trip timing error    1.0 us -> range error    149.9 m
+round-trip timing error   10.0 us -> range error   1499.0 m
+round-trip timing error  100.0 us -> range error  14989.6 m
+one bit period at   38.4 kb/s =  26.0 us -> two-way range error ~  3.90 km (DIO2 SyncAddress edge, DS Table 30)
+one bit period at   50.0 kb/s =  20.0 us -> two-way range error ~  3.00 km (DIO2 SyncAddress edge, DS Table 30)
+one bit period at  100.0 kb/s =  10.0 us -> two-way range error ~  1.50 km (DIO2 SyncAddress edge, DS Table 30)
+one bit period at  250.0 kb/s =   4.0 us -> two-way range error ~  0.60 km (DIO2 SyncAddress edge, DS Table 30)
+SX1280 raw LSB (DS Rev 3.2 Table 14-63): 150/(2^12*0.406) = 0.0902 m
+SX1280 raw LSB (DS Rev 3.2 Table 14-63): 150/(2^12*0.8125) = 0.0451 m
+SX1280 raw LSB (DS Rev 3.2 Table 14-63): 150/(2^12*1.625) = 0.0225 m
+
+==============================================================================
+S14 Slant range SLOTS (geometry only; fill with Goddard's cited apogee/downrange)
+==============================================================================
+slant = sqrt(apogee^2 + downrange^2). No customer statistic is assumed here.
+Example grid (NOT customer data):
+  apogee  1 km: x=0 km -> 1.0 km, x=2 km -> 2.2 km, x=5 km -> 5.1 km
+  apogee  3 km: x=0 km -> 3.0 km, x=2 km -> 3.6 km, x=5 km -> 5.8 km
+  apogee 10 km: x=0 km -> 10.0 km, x=2 km -> 10.2 km, x=5 km -> 11.2 km
+
+==============================================================================
+S15 Tier 1 PHY trade (SX1276 split path, +20 dBm, 2.9 dBi vehicle, 2.0 dBi ground, 10 dB margin, free space)
+==============================================================================
+  LoRa BW500 SF7 (15.247 DTS)                        TX 20.0 dBm sens  -116 dBm Rb  21.88 kb/s ->    91.4 km
+  LoRa BW500 SF8 (15.247 DTS)                        TX 20.0 dBm sens  -119 dBm Rb  12.50 kb/s ->   129.1 km
+  LoRa BW500 SF9 (15.247 DTS)                        TX 20.0 dBm sens  -122 dBm Rb   7.03 kb/s ->   182.4 km
+  FSK 38.4k hopping (15.247 FHSS)                    TX 20.0 dBm sens  -109 dBm Rb  38.40 kb/s ->    40.8 km
+  FSK 4.8k hopping (15.247 FHSS)                     TX 20.0 dBm sens  -119 dBm Rb   4.80 kb/s ->   129.1 km
+  FSK 250k hopping (20 dB BW >= 250 kHz rule set)    TX 20.0 dBm sens   -96 dBm Rb 250.00 kb/s ->     9.1 km
+  FSK 1.2k fixed (15.249)                            EIRP -1.25 dBm sens  -123 ->   12.69 km
+  FSK 4.8k fixed (15.249)                            EIRP -1.25 dBm sens  -119 ->    8.01 km
+  FSK 38.4k fixed (15.249)                           EIRP -1.25 dBm sens  -109 ->    2.53 km
+  Note: 15.247(b)(3) DTS / (b)(1)-(2) FHSS 1 W conducted; SX1276 max +20 dBm, so the chip, not the rule, sets TX.
+  250k row: 20 dB BW >= 250 kHz -> >=25 channels; 0.25 W (24 dBm) cap if <50 channels (15.247(b)(2)); +20 dBm is below both.
+
+S15b 69-B nav PLTU on air, FSK option A (3 B preamble + ASM as 3 B sync + 1 len + 66 B) = 73 B = 584 bits;
+  room figure 616 bits (77 B) uses a longer preamble. Both shown:
+     1.2 kb/s: 584 bits   486.7 ms | 616 bits   513.3 ms
+     4.8 kb/s: 584 bits   121.7 ms | 616 bits   128.3 ms
+    38.4 kb/s: 584 bits    15.2 ms | 616 bits    16.0 ms
+   250.0 kb/s: 584 bits     2.3 ms | 616 bits     2.5 ms
+  LoRa BW500 nav (69 B, CR4/5, 8-sym preamble, explicit header, chip CRC):
+   SF7:  32.06 ms
+   SF8:  56.45 ms
+   SF9: 102.66 ms
+  Unlimited-length mode (DS p.74) drops the length byte: -8 bits per frame, e.g. 0.208 ms at 38.4k, 32 us at 250k.
+
+==============================================================================
+S16 FSK hop plan numbers (SX1276)
+==============================================================================
+  Carson approx 2*(Fdev+Rb/2): Fdev 20 kHz, Rb 38.4 kb/s ->   78.4 kHz (< 250 kHz: 50 ch, 1 W)
+  Carson approx 2*(Fdev+Rb/2): Fdev 5 kHz, Rb 4.8 kb/s ->   14.8 kHz (< 250 kHz: 50 ch, 1 W)
+  Carson approx 2*(Fdev+Rb/2): Fdev 62.5 kHz, Rb 250 kb/s ->  375.0 kHz (>= 250 kHz: 25 ch; 0.25 W if <50 ch)
+  Carson is an approximation; the 15.247 20 dB BW must be measured (IRL test T5).
+  902-928              25 ch -> spacing   1040 kHz
+  902-928              50 ch -> spacing    520 kHz
+  910-928 (XFire Pro)  25 ch -> spacing    720 kHz
+  910-928 (XFire Pro)  50 ch -> spacing    360 kHz
+  TS_HOP 20 us = 0.10 bits @ 4.8 kb/s, 0.77 bits @ 38.4 kb/s, 5.00 bits @ 250 kb/s
+  TS_HOP 50 us = 0.24 bits @ 4.8 kb/s, 1.92 bits @ 38.4 kb/s, 12.50 bits @ 250 kb/s
+  Dwell rule (15.247(a)(1)(i)): <=0.4 s per channel in any 20 s window (20 dB BW < 250 kHz, >=50 channels).
+   50 channels used equally: time per channel per 20 s = 20/50 = 0.400 s (limit 0.4 s; margin +0.000 s)
+   64 channels used equally: time per channel per 20 s = 20/64 = 0.312 s (limit 0.4 s; margin +0.088 s)
+   80 channels used equally: time per channel per 20 s = 20/80 = 0.250 s (limit 0.4 s; margin +0.150 s)
+   With exactly 50 channels used equally, every channel sits AT the 0.4 s limit, whatever the dwell length.
+   Dwell per hop must also be <= 0.4 s; one MAC contact (1.1 s) therefore spans >= 3 hops.
+
+S16b Average PSD per 3 kHz at +20 dBm if spread flat (assumption for LoRa chirp; FSK is NOT flat):
+   500.0 kHz: -2.22 dBm/3 kHz (limit 8 dBm/3 kHz, 15.247(e))
+   635.1 kHz: -3.26 dBm/3 kHz (limit 8 dBm/3 kHz, 15.247(e))
+   713.0 kHz: -3.76 dBm/3 kHz (limit 8 dBm/3 kHz, 15.247(e))
+  FSK concentrates power near +/-Fdev; peak PSD per 3 kHz must be measured (IRL test T5).
+
+==============================================================================
+S17 Ground antenna as a variable (downlink: ground gain is RX gain)
+==============================================================================
+  dBi = dBd + 2.15. Linear-to-circular mismatch = 3 dB (applied to the CP row).
+  ground antenna                                   net dBi |  FSK 4.8k fixed 15.249 | FSK 38.4k fixed 15.249 |  FSK 38.4k hop/DTS +20 |     LoRa BW500 SF7 +20 |     LoRa BW500 SF9 +20
+  TBS Immortal T V2 (baseline)                        2.00 |                 8.0 km |                 2.5 km |                40.8 km |                91.4 km |               182.4 km
+  VAS 915 LongShot (linear)                           7.50 |                15.1 km |                 4.8 km |                76.9 km |               172.2 km |               343.6 km
+  VAS 900 Crosshair Xtreme (CP) vs linear vehicle     7.25 |                14.7 km |                 4.6 km |                74.7 km |               167.3 km |               333.9 km
+  Laird PC9013N yagi 13 dBd                          15.15 |                36.4 km |                11.5 km |               185.6 km |               415.5 km |               829.0 km
+
+  Uplink (station transmits): TX gain counts.
+  TBS Immortal T V2 (baseline)                     15.247(b)(4) max conducted 30.00 dBm (SX1276 +20 fits: True); 15.249 conducted for -1.25 dBm EIRP =  -3.25 dBm
+  VAS 915 LongShot (linear)                        15.247(b)(4) max conducted 28.50 dBm (SX1276 +20 fits: True); 15.249 conducted for -1.25 dBm EIRP =  -8.75 dBm
+  VAS 900 Crosshair Xtreme (CP) vs linear vehicle  15.247(b)(4) max conducted 25.75 dBm (SX1276 +20 fits: True); 15.249 conducted for -1.25 dBm EIRP = -11.50 dBm
+  Laird PC9013N yagi 13 dBd                        15.247(b)(4) max conducted 20.85 dBm (SX1276 +20 fits: True); 15.249 conducted for -1.25 dBm EIRP = -16.40 dBm
+
+==============================================================================
+S18 Ranging numbers
+==============================================================================
+  SX1280 ranging exchange SF6/1625 kHz:   2.53 ms ; 80 exchanges  0.20 s
+  SX1280 ranging exchange SF9/1625 kHz:  20.24 ms ; 80 exchanges  1.62 s
+  SX1280 ranging exchange SF10/1625 kHz:  40.49 ms ; 80 exchanges  3.24 s
+  DWM3000 UWB: -41.3 dBm/MHz (DS, 'most regions') x 500 MHz channel -> -14.3 dBm EIRP total
+  Two stations + baro altitude, example geometry (NOT customer data):
+   baseline 1.0 km, rocket 3.0 km out on the bisector: half-angle  9.46 deg -> along-track error ~  6.1 x range error (1 m ->  6.1 m; 3 m -> 18.2 m)
+   baseline 2.0 km, rocket 3.0 km out on the bisector: half-angle 18.43 deg -> along-track error ~  3.2 x range error (1 m ->  3.2 m; 3 m ->  9.5 m)
+   baseline 1.0 km, rocket 1.5 km out on the bisector: half-angle 18.43 deg -> along-track error ~  3.2 x range error (1 m ->  3.2 m; 3 m ->  9.5 m)
+  (Simplified 2D: error across the bisector direction ~ sigma_r / sin(half-angle); along it ~ sigma_r / cos.)
+
+==============================================================================
+S19 PIO / MCU timing budgets (RP2350 at 150 MHz; RP2350 DS: PIO runs at system clock, 1 instr/cycle)
+==============================================================================
+  1 PIO cycle = 6.67 ns -> two-way range equivalent 1.00 m
+     4.8 kb/s: bit  208.33 us =   31250 CPU cycles ; 64-B FIFO fills in  106.67 ms ; 32-B threshold  53.33 ms
+    38.4 kb/s: bit   26.04 us =    3906 CPU cycles ; 64-B FIFO fills in   13.33 ms ; 32-B threshold   6.67 ms
+   250.0 kb/s: bit    4.00 us =     600 CPU cycles ; 64-B FIFO fills in    2.05 ms ; 32-B threshold   1.02 ms
+  Continuous mode: the MCU (or PIO) must present each bit on DATA per DCLK edge: one event per bit period above.
+
+==============================================================================
+S20 GPS export-control numbers (conversions only)
+==============================================================================
+  1,000 knots = 514.4 m/s ; 60,000 ft = 18288 m ; 600 m/s = 1166 knots
+  Doppler at 915 MHz for 600 m/s: 1831 Hz
+
+==============================================================================
+S21 GPS L1 Doppler, Doppler rate, PLL jerk limit, oscillator g-sensitivity (v2c)
+==============================================================================
+  L1 wavelength 0.1903 m ; Doppler per m/s of line-of-sight speed = f/c = 5.2550 Hz per m/s
+    300 m/s line of sight ->  1576.5 Hz
+    500 m/s line of sight ->  2627.5 Hz
+    515 m/s line of sight ->  2706.3 Hz
+    600 m/s line of sight ->  3153.0 Hz
+  Doppler rate per 1 g of line-of-sight acceleration: 51.53 Hz/s ; 4 g -> 206.1 Hz/s ; 40 m/s^2 -> 210.2 Hz/s ; 20 m/s^3 jerk -> 105.1 Hz/s^2
+  Third-order PLL steady-state jerk error: theta_e = (d3R/dt3) / w0^3, with w0 = Bn / 0.7845 (Kaplan form;
+  reproduces Ebinuma & Kato 2012: 25 Hz -> about 78 g/s). Threshold: theta_e <= 45 deg = lambda/8.
+   Bn 10 Hz: w0 12.75 rad/s -> max LOS jerk    49.3 m/s^3 =   5.0 g/s (jerk term alone, no noise)
+   Bn 15 Hz: w0 19.12 rad/s -> max LOS jerk   166.3 m/s^3 =  17.0 g/s (jerk term alone, no noise)
+   Bn 18 Hz: w0 22.94 rad/s -> max LOS jerk   287.3 m/s^3 =  29.3 g/s (jerk term alone, no noise)
+   Bn 25 Hz: w0 31.87 rad/s -> max LOS jerk   769.8 m/s^3 =  78.5 g/s (jerk term alone, no noise)
+  Example jerk (NOT customer data): 0 -> 10 g in 0.1 s = 981 m/s^3 = 100 g/s along the line of sight
+  Oscillator g-sensitivity: df = Gamma * a * f_L1. Gamma = 1e-9 /g -> 1.575 Hz per g (= 0.300 m/s apparent LOS speed per g)
+
+==============================================================================
+S22 UWB (DW1000 / DWM1000) free-space range ceilings (v2c)
+==============================================================================
+  EIRP limit over 500 MHz: -14.3 dBm ; 0 dBi RX, 0 dB margin, free space
+   APS017 Table 2 check, -16 dBm, -102 dBm, ch 2 (3993.6 MHz)     ->    119 m
+   APS017 Table 2 check, -16 dBm, -102 dBm, ch 5 (6489.6 MHz)     ->     73 m
+   DWM1000 ch 5, 110 kb/s, 1 % PER (-102 dBm/500 MHz)             ->     89 m
+   DWM1000 ch 5, 110 kb/s, 10 % PER (-106 dBm/500 MHz)            ->    141 m
+   DWM1000 ch 2, 110 kb/s, 10 % PER (-105, 'about 1 dB less')     ->    205 m
+   DWM1000 ch 5, 6.8 Mb/s, 10 % PER (-94 dBm/500 MHz)             ->     35 m
+  A ground RX antenna gain G raises only the vehicle->ground leg (TX EIRP is capped, and TX gain counts in EIRP):
+   ch 5, -106 dBm, RX  6 dBi ->    282 m (one-way leg only)
+   ch 5, -106 dBm, RX 10 dBi ->    447 m (one-way leg only)
+   ch 5, -106 dBm, RX 15 dBi ->    794 m (one-way leg only)
+  L3 slant 1.30-4.46 km (map 2.1) vs 141 m two-way ceiling at 0 dBi: ratio 9x to 32x

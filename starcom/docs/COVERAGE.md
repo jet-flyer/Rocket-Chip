@@ -77,9 +77,9 @@ PICS Annex A item 2 (Idle data) is **mandatory** in the book and **0** in the co
 | §3.3 | Idle data | 0 | — (PICS item 2 **M**, not a CONFORMANCE tick) | no generator in core | PN `352EF853` (§3.3.2.2); Acquisition / Idle / Tail (§3.3.3–§3.3.5) + MIB durations; receive skip: `test_hunt_idle_then_pltu`; 211.0 §6 MAC timers (`acquisition_idle_duration`) are session, not this PN; §3.5.3 insert idle; conv/LDPC encode the stream the **caller** feeds |
 | §3.4 | Channel coding | partial | Coding | `conv.hpp` / `ldpc.hpp` / `test_coding.cpp` | PICS O.1 (at least one of uncoded / conv / LDPC); §3.4.2–§3.4.5 exploded below; 211.1 not this book |
 | §3.4.2 uncoded (O.1) | Uncoded C&S bitstream | Full | PLTU (uncoded path) | `phy_uncoded_encode` (`adapters/phy.hpp`); `test_conv_pltu_and_uncoded_phy` | §3.2 envelope; `PhyTier::none` / `best_effort`; `compliant` not offered (211.1) |
-| §3.4.3 conv (O.1) | Rate 1/2, K=7, non-punctured | partial | Coding: encode Full; decode 0 | `conv_encode`; `test_conv_*` | 131.0-B-5 **§3.3** (not punctured §3.4); G2 inverted; encodes ASM+PLTU+Idle as one stream; §3.4.3.3 soft decisions = decode (0, GCS/Pi) |
-| §3.4.4 LDPC (O.1) | (2048,1024) + CSM | partial | Coding: encode Full; decode 0 | `ldpc_encode_*`; `kLdpcCsm`; `test_ldpc_*` | 131.0-B-5 **§7.4**; CSM `034776C7272895B0` not randomized; §3.3 Idle/fill is caller’s job (`ldpc.hpp`); Fig 3-3 |
-| §3.4.5 LDPC randomizer | Codeword PN, not CSM | partial | Coding: encode Full; decode 0 | `ldpc_randomize`; `test_ldpc_zero_is_pn` | §3.4.4.4; 131.0-B-5 §8.3 / §10 related but TM-stream; init all-ones per codeword |
+| §3.4.3 conv (O.1) | Rate 1/2, K=7, non-punctured | partial | Coding: encode Full; decode 0 | `conv_encode`; `test_conv_*` | 131.0-B-6 **§4.3** (B-5 §3.3; not punctured §4.4); G2 inverted; encodes ASM+PLTU+Idle as one stream; §3.4.3.3 soft decisions = decode (0, GCS/Pi) |
+| §3.4.4 LDPC (O.1) | (2048,1024) + CSM | partial | Coding: encode Full; decode 0 | `ldpc_encode_*`; `kLdpcCsm`; `test_ldpc_*` | 131.0-B-6 **§8.4** (B-5 §7.4); CSM `034776C7272895B0` not randomized; §3.3 Idle/fill is caller’s job (`ldpc.hpp`); Fig 3-3 |
+| §3.4.5 LDPC randomizer | Codeword PN, not CSM | partial | Coding: encode Full; decode 0 | `ldpc_randomize`; `test_ldpc_zero_is_pn` | §3.4.4.4; 131.0-B-6 §8.2.2 / §10 (B-5 §7.2.2 / §8.3 / §10) related but TM-stream; init all-ones per codeword |
 | §3.5 | Send-side C&S procedures | partial | PLTU + Coding | `encode_pltu`; conv/LDPC encode | §3.5.2 construct PLTU = Full; §3.5.3 insert idle = 0; §3.5.4 selected encoding = encode only; §3.5.5 deliver to PHY = 0 in core (sans-I/O); §3.5.6 time tag = 0 (PICS item 6 O) |
 | §3.5.6 / §3.6.8 | Time tag support | 0 | — (PICS item 6 O) | — | 211.0 §5 Prox-1 timing (unread); not IVP 0–25 |
 | §3.6 | Receive-side C&S procedures | partial | PLTU (hunt) | `hunt_pltu` / `decode_pltu`; `test_hunt_*` | §3.6.2 channel **decode** = 0; §3.6.3–§3.6.6 exploded; Annex B indication primitive is not the Starcom API |
@@ -110,11 +110,13 @@ O.1 = support at least one of items 3–5.
 | 7.3 | USLP truncated length | 732.1 Table 5-3 M | Full (MIB supplied) | USLP remainder IVP 9 |
 | 8 | Invalid received frames | §3.6.6 M | Full | PLTU hunt |
 
+211.2-B-3 Annex A A2.2 has no separate randomizer row. Item 5 reads "Coding option: LDPC 3.4.4, 3.4.5 O.1" and the Annex says "It is mandatory to support at least one of these items." (items 3, 4, 5 are each O.1). The draft 211.2-P-3.2 (not normative) adds "6 Randomizer 3.4.7 O.1".
+
 ---
 
 ## 211.0-B-6 — Data Link Layer (filled)
 
-Issue 6, July 2020. `CCSDS-211.0-B-6.pdf`. CONFORMANCE ticks: V-3 Full; DFC `11` Full; PLCW codec Full; COP-P Full; §6 MAC Full. Annex F Odyssey bitstream is **not** the library default.
+Issue 6, July 2020. `CCSDS-211.0-B-6-EC1.pdf`. CONFORMANCE ticks: V-3 Full; DFC `11` Full; PLCW codec Full; COP-P Full; §6 MAC Full. Annex F Odyssey bitstream is **not** the library default.
 
 Do not read those ticks as a whole-book PICS. Mandatory items still **0** in the core are listed after the walk (timing, segment reassembly, most Type-1 SPDUs).
 
@@ -125,7 +127,7 @@ Do not read those ticks as a whole-book PICS. Mandatory items still **0** in the
 | §3.1 | PDU overview | unread | — | — | §3.2 V-3; §3.3 V-4 |
 | §3.2 | Version-3 Transfer Frame | Full | Version-3 | `v3.hpp` / `test_v3.cpp` | Fig 3-2 / 3-3; 211.2 §3.6.4 uses §3.2.2.10 length; SAD field map (working copy) |
 | §3.2.2 | V-3 header (10 fields) | Full | Version-3 | `decode_v3` / `encode_v3`; `test_roundtrip_populated` | TFVN `10`; QoS; PDU Type; DFC; SCID; PCID; Port ID; Src/Dst; Frame Length; FSN. PICS DLL-1–DLL-12 |
-| §3.2.3.2 DFC `00` | PACKETS in a U-frame | Full | Space Packet as SDU | `copp_submit_sdu`; `test_v3_one_sp_n` | 133.0 §4.1; PICS DLL-14 O.1 (at least one DFC) |
+| §3.2.3.2 DFC `00` | PACKETS in a U-frame | Full | Space Packet PDU codec, Packet Service only | `copp_submit_sdu`; `test_v3_one_sp_n` | 133.0 §4.1; PICS DLL-14 O.1 (at least one DFC) |
 | §3.2.3.3 DFC `01` | SEGMENT DATA UNITS | 0 | — (PICS DLL-15 O.1) | — | §8.3 / DLL-42 assemble segments also 0; no reassembly |
 | §3.2.3.4 DFC `10` | Reserved | 0 | — (PICS DLL-16 O.1) | `test_reserved_dfc_not_a_service` | Table 3-1 reserved; not a service |
 | §3.2.3.5 DFC `11` | USER-DEFINED DATA | Full | User Defined Data | `encode_v3_user_defined` / `copp_submit_user_defined`; `test_user_defined.cpp` | §2.2.2.3 opaque, no reassembly; **not** Annex F bitstream; USLP has no DFC (ICD) |
@@ -169,7 +171,7 @@ Do not read those ticks as a whole-book PICS. Mandatory items still **0** in the
 
 ## 232.1-B-2 — COP-1 (filled)
 
-Issue 2, Sep 2010 + TC1 Apr 2019. `CCSDS-232.1-B-2.pdf`. No PICS annex — the state tables *are* the requirement.
+Issue 2, Sep 2010 (EC 1 Dec 2018, EC 2 Apr 2019, Cor. 1 Apr 2019). `CCSDS-232.1-B-2-EC2-Cor1.pdf`. No PICS annex — the state tables *are* the requirement.
 
 CONFORMANCE: **Full (implemented options)**. FARM-1 Table 6-1 Full. FOP-1 E23 + S4/S5 (E24/E25/E27) + E29 Full. **Do not collapse to “§5 Full.”** Wire is **USLP + CLCW-in-OCF**, not 232.0 TC frames (ICD).
 
@@ -207,7 +209,7 @@ CONFORMANCE: **Full (implemented options)**. FARM-1 Table 6-1 Full. FOP-1 E23 + 
 
 ## 232.0-B-4 — TC Space Data Link Protocol (filled)
 
-Issue 4 + TC1. `CCSDS-232.0-B-4.pdf`. CONFORMANCE: CLCW codec Full. COP-1 *procedures* are 232.1. Starcom COP-1 **does not** implement the TC Transfer Frame (ICD: USLP in a PLTU).
+Issue 4, Oct 2021 (Cor. 1 Oct 2023, EC 1 Oct 2024). `CCSDS-232.0-B-4-EC1-Cor1.pdf`. CONFORMANCE: CLCW codec Full. COP-1 *procedures* are 232.1. Starcom COP-1 **does not** implement the TC Transfer Frame (ICD: USLP in a PLTU).
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
@@ -227,7 +229,7 @@ Issue 4 + TC1. `CCSDS-232.0-B-4.pdf`. CONFORMANCE: CLCW codec Full. COP-1 *proce
 
 ## 732.1-B-3 — USLP (filled)
 
-Issue 3, June 2024. `CCSDS-732.1-B-3.pdf`. CONFORMANCE: Version-4 in the same PLTU Full (non-truncated + truncated annex D + Insert Zone + FECF Annex B). Never nested in the V-3 data field.
+Issue 3, June 2024. `CCSDS-732.1-B-3-EC1.pdf` (EC 1 Oct 2024). CONFORMANCE: Version-4 in the same PLTU Full (non-truncated + truncated annex D + Insert Zone + FECF Annex B). Never nested in the V-3 data field.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
@@ -252,26 +254,26 @@ Issue 3, June 2024. `CCSDS-732.1-B-3.pdf`. CONFORMANCE: Version-4 in the same PL
 
 ## 133.0-B-2 — Space Packet Protocol (filled)
 
-Issue 2, June 2020 (e2). `CCSDS-133.0-B-2.pdf`. CONFORMANCE: Space Packet as SDU Full. Not a Starcom product name.
+Issue 2, June 2020 (Editorial Change 1 October 2020, Editorial Change 2 September 2024; neither touches sections 3, 4 or Annex A; no Issue 3), current issue (checked on ccsds.org 2026-10-01). `CCSDS-133.0-B-2-EC2.pdf`; source `https://ccsds.org/Pubs/133x0b2e2.pdf` (do not cite `133x0b2e1.pdf` or `133x0b2.pdf`, both 404). CONFORMANCE: Space Packet PDU codec (partial; Annex A PICS table in CONFORMANCE lists the exceptions). Annex A marks the Octet String items and Packet Assembly / Extraction M (CONFORMANCE, Annex A section); policy is to build the service layer. Not a Starcom product name.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
 | §1 | Introduction | unread | — | — | — |
 | §2 | Overview | unread | — | — | Packet vs Octet String |
 | §2.4 | Services assumed from lower layers | — | PLTU repeater (related) | `repeat_pltu` / `PltuRepeatQ` | Store-and-forward **assumed**, not an SPP procedure. Starcom repeater is not a 133.0 product |
-| §3.3 | Packet service | Full as SDU codec | Space Packet as SDU | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
-| §3.4 | Octet String service | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
-| §4.1 | Space Packet PDU | Full | Space Packet as SDU | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000` |
-| §4.2 / §4.3 | Send/receive procedures | 0 | — | codec only | No SAP / routing |
-| §5 | Managed parameters | 0 as a table | — | `Maximum_Packet_Size` named in SAD MIB working copy; caller supplies | Table 5-1 |
-| Annex A | PICS | — | CONFORMANCE | Space Packet tick | — |
+| §3.3 | Packet service (PACKET.request §3.3.3.2, PACKET.indication §3.3.3.3: SPP-10 / SPP-11 M) | partial (PDU codec; no primitives) | Space Packet PDU codec, Packet Service only | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
+| §3.4 | Octet String service (OCTET_STRING.request §3.4.3.2, .indication §3.4.3.3: SPP-2, 6, 7, 8, 12, 13 M; SPP-9 O) | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
+| §4.1 | Space Packet PDU | partial | Space Packet PDU codec, Packet Service only | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000`. Sequence count is caller-supplied (RC sends 0, §4.1.3.4.3.3 / .4: CONFORMANCE Known gaps). Idle secondary-header flag (§4.1.3.3.3.4) not forced on encode |
+| §4.2 / §4.3 | Send/receive procedures: Packet Assembly §4.2.2, Transfer §4.2.3, Extraction §4.3.2, Reception §4.3.3 (SPP-19 to SPP-22 all M) | 0 | — | codec only | No SAP / routing. Counter text: 4.1.3.4.3.3 ("unique and independent per each user application as identified by the APID and are not shared across multiple APIDs"), 4.1.3.4.3.4 (continuous modulo-16384). Two senders on APID 0x003: not addressed in the 133.0-B-2 text (CONFORMANCE, APID allocation); decision needed (whiteboard) |
+| §5 | Managed parameters | 0 as a table | — | `Maximum_Packet_Size` named in SAD MIB working copy; caller supplies | Table 5-1. RC values: CONFORMANCE managed-parameter table |
+| Annex A | PICS | — | CONFORMANCE | Draft Annex A table (exceptions: Yes) | Tables A-1 to A-6, SPP-1 to SPP-26 |
 | Annex B–D | informative | unread | — | — | — |
 
 ---
 
 ## 211.1-B-4 — Physical Layer (filled)
 
-Issue 4, Dec 2013. `CCSDS-211.1-B-4.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**.
+Issue 4, Dec 2013 (EC 1 Jan 2018). `CCSDS-211.1-B-4-EC1.pdf`. CONFORMANCE: blanket Full **not offered**. `PhyTier::compliant` is not implemented. Best-effort bearers (LoRa, PIO, FSK continuous) are **not this book**. CCSDS 401.0-B is a different physical layer (Earth station and spacecraft) and is not walked here; URL only in `standards/starcom/README.md`. Range ascent telemetry is RCC 106, also not this book. Note: `DESIGN.md` 2026-10-01.
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
@@ -287,28 +289,39 @@ Issue 4, Dec 2013. `CCSDS-211.1-B-4.pdf`. CONFORMANCE: blanket Full **not offere
 
 ---
 
-## 131.0-B-5 — TM Synchronization and Channel Coding (filled)
+## 131.0-B-6 — TM Synchronization and Channel Coding (filled)
 
-Issue 5, Sep 2023. `CCSDS-131.0-B-5.pdf`. CONFORMANCE: long-haul TM C&S **0** (different sublayer than PLTU). 211.2 **cites** two clauses; those are walked as 211.2 coding, not as a 131.0 product.
+Issue 6, April 2026 (Editorial Correction 1, May 2026), current issue (checked on ccsds.org 2026-10-01). Stored as `CCSDS-131.0-B-6-EC1.pdf`. Historical: the Starcom docs were originally written against 131.0-B-5 (Issue 5, Sep 2023), which is no longer stored. The section numbers below are **B-6**; the B-5 number is in parentheses. 211.2-B-3 itself cites 131.0-B-3. Issue history (document-control pages): B-1 Sep 2003, B-2 Aug 2011, B-3 Sep 2017, B-4 Apr 2022, B-5 Sep 2023, B-6 Apr 2026, EC 1 May 2026. B-6 changes versus B-5 (its own summary): adds a Turbo channel interleaver (§7.3.12), moves slicing into its own §3 for all block codes, and makes the pseudo-randomizer mandatory (§10.1). 131.0-B-3 cite verified (Duke 2026-10-01): B-3 retrieved from `https://ccsds.org/wp-content/uploads/gravity_forms/5-448e85c647331d9cbaf66c096458bdd5/2025/03//131x0b3s.pdf` (98 pp, September 2017, CCSDS Historical Document). Chapters 1 to 12 keep the same numbers in B-5 (B-5 adds chapter 13). Mapping and the randomizer reset rule are in CONFORMANCE. CONFORMANCE: long-haul TM C&S **0** (different sublayer than PLTU). 211.2 **cites** two clauses; those are walked as 211.2 coding, not as a 131.0 product. B-6 makes the pseudo-randomizer mandatory (§10.1, §4.2.2, §5.2.1, §7.2.1, §8.2.2, §3.3.1 d)). **Prox-1:** 211.0-B-6 defers coding to 211.2 (1.2, 2.1.4.2) and has no randomizer text; 211.2-B-3 has its own LDPC-only randomizer (3.4.4.4, 3.4.5), 255 bits, h(x) = x^8 + x^6 + x^4 + x^3 + x^2 + x + 1, which is not B-6 10.4.2 (x^8 + x^7 + x^5 + x^3 + 1) but is the 231.0-B-4 6.2 sequence (checked against the 211.2-B-3 NOTE and the 231.0-B-4 text): do not substitute the 131 randomizer. 211.2 convolutional has no randomizer clause; 211.1-B-4 has none. Same / different list, clause quotes and source URLs are in CONFORMANCE (References).
 
 | ID | Title | Status | Claim | Code / test | Neighbors |
 |----|-------|--------|-------|-------------|-----------|
-| §1 | Introduction | unread | — | — | — |
-| §2 | Overview | unread | — | — | TM ASM / FECF path ≠ Prox-1 PLTU |
-| §3.3 | Basic convolutional code | Full as 211.2 cite | Coding encode | `conv_encode`; `test_conv_*` | 211.2 §3.4.3 → **this** clause. Punctured §3.4 = **0** |
-| §3.4 | Punctured convolutional | 0 | — | — | Not 211.2 O.1 |
-| §4 | Reed-Solomon | 0 | long-haul TM = 0 | — | — |
-| §5 | Concatenated | 0 | long-haul TM = 0 | — | — |
-| §6 | Turbo | 0 | long-haul TM = 0 | — | — |
-| §7.3 | LDPC rate 223/255 | 0 | — | — | Not the Prox-1 (2048,1024) |
-| §7.4 | LDPC rates 1/2, 2/3, 4/5 | Full as 211.2 cite (1/2 only) | Coding encode | `ldpc_encode_*`; `test_ldpc_*` | 211.2 §3.4.4 → (n=2048, k=1024). 2/3 and 4/5 = **0**. Decode = **0** |
-| §8 | LDPC of SMTF stream | 0 | long-haul TM = 0 | — | 211.2 has its own CSM + randomizer |
-| §9 | TM frame synchronization (ASM) | 0 | long-haul TM = 0 | — | **Not** Prox-1 `FAF320` (211.2 §3.2.3) |
-| §10 | TM pseudo-randomizer | 0 | long-haul TM = 0 | — | 211.2 §3.4.5 is the Prox LDPC randomizer |
-| §11 | Transfer frame lengths | 0 | long-haul TM = 0 | — | Prox length is 211.0 / 732.1 / 211.2 §3.6.4 |
-| §12 | Managed parameters | 0 | — | — | — |
-| §13 | Ground-to-space / space-to-space | unread | — | — | — |
+| §1 | Introduction | unread | — | — | B-5 §1.4 Rationale has no B-6 section; B-6 §1.4 is Document Structure (13 sections, 7 annexes). B-5 §1.6 to §1.8 are B-6 §1.5 to §1.7 |
+| §2 | Overview | unread | — | — | TM ASM / FECF path ≠ Prox-1 PLTU. New §2.2.4 Transfer Frame Slicing; B-5 §2.2.4 / §2.2.5 (Synchronization, Pseudo-randomizing) are B-6 §2.2.5 / §2.2.6 |
+| §3 (new in B-6) | Transfer frame synchronization, slicing, validation | 0 | long-haul TM = 0 | — | B-5 had no chapter 3 of this name (convolutional was §3). §3.1 overview, §3.2 slicing, §3.3 sync with slicing, §3.4 sync without slicing, §3.5 frame validation. Fed by B-5 §8.1, §8.2.3, §8.2.4, §8.2.5 |
+| §4.3 (B-5 §3.3) | Basic convolutional code | partial: encode only, as 211.2 cite | Coding encode | `conv_encode`; `test_conv_*` | 211.2 §3.4.3 → **this** clause. Punctured §4.4 (B-5 §3.4) = **0** |
+| §4.4 (B-5 §3.4) | Punctured convolutional | 0 | — | — | Not 211.2 O.1 |
+| §5 (B-5 §4) | Reed-Solomon | 0 | long-haul TM = 0 | — | — |
+| §6 (B-5 §5) | Concatenated | 0 | long-haul TM = 0 | — | — |
+| §7 (B-5 §6) | Turbo | 0 | long-haul TM = 0 | — | B-6 adds a channel interleaver, §7.3.12 (Table 7-4, Fig 7-5). B-5 §6.2.1 / §6.2.2 are B-6 §7.2.1 / §7.2.2; the B-5 §6.3 items a) to k) are numbered §7.3.1 to §7.3.11 |
+| §8.3 (B-5 §7.3) | LDPC rate 223/255 | 0 | — | — | Not the Prox-1 (2048,1024) |
+| §8.4 (B-5 §7.4) | LDPC rates 1/2, 2/3, 4/5 | partial: rate 1/2, k=1024 encode only, as 211.2 cite | Coding encode | `ldpc_encode_*`; `test_ldpc_*` | 211.2 §3.4.4 → (n=2048, k=1024). 2/3 and 4/5 = **0**. Decode = **0**. Table 8-5 (B-5 Table 7-5) |
+| §8.2 (B-5 §7.2) | LDPC general: sync, randomization (B-6 §8.2.2; B-5 §7.2.2), validation | 0 as TM stream | long-haul TM = 0 | — | 211.2 has its own CSM + randomizer. B-6 restructured the chapters: B-5 §8 (LDPC for a stream of SMTFs) was **dissolved** into B-6 §3 (slicing), §9 (CSM), §10, §11 (Case 3) and §12. Clause pairs: B-5 §8.1 → B-6 §3.1, §3.3.1; §8.2.1 → §2.2.5, §3.3.1, §3.3.2; §8.2.2 (CSM patterns, Table 8-1) → §9.3.3, §9.3.4, Figs 9-1 / 9-2, §3.3.1 a) / Fig 3-2; §8.2.3 (frame validation) → §3.5.2; §8.2.4 (sending) → §3.3.1 a) to e); §8.2.5 (receive) → §3.3.2 a) to e); §8.3.1 to §8.3.2 (randomization) → §3.3.1 d), §10.2.5, §10.3.2. Randomizer reset: resolved (see the coding notes below). B-5 §8.3.3 has no reset at codeword boundaries inside a multi-codeword LDPC codeblock; B-6 10.4.3 initializes the generator "at the start of each codeblock, codeword, or Transfer Frame" and B-6 1.5.1.3 defines "codeblock" for R-S only. B-5 "m codewords per codeblock" (§8.1, Table 12-6) has no B-6 home. B-5 §7.2.1 / §7.2.2 / §7.2.3 → B-6 §8.2.1 / §8.2.2 / §8.2.3 |
+| §9 | TM frame synchronization (B-6 "CSM"; B-5 "ASM") | 0 | long-haul TM = 0 | — | **Not** Prox-1 `FAF320` (211.2 §3.2.3). LDPC 1/2 CSM `034776C7272895B0` is the same in B-5 and B-6. B-5 ch. 9 = B-6 ch. 9 (ASM renamed CSM). B-5 §9.6 (ASM for the embedded data stream, `352EF853`) has **no B-6 home** (dropped) |
+| §10 | TM pseudo-randomizer | 0 | long-haul TM = 0 | — | **Mandatory in B-6** (§10.1; B-5 allowed omitting it, Table 12-1 "Absent"). Per-coding rules §10.2.2 to §10.2.5. Sequences: §10.4.1 131071-bit, h(x) = x^17 + x^14 + 1; §10.4.2 legacy 255-bit, h(x) = x^8 + x^7 + x^5 + x^3 + 1. 211.2 §3.4.5 is the Prox LDPC randomizer; its 255-bit polynomial differs from §10.4.2 (211.2 3.4.5.2.8, same as 231.0-B-4 6.2; do not substitute the 131 sequence; Fig 10-2 / 10-3 verified, see the coding notes below; the B-6 10.1 mandate versus Prox-1 is answered in CONFORMANCE, Prox-1 randomizer paragraph) |
+| §11 | Transfer frame lengths | 0 | long-haul TM = 0 | — | Prox length is 211.0 / 732.1 / 211.2 §3.6.4. New §11.5 Case 3 (slicing; was B-5 §11.9 Case 7); B-5 §11.5 to §11.8 → B-6 §11.6 to §11.9 |
+| §12 | Managed parameters (Tables 12-1 to 12-5 in B-6) | 0 | — | — | B-6 adds Slicing and Channel Interleaver rows; Table 12-5 (LDPC of a Transfer Frame) includes Slicing present / absent. B-5 §12.8 (Table 12-6, m = 1 to 8) and §12.9 (Table 12-7) have **no B-6 home** |
+| §13 | Ground-to-space / space-to-space | unread | — | — | B-5 §13.4 (coding of a stream of SMTFs) has **no B-6 home**, replaced by generic slicing (§3). §13.2 Turbo, §13.3 LDPC retained |
 | Annex A–G | | unread | — | — | Annex A service is TM, not PLTU |
+
+**131.0 coding notes for the implementer (B-6, LDPC or RS; Duke, verified against the PDFs):**
+
+- Reset the generator per LDPC codeword, or per whole RS codeblock after interleaving. The reset is not continuous across the stream; every CADU restarts it.
+- XOR bit by bit with the long sequence (x^17 + x^14 + 1, seed 11000111000111000) or the legacy 255-bit one (x^8 + x^7 + x^5 + x^3 + 1, all-ones seed). Then prepend the CSM, unrandomized. B-6 has no "no randomizer" option.
+- On receive under 131.0-B-6 (TM, AOS, USLP): the text is quoted in CONFORMANCE ("B-6 derandomization-order text"): 3.3.2 / 3.4.2 b)-c), Fig 2-4 and 10.3.4 put derandomization before decoding; 10.2.5 reads "At the receiving end, it shall be applied to the codeword to derandomize the data after decoding." For Prox-1 LDPC, 211.2-B-3 3.4.5.2.2 reads "...shall be applied to de-randomize the randomized LDPC Codewords before decoding."
+- 131071-bit sequence, Fig 10-2 (page 10-3), verified (Duke read the figure; the agent re-ran the reference script, 2026-10-01): 17 boxes X16..X0, output from X0, feedback X14 XOR X0 into X16. Load the seed 11000111000111000 as written (leftmost character into X16); the first 40 output bits then equal the 10.4.3 Note 2 bits `0001 1100 0111 0001 1011 1001 0001 1011 1010 1001`. The reversed seed fails. Period 131071. The figure does not label which seed character goes to which box (10.5: "possible generators"), so the seed mapping is pinned by the printed 40 bits. Unit test: compare the first 40 bits with the printed bits and fail if they differ; also the first 17 output bits equal the seed reversed. Recipe in CONFORMANCE.
+- Legacy 255-bit sequence, Fig 10-3 (page 10-4): stages X8..X1, all-ones seed, output from X1, feedback X8 XOR X6 XOR X4 XOR X1; first 40 bits `1111 1111 0100 1000 0000 1110 1100 0000 1001 1010`, period 255. Warning: tapping the stages named by the polynomial exponents (X8, X7, X5, X3, X1) locks at all ones; the taps follow the delay count from the output.
+- Prox-1 LDPC randomizer (211.2-B-3 3.4.5.2.8 to 3.4.5.2.10) is the 231.0-B-4 6.2 sequence (x^8 + x^6 + x^4 + x^3 + x^2 + x + 1, first 40 bits `1111 1111 0011 1001 ...`): checked against the 211.2-B-3 NOTE and the 231.0-B-4 text. It differs from the 131.0 legacy 255-bit sequence (first 9 bits agree, first difference at bit 10).
+- Interoperating with B-5 LDPC stream of SMTFs: one reset per codeblock of m codewords (B-5 §8.3), not per codeword.
 
 ---
 

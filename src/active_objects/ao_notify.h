@@ -33,4 +33,9 @@ void AO_Notify_post_prearm_fail();
 void AO_Notify_post_vehicle_lost();
 void AO_Notify_post_vehicle_found();
 
+// Station/relay link picture. Radio reports the mode; LedEngine draws it.
+// mode is StationBarMode. apply is radio-config apply (yellow sweep).
+// Deduped on mode, apply, and the RSSI fill step.
+void AO_Notify_post_station_link(uint8_t mode, int16_t rssi, bool apply);
+
 #endif // ROCKETCHIP_AO_NOTIFY_H

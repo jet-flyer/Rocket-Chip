@@ -26,6 +26,7 @@
 #include "pico/stdio_usb.h"
 #include "tusb.h"
 #include "diag/diag_stats.h"
+#include "diag/radio_rate_counters.h"
 #include "safety/pyro_edge_logger.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/mission_profile.h"
@@ -45,6 +46,8 @@ void print_prompt(MenuId menu) {
         case MenuId::kFlight:   rc::rc_log("[flight] "); break;
         case MenuId::kDebug:    rc::rc_log("[debug] "); break;
         case MenuId::kSettings: rc::rc_log("[settings] "); break;
+        case MenuId::kClock:    rc::rc_log("[clock] "); break;
+        case MenuId::kGps:      rc::rc_log("[gps] "); break;
         default:                rc::rc_log("> "); break;
     }
 }
@@ -141,9 +144,11 @@ static void catalog_nav_next() {
             break;
         }
     }
-    const size_t next = (idx >= kRadioConfigTableSize)
-                            ? 0
-                            : (idx + 1) % kRadioConfigTableSize;
+    const uint8_t next = radio_config_next_fit(idx);
+    if (next == kRadioConfigNoIndex) {
+        rc::rc_log("NAV_PRESET: no catalog row fits nav ToA\n");
+        return;
+    }
     const auto& e = kRadioConfigTable[next];
     const uint32_t toa_us = radio_config_nav_airtime_us(
         e.sf, e.bw_khz, kRadioConfigNavPltuBytes);
@@ -151,19 +156,7 @@ static void catalog_nav_next() {
                                  ? 0
                                  : (1000000U / e.nav_rate_hz);
     const uint32_t pct = (slot_us == 0) ? 999U : (toa_us * 100U / slot_us);
-    if (!radio_config_nav_fits_hz(e.bw_khz, e.nav_rate_hz, e.sf,
-                                  kRadioConfigNavPltuBytes)) {
-        const uint8_t fit_hz =
-            (toa_us == 0) ? 1 : static_cast<uint8_t>((1000000U / toa_us) + 1U);
-        rc::rc_log("NAV_PRESET BW%u %uHz ToA %u%% of slot — only possible "
-                   "with %u Hz telem — not hopping\n",
-                   static_cast<unsigned>(e.bw_khz),
-                   static_cast<unsigned>(e.nav_rate_hz),
-                   static_cast<unsigned>(pct),
-                   static_cast<unsigned>(fit_hz));
-        return;
-    }
-    if (!AO_Telemetry_request_comm_change(static_cast<uint8_t>(next))) {
+    if (!AO_Telemetry_request_comm_change(next)) {
         rc::rc_log("NAV_PRESET COMM_CHANGE refused idx=%u\n",
                    static_cast<unsigned>(next));
         return;
@@ -220,6 +213,16 @@ void run_action(ActionId act) {
             break;
         case ActionId::kStationDisarm:
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
+            break;
+        case ActionId::kTMinusMinutes:
+            rc_os_start_tminus_minutes();
+            break;
+        case ActionId::kTMinusZulu:
+            rc_os_start_tminus_zulu();
+            break;
+        case ActionId::kTMinusClear:
+            ansi_dashboard_clear_tminus();
+            rc::rc_log("T- cleared\n");
             break;
         case ActionId::kCalGyro:
             AO_RCOS_start_cal_gyro();
@@ -358,6 +361,15 @@ void run_action(ActionId act) {
         case ActionId::kDebugDiag:
             diag_stats_dump();
             break;
+        case ActionId::kDebugRfRates:
+            radio_rate_counters_dump();
+            break;
+#if defined(ROCKETCHIP_DEV_MODE)
+        case ActionId::kForceTxTimeout:
+            AO_Radio_force_next_tx_timeout();
+            rc::rc_log("RADIO: TX timeout armed\n");
+            break;
+#endif
         case ActionId::kCatalogList:
             catalog_list();
             break;

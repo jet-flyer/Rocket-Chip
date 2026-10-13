@@ -108,7 +108,7 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 
 ### Single-binary flight code
 
-All code in `src/` on a production build is flight code. There is no compile-time flight/non-flight split and no per-file rigor tier. The same standards (this document + `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`) apply uniformly. Pre-commit gates (host ctest, clang-tidy, bench_sim) run on any firmware-affecting change per the "categories not enumerations" policy in `scripts/ci/pre_commit_matrix.py` — they do not branch on per-file classification.
+All code in `src/` on a production build is flight code. There is no compile-time flight/non-flight split and no per-file rigor tier. The same standards (this document + `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`) apply uniformly. Pre-commit gates (host ctest, clang-tidy, flight target cross-compile) and the pre-push bench (bench_sim, once per push) run on any firmware-affecting change per the "categories not enumerations" policy (`scripts/ci/pre_commit_matrix.py`, paths in `scripts/ci/firmware_paths.txt`) — they do not branch on per-file classification.
 
 **Per-file deviations are case-by-case.** When a particular file genuinely needs a documented exception to the project standards, the deviation is logged in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with severity assessed at the time, not pre-allocated by a classification tier. The `src/fusion/eskf_codegen.cpp` CG-1 entry there (auto-generated codegen exceeding JSF AV Rule 1's L-SLOC limit) is the canonical example: the deviation is justified by the *specific* facts of that file (NASA SWEHB §8.11 auto-generated code), not by tagging it with a tier.
 
@@ -532,7 +532,7 @@ All code changes must pass the verification checklist before merge to main.
    - [ ] Code comments explain "why", not "what"
    - [ ] New modules have header file documentation
 
-**Fresh `git worktree` / empty tree:** the pre-commit hook **silently skips** Gate 2 (clang-tidy) without `build/compile_commands.json` and Gate 3 (host ctest) without `build_host/` + `CTestTestfile.cmake`. A green commit then means “nothing was reported,” not “the checks ran.” Short-lived or docs-only worktrees can ignore this. Before committing `src/` from a new tree, configure it (`cmake -B build_host` and, for tidy, `cmake -B build -G Ninja`) or commit from a tree that already has those dirs. Fast-forward onto `main` does not re-run the hook. See `scripts/hooks/pre-commit`.
+**Fresh `git worktree` / empty tree:** the pre-commit hook **silently skips** Gate 2 (clang-tidy) without `build/compile_commands.json` and Gate 3 (host ctest) without `build_host/` + `CTestTestfile.cmake`. A green commit then means “nothing was reported,” not “the checks ran.” Short-lived or docs-only worktrees can ignore this. Before committing `src/` from a new tree, configure it (`cmake -B build_host` and, for tidy, `cmake -B build -G Ninja`) or commit from a tree that already has those dirs. Gate 4 (flight target cross-compile) does **not** skip: a staged firmware path with no configured `build_flight/` or `build_station_flight/` blocks the commit (`cmake --preset vehicle-flight -G Ninja`, `cmake --preset station-flight -G Ninja`). Fast-forward onto `main` does not re-run the hook. See `scripts/hooks/pre-commit`.
 
 ### Pre-Merge Review
 

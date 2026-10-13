@@ -137,6 +137,16 @@ target_include_directories(test_station_bar_mode PRIVATE
 )
 gtest_discover_tests(test_station_bar_mode)
 
+add_executable(test_rc_os_dashboard_format
+    test_rc_os_dashboard_format.cpp
+)
+target_link_libraries(test_rc_os_dashboard_format PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_rc_os_dashboard_format PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_rc_os_dashboard_format)
+
 add_executable(test_cmd_sdu
     test_cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
@@ -160,6 +170,17 @@ target_include_directories(test_starcom_byte_pump PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 gtest_discover_tests(test_starcom_byte_pump)
+
+add_executable(test_space_packet_service
+    test_space_packet_service.cpp
+)
+target_link_libraries(test_space_packet_service PRIVATE Starcom::starcom GTest::gtest_main)
+gtest_discover_tests(test_space_packet_service)
+
+# Station USB GCS MAVLink (QGC / Mission Planner)
+add_executable(test_gcs_mavlink test_gcs_mavlink.cpp)
+target_link_libraries(test_gcs_mavlink PRIVATE rc_telemetry GTest::gtest_main)
+gtest_discover_tests(test_gcs_mavlink)
 
 # IVP-62b: MAVLink RX parser
 add_executable(test_mavlink_rx test_mavlink_rx.cpp)
@@ -285,6 +306,20 @@ target_compile_definitions(test_version PRIVATE
     RC_REPO_ROOT="${_rc_repo_root}")
 gtest_discover_tests(test_version)
 
+# Radio HW PaConfig / PaDac decode. Header-only. No SPI.
+add_executable(test_radio_pa_decode test_radio_pa_decode.cpp)
+target_link_libraries(test_radio_pa_decode PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_pa_decode PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_radio_pa_decode)
+
+# Forced radio HW TX timeout latch. Header-only. No SPI.
+add_executable(test_radio_tx_force test_radio_tx_force.cpp)
+target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_force PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_radio_tx_force)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
@@ -384,6 +419,11 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/audit/check_fault_force_gates.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    add_test(
+        NAME scripts_pre_commit_fixture
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/pre_commit_fixture_test.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     # L2-P3 citation inventory — informational. Produces a deduplicated
     # population of citations across standards/*.md for audit cycles per
     # standards/AUDIT_GUIDANCE.md Tier 3.8 (L2-P2 exhaustive + L2-P4 scope).
@@ -434,6 +474,7 @@ if(Python3_Interpreter_FOUND)
         scripts_rc_test_common
         scripts_python_compileall
         scripts_fault_force_gate_audit
+        scripts_pre_commit_fixture
         scripts_list_citations
         PROPERTIES LABELS "python"
     )

@@ -99,6 +99,11 @@ from typing import Callable, Iterator, Optional, Tuple
 import serial
 import serial.tools.list_ports
 
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
+import firmware_tree  # noqa: E402  (scripts/firmware_tree.py)
+
 
 # ============================================================================
 # Constants
@@ -546,6 +551,27 @@ def find_target_port(target: Target,
     return None, f'no port matches {target}: {summaries}'
 
 
+def board_usb_serial(port_name: str) -> Optional[str]:
+    """USB serial number of a CDC port (enumeration only; the port is not
+    opened). On RP2350 it comes from the MCU board's flash chip, so it
+    follows the MCU board, not the radio board. None when unknown, and
+    None for a port that is not a RocketChip board CDC port (VID:PID), so
+    the debug probe (PID 0x000C) is never recorded as a board."""
+    for info in serial.tools.list_ports.comports():
+        if info.device == port_name:
+            if (getattr(info, 'vid', None) != ROCKETCHIP_USB_VID
+                    or getattr(info, 'pid', None) != ROCKETCHIP_USB_PID):
+                return None
+            return info.serial_number or None
+    return None
+
+
+def print_board_usb_serial(port_name: str) -> None:
+    """Print the line the pre-push gate records in its PASS note
+    (scripts/ci/pre_push_gate.py, ``boards:``)."""
+    print(f'board_usb_serial: {board_usb_serial(port_name) or "unknown"}')
+
+
 def find_vehicle_and_station_ports(
     station_override: Optional[str] = None,
     vehicle_override: Optional[str] = None,
@@ -887,10 +913,14 @@ def rc_test(*,
 # ============================================================================
 # Image identity (leftover-firmware refuse)
 # ============================================================================
-# The pre-commit hook does not flash. Without these checks, bench_sim
-# PASSes on whatever leftover image is already on the chip (Rule 5 hole,
-# desk 2026-09-07). Positive control: this tree built this ELF, this ELF
-# was the last halt-write, and the banner flight-<sha> is that ELF.
+# The gate does not flash. Without these checks, bench_sim PASSes on
+# whatever leftover image is already on the chip (Rule 5 hole, desk
+# 2026-09-07). Positive control: this firmware tree built this ELF, this
+# ELF was the last recorded flash, and the banner flight-<sha> is that ELF.
+# Build ID = firmware-tree hash over scripts/ci/firmware_paths.txt [elf]
+# (kFirmwareTreeId), so a docs-only commit after the flash stays valid.
+# Hashing the whole tree (git describe --dirty) made every commit a
+# rebuild + reflash - the --no-verify pressure the council named.
 # standards/VERSIONING.md SWE-084; standards/HW_GATE_DISCIPLINE.md Rule 5.
 
 _ROLE_BUILD_DIR = {
@@ -898,22 +928,15 @@ _ROLE_BUILD_DIR = {
     'station': 'build_station_flight',
 }
 
-# Same family as scripts/ci/pre_commit_matrix.py FLIGHT_CRITICAL. Kept here
-# so this module does not import the matrix (hook eval path).
-_FIRMWARE_PATH_PREFIXES = (
-    'src/',
-    'include/',
-    'CMakeLists.txt',
-    'cmake/',
-    'EXTERNAL/etl-',
-    'lib/',
-    'profiles/',
-)
+# Firmware paths come from the ONE tracked list (scripts/firmware_tree.py
+# reads scripts/ci/firmware_paths.txt). No copy here (LL 40).
 
 _RE_K_GIT_HASH = re.compile(
     r'constexpr const char\*\s+kGitHash\s*=\s*"([^"]*)"')
 _RE_K_BUILD_IDENTITY = re.compile(
     r'constexpr const char\*\s+kBuildIdentity\s*=\s*"([^"]*)"')
+_RE_K_FIRMWARE_TREE_ID = re.compile(
+    r'constexpr const char\*\s+kFirmwareTreeId\s*=\s*"([^"]*)"')
 
 
 @dataclass(frozen=True)
@@ -925,6 +948,7 @@ class ExpectedImage:
     git_hash: str
     build_identity: str
     sha256: str
+    firmware_tree_id: str = ''
 
 
 def flashed_sidecar_path(elf: Path) -> Path:
@@ -961,6 +985,11 @@ def _parse_version_header(path: Path) -> Tuple[Optional[str], Optional[str]]:
     return git_hash, ident
 
 
+def _parse_firmware_tree_id(path: Path) -> Optional[str]:
+    m = _RE_K_FIRMWARE_TREE_ID.search(path.read_text(encoding='utf-8'))
+    return m.group(1) if m else None
+
+
 def _git(repo: Path, *args: str) -> Tuple[int, str]:
     r = subprocess.run(
         ['git', *args],
@@ -971,10 +1000,6 @@ def _git(repo: Path, *args: str) -> Tuple[int, str]:
     )
     return r.returncode, (r.stdout or '').strip()
 
-
-def _is_firmware_path(rel: str) -> bool:
-    rel = rel.replace('\\', '/')
-    return any(rel == p or rel.startswith(p) for p in _FIRMWARE_PATH_PREFIXES)
 
 
 def load_expected_image(repo: Path, role: str) -> Tuple[Optional[ExpectedImage], Optional[str]]:
@@ -1007,25 +1032,59 @@ def load_expected_image(repo: Path, role: str) -> Tuple[Optional[ExpectedImage],
         git_hash=git_hash,
         build_identity=ident,
         sha256=elf_sha256(elf),
+        firmware_tree_id=_parse_firmware_tree_id(header) or '',
     ), None
 
 
-def tree_matches_elf_error(repo: Path, expected: ExpectedImage) -> Optional[str]:
-    """ELF must be this working tree (describe + firmware file mtimes)."""
-    rc, live = _git(repo, 'describe', '--abbrev=12', '--always', '--dirty')
-    if rc != 0 or not live:
-        return 'git describe failed — cannot attribute this ELF to the tree'
-    if live != expected.build_identity:
+def tree_matches_elf_error(repo: Path, expected: ExpectedImage,
+                           commit: Optional[str] = None) -> Optional[str]:
+    """ELF must be built from this firmware tree (firmware-tree hash).
+
+    commit=None  (working-tree mode, manual / canary runs): the ELF's
+                 kFirmwareTreeId must equal HEAD's firmware-tree hash, and
+                 any uncommitted firmware file must be older than the ELF.
+    commit=<sha> (pre-push mode): the ELF must be a clean build whose
+                 kFirmwareTreeId equals that commit's firmware-tree hash.
+                 Docs-only commits after the build do not change the hash.
+    """
+    elf_id = expected.firmware_tree_id
+    if not elf_id or elf_id == 'unknown':
         return (
-            f'ELF identity {expected.build_identity} != git describe {live}\n'
-            f'  rebuild {expected.elf.as_posix()} from this tree, flash, '
+            f'{expected.version_header.as_posix()} has no kFirmwareTreeId\n'
+            f'  reconfigure + rebuild (cmake/rc_version.cmake reads '
+            f'scripts/ci/firmware_paths.txt), flash, then retry'
+        )
+    base, _, tag = elf_id.partition('-')
+    rev = commit or 'HEAD'
+    try:
+        want = firmware_tree.elf_tree_id(repo, rev)
+    except firmware_tree.FirmwareTreeError as exc:
+        return f'cannot compute the firmware-tree hash of {rev}: {exc}'
+    if base != want:
+        return (
+            f'ELF firmware tree {base[:12]} != {rev[:12]} firmware tree '
+            f'{want[:12]}\n'
+            f'  rebuild {expected.elf.as_posix()} from {rev[:12]}, flash, '
             f'wait LED+CDC (docs/FLASHING.md), then retry'
         )
-    rc, diff_names = _git(repo, 'diff', '--name-only', 'HEAD')
-    if rc != 0:
-        return 'git diff --name-only HEAD failed'
-    dirty = [n for n in diff_names.splitlines() if n and _is_firmware_path(n)]
+    if commit is not None:
+        if tag:
+            return (
+                f'ELF was built from a dirty firmware tree ({elf_id[:20]})\n'
+                f'  the push gate needs a clean build of {commit[:12]} '
+                f'(bench worktree)'
+            )
+        return None
+    try:
+        dirty = firmware_tree.dirty_firmware_paths(repo)
+    except firmware_tree.FirmwareTreeError as exc:
+        return f'git status failed: {exc}'
     if not dirty:
+        if tag:
+            return (
+                'ELF was built from uncommitted firmware edits that are no '
+                'longer in the tree - rebuild, flash, then retry'
+            )
         return None
     elf_mtime = expected.elf.stat().st_mtime
     stale = []
@@ -1085,13 +1144,18 @@ def banner_matches_elf_error(banner: Banner, expected: ExpectedImage) -> Optiona
     return None
 
 
-def refuse_stale_tree_and_elf(repo: Path, role: str) -> Tuple[Optional[ExpectedImage], Optional[str]]:
-    """Pre-connect: ELF is this tree and was the last recorded flash."""
+def refuse_stale_tree_and_elf(repo: Path, role: str,
+                              commit: Optional[str] = None,
+                              ) -> Tuple[Optional[ExpectedImage], Optional[str]]:
+    """Pre-connect: ELF is this firmware tree and was the last recorded flash.
+
+    ``commit``: the sha being pushed (pre-push gate). None = working tree.
+    """
     expected, err = load_expected_image(repo, role)
     if err:
         return None, err
     assert expected is not None
-    err = tree_matches_elf_error(repo, expected)
+    err = tree_matches_elf_error(repo, expected, commit=commit)
     if err:
         return expected, err
     err = flash_stamp_error(expected)
@@ -1159,6 +1223,7 @@ __all__ = [
     'classify_banner', 'passive_dump_needs_help',
     # Port probing + navigation
     'peek_banner', 'find_target_port', 'find_vehicle_and_station_ports',
+    'board_usb_serial', 'print_board_usb_serial',
     'open_classified_port', 'enter_cli_menu',
     'ROCKETCHIP_USB_VID', 'ROCKETCHIP_USB_PID',
     # Test-mode arming (R-25-exec, Approach A)

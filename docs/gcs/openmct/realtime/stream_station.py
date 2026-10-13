@@ -23,6 +23,8 @@ RSSI_RE = re.compile(rb"RSSI:\s*(?:\x1b\[[0-9;]*m)*(-?\d+)\s*dBm", re.I)
 SNR_RE = re.compile(rb"SNR:\s*(-?\d+)\s*dB", re.I)
 PKT_RE = re.compile(rb"Pkts:\s*(\d+)")
 BARO_RE = re.compile(rb"Baro:\s*(-?\d+(?:\.\d+)?)\s*m", re.I)
+# Station CSV output mode (ao_telemetry dispatch_nav_csv): RX,<seq>,<rssi dBm>,<snr dB>
+CSV_RX_RE = re.compile(rb"^RX,(\d+),(-?\d+),(-?\d+)\s*$")
 
 ROLLING_CSV = Path(__file__).resolve().parents[1] / "fixtures" / "live.csv"
 ROLLING_WINDOW_S = 60.0
@@ -134,6 +136,16 @@ async def serial_pump(hub: LinkHub, port: str, enter_dash: bool) -> None:
                 line = bytes(buf[: nl + 1])
                 del buf[: nl + 1]
 
+                cm = CSV_RX_RE.match(line.strip())
+                if cm:
+                    seq_s, rssi, snr = (g.decode() for g in cm.groups())
+                    ts = int(time.time() * 1000)
+                    await hub.publish({"id": "seq", "timestamp": ts, "value": int(seq_s)})
+                    await hub.publish({"id": "rssi", "timestamp": ts, "value": int(rssi)})
+                    await hub.publish({"id": "snr", "timestamp": ts, "value": float(snr)})
+                    hub.record_and_flush(ts, seq_s, rssi, snr, last_baro)
+                    continue
+
                 bm = BARO_RE.search(line)
                 if bm:
                     last_baro = bm.group(1).decode()
@@ -183,7 +195,7 @@ async def main_async(args: argparse.Namespace) -> None:
 
     async with websockets.serve(handler, args.bind, args.ws_port):
         print(f"[stream] ws://{args.bind}:{args.ws_port}/", flush=True)
-        await serial_pump(hub, args.port, enter_dash=not args.no_m)
+        await serial_pump(hub, args.port, enter_dash=args.send_m)
 
 
 def main() -> None:
@@ -191,7 +203,10 @@ def main() -> None:
     p.add_argument("--port", default="COM7", help="Station CDC port")
     p.add_argument("--ws-port", type=int, default=8091)
     p.add_argument("--bind", default="127.0.0.1")
-    p.add_argument("--no-m", action="store_true", help="Do not send m to enter dash")
+    # The station now boots straight into the ANSI dashboard, and "m" in its menu
+    # cycles output mode (ANSI to CSV), so sending it by default broke the scrape.
+    p.add_argument("--send-m", action="store_true", help="Send m on open (old menu-first images only)")
+    p.add_argument("--no-m", action="store_true", help="Deprecated no-op; m is no longer sent by default")
     args = p.parse_args()
     asyncio.run(main_async(args))
 

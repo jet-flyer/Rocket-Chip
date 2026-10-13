@@ -38,6 +38,7 @@ using starcom::ccsds::macOnNoFramesPending;
 using starcom::ccsds::macOnPlcw;
 using starcom::ccsds::macOnRemoteCommChange;
 using starcom::ccsds::macOnSetVrDirective;
+using starcom::ccsds::macOnToken;
 using starcom::ccsds::macOnValidFrame;
 using starcom::ccsds::macPhy;
 using starcom::ccsds::macPollNotify;
@@ -188,6 +189,8 @@ void test_half_and_simplex() {
   CHECK(s.state == MacState::s13);
   macOnFifoEmpty(s, 4);
   CHECK(s.state == MacState::s14);
+  CHECK(!s.mac_frame_pending);
+  CHECK(s.mac_queue_len == 0);
   macTick(s, 6);
   CHECK(s.state == MacState::s36);
   macOnValidFrame(s, 6);
@@ -341,6 +344,138 @@ void test_half_hail_octets() {
   CHECK(*n == 4);
 }
 
+void test_half_e48_e49_carrier() {
+  // 211.0 table 6-12: E49 token swap; E48 missed-token backup; E44
+  // sender-overran only while CARRIER_ACQUIRED (6.5.2) is still true.
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  CHECK(s.state == MacState::s36);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.mac_queue_len == 0);
+  macOnToken(s, 7);
+  CHECK(s.state == MacState::s51);  // E49
+
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  macSetCarrierAcquired(s, false, 6);
+  macTick(s, 11);  // receive_duration = 5
+  CHECK(s.state == MacState::s51);  // E48
+
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  macSetCarrierAcquired(s, true, 6);
+  macTick(s, 11);
+  CHECK(s.state == MacState::s60);  // E44
+  CHECK(macPollNotify(s) == MacNotify::sender_overran);
+}
+
+void test_half_e42_tail_e50_counts_miss() {
+  // 211.0 table 6-10 E42 is the tail only. Annex C counts S62→E50.
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  macTick(s, 10);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 15);
+  CHECK(s.state == MacState::s56);
+  CHECK(s.token_fail_n == 0);
+  macOnFifoEmpty(s, 15);
+  CHECK(s.state == MacState::s58);
+  CHECK(s.token_fail_n == 0);
+  macTick(s, 17);
+  CHECK(s.state == MacState::s62);
+  macTick(s, 22);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.token_fail_n == 1);
+}
+
+void test_half_e83_rehail() {
+  MacMib mb = test_mib();
+  mb.maximum_failed_token_passes = 2;
+  mb.drop_carrier_duration = 2;
+  MacSession s{};
+  macInit(s, mb, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  macTick(s, 2);
+  macTick(s, 4);
+  macOnFifoEmpty(s, 4);
+  macTick(s, 6);
+  macOnValidFrame(s, 6);
+  CHECK(s.state == MacState::s60);
+  s.role = starcom::ccsds::MacRole::caller;
+  s.token_fail_n = 2;
+  macSetCarrierAcquired(s, false, 6);
+  macTick(s, 11);  // E48 S51
+  CHECK(s.state == MacState::s51);
+  macTick(s, 13);
+  macTick(s, 15);
+  CHECK(s.state == MacState::s50);
+  macTick(s, 20);  // E83 not E38
+  CHECK(s.state == MacState::s80);
+  macTick(s, 22);  // E84
+  CHECK(s.state == MacState::s11);
+  CHECK(s.mode == MacMode::connecting_t);
+}
+
+void test_half_e83_responder_listens() {
+  MacMib mb = test_mib();
+  mb.maximum_failed_token_passes = 2;
+  MacSession s{};
+  macInit(s, mb, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.role == starcom::ccsds::MacRole::responder);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  s.token_fail_n = 2;
+  macTick(s, 10);
+  CHECK(s.state == MacState::s2);
+  CHECK(s.mode == MacMode::connecting_l);
+  CHECK(!s.transmit_on);
+}
+
+void test_half_rehail_while_active() {
+  // Station reboot hails again while the responder is still S50.
+  // 211.0 E85/E82 → S2, then E30 → S51 (not ignore / E69).
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  CHECK(s.state == MacState::s51);
+  macTick(s, 3);
+  macTick(s, 5);
+  CHECK(s.state == MacState::s50);
+  CHECK(s.role == starcom::ccsds::MacRole::responder);
+  CHECK(s.mode == MacMode::active);
+  (void)macPollNotify(s);
+  macOnHailReceived(s, 6);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.mode == MacMode::active);
+  CHECK(macPollNotify(s) == MacNotify::hail_ok);
+}
+
 void test_half_token_octets() {
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -351,8 +486,15 @@ void test_half_token_octets() {
   CHECK(s.state == MacState::s52);
   macTick(s, 5);
   CHECK(s.state == MacState::s50);
+  macTick(s, 10);  // E38 sets PERSISTENCE; NEED_PLCW still blocks E39
+  CHECK(s.persistence);
+  CHECK(s.need_plcw);
+  CHECK(s.state == MacState::s50);
+  CHECK(macFifoSource(s) == MacFifoSource::plcw);
   s.need_plcw = false;
-  macOnNoFramesPending(s, 5);
+  s.sdu_pending = true;
+  CHECK(macFifoSource(s) == MacFifoSource::idle);
+  macOnNoFramesPending(s, 15);  // E39
   CHECK(s.state == MacState::s56);
   CHECK(s.mac_queue_len == 2);
   CHECK(spduDirectiveType(std::span<const std::byte>(s.mac_queue.data(), 2)) ==
@@ -479,6 +621,21 @@ void test_half_comm_change_fifo_empty_leaves_s56() {
   CHECK(!s.mac_frame_pending);
 }
 
+void test_plcw_repeat_arms() {
+  MacSession s{};
+  MacMib m = test_mib();
+  m.plcw_repeat_interval = 4;
+  macInit(s, m, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  s.need_plcw = false;
+  macTick(s, 1);
+  CHECK(!s.need_plcw);
+  CHECK(s.plcw_left == 4);
+  macTick(s, 5);
+  CHECK(s.need_plcw);
+  CHECK(s.plcw_left == 4);
+}
+
 void test_heap() {
   MacSession s{};
   starcom::test::heapTrapReset();
@@ -508,11 +665,17 @@ int run_mac_tests() {
   test_carrier_loss_caller();
   test_annex_b_codecs();
   test_half_hail_octets();
+  test_half_e48_e49_carrier();
+  test_half_e42_tail_e50_counts_miss();
+  test_half_e83_rehail();
+  test_half_e83_responder_listens();
+  test_half_rehail_while_active();
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
   test_half_remote_comm_change_echo();
   test_half_comm_change_fifo_empty_leaves_s56();
+  test_plcw_repeat_arms();
   test_heap();
   return g_fails;
 }

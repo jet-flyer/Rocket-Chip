@@ -40,6 +40,7 @@ First TUs: CRC-32 (Annex C) then PLTU. Then V-3, Space Packet, `Plcw16`, `Clcw32
 | `v3_length_oob` | Length field implies frame &lt; 5 or &gt; 2048 octets. |
 | `sp_too_short` | Space Packet &lt; 7 octets, or Data Length implies that. |
 | `sp_pvn` | Packet Version Number not `000`. |
+| `sp_sap` | Space Packet SAP does not accept this APID (133.0-B-2 2.2.1). |
 | `buffer_too_small` | Output span cannot hold the encoded unit. |
 | `uslp_truncated` | End of Frame Primary Header Flag = 1 and Truncated Transfer Frame Length (MIB) not supplied. |
 | `uslp_length_oob` | USLP C implies frame &lt; 8 or &gt; 65536 octets (truncated: not 6–32, 732.1 D1.3.2). |
@@ -318,7 +319,7 @@ Uncoded host path for none / best_effort. `compliant` is not offered. FPGA HDL s
 
 ## Increment 19 — convolutional / LDPC encode
 
-Core path: `starcom::ccsds`, not adapters. Rate-1/2 K=7 conv (211.2 §3.4.3 → 131.0 §3.3): G1=171, G2=133, G2 inverted, C1 then C2, MSB-first, memory 0 at the one-shot API. LDPC (211.2 §3.4.4–3.4.5 → 131.0 §7.4) (2048,1024) systematic encode, CSM not randomized, 211.2 PN on the codeword only. Decode is not on this API.
+Core path: `starcom::ccsds`, not adapters. Rate-1/2 K=7 conv (211.2 §3.4.3 → 131.0-B-6 §4.3; B-5 §3.3): G1=171, G2=133, G2 inverted, C1 then C2, MSB-first, memory 0 at the one-shot API. LDPC (211.2 §3.4.4–3.4.5 → 131.0-B-6 §8.4; B-5 §7.4) (2048,1024) systematic encode, CSM not randomized, 211.2 PN on the codeword only. Decode is not on this API.
 
 ```cpp
 struct ConvEnc { std::uint8_t mem = 0; };

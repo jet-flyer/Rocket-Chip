@@ -33,6 +33,7 @@ typedef enum {
     WS2812_MODE_RAINBOW,    // Smooth rainbow cycle
     WS2812_MODE_ALTERNATE,  // Two-color alternation (Stage L — beacon overlay)
     WS2812_MODE_DOUBLE_FLASH, // Two short pulses + long pause (Stage L — pre-arm fail)
+    WS2812_MODE_PIXELS,       // Per-pixel buffer. ws2812_update does not overwrite it.
 } ws2812_mode_t;
 
 // ============================================================================
@@ -71,6 +72,9 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
 // One step per call; caller sets cadence. Color is the caller's choice.
 // Position + direction persist in file-scope statics.
 void ws2812_set_sweep_bar(ws2812_rgb_t color);
+
+// All pixels on `color` when lit, all off when not. Caller toggles.
+void ws2812_set_flash_bar(ws2812_rgb_t color, bool lit);
 
 // ============================================================================
 // Pattern Modes

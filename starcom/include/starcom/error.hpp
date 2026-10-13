@@ -18,6 +18,7 @@ enum class Error : std::uint8_t {
   uslp_truncated,   // Flag = 1 and Truncated Transfer Frame Length not supplied
   uslp_length_oob,  // C implies frame < 8 or > 65536 (truncated: not 6–32)
   uslp_bad_fecf,    // 732.1 Annex B CRC-16 syndrome not zero
+  sp_sap,           // 133.0-B-2 2.2.1: SDU is not for this APID's SAP
 };
 
 static_assert(std::is_trivially_copyable_v<Error>);

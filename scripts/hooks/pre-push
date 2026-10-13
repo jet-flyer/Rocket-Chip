@@ -1,0 +1,14 @@
+#!/bin/bash
+# RocketChip pre-push hook (tracked). Install: bash scripts/hooks/install.sh
+#
+# The hardware line of defense (standards/HW_GATE_DISCIPLINE.md Rule 5).
+# Benches the commit being pushed, ONCE PER PUSH. Logic lives in
+# scripts/ci/pre_push_gate.py. Git passes "<remote-name> <remote-url>" as
+# arguments and one "<local-ref> <local-sha> <remote-ref> <remote-sha>"
+# line per ref on stdin; exec keeps stdin for the gate.
+#
+# If the gate fails, nothing is pushed. Fix the cause (unpushed commits:
+# git commit --fixup=<sha>, then git rebase -i --autosquash), then push
+# again. Do not use --no-verify.
+REPO_ROOT="$(git rev-parse --show-toplevel)" || exit 1
+exec python -u "${REPO_ROOT}/scripts/ci/pre_push_gate.py" "$@"

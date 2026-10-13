@@ -10,6 +10,9 @@
 using rc::cli::ActionId;
 using rc::cli::Engine;
 using rc::cli::Event;
+using rc::cli::find;
+using rc::cli::Gate;
+using rc::cli::Item;
 using rc::cli::MenuId;
 using rc::cli::kEsc;
 using rc::cli::kStationItemCount;
@@ -92,7 +95,7 @@ TEST(CliEngine, VehicleSettingsCatalogKeys) {
 TEST(CliEngine, StationHasNoCalAndZReturnsPadAction) {
     Engine e{};
     init(e);
-    auto r = on_key(e, kStationItems, kStationItemCount, 'c');
+    auto r = on_key(e, kStationItems, kStationItemCount, 'f');
     EXPECT_EQ(r.ev, Event::kUnknown);
     r = on_key(e, kStationItems, kStationItemCount, 'a');
     EXPECT_EQ(r.act, ActionId::kStationArmConfirm);
@@ -100,6 +103,33 @@ TEST(CliEngine, StationHasNoCalAndZReturnsPadAction) {
     EXPECT_EQ(r.act, ActionId::kStationDisarm);
     r = on_key(e, kStationItems, kStationItemCount, 'z');
     EXPECT_EQ(r.act, ActionId::kReturnPad);
+}
+
+TEST(CliEngine, StationClockAndGpsAreSubmenus) {
+    Engine e{};
+    init(e);
+    auto r = on_key(e, kStationItems, kStationItemCount, 'c');
+    EXPECT_EQ(r.ev, Event::kPushed);
+    EXPECT_EQ(top(e), MenuId::kClock);
+    r = on_key(e, kStationItems, kStationItemCount, 'n');
+    EXPECT_EQ(r.act, ActionId::kTMinusMinutes);
+    r = on_key(e, kStationItems, kStationItemCount, 't');
+    EXPECT_EQ(r.act, ActionId::kTMinusZulu);
+    r = on_key(e, kStationItems, kStationItemCount, 'c');
+    EXPECT_EQ(r.act, ActionId::kTMinusClear);
+    r = on_key(e, kStationItems, kStationItemCount, 'z');
+    EXPECT_EQ(r.ev, Event::kPopped);
+    EXPECT_EQ(top(e), MenuId::kMain);
+
+    r = on_key(e, kStationItems, kStationItemCount, 'd');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+    r = on_key(e, kStationItems, kStationItemCount, 'g');
+    EXPECT_EQ(r.ev, Event::kPushed);
+    EXPECT_EQ(top(e), MenuId::kGps);
+    r = on_key(e, kStationItems, kStationItemCount, 's');
+    EXPECT_EQ(r.act, ActionId::kStationGps);
+    r = on_key(e, kStationItems, kStationItemCount, 'd');
+    EXPECT_EQ(r.act, ActionId::kStationDistance);
 }
 
 TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
@@ -117,14 +147,47 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
 
     Engine s{};
     init(s);
-    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'c').ev, Event::kUnknown);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'c').ev, Event::kPushed);
+    EXPECT_EQ(top(s), MenuId::kClock);
+    on_key(s, kStationItems, kStationItemCount, 'z');
+    EXPECT_EQ(top(s), MenuId::kMain);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'f').ev, Event::kUnknown);
     on_key(s, kStationItems, kStationItemCount, 'q');
     EXPECT_EQ(top(s), MenuId::kDebug);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'i').act,
               ActionId::kDebugI2cScan);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'r').act,
+              ActionId::kDebugRfRates);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
 }
+
+#if defined(ROCKETCHIP_DEV_MODE)
+TEST(CliEngine, DebugOForcesOneTxTimeout) {
+    EXPECT_EQ(kVehicleItemCount, 60u);
+    Engine e{};
+    init(e);
+    on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    const Item* it = find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'o');
+    ASSERT_NE(it, nullptr);
+    EXPECT_EQ(it->act, ActionId::kForceTxTimeout);
+    EXPECT_EQ(it->gate, Gate::kDevRuntime);
+    const auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'o');
+    EXPECT_EQ(r.ev, Event::kAction);
+    EXPECT_EQ(r.act, ActionId::kForceTxTimeout);
+}
+#else
+TEST(CliEngine, FieldDebugHasNoForceTxTimeout) {
+    EXPECT_EQ(kVehicleItemCount, 52u);
+    Engine e{};
+    init(e);
+    on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    EXPECT_EQ(find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'o'), nullptr);
+    const auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'o');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+}
+#endif
 
 TEST(CliEngine, HelpIsNotAPush) {
     Engine e{};

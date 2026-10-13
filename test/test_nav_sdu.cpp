@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
-// Nav SDU packer. STOP-GAP reject-as-PLTU is test_telemetry_encoder.cpp.
+// Nav SDU packer. Legacy 54 B reject-as-PLTU is test_telemetry_encoder.cpp.
 
 #include <gtest/gtest.h>
 #include "starcom_adapt/nav_sdu.h"
@@ -30,8 +30,8 @@ TEST(NavSdu, PackRoundTripFullTelemetryState) {
     const TelemetryState in = make_telem();
     uint8_t buf[kNavSduUserBytes] = {};
     ASSERT_EQ(pack_nav_sdu_user(buf, sizeof(buf), in), kNavSduUserBytes);
-    EXPECT_EQ(sizeof(TelemetryState), 45u);
-    EXPECT_EQ(kNavSduUserBytes, 45);
+    EXPECT_EQ(sizeof(TelemetryState), 51u);
+    EXPECT_EQ(kNavSduUserBytes, 51);
 
     TelemetryState out{};
     out.met_ms = 99;

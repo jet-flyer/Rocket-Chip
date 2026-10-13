@@ -42,6 +42,159 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+### 2026-10-13-001 | Grok Hamilton (Grok Bot) | documentation, tooling
+
+**Off-main work landed on main (cleanup pass from Gene's check).** Three items were off main for days. Nathan approved each one in the Rocket Chip group chat on 2026-10-13.
+
+- CCSDS Prox-1 navigator and `starcom/docs/SHALL_MATRIX.md`. The work was done on 2026-10-03 on branch `ccsds-navigator`. The three commits keep their 2026-10-03 dates.
+- Starcom whiteboard rows: dead code vs unused Starcom features, and cite the book section for each function. The work was done on 2026-10-04 on branch `dead-code-note`. One squashed commit.
+- AGENTS.md ASD-STE100 rule. The first draft was saved on 2026-10-07 and not committed. Nathan revised the wording on 2026-10-13. The rule now covers chat replies, new commit messages and new CHANGELOG entries, and names the current issue, not a date.
+- Old git stashes (9) triaged on 2026-10-13. All are done, superseded or abandoned except stash 2: its station link stats (Starcom nav count, RSSI, SNR, age) did not land. New whiteboard item for a bench check. The patches are archived outside the repo before the stashes are dropped.
+
+Verified: pure-docs and tooling change; no firmware path changed.
+
+### 2026-10-12-002 | Grok 4.7 (Build CLI) | documentation
+
+**FSK plan rev 2, 2026-10-12 decisions.** Commit `0a3bb150` puts §3.1 back after the local revert `649785e5` and records Nathan's 2026-10-12 choices. Detail: `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` §3.1. Whiteboard: high-priority row to find the SX1276 +20 dBm 1% limit cause before any driver-default edit.
+
+Verified: pure-docs change.
+
+### 2026-10-12-001 | Grok Hamilton (Grok Bot) | hardware, documentation
+
+**FPGA notes from Goddard's DM with Nathan.** This commit comes mainly from Goddard's DM thread with Nathan (2026-10-12), finalized in the Rocket Chip group chat with Buzz's datasheet checks. `docs/hardware/FPGA/README.md`: full Forgix RP-T8 wiring (GPIO1-6 and GPIO19, own 32 MHz oscillator, part T8F49I2X), Nathan's jumper-trace idea for Rocket Chip proper, Nathan's point that a PIO-only watchdog is not independent, and which FPGAs can take the AT86RF215 LVDS I/Q port (LP/HX, ECP5, CrossLink-NX, T8 Q144; not UP5K, iCE5LP4K or T8F49), with reference designs marked not for sale. FSK plan rev 1 section 4.4 T3-A points there. Goddard's neural-net sizing report (inference-labelled) is `docs/reports/2026-10-12_goddard_t8-neural-nets.md`. Adaptive frame size research (books, prior art, radio limits; post-pivot) is `docs/reports/2026-10-12_hamilton_adaptive-frame-size.md`.
+
+Verified: pure-docs change; datasheet facts not board-checked.
+
+### 2026-10-11-001 | Grok Hamilton (Grok Bot) | documentation
+
+**FSK plan rev 2, STARS correction, reports folder.** `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` is trimmed about 40% and adds the D3 host model, Q40 (receiver sync options) and S16; section 3.1 records Nathan's 2026-10-11 decisions (edited in the Grok Build session). STARS is JPL open source (Apache-2.0), not commercial: fixed in `docs/flight_director/TOOLCHAIN_EVALUATION.md`, the QP C vs C++ note and `IVP.md`. `docs/reports/` is now tracked (rules in its `README.md`), with Goddard's AO/QEP audit. Whiteboard: DIO5 gets no wire; OPEN item to settle the before/with/after-pivot split of the audit items before FSK pivot work; LATER item to re-check paywall decisions.
+
+Verified: pure-docs change.
+
+### 2026-10-08-003 | Grok Hamilton (Grok Bot) | tooling, hardware, documentation
+
+**Bench once per push; per-board steppings; Tiny 2350.** Branch `grok/bench-once-per-push` (`ae0195c8`) moves the hardware gate from pre-commit to a new pre-push gate (`scripts/ci/pre_push_gate.py`, `scripts/hooks/pre-push`). The gate benches the pushed commit once, in the gate-owned worktree `Rocket-Chip-bench`, and stores a PASS note per bench key (`rc-bench-key v2`: tool versions, Pico SDK state, presets, firmware tree). `scripts/firmware_tree.py` builds the firmware-tree build ID, and `scripts/ci/firmware_paths.txt` is the one path list (`check_elf_paths.py` checks it is complete). The procedure changes are in `standards/HW_GATE_DISCIPLINE.md`, `standards/GIT_WORKFLOW.md`, `docs/FLASHING.md`, `docs/agents/SESSION_CHECKLIST.md` and `scripts/hooks/README.md`. The `[station-scope]` section is removed (it had no effect). Fix found at the first push: git exports `GIT_DIR` to hooks, and the SDK read used the Rocket Chip index; the gate now drops the repo-local `GIT_*` variables (regression test in `scripts/test_pre_push_gate.py`). Grok Build (Build CLI) wrote and committed `1c21d0af` (`t` prints `ID: flight-<hash> tree=<firmware-tree id>` and `PA: <n> dBm (reg)`, decoded from the radio HW registers per the SX1276 datasheet; host test `test/test_radio_pa_decode.cpp`) and `f142a4db` (debug `o` forces one radio HW TX timeout through the existing timeout branch, failure count unchanged; debug help lists it only with runtime DEV MODE on, but the key also ran with DEV MODE off on the flight image (open item); host test `test/test_radio_tx_force.cpp`), from Hamilton's prompt (`Documents/gb-prompts/grok_build_prompt_combined_rev4.md`). `standards/RP2350_ERRATA.md` now records the stepping per board (Feather A2, Fruit Jam A4, Forgix A4, Tiny 2350 A2), cites datasheet build 80d627281ed5 Appendix D, and covers E1-E28 of 31 (Nathan: E29-E31 not relevant). `docs/hardware/HARDWARE.md` has a Tiny 2350 (PIM721) section with the four firmware-map conflicts. The whiteboard has two deferred items: the role vs. bench-target split, and the Tiny 2350 as a core RC analogue for internal logging without telemetry.
+
+Verified: host ctest 1002/1002 (`ae0195c8`), 1007/1007 (`1c21d0af`), 1012/1012 (`f142a4db`) in the pre-commit hook; `scripts/test_pre_push_gate.py` all checks pass. Each commit went out in its own push with the hook on; per push, the gate benched vehicle 2/2 PASS and station 3/3 PASS (`ae0195c8` key 17e0756bdc96, `1c21d0af` key 1b58b3e5303a, `f142a4db` key 3bc47dd14ea5). Radio pushes (`1c21d0af`, `f142a4db`): `scripts/radio_link_bench.py` is not committed, so the two-board soak ran by hand at 2 dBm, 120 s, BW 250 kHz: `land_1c21d0af` vehicle TX 2697, station RX 2641, RSSI -48 dBm, SNR 10 dB, COP-P lock on both; `land_f142a4db` RSSI -49 dBm, SNR 10 dB, LQ 100%, 3 station CRC errors, COP-P lock on both (logs in `Rocket-Chip-bench/logs/soak/`). `t` on both boards printed `ID: flight-f142a4db tree=cafe3243831d...` and `PA: 2 dBm (reg)`. Debug `o` logged `RADIO: TX timeout fired`; TX 89 then 150 sent, 0 fail. Pushes and board runs by Grok Build. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+
+### 2026-10-08-002 | Grok Hamilton (Grok Bot) | bugfix, tooling, hardware, documentation
+
+**Comment fixes, flash-script defects, measured steppings.** This entry closes the items that stayed open after the 2026-10-08-001 push, and its final commit pushes all of this work to `origin/main`. The two comment fixes and the PIO1 wording landed through the bench_sim gate (`a3cd71e3`: `src/safety/fault_protection.cpp`, `include/rocketchip/board_feather_rp2350.h`, `src/safety/pio_watchdog.cpp`, `docs/hardware/PIO_BUDGET.md`). This supersedes the 2026-10-08-001 sentence that says they are not committed. Nathan's go (10:46): the same commit fixes three defects in `scripts/flash_elf_halt_write.py`. It wrote the PC with bit 0 set (Armv8-M ARM rule RXCCB: bit 0 is RAZ/SBZ; OpenOCD does not mask it). On a cp1252 pipe, the transcript print crashed and skipped the OK line and `flashed.json`. It printed OK when core 0 stayed halted after resume; now it reads DHCSR and exits 1. The script fix is not tested on a halted core; the next flash is the first test. Measured RP2350 steppings (Buzz): vehicle Feather A2, Forgix A4, Fruit Jam A4 (`docs/hardware/HARDWARE.md`). Plan H9 is closed. Nathan's decision: 235.1-R-1 (Red) stays a [draft] reference for code-only work (plan decision 5, closed); this supersedes the -001 "stays open" note. Plan §8 PD1–PD3 holds Nathan's reasons (`222804c0`, `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`). Board note (Buzz, observed): an IMU dropout cleared only after both USB and the probe were unplugged. Probe back-power is a reading, not measured. Nathan (11:21): verified CCSDS cite fixes landed (231.0-B-3 → 231.0-B-4 §6.2; 232.1-B-2 "K may never exceed 255" → Table 7-1 NOTE, Cor. 1; plan decision 8 closed; `6e2583be`). The whiteboard has a soldering to-do list (`4f3d7cab`). Nathan (11:49): Manchester (DcFree) considered and not adopted, PD3 note in plan §8.1 (`b9f3002b`); E9 on the vehicle Feather: internal pad pull-up chosen, with a DIO firmware rule (`12a7db84`); the 235.1-R-1 code-only rule is guidance, Tier 3 will involve hardware, and T3-E keeps Annex E **[draft]** (`7fc1bc11`). Nathan: K5 and D2 are closed. Carrier_Only_Duration = 1 Interval_Clock tick is our implementer value, not a deviation (211.0-B-6 §A1.2–§A1.3, DLL-152; timer rules §6.3.1.1.2; 235.1-R-1 **[draft]** same clauses). Plan §8.1 has a PD3 carrier-only note. Nathan: the two parts left open on the whiteboard (`3b788a0b`) are closed, and the whiteboard lines are erased. We chose 1 tick, so the reading about a value of 0 does not apply. The SX1276 output during the tick is a detail for the FSK code (plan §8.1 PD3 note).
+
+Verified: bench_sim 2/2 PASS on the vehicle Feather (banner `flight-136b1ae9`, ELF identity `starcom-v0.2.25-190-g136b1ae98e20-dirty`). Host ctest 1002/1002 on both worktree commits; clang-tidy clean on the firmware commit. Final docs commit: the pre-commit hook passed in a dry run on the staged index before the commit (host ctest 1010/1010; docs only, so no bench_sim trigger). Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
+
+
+### 2026-10-08-001 | Grok Hamilton (Grok Bot) | documentation
+
+**FSK pivot planning sitting.** The RC product-utility research set landed (`868167ce`, `starcom/docs/research/rc-utility-2026-10-07/`). A draft FSK pivot plan landed (`docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`): PHY forms and order, phases, tests, DIO pin rows, open conflict K5, open checks (H6 antenna, H9 stepping). The plan records the E9 scope for every floating vehicle input and the RP2350 stepping evidence from ship dates: Feathers and Pico 2 Ws are A2; the Fruit Jam is probably A4 (H9 open). Nathan's decision: the lunar Prox-1 Pink sheets stay as [draft] references; 235.1-R-1 (Red) stays open. `docs/hardware/PIO_BUDGET.md` l.53 no longer reads as a PIO1 beacon reservation. Verified doc errors are fixed in `docs/hardware/HARDWARE.md` (D12 / D13 pads, SPI pins) and `standards/RF_COMPLIANCE.md` (the (b)(4) cite, BW500 measured bandwidth, grant status, antenna gains and link budget, U.FL, pattern note). The two comment fixes (`src/safety/fault_protection.cpp` beacon comment, `include/rocketchip/board_feather_rp2350.h` pyro comment) are not committed: the bench_sim gate needs a fresh flash. They are on the whiteboard, with the other next items ("Next, before moving on").
+
+Verified: documentation only, no firmware source in this change. Host ctest 1010/1010 on each commit. The one bench_sim hook attempt stopped at its ELF identity check; no board test ran.
+
+
+### 2026-10-06-001 | Grok Hamilton (Grok Bot) | documentation
+
+**CCSDS compliance research notes landed under Starcom.** `starcom/docs/research/` holds the deviation survey, GOY/Magenta reviews, Prox-1 MAC/lunar facts, OTS GMSK BT note, compliance draft (inferences parked), check-2/3 and clause maps, Prox-1 vs USLP notes, plus `research/README.md`. Whiteboard OPEN row for the deviation survey is erased (research deliverable done; nothing product-decided). Prox-1 vs USLP re-eval stays OPEN. Opening-shock / flight_director / config_wizard / test dirties stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+
+### 2026-10-05-002 | Grok Hamilton (Grok Bot) | documentation
+
+**UniClOGS / OreSat LOOK reference pointer.** `starcom/AGENT_WHITEBOARD.md` and root `AGENT_WHITEBOARD.md` add one LOOK row: fielded USLP + COP-1 + SDLS over a non-CCSDS PHY (GFSK ~50 kb/s); not Prox-1. Yamcs / LimeSDR station cites; licenses reference only. Opening-shock / flight_director edits stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+
+### 2026-10-05-001 | Grok Hamilton (Grok Bot) | documentation
+
+**Whiteboard LOOK rows for Prox-1 waveforms / E2d / bands.** `starcom/AGENT_WHITEBOARD.md` and root `AGENT_WHITEBOARD.md` log LOOK rows for waveform separation, half-duplex carrier-only turnaround, E2d option + hardware map, Part 97 / met-aids note, and E2d history cite. Nothing here is a product decision. Opening-shock / flight_director edits stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+
+
+### 2026-10-04-001 | Grok 4.7 (Build CLI) | documentation
+
+**ASD-STE100 stays later. The Starcom user guide is the example.** `starcom/docs/USER_GUIDE.md` helps a reader who does not know CCSDS. The Version-3 / Version-4 choice is one example. `AGENT_WHITEBOARD.md` and `starcom/AGENT_WHITEBOARD.md` hold the later pass for the other Rocket-Chip and Starcom documents. That pass is not started. Library row: `starcom/CHANGELOG.md` 2026-10-04-002. Opening-shock edits stayed unstaged.
+
+Verified: documentation only, no firmware source in this change.
+
+### 2026-10-03-001 | Grok Duke (Grok Bot) | documentation, council
+
+**Magenta Books triaged, FSK coding bench question logged.** starcom/AGENT_WHITEBOARD.md gains an FEC bench question under the FSK row (211.2-B-3 convolutional and LDPC against LoRa's built-in coding, decoder size against the T8, no decision until bench results), Magenta 354.0-M-1 and 722.1-M-2 pointers under the SDLS and CFDP rows, and a Magenta Books triage section. Magenta is peer-level to Blue per A02.1-Y-4 6.1.4.3 but not directly implementable for interoperability. 523.2-M-1, 652.0-M-2, SOIS 851 to 855 and 882.0-M-1 are not for the RP2350 or the Starcom link. Research notes are on the assistant's computer, not in the repo. Requested by Nathan; dated 2026-10-03 for when the research was done.
+
+Verified: documentation only, no source in this change.
+
+### 2026-10-01-003 | Grok 4.7 (Build CLI) | bugfix, feature
+
+**Space Packet header count advances. The 133.0 service is not wired in yet.** Nav, command, and ACK were leaving with sequence count 0. Each end now keeps a 14-bit count per APID (`0x001` nav, `0x003` command or ACK) and adds a receive gap to `rx_lost` (`1f23b35`). Idle APID `0x7FF` forces the secondary-header flag off. That count lives inside `byte_pump` (`src/starcom_adapt/byte_pump.cpp`), the project's own packer, which was already written. It still builds those three packets and hands the frames to COP-P. The 133.0 request and indication layer (`b6a8ca4`, `f19a7a0`) is host-tested and is not wired in yet because that self-implemented service already owns the air path. Library row: `starcom/CHANGELOG.md` 2026-10-01-002.
+
+### 2026-10-01-002 | Grok Hamilton (Grok Bot) | documentation
+
+**CCSDS docs overhaul on `ccsds-docs`.** `starcom/docs/CONFORMANCE.md` and `COVERAGE.md` audited so every claim has a quoted clause or is removed. Stored PDFs in `standards/starcom/ccsds/` replaced with the current issues (131.0-B-6 EC1; B-5 removed), with a current-issues table in `standards/starcom/ccsds/README.md`. Prox-1 randomizer documented from 211.2-B-3 3.4.4.4 / 3.4.5 (LDPC only, shall); B-6 10.2.5 recorded as a quoted note; 133.0-B-2 Packet-Service items recorded. Grok Build task files added in `docs/decisions/prompts/`: `SEQ_COUNT_FIX_PROMPT.md`, `SPACE_PACKET_SERVICE_PROMPT.md`. Open: APID 0x003 two senders, Prox-1 shall sweep, FSK coding option at the FSK pivot (`AGENT_WHITEBOARD.md`). No firmware or source changes.
+
+### 2026-10-01-001 | Grok 4.7 (Build CLI) | documentation
+
+**Other physical layers and the sounding-rocket umbilical are written down.** Proximity-1 stays the 211 books. CCSDS 401.0-B, SatNOGS-COMMS (I/Q partition, Category A image, not 211.1), RCC 106 ascent telemetry, and RCC 319 as a separate termination uplink are in `starcom/docs/DESIGN.md` note 2026-10-01. The NASA/TP–20230006855 (810-HB-SRP, May 2023) umbilical circuit list is `docs/hardware/HARDWARE.md` Regulatory Notes. Shelf URLs, including that handbook, are `standards/starcom/README.md`. FSK on the SX1276s is still the next sitting. Opening-shock stays unstaged. Library pointer: `starcom/CHANGELOG.md` 2026-10-01-001.
+
+### 2026-09-29-002 | Grok 4.7 (Build CLI) | bugfix, council
+
+**Half-duplex turn is shorter, and a periodic hitch remains.** Table 6-10 data-services rows are on the air in `40b83fc` (`starcom/src/ccsds/mac.cpp` and the adapter). Council record: `docs/decisions/HD_HITCH_COUNCIL_2026-09-29.md` (`0488d60`). The station sends the owed PLCW and the pass in one contact (`37acb21`). Desk: station already up, then a Feather power-on. ANSI pad, 180 s, packets 203→2010, 10.0 Hz, median gap 93 ms, longest 338 ms, COP-P lock and nav on every redraw, phase Idle. Operator: the hitch is still periodic, and it is much better. FSK on these SX1276s is the next sitting. N and the vehicle send time stay. Opening-shock stays unstaged. Library row: `starcom/CHANGELOG.md` 2026-09-29-002. Resume: `AGENT_WHITEBOARD.md` half-duplex row.
+
+### 2026-09-29-001 | Grok 4.7 (Build CLI) | tooling
+
+**Half-duplex Table 6-10 model, not finished.** `tools/spin/proximity1_hd.pml` is 211.0-B-6 Figure 6-2 events E38–E50. `tools/spin/run_hd_book_spin.sh` passes the book, a short listen while the peer still radiates, and the flight E38 reload (that reload is not taken once the PLCW has gone out). The silent-open case fails only "both peers in S50". `mac.cpp` was not edited. Three flight rows still differ; a hitch every 1.2 s is not a goal. How to run: `tools/spin/README.md`. Resume: `AGENT_WHITEBOARD.md` half-duplex row.
+
+### 2026-09-25-001 | Grok 4.7 (Build CLI) | feature, bugfix
+
+**Station pad clock.** Zulu and local come from a GPS tie (station fix, else vehicle UTC on the nav packet). MET is one signed clock: countdown is `MET -HH:MM:SS`, after the mark `MET +HH:MM:SS`; `MET_DAYS yes` (HAB) adds the NASA day field `D/HH:MM:SS`. Rocket leaves days off. State is the line under that clock. Station GPS lock is its own row. Clock menu still sets the mark; the vehicle accepts it. Detail: `docs/USER_GUIDE.md` pad section. Product oscillator/RTC options: `docs/hardware/HARDWARE.md` Timekeeping. Desk: Jam `BEC71B8EDC6AEBD1` 3D 9 sat, Zulu and local confirmed, MET blank in IDLE. Same ~1 Hz hitch on this ANSI pad as on the QGC HUD, so it is the telemetry link, not MAVLink. Half-duplex token is the known piece; the turn still looks short. Note on the GCS glass whiteboard row. Prior hitch: 2026-09-21-001.
+
+### 2026-09-24-002 | Grok Hamilton (Grok Bot) | tooling, feature, bugfix
+
+**oMCT glass WIP: no-data X-out, launcher, live text feed fixed.** Link alphas and the CHUTE/GPS caution boxes go grey with a white X after 3 s without data (G1000-style; legend in `docs/gcs/openmct/layouts/README.md`); RSSI/SNR/LQ/Batt limits retuned for SF7/BW125. New Tkinter launcher `docs/gcs/openmct/launcher/` (feed mode, COM port, Play/Stop/Reset, launch oMCT; `make_shortcut.ps1`). Facsimile replay gains a synthetic ARMED pad with link sag (`--pad-s`). Fixes: the historical CSV provider re-fetched and re-requested every view once a second, which cost about a CPU core and flashed NaN on the gauges, so it now polls only a rolling live CSV while the WebSocket is quiet; realtime listeners are per-id arrays so one view closing no longer silences the others; `stream_station.py` no longer sends `m` on open (current station firmware treats it as output-mode cycle, ANSI to CSV) and parses station CSV `RX,seq,rssi,snr` lines too. Commits `e060ee9` and this one. Still WIP: live-glass field mapping, gauges/LAD no-data look, RF page.
+
+### 2026-09-24-001 | Grok 4.7 (Build CLI) | architecture, hardware
+
+**One NeoPixel chain writer.** Station and relay post link mode, RSSI, and config-apply through `AO_Notify`; `AO_LedEngine` draws the chain on every role (`1065ae2`). `AO_Radio` no longer calls the WS2812 driver. Operator colors: `docs/USER_GUIDE.md` LED State Reference. Intent order: `docs/decisions/NOTIFY_CONTRACT.md`. Verified: host 982/982; vehicle bench 2/2 COM5; station bench 3/3 COM7; desk red chase after Feather unplug, dim red on Jam boot with Feather off, Feather solid green, beacon from both `b`, ARM then capital `X` back to green. Feather `02FBDDB8E1CA1281` SHA `5E7CC950…`; Jam `BEC71B8EDC6AEBD1` SHA `7E6967FA…`.
+
+### 2026-09-23-001 | Grok 4.7 (Build CLI) | documentation, hardware
+
+**On-desk krtkl module is snickerdoodle one (~17.6k LUT).** `docs/hardware/FPGA/README.md`, `starcom/docs/DESIGN.md`, and `starcom/AGENT_WHITEBOARD.md` had been counting the black module's ~53k LUT. Encode stays the small Forgix T8 job. LDPC decode stays Pi/GCS software; this fabric is the size already classed out of that place-and-route. Gryphon, the 2015 ArduPilot baseboard, was withdrawn before sale; its schematic is not in krtkl/open-source-schematics. Starcom row: `starcom/CHANGELOG.md` 2026-09-23-001.
+
+### 2026-09-21-001 | Grok 4.6 (Build CLI) | bugfix, hardware
+
+**QGC hard freeze after station reboot: vehicle accepts reconnect hail.** Same-catalog SET TX/RX while the responder was still S50–S62 was dropped as E69; 211.0 E82/E85 then E30 now drop to S2 and accept hail (`macOnHailReceived`, `byte_pump` hail before `macOnValidFrame`). Station USB also answers QGC 5.1.4 InitialConnect `AVAILABLE_MODES` (one MANUAL) and `COMPONENT_METADATA` (empty URI), and sets SYS_STATUS PREARM_CHECK when ESKF is healthy. USB hold-last / 5 Hz / AO flush were tried for the HUD hitch and reverted. Hitch leftover: ~500–800 ms ATTITUDE holes at the HD token. QGC 5.x “configuration tasks remain” on this desk is Generic Joystick + Keychron Q5 HE HID (host HidHide inverse blacklist), not firmware. Library row: `starcom/CHANGELOG.md` 2026-09-21-001. Verified: `starcom.unit`; host GcsMavlink+StarcomBytePump; station-only reflash while vehicle `A/s50` RATE window 646 s, COM7 ATTITUDE 6.43 Hz max gap 630 ms; QGC live HUD after Feather stayed up. Station ELF on Jam `BEC71B8EDC6AEBD1`; vehicle `02FBDDB8E1CA1281`.
+
+### 2026-09-20-001 | Grok Hamilton (Grok Bot) | tooling, documentation, feature
+
+**oMCT Master Dashboard live PoC.** QGC-style instrument ring on facsimile; live Fruit Jam COM7 into the same WS glass via `docs/gcs/openmct/realtime/stream_mavlink_station.py` when USB is MAVLink (station STX lock). Serve parent `docs/gcs/openmct/` so plugins load (hello-world-only root 404'd RcCsvDictionaryPlugin). PoC only — field/RSSI mapping and MAVLink toggle-only (kill auto-STX) parked on WB. Layout notes: `docs/gcs/openmct/layouts/README.md`.
+
+
+### 2026-09-19-001 | Grok 4.6 (Build CLI) | feature, bugfix, hardware
+
+**Station USB MAVLink for QGC (handshake + DTR overlay).** Overnight: first STX `0xFD`/`0xFE` takes exclusive CDC (no `m`); 1 Hz HEARTBEAT+SYS_STATUS; per-nav ATTITUDE+GLOBAL_POSITION_INT+GPS_RAW via `gcs_mavlink`; COMMAND_LONG ACKs. Morning QGC 5.1.4 comm-lost: `PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=0`, `CONNECTION_WITHOUT_DTR=1`, 1500 ms kMavlink debounce; USB writes use `tud_ready()`. Hitch worse when ATTITUDE `time_boot_ms` used vehicle `TelemetryState.met_ms` (boot-ms placeholder; launch T+ MET not implemented) — stamp station `now_ms`. Do not retune LoRa/COP-P/PLCW/K. Identify flash by ELF SHA-256. Verified: host GcsMavlink 17/17 twice; COM7 capture ATTITUDE 6.50 Hz / HEARTBEAT 1.17 Hz; user hitch ~1 Hz same as 00:40–01:11, live HUD, no comm-lost; vehicle `bench_sim` 2/2 COM5 Hardware 13/13 `[SC] hail ok` sensors healthy GO `d39bc710…`; station `bench_sim` 3/3 COM7 COP-P lock nav. Station ELF `12c820fd…` Fruit Jam `BEC71B8EDC6AEBD1`; vehicle `d39bc710…` Feather `02FBDDB8E1CA1281`. QGC 5.1.4 may not flush tlogs until process exit; `picotool -f` on the Feather can latch STEMMA (Hardware 11/13, `nav_submit=0`) until USB unplug.
+
+
+
+### 2026-09-18-002 | Grok 4.6 (Build CLI) | bugfix, feature, documentation
+
+**Pad glance matches HD air; RATE off the operator pad.** RF Link is COP-P lock + CRC-ok LQ + heard RX Hz (not RfManager 10 Hz miss slots / Lost). MET from nav SDU; `Air:` includes `V(R)`; RATE dump is `x` `q` `r` / `t`. Asymmetric HD MIB: vehicle `Send_Duration` N=11 nav slots, station one PLTU ToA (211.0 6.2.4.17–18). Table: `src/starcom_adapt/README.md`; book MIB in `starcom/docs/USER_GUIDE.md` (RC example labeled not universal). Starcom GLOSSARY/USER_GUIDE: `starcom/CHANGELOG.md` 2026-09-18-002. Verified: host DashFormat+StarcomBytePump+CliEngine 54/54; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; pad `RF Link: COP-P LQ 100% RX 7.2 Hz [OK]` CRC 0 `Last: 0.0s`.
+
+### 2026-09-18-001 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
+
+**Pad ARM/DISARM ACK on desk COP-P.** Half-duplex Prox-1 session (211.0 6-10/6-12/6-14, 8.2.1 e `N(R)` notify; Format ID 1 PLCW not SET TX/CONTROL/RX). `f79f7dc`. Pad `CMD: ARM/DISARM ACK` + `State: ARMED` then DISARM ACK + IDLE (`N(R)=2`). USER_GUIDE station bar: green flash = RF no lock, solid RSSI = COP-P lock; ARM/DISARM wait on `CMD:` / `State:`. Library MAC/COP-P (E38, E83, `coppReset`) is `starcom/CHANGELOG.md` 2026-09-18-001, not duplicated here. Verified: host 937/937; vehicle `bench_sim` 2/2 COM5; station `bench_sim` 3/3 COM7; desk ACK 630 ms / 981 ms.
+
+### 2026-09-17-003 | Grok 4.6 (Build CLI) | bugfix, hardware, documentation
+
+**Pad `Air:` COP-P lock.** P-frame PLCW (Format ID 1) was classified as SET TX when V(R)=0, so `plcw_heard` never set. `macTickPlcw` now arms the MIB interval; PLCW repeat is 4× nav. Port of `f19ae96` classify/timer only (not the RSSI-bar rewrite). Host `StationReinitLocksOnVehiclePlcw`. Desk: `COP-P lock  N(R)=0 V(S)=0  nav` TRACK ~7.5/10 Hz. ARM ACK still FAIL (`V(S)=1`, no ACK in 3840 ms).
+
+### 2026-09-17-002 | Grok 4.6 (Build CLI) | tooling, bugfix, documentation
+
+**Catalog ToA skip + role-aware pre-commit.** NAV_PRESET/`SET` skip leftover 125/10 via `radio_config_next_fit`. Station-only diffs (`src/station/`, Fruit Jam board, dashboard) run `station_bench_sim` only. Pad `GPS (veh):`. Tiny/Pico2 `board_led_set` honors `kLedActiveHigh`. Living STOP-GAP comments retargeted to pre-Starcom 54 B / COP-P air.
+
+### 2026-09-17-001 | Grok 4.6 (Build CLI) | documentation, tooling
+
+**Hygiene sitting: PR queue empty, WB dated leftovers gone, Starcom-owned rows on the Starcom board.** Closed R-27/30/31/32/10b (`docs/PROBLEM_REPORTS.md`; USER_GUIDE keys in `1ba4e22`). Starcom WB now holds FSK / station readiness bit / SDLS (`starcom/CHANGELOG.md` 2026-09-17-001). Living consumer docs no longer call RC air STOP-GAP (frozen CHANGELOG/plans/audits left as history). Catalog ToA skip + role-aware pre-commit remain unstaged (no CMSIS-DAP/COM5 this sitting). Next: pad `Air:` COP-P lock + ARM ACK.
 
 ### 2026-09-16-001 | Grok 4.6 (Build CLI) | hardware, feature, documentation
 

@@ -71,6 +71,12 @@ struct MissionProfile {
     uint32_t baro_landing_sustain_ms;       // Sustain window for baro-stationary guard
     uint32_t descent_max_duration_ms;       // Last-resort backstop, 0=disabled
 
+    // Opening shock, every profile. Specific force above a settled canopy (~1 g)
+    // and a drop in NED down-speed. Gravity cannot produce that drop.
+    float chute_spike_mps2;
+    float chute_deltav_mps;
+    uint32_t chute_sustain_ms;
+
     // --- Safety lockouts ---
     // Phase gating (COAST/DROGUE only) is primary. Tune velocity vs chute rating.
     float deploy_lockout_mps;           // Velocity lockout for deployment (m/s)
@@ -108,6 +114,12 @@ struct MissionProfile {
     float default_lat_deg;              // Latitude for no-GPS WMM lookup (Dallas TX default)
     float default_lon_deg;              // Longitude for no-GPS WMM lookup
     bool  has_default_location;         // True if default_lat/lon are a real location (explicit, replaces 0,0 sentinel)
+
+    // 0 = MET is time since plug-in. Otherwise the FlightPhase that starts
+    // MET when the vehicle detects it. Launch is FlightPhase::kBoost.
+    uint8_t met_start_phase;
+    // True: NASA day/hh:mm:ss (HAB). False: hh:mm:ss only (rocket).
+    bool met_show_days;
 
     // --- Phase Q/R ---
     // Per-phase noise model for ESKF adaptive estimation.

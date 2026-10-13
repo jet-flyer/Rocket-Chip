@@ -7,75 +7,103 @@
 
 ## Pre-Flight Checklist
 
-1. **Power on** — USB-C or LiPo. Wait for LED to start blinking blue (~2s).
+1. **Power on** — USB-C or LiPo. The LED cycles rainbow for about 3 s
+   (longer if the IMU or ESKF is not ready yet), then the sensor color.
 2. **Connect serial** — 115200 baud, any terminal. Banner prints on connect.
 3. **Check LED color** — see LED Reference below. Target: solid green (3D GPS fix).
 4. **Check sensors** — vehicle: `q` then `s` (main `s` is settings, not sensors).
    Verify IMU/baro reading, GPS 3D with >4 sats if used, ESKF healthy.
 5. **Check health** — vehicle/station menu `p` (Go/No-Go). Station pad GPS
    digits are **vehicle telem**, not Fruit Jam’s local fix (`x` then `g`).
-6. **Arm** — station **pad**: `a`, type `ARM`, Enter. Wait for ACK.
-   Vehicle LED goes **red solid** (ARMED). Pad DISARM is `D`; menu DISARM is `X`.
+6. **Arm** — station **pad**: `a`, type `ARM`, Enter. Wait for ACK
+   (half-duplex token; typically ~1 s, not instant). Vehicle LED goes
+   **red solid** (ARMED). Pad DISARM is `D`; menu DISARM is `X`.
+   Wait-vs-downlink table: `src/starcom_adapt/README.md`.
 
 ---
 
 ## LED State Reference
 
-### Normal Operation (vehicle)
+One NeoPixel chain per board. Length is `kNeoPixelCount` (Feather 1, Fruit Jam 5). Every image draws it through `AO_Notify` → `AO_LedEngine`. The radio reports link state; it does not write pixels. Priority: fault, then a posted station link, then calibration, flight phase, radio, then sensors.
+
+Blink is 1 Hz (500 ms on / 500 ms off). Fast blink is 5 Hz. Colors are `ao_led_engine.cpp`.
+
+### Boot and sensors (vehicle, idle)
 
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| Blue | Blink (1Hz) | Booting / no GPS / sensor init |
-| Red | Fast blink | ESKF not initialized — keep board still |
-| Magenta | Solid | Sensor phase timeout (>5 min, no ESKF) |
-| Cyan | Fast blink | GPS init, no NMEA sentences yet |
-| Yellow | Blink | GPS searching for satellites |
+| Rainbow | Cycle (~6 s) | Boot, about 3 s minimum, until IMU and ESKF are up |
+| Red | Fast blink | ESKF not initialized — keep the board still |
+| Magenta | Solid | Sensor phase timed out (>5 min) |
+| Cyan | Fast blink | GPS init, no NMEA yet |
+| Yellow | Blink | GPS searching |
 | Green | Blink | GPS 2D fix |
-| Green | Solid | GPS 3D fix — ready to fly |
+| Green | Solid | GPS 3D fix |
+| Blue | Blink | ESKF up, no GPS |
 
-### Flight Phases
-
-| LED Color | Pattern | Meaning |
-|-----------|---------|---------|
-| Yellow | Solid | Armed |
-| White | Fast blink | Boost detected |
-| White | Blink | Coast |
-| Cyan | Blink | Drogue descent |
-| Blue | Blink | Main descent |
-| Green | Slow blink | Landed |
-| Red-White | Alternating | Beacon (abort timeout or backstop landing) |
-
-### Fault Indicators
+### Flight phases (vehicle)
 
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| Magenta | Solid | Core 1 stall (sensor loop not running) |
-| Red | Solid | IMU fault |
-| Orange | Solid | Baro fault |
-| Red-Orange | Alternating | ESKF fault |
+| Yellow | Double-flash (~3 s) | ARM rejected |
+| Red | Solid | Armed |
+| Red | Solid | Boost |
+| Yellow | Solid | Coast |
+| Red | Blink | Drogue descent |
+| Red | Blink | Main descent |
+| Green | Blink | Landed |
+| Red | Fast blink | Abort |
+| White | Blink | Manual find-me beacon |
+| State + white | Alternate, 2 Hz | Automatic recovery beacon (keeps the underlying color) |
+
+Armed and boost are the same red solid. Phase on the pad is the way to tell them apart.
+
+### Radio (vehicle, idle only)
+
+Shown when no fault, calibration, or flight phase is active. Gaps are time since the last packet.
+
+| LED Color | Pattern | Meaning |
+|-----------|---------|---------|
+| Green | Solid | Packets within 2 s |
+| Yellow | Blink | Gap of 2–5 s |
+| Red | Fast blink | No packet for 5 s |
+
+### Faults (vehicle, cover everything else)
+
+| LED Color | Pattern | Meaning |
+|-----------|---------|---------|
+| Magenta | Solid | Core 1 stall |
+| Blue + white | Alternate, 2 Hz | Safe mode |
+| Red | Fast blink | IMU fault |
+| Red | Blink | ESKF fault |
+| Orange | Fast blink | Baro fault |
+| Orange | Solid | PIO watchdog |
 
 ### Calibration (vehicle CLI)
 
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| Blue | Breathe | Gyro or level cal — hold still |
+| Yellow | Blink | Gyro or level cal — hold still |
 | Cyan | Breathe | Baro cal — sampling |
-| Yellow | Blink | Accel cal — move to next position |
-| Yellow | Solid | Accel cal — hold still (sampling) |
+| Yellow | Blink | Accel cal — move to the next position |
+| Yellow | Solid | Accel cal — hold still |
 | White | Rainbow | Mag cal — rotate freely |
 | Green | Solid | Cal step passed |
 | Red | Fast blink | Cal step failed |
 
-### Station (RX mode)
+### Station
 
-Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel / `AO_LedEngine`. Gated on decoded Starcom (nav SDU or peer PLCW), not raw LoRa FIFO. Pad `Air:` COP-P lock vs waiting peer PLCW is a separate protocol row.
+Station and relay images post the link into the same engine. A multi-pixel chain (Fruit Jam has five) uses the shapes below. A one-pixel chain runs the same calls: the sweep is solid, and the RSSI fill is that one pixel. A one-pixel vocabulary (strength as a color, loss of signal as a pulse) is later work.
+
+RF-on-band is raw LoRa RX (pad `Last:` / `Pkts:`). COP-P lock is pad `Air:` `COP-P lock`. A solid RSSI fill is lock with RF in the last 2 s.
 
 | LED Color | Pattern | Meaning |
 |-----------|---------|---------|
-| RSSI green→red | Solid bar | Vehicle heard in the last 2 s (same 2 s hold as RF Link gap) |
-| Red | Cylon (one pixel walking the bar) | Had a live link, now LOS — keeps sweeping until packets return |
-| Dim red | Pixel 0 only | Never heard Starcom this boot |
-| Yellow | Cylon | Radio config apply in flight (`apply_in_progress`); not LOS |
+| Green | All pixels flash (~2 Hz) | CRC-ok LoRa in the last 2 s, no COP-P lock |
+| Green → red | Solid fill | COP-P lock and RF in the last 2 s |
+| Red | One pixel walking the chain | Had RF, now loss of signal |
+| Dim red | First pixel only | Never heard RF this boot |
+| Yellow | One pixel walking the chain | Radio config apply in progress |
 
 ---
 
@@ -86,7 +114,7 @@ Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel
 1. Press `a` — prompt appears: `Type ARM to confirm:`
 2. Type `ARM` (case-sensitive, 3 characters)
 3. Press Enter — command sent with ACK tracking
-4. Wait for `ARM ACK'd` message (up to 3 retries, 3s each)
+4. Wait for pad `CMD: ARM/DISARM ACK` and `State: ARMED` (`[CMD] ACK'd` on COP-P `N(R)` catch)
 5. Vehicle LED changes to armed pattern (**red solid**, Stage L / APM2)
 
 **Typo/timeout:** If you mistype or wait >10s, the confirm is cancelled.
@@ -94,7 +122,7 @@ Fruit Jam **5-LED bar** (`AO_Radio` `handle_rssi_bar`). Not the vehicle NeoPixel
 ### DISARM (station)
 
 1. **Pad:** press `D`. **Menu** (after `x`): press `X`.
-2. Wait for `DISARM ACK'd` message
+2. Wait for pad `CMD: ARM/DISARM ACK` and `State: IDLE`
 3. Vehicle returns to idle LED pattern
 
 **Note:** Vehicle main `x` is erase-all-flights, not DISARM. Station pad `x` opens the menu.
@@ -263,7 +291,7 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 
 ## Serial Commands — Station
 
-**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Pad `GPS (veh):` is vehicle telem.
+**Pad** (dashboard default): `'a' ARM  'D' DISARM  'x' menu`. Header is `MET` + `Zulu` + `Local` on one line, then `State` on the next. `GPS (veh):` is vehicle telem. `Zulu` is station GPS UTC (Fruit Jam PA1010D), kept moving by the station clock between NMEA seconds. `Local` is that UTC plus a zone from the station fix: US/EU daylight rules inside coarse boxes, otherwise the 15° nautical zone. `MET` is one clock. Rocket profiles show `MET ±HH:MM:SS`. `MET_DAYS yes` (HAB) shows the NASA day field, `MET ±D/HH:MM:SS`. A mark set from the clock menu is that zero. With no mark, flight profiles start `T+` when the vehicle detects launch, and `MET_START 0` counts from plug-in. The pad does not pick liftoff. `Veh up` is vehicle time since boot until that clock is running. The station `Up` on the GPS row is time since the station booted. `RSSI` is SX1276 packet RSSI (dBm). Pad `Air:` includes `N(R)` `V(S)` `V(R)`. `RF Link` is COP-P lock + CRC-ok LQ + actual RX Hz (not 10 Hz miss slots). `CRC:` is CRC-fail count, not RfManager Lost. RATE counters are not on the pad.
 
 **Menu** (after `x`):
 
@@ -271,13 +299,17 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 |-----|--------|
 | `h` / `?` | Help |
 | `p` | Preflight Go/No-Go |
-| `t` | Radio status |
-| `g` | Station-local GPS (Fruit Jam PA1010D) |
-| `d` | Distance (needs station GPS fix) |
+| `c` | Clock (`n` T- in N minutes, `t` T- at Zulu `HHMMSS`, `c` clear, `z` back). A Zulu mark that is already past is the next UTC day. Minutes are 1–1440. |
+| `g` | GPS (`s` station fix, `d` distance, `z` back) |
+| `t` | Radio status (CFG, RSSI, COP-P, RATE dump) |
 | `a` | ARM confirm |
 | `X` | DISARM |
+| `m` | Cycle output: ANSI → CSV → MAVLink (QGC / Mission Planner) |
+| `q` | Debug (`r` RF rates) |
 | `s` | Settings (`n` next radio preset) |
 | `z` | Back to pad |
+
+**QGC / Mission Planner:** connect the GCS to the **station** USB COM port (MAVLink v2 serial, 115200). Do not point those programs at LoRa or FSK. Starcom stays on the air; the station re-encodes USB MAVLink. First MAVLink byte (`0xFD`/`0xFE`) takes USB exclusively — pad/CLI off. Open QGC on that COM; `m` is only needed from the station menu if auto-switch missed. HUD follows heard nav (~7–10 Hz). ARM from the pad, not from QGC yet. Disconnect QGC (or unplug USB) to return to the pad — do not type in that COM while QGC owns it.
 
 ---
 

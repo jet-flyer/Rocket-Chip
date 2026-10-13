@@ -51,7 +51,7 @@ A separate **Trigger-Driven Documentation Edits** section captures rules that do
 - **Research before implementing.** Before writing code that touches hardware interfaces or sensor drivers, check relevant documentation, datasheets, and especially recent forum posts for guidelines and known issues.
 - **Log as you go.** Don't batch all documentation to the end. If you discover something unexpected, note it immediately.
 
-**Flight-path canary (only if this work is in play — not because you opened this file).** If the user has asked for, or you are about to edit, flight-critical paths (`src/flight_director/`, `src/active_objects/ao_flight_director.cpp`, `src/active_objects/ao_logger.cpp`, `src/cli/rc_os.cpp`, or firmware `[FD]` log messages), run `python scripts/bench_sim.py` **before** any of those edits. If it fails on unchanged main, the tool has rotted — fix the tool first (LL 36). How to run it (probe, OpenOCD, positive-control): `standards/HW_GATE_DISCIPLINE.md` and `docs/agents/DEBUG_PROBE_NOTES.md`. The pre-commit hook runs the same script when those paths are staged; this canary is the *pre-edit* check for rot from a prior `--no-verify` commit. Typical 2/2 run is seconds, not minutes — false positives (running once extra) are fine.
+**Flight-path canary (only if this work is in play — not because you opened this file).** If the user has asked for, or you are about to edit, flight-critical paths (`src/flight_director/`, `src/active_objects/ao_flight_director.cpp`, `src/active_objects/ao_logger.cpp`, `src/cli/rc_os.cpp`, or firmware `[FD]` log messages), run `python scripts/bench_sim.py` **before** any of those edits. If it fails on unchanged main, the tool has rotted — fix the tool first (LL 36). How to run it (probe, OpenOCD, positive-control): `standards/HW_GATE_DISCIPLINE.md` and `docs/agents/DEBUG_PROBE_NOTES.md`. The pre-push gate runs the same script once per push for the commit being pushed; this canary is the *pre-edit* check for rot from a commit that no gate benched. Typical 2/2 run is seconds, not minutes — false positives (running once extra) are fine.
 
 ---
 
@@ -59,12 +59,16 @@ A separate **Trigger-Driven Documentation Edits** section captures rules that do
 
 These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTONE.
 
-1. **Verify build compiles clean.** For the relevant tier(s) given the staged paths. The pre-commit hook gates host ctest automatically; target builds (`cmake --build build/`) are the agent's responsibility for changes that affect them.
+1. **Verify build compiles clean.** The pre-commit hook runs host ctest. When a firmware path is staged (`scripts/ci/firmware_paths.txt` `[elf]`), it also runs the flight target cross-compile for both roles (`build_flight` = preset `vehicle-flight`, `build_station_flight` = preset `station-flight`), so every commit builds for `git bisect`. After the cross-compile, the hook runs the list-completeness check (`scripts/ci/check_elf_paths.py`). The check reads the files that the two builds used. If a repo file is not in `[elf]`, the commit stops. Add that path to `[elf]` and commit again. The hook does not run the bench; the push does (item 6).
 2. **No orphaned work.** Every file change being committed should be intentional. No half-finished edits left in the working tree from prior tool calls.
 3. **No unintended deletions.** Run `git diff --stat` (or `git status --short`) and verify the diff matches what the commit is claiming to do. If files are being deleted, confirm that was intentional.
 4. **Commit message.** Format: `[agent] brief description of what and why`. If a HW gate ran for this commit (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md` Rule 3. Pure-software changes are exempt — say so explicitly in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
 
-4a. **Hardware gate readiness.** When the pre-commit hook indicates that hardware verification is required (e.g. “HW VERIFICATION NEEDED” or “OpenOCD not on localhost:3333”), start OpenOCD using the commands in `docs/agents/DEBUG_PROBE_NOTES.md` (or `scripts/start_openocd_pico_sdk.ps1`) before proceeding with the commit. `--no-verify` may only be used with explicit repo-owner approval in the current session.
+   A firmware commit does not cite a bench run. Cite what ran at commit time ("Verified: host ctest N/N, flight target cross-compile both roles; bench at push"). The push cites the bench (item 6).
+
+4a. **Run the hook first, and retry the same commit.** Stage the change. Dry-run the hook: `git hook run pre-commit` (or `"C:\Program Files\Git\bin\bash.exe" scripts/hooks/pre-commit`). If a gate fails, Git makes no commit. Fix the cause, stage again, and run the same commit again. Do not make a separate fix commit. Never use `--no-verify`.
+
+4b. **Commit what you tested.** Host ctest and the cross-compile use the working tree, not the index. If the tree holds changes that this commit does not include (for example the repo owner's uncommitted work), commit from a clean worktree (`docs/agents/WORKTREE.md`). Never stash the owner's work. Do not test from a `git checkout-index` export: the submodules export as empty folders. Start OpenOCD from the **main checkout**, not from a worktree: OpenOCD started in a worktree locks that folder.
 5. **Trigger-driven doc edits ride with the trigger** (see "Trigger-Driven Documentation Edits" section below). If this commit changed a fact a state-of-system protected doc states, the doc edit goes in the same commit, not a separate one.
 
 5a. **Change Impact Analysis for non-trivial changes.** Before staging a commit that touches a flight-critical path, a state-of-system protected doc, or any mechanism that other code depends on, name the dependency footprint:
@@ -82,18 +86,40 @@ These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTO
 
 Inherits all Per Commit rules. Adds the rules below — these run **once** before `git push`, regardless of how many commits accumulated since the last push.
 
-6. **Station/vehicle build parity check.** If any commit being pushed modified `CMakeLists.txt`, `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
-   ```
-   cmake --build build_flight/         # vehicle flight (single tier post-R-25-exec 2026-05-13)
-   cmake --build build_station_flight/ # station flight (ROCKETCHIP_JOB_STATION=1)
-   ```
-   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with `cmake -B build_flight ..` (or `cmake -B build_station_flight -DROCKETCHIP_JOB_STATION=1 ..`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push. (Single flight binary per role with runtime test-mode gating via `rc::test_mode_active()`; see `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
+5b. **OpenOCD check (agent step).** Before `git push`, check whether OpenOCD is running on `127.0.0.1:3333`. It may already be running. If it is not running, start it from the main checkout (the first line of `git worktree list`) with `powershell -ExecutionPolicy Bypass -File scripts\start_openocd_pico_sdk.ps1` (`docs/agents/DEBUG_PROBE_NOTES.md`). Never start it from a worktree: the running process locks the folder it starts in. The gate prints that folder. The debug probe does not flash in this procedure; OpenOCD serves only the gate's OpenOCD check. The pre-push gate only checks for OpenOCD and fails closed. It never starts OpenOCD and never skips the bench.
+
+6. **Bench once per push.** The pre-push hook (`scripts/hooks/pre-push`) benches the commit being pushed, not HEAD. Plan first, with no build and no board: `python scripts/ci/pre_push_gate.py --plan`. Then `git push`. The gate:
+   - warns when the push shape breaks item 6b (warning only);
+   - skips the flash and the bench when a git note (`refs/notes/rc-bench`) records a PASS for the same bench key and the same boards. The bench key covers the firmware tree, the gate files, the compiler, picotool and pioasm versions, the Pico SDK (path, commit, dirty state and submodules) and the CMake presets. The note records the USB serial of each benched board. The gate reuses the note only when each of those boards is attached. A docs-only push matches. The notes stay local: push only from the bench PC (its worktrees share the notes), and do not push the notes;
+   - otherwise builds the pushed commit in the clean bench worktree (`<main checkout>-bench`) and checks the build ID (firmware-tree hash, `kFirmwareTreeId`);
+   - stops and names the ELF to flash when the board does not hold that build. Flash each board, then run `git push` again:
+     - **Path 1** (both setups; use this): `picotool load <uf2> -f --bus <bus> --address <addr>` over USB, then `python scripts/flash_elf_halt_write.py --elf <elf> --record-only` (`standards/HW_GATE_DISCIPLINE.md` Rule 5), then wait for LED and CDC. `picotool load -f` returns to the app by itself (`docs/FLASHING.md` "Picotool"). If a fresh boot is needed, use CLI `k` (I2C-safe restart). Do not `reset halt` (`docs/FLASHING.md` rule 2).
+     - **Path 2** (alternative, only the setup with the debug probe; `docs/FLASHING.md` "Iterative flash"): `python scripts/flash_elf_halt_write.py --elf <elf>`. It needs OpenOCD, started from the main checkout.
+   - runs the bench for each role with `--commit <sha>`, writes the note, and prints the citation line. Put that line in the last commit or the CHANGELOG entry (Rule 3). A firmware (`[elf]`) or `[gate]` change benches BOTH roles: `bench_sim.py` (vehicle) and `station_bench_sim.py` (station). Only when every firmware path is in `[station-only]` does the station bench run alone. Attach and flash both boards before a firmware push.
+
+   **Fresh mode.** Use fresh mode after any hardware change on the bench: a radio board swap, or a jumper, solder or antenna change. Push with `RC_BENCH_FRESH=1 git push`. Plan with `python scripts/ci/pre_push_gate.py --plan --fresh`. Fresh mode ignores all bench notes. The bench key covers compiler, picotool, pioasm and Pico SDK updates, so they do not need fresh mode.
+
+   Both roles build from one source list (`CMakeLists.txt`), so a change can build on one role and break the other. The pre-commit cross-compile covers both roles on every firmware commit. The pre-push bench tests both roles for the same reason.
+
+6a. **Radio push.** A change to any `[radio]` path in `scripts/ci/firmware_paths.txt` is a radio push. The link has two ends: bench BOTH boards, even when only one image changed. The file list decides only which board needs a fresh flash. The other board must run a known-good image: a clean build whose firmware tree has a bench PASS note for that role, with the same air protocol (build ID check). Before a radio push:
+   1. The station board is powered and runs a known-good image (clean build, bench PASS note for that role, same air protocol).
+   2. Desk radio power stays at 2 dBm on both boards.
+   3. The bench forces a radio HW TX timeout and sees it fire. A clean round trip alone does not prove the timeout works.
+   Then the two-board round trip must pass: radio HW TX on one board, RX on the other, and back. **Not built yet:** the round-trip script (`scripts/radio_link_bench.py`), the forced TX-timeout hook and the 2 dBm readback. The gate enforces this item only when the pushed commit contains that script; they land together. Until then this is an agent rule: the gate prints a WARNING, and you run the two-board soak (`scripts/soak_two_board.py`) by hand and cite it.
+
+6b. **Push shape (agent rule).** At most 5 firmware commits per push, so one bench run stays traceable to a commit. A pyro/deploy, guard, radio-adapter or turnaround commit goes in a push of its own (classes: `[isolate:*]` in `scripts/ci/firmware_paths.txt`). Split a push with `git push <remote> <sha>:<branch>`. The gate prints a WARNING when a push breaks this rule; it does not block. You own this rule.
+
+6c. **Bench failure.** Nothing was pushed. Find the bad commit (`git bisect` over the pushed range; each step needs a build and a flash). Fix it in place: `git commit --fixup=<sha>`, then `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash <remote>/<branch>`. Push again. Never `--no-verify`.
+
+6d. **Flight release is its own gate.** Only a tagged, bench-passed commit flies, and only after the soak test and the flight checklist run on that exact binary. A bench pass is not flight qualification (`standards/HW_GATE_DISCIPLINE.md` Rule 8).
 
 7. **Triggered-doc edits are committed, not WIP.** If this push window produced a CHANGELOG entry, `PROJECT_STATUS.md` add, whiteboard change, or other user-allowed cadence/protected edit, those edits must be committed — not left unstaged. Do **not** invent extra protected-doc edits just to have something for this item. (The principle is "the diff and the doc are atomically consistent in git history.")
 
     **If this sitting is not on `main`:** `CHANGELOG.md` and `docs/agents/LESSONS_LEARNED.md` are committed on `main` in the primary tree, not in the same commit as the feature. "With the work" does not mean those two paths share the feature SHA. Detail: `docs/agents/WORKTREE.md`. Other cadence/protected edits still ride with the feature commit.
 
 8. **CHANGELOG — opt-in.** Do **not** write an entry because you committed, pushed, merged, finished a sub-task, or judged the work significant. Write one **only** if (a) the user **asked for a CHANGELOG entry** (named `CHANGELOG.md` or said to write one), or (b) the user **explicitly asked to run the full wrap-up / Session End checklist**. Casual wrap / “merge to main” / “I think we’re done” is **not** (b). **Handoff** is not a wrap — no entry unless the user asks.
+
+    **When:** write the entry once, as the last commit before the push. Until the push, change it with `git commit --amend`; do not add a follow-up CHANGELOG commit. Cite only commit SHAs that will not change before the push.
 
     **Where (sitting not on `main`):** if item 8’s when-clause is met, write that entry on `main` in the primary tree, never on the worktree/feature branch. Pushing the feature branch is not "the log is on main." `docs/agents/WORKTREE.md`.
 
@@ -212,7 +238,7 @@ Protected docs come in two kinds with different edit rules.
 | `docs/plans/*.md` | Per-stage plans freeze on commit. Once a stage executes, the plan is historical even if execution diverged from it. Edits are typo-correction only. |
 | `docs/audits/*.md` | Each audit is dated and frozen. New audits are new files. |
 | `docs/baselines/*` | Each baseline is a frozen snapshot. New baselines are new directories/files. |
-| `CHANGELOG.md` | Append-only historical event log. The current entry being drafted in this commit is state-of-system until it ships; after commit, frozen. |
+| `CHANGELOG.md` | Append-only historical event log. The current entry is state-of-system until it is pushed; after push, frozen. |
 | `docs/agents/LESSONS_LEARNED.md` | Append-only. Each entry is historical. Existing entries get edits only for typo-correction or for explicit supersession headers (e.g., the LL Entry 25 "SUPERSEDED 2026-04-22" header is legitimate because it adds context to the historical record without rewriting it). |
 | `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` (Resolved section only) | Historical record once a deviation is marked Resolved. The Active section above is state-of-system. |
 

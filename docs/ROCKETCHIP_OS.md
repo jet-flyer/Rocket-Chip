@@ -104,7 +104,7 @@ Station firmware (`ROCKETCHIP_JOB_STATION=1`) has a different UI from the vehicl
 
 | Mode | Description |
 |------|-------------|
-| `kAnsi` | **Default on clean boot.** Live dashboard with RSSI bar, MET, state, GPS, radio config, ARM indicator. Redraws on each RX packet or 1 Hz idle. |
+| `kAnsi` | **Default on clean boot.** Live dashboard with RSSI, MET, Zulu (station GPS), state, GPS (veh), radio config, COP-P `Air:`, ARM. Redraws on each RX packet or 1 Hz idle. |
 | `kCsv`  | Plaintext CSV stream — one line per RX nav packet. For logging / scripted parsing. |
 | `kMavlink` | MAVLink-over-USB passthrough for QGC / Mission Planner. |
 | `kMenu` | Vehicle-style single-key CLI (main menu). Required for any debug-menu operations (`q…z`), calibration, flight-director injection. |
@@ -117,8 +117,7 @@ cycling is kMenu-only now. ABORT is deliberately not bound from the
 dashboard — NAR High Power Safety Code §6 treats the rocket as a
 ballistic object post-ignition, so there is no in-flight ABORT channel
 exposed in the fast-access UX. (An advanced / debug-menu ABORT path
-remains for pre-launch safety.) STOP-GAP pending full CCSDS command
-layer.
+remains for pre-launch safety.) ARM/DISARM ride Starcom cmd SDU.
 
 Only these keys are accepted; all others are silently dropped:
 

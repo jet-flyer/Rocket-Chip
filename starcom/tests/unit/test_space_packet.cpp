@@ -69,6 +69,17 @@ void test_sp_idle() {
   CHECK(v->fields.apid == kIdleApid);
   CHECK(v->fields.seq_flags == 0b11);
   CHECK(v->data.size() == 1u);
+
+  // 133.0-B-2 §4.1.3.3.3.4: a set flag is still forced off for APID 0x7FF.
+  f.secondary_header = true;
+  const auto forced = encodeSpacePacket(out, f, asSpan(data));
+  CHECK(forced.has_value());
+  CHECK(out[0] == std::byte{0x07});
+  const auto fv =
+      decodeSpacePacket(std::span<const std::byte>(out.data(), *forced));
+  CHECK(fv.has_value());
+  CHECK(!fv->fields.secondary_header);
+  CHECK(fv->fields.apid == kIdleApid);
 }
 
 void test_roundtrip() {
