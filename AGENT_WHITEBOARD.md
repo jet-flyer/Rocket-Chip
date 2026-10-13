@@ -17,6 +17,14 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## +20 dBm driver default: find the limit cause (HIGH) (OPEN) (2026-10-12)
+
+Nathan, 2026-10-12. Do not change the driver from this row. Find why the SX1276 limits +20 dBm before any default edit.
+
+- `rfm95w_init()` writes +20 dBm (`kDefaultTxPowerDbm` in `src/drivers/rfm95w.cpp`). Boot then applies `kDefaultRocketRadioConfig`, which is 2 dBm (`src/flight_director/mission_profile_data.h`), before RX. A TX-fail reinit does the same apply. `kDefaultRadioConfig.power_dbm` is still 20 (`include/rocketchip/radio_config.h`). The catalog rows are 2 dBm. `standards/RF_COMPLIANCE.md` still calls +20 dBm the firmware default.
+- SX1276 DS Rev 7 p.83: continuous operation up to +17 dBm, duty-cycled operation up to +20 dBm. Table 35 p.84: duty at +20 dBm is 1% maximum, VSWR at the antenna port is 3:1 maximum, over −40 to +85 °C. The page names no heat, no other damage mode, and no time window. Table 6: 120 mA typical at +20 dBm, 87 mA typical at +17 dBm. Default over-current trim is 100 mA (p.95). Whether that trim blocks +20 dBm is still Q28, and it is an inference.
+- Open: is the 1% limit heating only, or can +20 dBm past that duty damage the chip another way? A cool case on the desk does not answer it. The source has to be Semtech (datasheet, app note, or errata). Plan: rev 2 D6 / Q14 / Q29. Bench power stays 2 dBm until a field test.
+
 ## Bench-once-per-push follow-ups (OPEN) (2026-10-08)
 
 Found while landing `grok/bench-once-per-push` (CHANGELOG 2026-10-08-003). Nothing here is decided.
