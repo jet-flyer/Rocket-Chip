@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-14-001 | Grok Buzz (Grok Bot) | hardware, documentation
+
+SX1276 init default set to +15 dBm (`c7d70cc6`; `src/drivers/rfm95w.*`, `radio_config.h`, `ao_radio.cpp`). Created branch `fprime` from `c7d70cc6` for the F´ port; `main` stays the bare-metal path. Plan, whiteboard and OSAL report live on that branch (`docs/plans/FPRIME_BRANCH_PLAN.md`, `docs/plans/FPRIME_WHITEBOARD.md`, `docs/reports/2026-10-14_buzz_fprime-chibios-osal-map.md`).
+
 ### 2026-10-13-002 | Grok Hamilton (Grok Bot) | documentation
 
 **FPV whiteboard row and Starcom standards move.** `AGENT_WHITEBOARD.md` has a new LOOK row: differential analog FPV video for the Telestar FPV board (AD8132 driver, AD8130 receiver). The Starcom standards moved from `standards/starcom/` to `starcom/standards/`. See `starcom/CHANGELOG.md` 2026-10-13-001.
