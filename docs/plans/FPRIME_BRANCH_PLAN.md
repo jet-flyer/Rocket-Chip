@@ -2,7 +2,8 @@
 
 Status: draft, 2026-10-14. Nothing is created until Nathan approves.
 Labels: **Fact** (source given) or **Inference** (judgement, not verified).
-"main" means jet-flyer/Rocket-Chip `main` at commit `51a12de` (2026-10-12).
+Branched from `c7d70cc6`. Buckets checked at `51a12de`; the only source change since is `c7d70cc6` (SX1276 init default +15 dBm), so no bucket moves.
+Rule: where F´ lays something out, this branch follows F´. (Fact: Nathan, room, 2026-10-14)
 
 ## 1. Goal
 - Port Rocket Chip to F´ on a new long-lived branch `fprime`, cut from `main`. (Fact: Nathan, Rocket Chip room, 2026-10-14)
