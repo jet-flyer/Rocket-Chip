@@ -4,4 +4,4 @@ Open items for the `fprime` branch. Labels: **Fact** (source given) or **Inferen
 
 ## ChibiOS
 
-1. OSAL (OS abstraction layer, the code that runs F´ on ChibiOS): on hold until Nathan starts it. Map: Buzz's OSAL map (report to follow in `docs/reports/`). (Fact: Nathan, room, 2026-10-14)
+1. OSAL (OS abstraction layer, the code that runs F´ on ChibiOS): on hold until Nathan starts it. Map: `docs/reports/2026-10-14_buzz_fprime-chibios-osal-map.md`. (Fact: Nathan, room, 2026-10-14)
