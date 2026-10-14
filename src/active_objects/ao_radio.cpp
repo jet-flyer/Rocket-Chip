@@ -307,7 +307,7 @@ static void handle_tx_poll(RadioAo* me) {
 // Called from BOTH RadioAo_initial (fresh boot) AND the reinit-recovery branch
 // in handle_tx_poll() — without this, rfm95w_init() during TX-fail recovery
 // silently snapped radio back to configure_modem() compile-time defaults
-// (SF7/BW125/CR5/+20dBm) while RuntimeRadioConfig tracked something else.
+// (SF7/BW125/CR5/+15 dBm) while RuntimeRadioConfig tracked something else.
 // Setters only, no reinit. Does NOT enter RX mode — caller handles RX/TX mode.
 //
 // Per correctness council edit #3: power_dbm setter is called LAST so a

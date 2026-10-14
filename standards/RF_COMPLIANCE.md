@@ -76,9 +76,11 @@ Reference: FCC KDB 996369 — Module Certification requirements under 47 CFR 15.
 
 ## RocketChip Radio Configurations
 
-### Default (firmware): SF7 / BW125 / CR 4/5 / 915 MHz / +20 dBm
+### Default (firmware): SF7 / BW125 / CR 4/5 / 915 MHz / +15 dBm
 
-Matches `rfm95w_init` / `kDefaultRadioConfig` (live desk 2026-08-31).
+Matches `rfm95w_init` / `kDefaultRadioConfig`. +15 dBm stays in continuous
+PA_BOOST. +20 dBm is a caller value above +17 dBm. The driver does not
+apply the datasheet 1% duty or 3:1 VSWR limits for that value.
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
@@ -86,7 +88,7 @@ Matches `rfm95w_init` / `kDefaultRadioConfig` (live desk 2026-08-31).
 | Bandwidth | 125 kHz | Live default. BW250 is an alternate profile row. |
 | Coding Rate | 4/5 | Minimum redundancy, lowest overhead |
 | Frequency | 915.0 MHz | US ISM center (operator must stay in 902–928) |
-| TX Power | 20 dBm | PA_BOOST max — module grant, not a “safe for any antenna” claim |
+| TX Power | 15 dBm | Init default. Below the +17 dBm continuous limit. Module max remains +20 dBm |
 | Preamble | 8 symbols | SX1276 default |
 | Sync Word | 0x12 | LoRa private network default |
 | CRC | Enabled | Hardware CRC-16 |

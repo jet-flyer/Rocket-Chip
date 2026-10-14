@@ -23,7 +23,8 @@ static constexpr uint32_t kResetPulseHighMs = 10;  // RST high settle
 // Mode transition settling time
 static constexpr uint32_t kModeSettleMs = 10;
 
-// Default 915 MHz / +20 dBm: operator/legal SSOT is standards/RF_COMPLIANCE.md
+// Default 915 MHz. Power default is kDefaultTxPowerDbm.
+// Operator/legal SSOT is standards/RF_COMPLIANCE.md
 // (FCC Part 15.247 US ISM). Not a compliance guarantee.
 static constexpr uint32_t kDefaultFreqHz = 915000000U;
 
@@ -48,8 +49,10 @@ static constexpr uint8_t kLnaDefault = 0x23;
 // BW>=125), AgcAutoOn[2]=1 (LNA gain set adaptively). SX1276 datasheet §5.4.3.
 static constexpr uint8_t kModemCfg3Default = 0x04;
 
-// Overridden by RadioConfig. Field default is module max; see RF_COMPLIANCE.md.
-static constexpr int8_t kDefaultTxPowerDbm = 20;
+// Init value. At or below +17 dBm, so RegPaDac stays in normal mode.
+// A caller selects +20 dBm by passing a value above kPaDacThreshDbm.
+// This driver does not apply the datasheet 1% duty or 3:1 VSWR limits.
+static constexpr int8_t kDefaultTxPowerDbm = 15;
 
 // Private sync word (SX1276 default LoRa sync)
 static constexpr uint8_t kSyncWordDefault = 0x12;
@@ -110,7 +113,7 @@ static void init_gpio_and_reset(uint8_t cs, uint8_t rst, uint8_t irq) {
 }
 
 // Configure LoRa modem parameters: SF7, BW 125kHz, CR 4/5, CRC on,
-// preamble 8, sync word 0x12, +20 dBm PA_BOOST, 915 MHz.
+// preamble 8, sync word 0x12, kDefaultTxPowerDbm on PA_BOOST, 915 MHz.
 static void configure_modem(rfm95w_t* dev) {
     uint8_t cs = dev->cs_pin;
 
