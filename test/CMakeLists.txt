@@ -4,6 +4,44 @@
 
 include(GoogleTest)
 
+# Host-only float trig (musl 1.2.5 C sources). sinf/cosf/atan2f/asinf
+# are not bit-identical across libm implementations. update_mag_heading
+# round-trips Euler angles through those calls. A banked turn turns one
+# ulp of heading error into meters of position, past the CR-2 tolerance.
+# One C implementation keeps x86-64, AArch64, and MinGW on the same
+# result. Firmware does not link this library and does not include
+# host_trig.h. -ffp-contract=off so FMA cannot split the platforms.
+add_library(rc_host_libm STATIC
+    host_libm/sinf.c
+    host_libm/cosf.c
+    host_libm/asinf.c
+    host_libm/acosf.c
+    host_libm/atanf.c
+    host_libm/atan2f.c
+    host_libm/__sindf.c
+    host_libm/__cosdf.c
+    host_libm/__rem_pio2f.c
+    host_libm/__rem_pio2_large.c
+    host_libm/rc_host_entry.c
+)
+target_include_directories(rc_host_libm PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_libm)
+target_compile_options(rc_host_libm PRIVATE
+    -std=c11
+    -O2
+    -ffp-contract=off
+    -fno-fast-math
+    -fno-builtin
+    -fno-math-errno
+    -fno-strict-aliasing
+)
+foreach(_rc_lib rc_math rc_fusion)
+    target_compile_definitions(${_rc_lib} PRIVATE ROCKETCHIP_HOST_TEST)
+    target_include_directories(${_rc_lib} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/host_libm)
+    target_link_libraries(${_rc_lib} PUBLIC rc_host_libm)
+endforeach()
+
 # IVP-39: Vec3 math library
 add_executable(test_vec3 test_vec3.cpp)
 target_link_libraries(test_vec3 PRIVATE rc_math GTest::gtest_main)
