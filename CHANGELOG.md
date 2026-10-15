@@ -43,6 +43,12 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-14-002 | Grok 4.7 (Build CLI) | documentation
+
+R-33 records the ESKF idle-hook rate (`docs/PROBLEM_REPORTS.md`). The 2026-10-14 bench measured about 116 Hz with the USB cable connected and with the cable gone. The full tick is about 4.6 ms. The 200 Hz label is the 1 kHz IMU poll divided by 5. A still-board debug `s` after a dark power cycle measured predict at 246 µs average and the full tick at 4685 µs average over 10921 calls. The council leaves the filter in the idle hook through the FSK bench.
+
+Verified: pure-docs change. No firmware path changed.
+
 ### 2026-10-14-001 | Grok Buzz (Grok Bot) | hardware, documentation
 
 SX1276 init default set to +15 dBm (`c7d70cc6`; `src/drivers/rfm95w.*`, `radio_config.h`, `ao_radio.cpp`). Created branch `fprime` from `c7d70cc6` for the F´ port; `main` stays the bare-metal path. Plan, whiteboard and OSAL report live on that branch (`docs/plans/FPRIME_BRANCH_PLAN.md`, `docs/plans/FPRIME_WHITEBOARD.md`, `docs/reports/2026-10-14_buzz_fprime-chibios-osal-map.md`).
