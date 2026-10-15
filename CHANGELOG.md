@@ -45,7 +45,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-10-14-002 | Grok Buzz (Grok Bot) | architecture, documentation
 
-F´ branch opened: plan (`docs/plans/FPRIME_BRANCH_PLAN.md`), F´ whiteboard with the ChibiOS OSAL first and on hold (`docs/plans/FPRIME_WHITEBOARD.md`), and the OSAL map report (`docs/reports/2026-10-14_buzz_fprime-chibios-osal-map.md`).
+F´ branch opened: plan (`docs/plans/FPRIME_BRANCH_PLAN.md`), F´ whiteboard with the ChibiOS OSAL first and on hold (`docs/plans/FPRIME_WHITEBOARD.md`), and the OSAL map report (`docs/reports/2026-10-14_buzz_fprime-chibios-osal-map.md`), and the RTOS findings report (`docs/reports/2026-10-14_hamilton_fprime-rtos-findings.md`).
 
 ### 2026-10-13-002 | Grok Hamilton (Grok Bot) | documentation
 
