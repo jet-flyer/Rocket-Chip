@@ -55,7 +55,6 @@ Found while landing `grok/bench-once-per-push` (CHANGELOG 2026-10-08-003). Nothi
 - Soak script: report vehicle TX and station RX over the same time window, not totals since each board booted.
 - Soak score file prints the yellow-bar sentence (-80 to -100 dBm) even at -48 dBm.
 - Commit `scripts/radio_link_bench.py` (makes radio pushes blocking) after Nathan's bench run of it.
-- Merge the branch to main by PR, then delete it (`standards/GIT_WORKFLOW.md`).
 
 ## Station link stats on the Starcom path (OPEN) (2026-10-13)
 
@@ -75,8 +74,6 @@ Open items from the 2026-10-08 FSK pivot sitting. Nothing here is decided. Detai
 - Next sitting (Nathan, 2026-10-08): work the FSK pivot plan directly (`docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`).
 - **Roles vs. bench targets split. Deferred until the Forgix or the pico-ice gets an RC role (Nathan, 2026-10-08).** A role is a firmware config (vehicle or station). A role is not a board. One board (for example the Feather) can run both roles. Today the gate benches the vehicle and the station separately only because the current boards have different hardware quirks. Idea: a table that maps each bench target to the role that it runs. Each bench target row gives the physical board, the USB serial, the flash path and the board quirks (chip package and pin count, RP2350 stepping and E9). The table stores the stepping per board serial, from a picotool read of that board, not from the board type. Today the `ROLES` table in `scripts/ci/pre_push_gate.py` maps each role to one setup. Nothing is decided.
 - **Tiny 2350 as a core RC analogue (Nathan, 2026-10-08).** Use the Tiny 2350 as a smaller, lighter core RC analogue when work on internal logging and operation without telemetry starts. Board facts and pin-map conflicts: `docs/hardware/HARDWARE.md`, "Tiny 2350 (PIM721)".
-
-Exact state: the final docs commit of CHANGELOG 2026-10-08-002 pushes all 2026-10-08-002 work to `origin/main`. The comment-fix commit passed bench_sim 2/2 on the vehicle Feather (banner `flight-136b1ae9`). Host ctest passed on every commit. Dirty `flight_director` / `config_wizard` / `test` / `AGENTS.md` files stay unstaged.
 
 ## Soldering to-do (can be done today) (OPEN) (2026-10-08)
 
@@ -109,6 +106,14 @@ Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nat
 ## Re-check paywall / commercial-tool decisions (LATER) (2026-10-11)
 
 - STARS was rejected as a commercial autocoder, but it is open source (Apache-2.0, docs/flight_director/TOOLCHAIN_EVALUATION.md). Re-check every other tool or standard that the docs rejected as paid, commercial or paywalled; confirm the licence and price from the source before the decision stands (Nathan, 2026-10-11).
+
+## Space Packet as the core unit; MAVLink out of the GCS path (LATER) (2026-10-19)
+
+- Nathan (2026-10-19): the code handles the core unit of information, the CCSDS Space Packet (133.0-B-2). Every other format is a translation layer on top. No translating back and forth, and not through MAVLink. Larger job, after the FSK pivot.
+- Now: air is Starcom only (`sc_air.h`), but the station decodes and re-encodes to MAVLink for USB (`src/station/gcs_mavlink.cpp`, `kMavlink` in `station_output_mode.h`, CHANGELOG `2026-09-19-001`). Open MCT reads that MAVLink (`docs/gcs/openmct/realtime/stream_mavlink_station.py`).
+- Sort in the same job: over-air MAVLink `COMMAND_LONG` path in `ao_telemetry.cpp`, MAVLink pass-through in `ao_radio.cpp`, `ROCKETCHIP_STAGE_T3_MAVLINK`, `EncoderType::kMavlink` / `MavlinkEncoder`, `mavlink_rx.*`, `lib/mavlink`, their tests, about 30 docs.
+- Candidate path (not decided): station passes Space Packets over USB. Yamcs decodes CCSDS natively and loads XTCE packet definitions; Open MCT displays through the openmct-yamcs plugin (Goddard 2026-10-19: yamcs.org, docs.yamcs.org mdb, github.com/akhenry/openmct-yamcs).
+- Pro version: XTCE 660.0-B-2 describes packets for the PC side (Duke; current issue not yet checked on the ccsds.org index). SLE (Space Link Extension) moves space-link data between ground stations, control centres and users over ordinary networks, never the radio link (910.3-G-3, Duke 2026-10-19). Services: Return All Frames 911.1, Return Channel Frames 911.2, Return OCF 911.5, Forward CLTU 912.1, Forward Space Packet 912.3; Internet mapping 913.1-B-2. Issues of 911.x/912.x unverified (ccsds.org links 404 on 2026-10-19). Yamcs plugin yamcs-sle covers RAF, RCF, FCLTU.
 
 ## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
 
@@ -184,11 +189,6 @@ Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and St
 
 ## GCS standalone app / Hamilton handover (NEXT) (2026-10-01)
 
-**Done, committed locally, not pushed (push held until wrap):**
-- `f5a0424` standalone app: `docs/gcs/openmct/launcher/rc_gcs_app.pyw`, `app_shell.html`, `rc_gcs_core.py`. Chrome app-mode window, control server on :8093, ports 5000/8091/8092/8093. The old `rc_gcs.pyw` web launcher is kept. Shortcuts "Rocket Chip GCS" and "Rocket Chip GCS (web launcher)" share one icon.
-- `afd18b3` the dashboard defaults to Real-Time.
-- `0da60ae` Real-Time window is now the last 5 min ending at now. The old +5 s end offset was arbitrary, not an Open MCT default.
-
 **Open bug:** pinning the running app window to the taskbar saves plain Chrome, not the app. The old tk launcher pinned fine. Planned fix: give the Chrome window its own AppUserModelID matching the shortcut and relaunch details, or go back to a native pywebview window (pywebview 6.2.1 is installed and worked earlier), which pins like the old launcher. Not started. It needs launch/close tests on the PC, so wait until Nathan says he is done testing.
 
 **Unverified by Hamilton:** live station mode in the standalone app; plots with the facsimile feed after the Real-Time default; Real-Time showing on screen; taskbar icon and title.
@@ -226,7 +226,7 @@ Table 6-10 rows are in `starcom/src/ccsds/mac.cpp` and `src/starcom_adapt/byte_p
 
 **Recorded 2026-10-01, not this sitting’s work:** other physical layers and the sounding-rocket umbilical are written down. `starcom/docs/DESIGN.md` note 2026-10-01, `docs/hardware/HARDWARE.md` Regulatory Notes, `starcom/standards/README.md` URL-only rows. SatNOGS-COMMS and IRIG 106 are not Proximity-1. RCC 319 is a separate termination uplink. Do not start that hardware from this row.
 
-**Chips at this handoff:** Jam `BEC71B8EDC6AEBD1` is running the cadence image. Its banner still reads `0488d60-dirty` because that image was linked before `37acb21`. Feather `02FBDDB8E1CA1281` power-cycled, recovered the radio, and locked. The clean `37acb21` ELF was not written. The last halt-write on record is the opening-shock dirty ELF. Do not flash either board until that image is identified. Local main is ahead of origin and was not pushed.
+**Chips at this handoff:** Jam `BEC71B8EDC6AEBD1` is running the cadence image. Its banner still reads `0488d60-dirty` because that image was linked before `37acb21`. Feather `02FBDDB8E1CA1281` power-cycled, recovered the radio, and locked. The clean `37acb21` ELF was not written. The last halt-write on record is the opening-shock dirty ELF. Do not flash either board until that image is identified.
 
 The procedure countdown is in `tools/spin/proximity1_hd.pml` only. Book, `-DSHORT_WINDOW`, and `-DCODE_E38`: five claims `errors: 0`. `-DCODE_MISS`: `p_no_dual_s50` `errors: 1`, the other four `errors: 0`.
 
@@ -249,7 +249,7 @@ The procedure countdown is in `tools/spin/proximity1_hd.pml` only. Book, `-DSHOR
 
 Untethered vehicle on battery. Live view is the station pad phase. Afterward, plug the vehicle and download the flight log (`g` list, `d` download). Do not USB-tether the toss. Do not open the station COM port if QGC has it.
 
-**Image:** do not flash the dirty tree for this pass. Launch, burnout, apogee, and landing are already on the chip. The opening-shock edit is uncommitted on `main` and is not in that image.
+**Image:** do not flash the dirty tree for this pass. Launch, burnout, apogee, and landing are already on the chip. The opening-shock edit is not on `main` and is not in that image (uncommitted in the main checkout; backup on local branch `wip/opening-shock`, not pushed).
 
 **Arm:** station pad `a`, type `ARM`, Enter. Wait for ACK and `State: ARMED`. Disarm is pad `D`. ARM starts the backup timers: drogue pin can go high at 15 s if apogee has not cancelled it, main pin at 45 s. No ematch on those pins. Disarm before 15 s if the pad has not shown apogee, and disarm again at the end.
 
@@ -261,11 +261,11 @@ Untethered vehicle on battery. Live view is the station pad phase. Afterward, pl
 
 **Log after:** phase changes and pyro-fired events are in the flight log. The opening-shock time is not. It is a USB line only (`drogue_open_ms` / `main_open_ms` in `FlightMarkers`, printed as response time). Add a `LogEventId` before any untethered pass that needs that interval on disk. oMCT `chute_detected` is still synthetic.
 
-**Opening-shock code (uncommitted, host-tested, not flashed):** every profile, coast through main. Specific force at or above 19.62 m/s² (2 g, above a settled canopy) and 2 m/s of descent-speed lost, held 20 ms. Does not move the phase and does not treat apogee as an opening. Pyro command stamps moved onto the fire transition (`kTransitionFireDrogue` / `kTransitionFireMain`). Response time is command timestamp to shock timestamp. Thresholds are a first cut, not from a flight.
+**Opening-shock code (not on `main`, backup on local `wip/opening-shock`, host-tested, not flashed):** every profile, coast through main. Specific force at or above 19.62 m/s² (2 g, above a settled canopy) and 2 m/s of descent-speed lost, held 20 ms. Does not move the phase and does not treat apogee as an opening. Pyro command stamps moved onto the fire transition (`kTransitionFireDrogue` / `kTransitionFireMain`). Response time is command timestamp to shock timestamp. Thresholds are a first cut, not from a flight.
 
 **Verified 2026-09-24:** host `FlightDirectorTest` opening-shock / apogee-crossing / second-opening, guard tests, action-list tests, `scripts_generated_profiles`. Not on a board. Feather was not on the bus (only Bluetooth COM3).
 
-**Dirty, left unstaged (2026-09-29):** opening-shock detector is still not in a commit and not on the chips. Against `3988ecf`: `scripts/config_wizard/core/{cfg_emitter,derivation}.py`, `src/flight_director/` (actions header, director, state, guards, evaluator), `test/test_{action_executor,flight_director,guards}.cpp`. Profiles, the generated header, and the GCS layout files are clean. Do not fold this into the half-duplex commit.
+**Dirty, left unstaged (2026-09-29):** opening-shock detector is not on `main` and not on the chips. Backup: local `wip/opening-shock` (2026-10-15, not pushed). Files: `scripts/config_wizard/core/{cfg_emitter,derivation}.py`, `src/flight_director/` (actions header, director, state, guards, evaluator), `test/test_{action_executor,flight_director,guards}.cpp`. Profiles, the generated header, and the GCS layout files are clean. Do not fold this into the half-duplex commit.
 
 ---
 
