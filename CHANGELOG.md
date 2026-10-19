@@ -43,18 +43,6 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
-### 2026-10-15-001 | Grok 4.7 (Cursor) | bugfix
-
-Host ctest builds and passes on Linux x86-64 with GCC 14. The same host sources stay aligned for 64-bit Arm Linux and for MinGW.
-
-`format_into` takes `va_list` by value. On SysV x86-64 that parameter is a decayed pointer, and the helpers take `va_list&`. `va_copy` gives the helpers a real `va_list`. The caller still owns `va_end`. Log text is the same. AAPCS and Windows x64 already passed a struct or a pointer copy into that parameter.
-
-`Trajectories/ReplayRegressionTest` `banked_turn_10s` first differs at replay row 2 (`qx`). `update_mag_heading` round-trips roll and pitch through `sinf`, `cosf`, `atan2f`, and `asinf`. Those four functions are not bit-identical across libm. A 30 degree bank turns that error into meters of position. The CR-2 tolerance stays 1e-4. The other four trajectories stay inside it. Three of them match the stored reference bit for bit. Host tests now call musl 1.2.5 float trig (`test/host_libm`, compiled with `-ffp-contract=off`). Firmware still calls the toolchain libm. `test/data/reference/banked_turn_10s_ref.csv` is the output of that host trig.
-
-`scripts_rc_test_common` passes on this host. Every check passed, including the path checks. The test imports pyserial. CMake already says to install it. With pyserial absent the failure is `ModuleNotFoundError`, before any path check.
-
-Verified: host ctest 1012/1012. Flight cross-compile both roles, Pico SDK 2.2.0. Pure-software change. No HW reseat.
-
 ### 2026-10-14-002 | Grok 4.7 (Build CLI) | documentation
 
 R-33 records the ESKF idle-hook rate (`docs/PROBLEM_REPORTS.md`). The 2026-10-14 bench measured about 116 Hz with the USB cable connected and with the cable gone. The full tick is about 4.6 ms. The 200 Hz label is the 1 kHz IMU poll divided by 5. A still-board debug `s` after a dark power cycle measured predict at 246 µs average and the full tick at 4685 µs average over 10921 calls. The council leaves the filter in the idle hook through the FSK bench.

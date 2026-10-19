@@ -5,10 +5,6 @@
 
 #include <cmath>
 #include <cstdlib>
-// Host replay uses one C trig (test/host_libm). Firmware keeps libm.
-#ifdef ROCKETCHIP_HOST_TEST
-#include "host_trig.h"
-#endif
 
 // R3: Compile-time sync — fail build if codegen constants drift from eskf.h.
 // These compare two named constexpr constants for exact identity (the whole

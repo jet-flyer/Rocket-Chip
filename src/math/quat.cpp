@@ -3,10 +3,6 @@
 #include "math/quat.h"
 
 #include <cmath>
-// Host replay uses one C trig (test/host_libm). Firmware keeps libm.
-#ifdef ROCKETCHIP_HOST_TEST
-#include "host_trig.h"
-#endif
 
 namespace rc {
 
