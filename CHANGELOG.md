@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-19-003 | Grok Hamilton (Grok Bot) | bugfix
+
+Fixes the station PA1010D warm-restart hang, a regression from `c4278fb3`: a quiesce cut off the background GPS read mid-transfer. The quiesce now joins the in-flight read, an early STOP_DET is cleared, and a failed station GPS probe gets a forced 9-clock bus recovery. Bench (Buzz, board-measured, 2026-10-19, `flight-98052d10`, Fruit Jam station): 15/15 verified `k` restarts and 10/10 picotool reboots with 0 hangs, GPS back within about 6.5 s; 15 min idle soak with no freeze and a 3D fix of 8 satellites, but with no radio link. Before the fix it hung within 2 restarts. The full-station freeze stays open (`AGENT_WHITEBOARD.md`).
+
 ### 2026-10-19-002 | Grok Hamilton (Grok Bot) | bugfix, documentation
 
 Cleanup of the stale `grok/copp-lock-leds` branch (`f19ae964`, Grok Build, 2026-09-11). Its classify and timer parts reached main in 2026-09-17-003. The only missing piece was the 2 s RX window, because the pad RF Link row averaged RX since boot. It was ported fresh as `a239a52c` on `grok/rx-window`, which is merged here. Bench on `flight-a239a52c`: vehicle 2/2, station 3/3, 130 s two-board watch at 2 dBm, pad RX 8.5 to 11.0 Hz (median 10.0 Hz), no blank or zero rows. Pre-push soak on `flight-73b32451`: 300 s at 2 dBm, vehicle sent 4371 packets, station received 4395, 2 CRC failures, RSSI -50 to -53 dBm (`logs/soak/2026-10-19_A1_prepush_73b32451_2dbm*`). Whiteboards: done and stale lines erased, Starcom "Radio settings OTA" erased (it landed as COMM_CHANGE, 2026-09-11-001), and a LATER row added for Space Packet as the core unit with MAVLink out of the GCS path (`AGENT_WHITEBOARD.md`). Remote `grok/rcos-rework` and `grok/rcos-sitting-5-text` were deleted (their work is on main) and archived as tags `archive/rcos-rework` and `archive/rcos-sitting-5-text`. The old PC worktrees were removed.

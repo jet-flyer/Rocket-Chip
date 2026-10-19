@@ -59,6 +59,9 @@ static void try_gps_init() {
         (void)i2c_master_reset();
     }
     if (!i2c_master_probe(kGpsPa1010dAddr, kI2cMasterDefaultTimeoutUs)) {
+        // A warm reset can leave the PA1010D mid-read with SDA high.
+        // Clock it out; the next kGpsRetryUs pass probes again.
+        (void)i2c_master_recover_bus();
         return;
     }
     g_gpsInitAttempted = true;
