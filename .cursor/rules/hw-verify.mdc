@@ -1,0 +1,12 @@
+---
+description: Hardware-facing changes need a real-board check before merge
+alwaysApply: true
+---
+
+Any change to hardware-facing code (`src/drivers/`, `src/active_objects/ao_radio*`, `src/diag/radio_*`, `src/logging/radio_config_storage*`, `src/safety/`, `src/main.cpp`, `src/cli/`, `pio/*.pio`, ISR, boot or reset paths) must be checked on real boards by Buzz or Grok Build before it merges to main.
+
+- You can commit first. The `Verified:` line must say `UNBENCHED` until the check is done.
+- The check covers warm restarts (CLI `k` and `picotool reboot`), a power-on boot, and a short soak with the radio link live.
+- Hook and pre-push checks alone do not count.
+
+Full rule: `AGENTS.md`, Key Project Rules. Why: `c4278fb3` (host-tested only) caused the station PA1010D warm-restart hang.

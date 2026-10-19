@@ -54,7 +54,8 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     unless its build already has the pushed firmware-tree hash, require a
     flash record for that exact ELF (the gate does NOT flash; it prints
     the flash steps: Path 1, picotool load -f over USB, for both setups;
-    the OpenOCD step names the main worktree from git worktree list),
+    Path 2 (probe) only when OpenOCD is already on :3333; the probe is
+    optional, so a board with no debug port benches the same way),
     then run bench_sim / station_bench_sim
     with --commit <sha>.
  5. Radio push ([radio] path changed). The radio rule is ACTIVE only
@@ -111,6 +112,8 @@ RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'   # GAP: not built yet
 # Flash paths (docs/FLASHING.md). FLASH_SWD: the debug probe is on this
 # board, so the flash script (OpenOCD) is path 2 and picotool is path 1.
 # FLASH_USB: no probe on this board; picotool over USB only.
+# The probe is optional: with no OpenOCD on :3333, a FLASH_SWD role uses
+# Path 1 only. Only the flash transport changes; the bench is the same.
 FLASH_SWD = 'swd'
 FLASH_USB = 'usb'
 # The ONE role table: role -> (build dir, CMake preset, bench script, flash
@@ -471,9 +474,10 @@ def flash_recorded(elf: Path) -> bool:
 
 
 def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
-                       picotool: str = 'picotool') -> str:
+                       picotool: str = 'picotool', probe: bool = True) -> str:
     """Flash text for one role. Both setups flash by Path 1 (picotool over
-    USB). ``main`` is main_worktree() (None -> MAIN_FALLBACK)."""
+    USB). ``main`` is main_worktree() (None -> MAIN_FALLBACK). ``probe``:
+    OpenOCD is on :3333, so Path 2 is offered for a FLASH_SWD role."""
     uf2 = elf.with_suffix('.uf2')
     flash = wt / 'scripts' / 'flash_elf_halt_write.py'
     swd = ROLES[role][3] == FLASH_SWD
@@ -489,6 +493,9 @@ def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
         '    (I2C-safe restart). No reset halt (docs/FLASHING.md rule 2).')
     if not swd:
         return text
+    if not probe:
+        return text + ('\n    OpenOCD is not on 127.0.0.1:3333, so the probe is not used.\n'
+                       '    Path 1 (USB) is the flash transport. The bench is the same.')
     step = '\n'.join('      ' + ln for ln in openocd_step(main).splitlines())
     return text + (
         '\n    The debug probe does not flash in this procedure. It serves only\n'
@@ -500,8 +507,15 @@ def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
 
 
 def needs_openocd(roles: List[str]) -> bool:
-    """OpenOCD is needed when a role flashes over the debug probe (ROLES)."""
+    """A role can use the debug probe (ROLES). The probe is optional."""
     return any(ROLES[r][3] == FLASH_SWD for r in roles)
+
+
+def flash_transport(role: str, probe: bool) -> str:
+    """Name of the flash transport for one role, printed by the gate."""
+    if ROLES[role][3] == FLASH_SWD and probe:
+        return 'probe available (OpenOCD on :3333): Path 1 USB or Path 2 SWD'
+    return 'USB (picotool load -f, Path 1)'
 
 
 def openocd_listening() -> bool:
@@ -610,9 +624,9 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     primary = primary_tree(repo)
     wt = bench_worktree(primary)
     main_wt = main_worktree(repo)
-    if needs_openocd(plan.roles) and not openocd_listening():
-        raise GateFail('OpenOCD is not on 127.0.0.1:3333 (the debug-probe setup '
-                       'needs it for the OpenOCD check).\n' + openocd_step(main_wt))
+    # The probe is optional. Only the flash transport changes; the build,
+    # flash record, bench and radio checks below are the same either way.
+    probe = needs_openocd(plan.roles) and openocd_listening()
     prepare_worktree(primary, wt, local_sha)
     want = ft.elf_tree_id(wt, local_sha)
     built: Dict[str, Tuple[Path, str]] = {r: build_role(wt, r, want, versions)
@@ -622,9 +636,11 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
         for r in ROLES:
             if r not in built:
                 built[r] = build_role(wt, r, want, versions)
+    for r in built:
+        say(f'{r} flash transport: {flash_transport(r, probe)}')
     # Flash with the picotool whose version is in the bench key.
     picotool = str(ft.resolve_tool('picotool', repo, local_sha))
-    missing = [flash_instructions(main_wt, wt, r, elf, picotool)
+    missing = [flash_instructions(main_wt, wt, r, elf, picotool, probe)
                for r, (elf, _) in built.items() if not flash_recorded(elf)]
     if missing:
         raise GateFail('flash the pushed build (Path 1, picotool over USB, for '

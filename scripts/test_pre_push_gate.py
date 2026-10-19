@@ -35,9 +35,12 @@ GATE = HERE / 'ci' / 'pre_push_gate.py'
 GATE_NO_OPENOCD = (
     'import os, sys; sys.path.insert(0, os.path.dirname(sys.argv[1])); '
     'import pre_push_gate as pg; pg.openocd_listening = lambda: False; '
+    'pg.prepare_worktree = lambda *a: (_ for _ in ()).throw('
+    'pg.GateFail("STUB: bench worktree reached")); '
     'sys.exit(pg.main(sys.argv[1:]))')
 LIST = HERE / 'ci' / 'firmware_paths.txt'
 ZERO = '0' * 40
+STUB = 'STUB: bench worktree reached'
 FAILS = 0
 
 
@@ -67,9 +70,9 @@ def commit(repo: Path, path: str, text: str, msg: str) -> str:
 
 def gate(repo: Path, lines: list, **env_extra: str) -> tuple:
     env = dict(os.environ, PATH=os.environ.get('PATH', ''), **env_extra)
-    # Run the real gate with OpenOCD reported as down, so a bench PC with
-    # OpenOCD running gives the same result as a PC without it: the gate
-    # blocks before the bench worktree, the build and the flash step.
+    # Run the real gate with OpenOCD reported as down (the probe is optional,
+    # USB transport) and the bench worktree step stubbed to block, so the
+    # gate stops before the build and the flash step on any PC.
     r = subprocess.run([sys.executable, '-c', GATE_NO_OPENOCD, str(GATE), 'origin', 'file:///nowhere'],
                        cwd=str(repo), input='\n'.join(lines) + '\n',
                        capture_output=True, text=True, env=env)
@@ -184,8 +187,8 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {ZERO}'])
         check('2 new commits, 1 firmware, not the whole history',
               '2 commit(s), 1 firmware' in out, out)
-        check('bench needed -> blocks without OpenOCD (rc 1)',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('bench needed -> blocks at the bench step without OpenOCD (rc 1)',
+              rc == 1 and 'bench needed' in out and STUB in out, out)
 
         print('test_shape_warns_but_does_not_block')
         # six firmware commits, one of them an isolate class: warning only.
@@ -195,8 +198,8 @@ def main() -> int:
         tip = commit(repo, 'src/flight_director/guard_evaluator.cpp', '// g', 'guard change')
         rc, out = gate(repo, [f'refs/heads/feat {tip} refs/heads/feat {ZERO}'])
         check('shape warning printed', 'WARNING' in out, out)
-        check('shape does not block (still the OpenOCD block)',
-              rc == 1 and 'OpenOCD' in out and 'firmware commits in one push' in out, out)
+        check('shape does not block (still the bench block)',
+              rc == 1 and STUB in out and 'firmware commits in one push' in out, out)
 
         print('test_delete (local sha zeroes)')
         rc, out = gate(repo, [f'(delete) {ZERO} refs/heads/old {base}'])
@@ -256,8 +259,8 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
         check('warns that the radio rule is not active',
               'NOT radio-benched' in out, out)
-        check('does not block on the missing script; fails closed at OpenOCD',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('does not block on the missing script; fails closed at the bench',
+              rc == 1 and STUB in out, out)
 
         print('test_existing_branch_update (remote..local)')
         git(repo, 'update-ref', 'refs/remotes/origin/feat', d)
@@ -511,9 +514,9 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {d}'],
                    RC_BENCH_FRESH='1')
     check('real push in fresh mode: says so, ignores the note, benches '
-          '(fails closed at OpenOCD here)',
+          '(fails closed at the bench step here)',
           rc == 1 and 'FRESH MODE' in out and 'fresh mode: notes ignored' in out
-          and 'OpenOCD' in out, out)
+          and STUB in out, out)
 
     print('test_bench_output_board_serial_goes_to_note')
     wt = td / 'wt'
@@ -559,6 +562,8 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     check('note has the v2 lines', all(ln in body.splitlines() for ln in want_lines),
           body + '\n---\n' + out)
     check('citation line printed', 'Verified at push:' in out, out)
+    check('flash transport printed for each role',
+          'vehicle flash transport:' in out and 'station flash transport:' in out, out)
     out = plan({'SER1', 'SER2'})
     check('the new note is reused with the same boards', 'skip flash and bench' in out, out)
 
@@ -578,6 +583,13 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         check(f'{r}: instructions name the role', txt.lstrip().startswith(r), txt)
     check('station-only push needs no OpenOCD', not pg.needs_openocd(['station']))
     check('vehicle + station push needs OpenOCD', pg.needs_openocd(['vehicle', 'station']))
+    for r, v in pg.ROLES.items():
+        txt = pg.flash_instructions(td, td / 'wt', r, td / 'x.elf', 'PT', False)
+        check(f'{r}: no OpenOCD -> USB path only, same record + LED + CDC steps',
+              'PT load' in txt and '--record-only' in txt and 'LED + CDC' in txt
+              and 'Path 2' not in txt, txt)
+        check(f'{r}: no OpenOCD -> transport is USB',
+              pg.flash_transport(r, False).startswith('USB'))
 
     print('test_main_worktree_lookup (git worktree list, first line)')
     from types import SimpleNamespace
