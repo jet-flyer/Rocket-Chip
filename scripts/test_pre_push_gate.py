@@ -37,6 +37,7 @@ GATE_NO_OPENOCD = (
     'import pre_push_gate as pg; pg.openocd_listening = lambda: False; '
     'pg.prepare_worktree = lambda *a: (_ for _ in ()).throw('
     'pg.GateFail("STUB: bench worktree reached")); '
+    'pg.early_board_check = lambda *a: None; '
     'sys.exit(pg.main(sys.argv[1:]))')
 LIST = HERE / 'ci' / 'firmware_paths.txt'
 ZERO = '0' * 40
@@ -534,10 +535,12 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
 
     print('test_pass_note_format (bench steps faked, no board)')
     saved = {n: getattr(pg, n) for n in ('openocd_listening', 'prepare_worktree',
-                                          'build_role', 'flash_recorded', 'run_bench')}
+                                          'build_role', 'flash_recorded', 'run_bench',
+                                          'early_board_check')}
     saved_tree = ft.elf_tree_id
     try:
         pg.openocd_listening = lambda: True
+        pg.early_board_check = lambda *a: None
         pg.prepare_worktree = lambda *a: None
         ft.elf_tree_id = lambda *a, **k: 'feedface' * 5
         pg.build_role = lambda wt, r, want, keyed: (wt / 'rocketchip.elf', 'abc123')
@@ -589,7 +592,61 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
               'PT load' in txt and '--record-only' in txt and 'LED + CDC' in txt
               and 'Path 2' not in txt, txt)
         check(f'{r}: no OpenOCD -> transport is USB',
-              pg.flash_transport(r, False).startswith('USB'))
+              pg.flash_transport(r, None).startswith('USB'))
+
+    print('test_probe_target_identified_by_chip_id (OpenOCD Tcl mocked)')
+    # OTP CHIPID rows 0..3 = 2E2F 1B4A 4C31 E661 -> USB serial E6614C311B4A2E2F.
+    def tcl_ok(cmd):
+        if cmd.startswith(f'read_memory {pg.OTP_DATA_BASE:#x}'):
+            return '0x1b4a2e2f 0xe6614c31'
+        return '0x00002e2f 0x00001b4a 0x00004c31 0x0000e661'
+    ids = pg.probe_target_ids(tcl_ok)
+    check('chip ID formatted as the USB serial', ids == {'E6614C311B4A2E2F'}, str(ids))
+    # Bench 2026-10-19 (Buzz, Fruit Jam station): read_memory 0x40130000 32 2
+    # -> 0xdc6aebd1 0xbec71b8e; station USB serial BEC71B8EDC6AEBD1.
+    def tcl_fj(cmd):
+        return '0xdc6aebd1 0xbec71b8e' if cmd.startswith(
+            f'read_memory {pg.OTP_DATA_BASE:#x}') else None
+    check('regression: Fruit Jam OTP words -> its USB serial (word[1] then word[0])',
+          pg.probe_target_ids(tcl_fj) == {'BEC71B8EDC6AEBD1'},
+          str(pg.probe_target_ids(tcl_fj)))
+    check('OpenOCD down -> no ID', pg.probe_target_ids(lambda c: None) == set())
+    check('error text -> no ID',
+          pg.probe_target_ids(lambda c: 'invalid command name') == set())
+    sent = []
+    pg.probe_target_ids(lambda c: sent.append(c) or None)
+    check('identification is read_memory only (no halt, reset, resume)',
+          sent and all(c.startswith('read_memory ') for c in sent), str(sent))
+    ports = lambda: {'E6614C311B4A2E2F': 'COM9', 'AAAA000011112222': 'COM7'}
+    roles = {'COM9': 'station', 'COM7': 'vehicle'}
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get)
+    check('probe on the station board -> station (not the SWD-tagged vehicle)',
+          got == 'station', str(got))
+    check('no ID -> unknown', pg.identify_probe_role(lambda: set(), ports, roles.get) is None)
+    check('ID matches no attached board -> unknown',
+          pg.identify_probe_role(lambda: {'1234567812345678'}, ports, roles.get) is None)
+    check('role banner unknown -> unknown',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, lambda p: None) is None)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', False)
+    check('vehicle without the probe -> no SWD path', 'Path 2' not in txt, txt)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', True)
+    check('stale "serves only the OpenOCD check" text is gone',
+          'serves only' not in txt and 'Path 2' in txt, txt)
+    check('probe present, target unknown -> USB only text',
+          'probe present, target unknown: USB only' in pg.flash_transport('vehicle', None, True))
+    check('probe on station -> vehicle transport is USB',
+          pg.flash_transport('vehicle', 'station', True).startswith('USB'))
+
+    print('test_early_board_check (before the build)')
+    try:
+        pg.early_board_check(['station', 'vehicle'], {'S1'})
+        ok = False
+    except pg.GateFail as e:
+        ok = 'board missing' in str(e)
+    check('1 board for a 2-role push -> hard fail before build', ok)
+    pg.early_board_check(['station', 'vehicle'], {'S1', 'S2'})
+    pg.early_board_check(['station'], None)
+    check('enough boards / no pyserial -> no early block', True)
 
     print('test_main_worktree_lookup (git worktree list, first line)')
     from types import SimpleNamespace

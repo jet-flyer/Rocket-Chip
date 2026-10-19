@@ -112,8 +112,10 @@ RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'   # GAP: not built yet
 # Flash paths (docs/FLASHING.md). FLASH_SWD: the debug probe is on this
 # board, so the flash script (OpenOCD) is path 2 and picotool is path 1.
 # FLASH_USB: no probe on this board; picotool over USB only.
-# The probe is optional: with no OpenOCD on :3333, a FLASH_SWD role uses
-# Path 1 only. Only the flash transport changes; the bench is the same.
+# The probe is optional and is NOT assumed to be on a FLASH_SWD board: the
+# gate offers Path 2 only for the role whose USB serial matches the probe
+# target's chip ID (probe_target_ids). Unknown target -> USB only. Only the
+# flash transport changes; the bench is the same.
 FLASH_SWD = 'swd'
 FLASH_USB = 'usb'
 # The ONE role table: role -> (build dir, CMake preset, bench script, flash
@@ -477,10 +479,11 @@ def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
                        picotool: str = 'picotool', probe: bool = True) -> str:
     """Flash text for one role. Both setups flash by Path 1 (picotool over
     USB). ``main`` is main_worktree() (None -> MAIN_FALLBACK). ``probe``:
-    OpenOCD is on :3333, so Path 2 is offered for a FLASH_SWD role."""
+    the probe is identified on THIS role's board, so Path 2 is offered."""
     uf2 = elf.with_suffix('.uf2')
     flash = wt / 'scripts' / 'flash_elf_halt_write.py'
     swd = ROLES[role][3] == FLASH_SWD
+    swd = swd and probe
     setup = ('debug probe on this board' if swd else 'USB only, no debug probe')
     text = (
         f'  {role} setup ({setup}):\n'
@@ -493,14 +496,10 @@ def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
         '    (I2C-safe restart). No reset halt (docs/FLASHING.md rule 2).')
     if not swd:
         return text
-    if not probe:
-        return text + ('\n    OpenOCD is not on 127.0.0.1:3333, so the probe is not used.\n'
-                       '    Path 1 (USB) is the flash transport. The bench is the same.')
     step = '\n'.join('      ' + ln for ln in openocd_step(main).splitlines())
     return text + (
-        '\n    The debug probe does not flash in this procedure. It serves only\n'
-        '    the OpenOCD check.\n'
-        '    Path 2 (alternative, this setup only; docs/FLASHING.md\n'
+        '\n    The probe is identified on this board (chip ID = USB serial).\n'
+        '    Path 2 (alternative; docs/FLASHING.md\n'
         '    "Iterative flash"): probe halt-write, needs OpenOCD:\n'
         f'      python {flash} --elf {elf}\n'
         + step)
@@ -511,11 +510,113 @@ def needs_openocd(roles: List[str]) -> bool:
     return any(ROLES[r][3] == FLASH_SWD for r in roles)
 
 
-def flash_transport(role: str, probe: bool) -> str:
+def flash_transport(role: str, probe_role: Optional[str],
+                    listening: bool = False) -> str:
     """Name of the flash transport for one role, printed by the gate."""
-    if ROLES[role][3] == FLASH_SWD and probe:
-        return 'probe available (OpenOCD on :3333): Path 1 USB or Path 2 SWD'
+    if probe_role == role:
+        return 'probe on this board (chip ID match): Path 1 USB or Path 2 SWD'
+    if listening and probe_role is None:
+        return 'USB (picotool load -f, Path 1); probe present, target unknown: USB only'
     return 'USB (picotool load -f, Path 1)'
+
+
+OPENOCD_TCL = ('127.0.0.1', 6666)
+# RP2350 OTP CHIPID0..3 (rows 0-3). pico_get_unique_board_id (pico-sdk
+# unique_id.c, RP2350) = ROM get_sys_info CHIP_INFO DEVICE_ID/WAFER_ID, which
+# the USB serial prints as WAFER_ID then DEVICE_ID in hex.
+OTP_DATA_BASE = 0x40130000      # ECC reads, 2 rows per 32-bit word
+OTP_DATA_RAW_BASE = 0x40134000  # raw reads, 1 row per 32-bit word
+
+
+def openocd_tcl(cmd: str, timeout: float = 2.0) -> Optional[str]:
+    """One command on the OpenOCD Tcl port (6666), never the GDB port 3333
+    (a GDB connect halts the core). None on any socket error."""
+    import socket
+    try:
+        with socket.create_connection(OPENOCD_TCL, timeout=timeout) as s:
+            s.sendall(cmd.encode() + b'\x1a')
+            buf = b''
+            while not buf.endswith(b'\x1a'):
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
+            return buf.rstrip(b'\x1a').decode('utf-8', errors='replace')
+    except OSError:
+        return None
+
+
+def _hex_words(text: Optional[str], n: int) -> Optional[List[int]]:
+    try:
+        w = [int(t, 16) for t in (text or '').split()]
+    except ValueError:
+        return None
+    return w if len(w) == n else None
+
+
+def probe_target_ids(tcl=openocd_tcl) -> Set[str]:
+    """Chip IDs of the probe target, formatted as the board USB serial.
+    Read-only: read_memory of OTP over the debug AP. No halt, no reset.
+    Empty set when OpenOCD cannot read them (then: USB only)."""
+    ids: Set[str] = set()
+    w = _hex_words(tcl(f'read_memory {OTP_DATA_BASE:#x} 32 2'), 2)
+    if w:
+        ids.add(f'{w[1]:08X}{w[0]:08X}')
+    r = _hex_words(tcl(f'read_memory {OTP_DATA_RAW_BASE:#x} 32 4'), 4)
+    if r:
+        r = [x & 0xFFFF for x in r]
+        ids.add(f'{r[3]:04X}{r[2]:04X}{r[1]:04X}{r[0]:04X}')
+    ids.discard('0' * 16)
+    ids.discard('F' * 16)
+    return ids
+
+
+def board_ports() -> Dict[str, str]:
+    """USB serial -> COM port of attached RocketChip CDC ports.
+    Enumeration only."""
+    try:
+        import serial.tools.list_ports as lp  # type: ignore
+        from _rc_test_common import ROCKETCHIP_USB_PID, ROCKETCHIP_USB_VID
+    except Exception:  # noqa: BLE001
+        return {}
+    return {i.serial_number: i.device for i in lp.comports()
+            if i.vid == ROCKETCHIP_USB_VID and i.pid == ROCKETCHIP_USB_PID
+            and i.serial_number}
+
+
+def port_role(port: str) -> Optional[str]:
+    """Role from the firmware banner of one port (one peek)."""
+    try:
+        from _rc_test_common import Role, peek_banner
+        b = peek_banner(port)
+    except Exception:  # noqa: BLE001
+        return None
+    return {Role.VEHICLE: 'vehicle', Role.STATION: 'station'}.get(
+        getattr(b, 'role', None))
+
+
+def identify_probe_role(ids_fn=probe_target_ids, ports_fn=board_ports,
+                        role_fn=port_role) -> Optional[str]:
+    """Role of the board the probe is on, or None (unknown: USB only)."""
+    ids = ids_fn()
+    if not ids:
+        return None
+    hits = [p for s, p in ports_fn().items() if s.upper() in ids]
+    if len(hits) != 1:
+        return None
+    role = role_fn(hits[0])
+    return role if role in ROLES else None
+
+
+def early_board_check(roles: List[str], serials: Optional[Set[str]]) -> None:
+    """Before the build: fewer attached RocketChip ports than roles is a
+    hard fail now (the bench still checks each board by banner later).
+    None (no pyserial) -> no early check."""
+    if serials is not None and len(serials) < len(roles):
+        raise GateFail(f'board missing: this push benches {len(roles)} board(s) '
+                       f'({", ".join(roles)}) but {len(serials)} RocketChip USB '
+                       'port(s) are attached. Attach and flash every board, then '
+                       'run git push again. (A skip is a fail.)')
 
 
 def openocd_listening() -> bool:
@@ -626,7 +727,9 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     main_wt = main_worktree(repo)
     # The probe is optional. Only the flash transport changes; the build,
     # flash record, bench and radio checks below are the same either way.
-    probe = needs_openocd(plan.roles) and openocd_listening()
+    listening = openocd_listening()
+    early_board_check(sorted(set(plan.roles) | (set(ROLES) if plan.radio else set())),
+                      attached_board_serials())
     prepare_worktree(primary, wt, local_sha)
     want = ft.elf_tree_id(wt, local_sha)
     built: Dict[str, Tuple[Path, str]] = {r: build_role(wt, r, want, versions)
@@ -636,12 +739,17 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
         for r in ROLES:
             if r not in built:
                 built[r] = build_role(wt, r, want, versions)
-    for r in built:
-        say(f'{r} flash transport: {flash_transport(r, probe)}')
     # Flash with the picotool whose version is in the bench key.
     picotool = str(ft.resolve_tool('picotool', repo, local_sha))
-    missing = [flash_instructions(main_wt, wt, r, elf, picotool, probe)
-               for r, (elf, _) in built.items() if not flash_recorded(elf)]
+    need = [r for r, (elf, _) in built.items() if not flash_recorded(elf)]
+    # Identify the probe board only when a flash step is printed (the gate
+    # blocks then, so the one banner peek never runs before a bench).
+    probe_role = identify_probe_role() if (need and listening) else None
+    for r in built:
+        say(f'{r} flash transport: ' + (flash_transport(r, probe_role, listening)
+                                         if r in need else 'flash already recorded'))
+    missing = [flash_instructions(main_wt, wt, r, built[r][0], picotool,
+                                  probe_role == r) for r in need]
     if missing:
         raise GateFail('flash the pushed build (Path 1, picotool over USB, for '
                        'each setup), record it, wait LED+CDC (docs/FLASHING.md), '
