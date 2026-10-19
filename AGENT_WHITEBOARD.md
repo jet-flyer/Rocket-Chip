@@ -19,7 +19,7 @@
 
 ## Fruit Jam PA1010D hang after a warm restart (OPEN) (2026-10-19)
 
-The Fruit Jam PA1010D at I2C 0x10 hung after 3 of 4 warm restarts on 2026-10-19. The first #38 bench used `k`, then a picotool reboot onto `c4278fb3`. The module was fine after 1 picotool reboot before the 2 dBm soak. The power switch cleared the hang every time. That clear was board-measured (Buzz).
+The Fruit Jam PA1010D at I2C 0x10 hung after 2 of 3 warm reboots that followed a flash on 2026-10-19. That set was the first #38 bench. The reboot was picotool onto `c4278fb3`. The module was fine after 1 picotool reboot before the 2 dBm soak. A `k` restart did not recover a GPS that was already hung. The power switch cleared the hang both times. That clear was board-measured (Buzz). The sample is too small for a rate. Buzz's warm-restart run next sitting will give one.
 
 Fact: STEMMA QT runs from the always-on 3V regulator. Firmware cannot switch that rail. GPIO22 resets only the ESP32-C6 and the DAC (Adafruit Fruit Jam pinout guide; pico-sdk `adafruit_fruit_jam.h`).
 
