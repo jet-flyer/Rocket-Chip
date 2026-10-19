@@ -10,7 +10,8 @@ H = 0.5
 rng = np.random.default_rng(17)
 
 def gauss_freq_pulse(bt, span=8):
-    # frequency pulse g(t) = rect(T) * gaussian, integrates to 1/2 (phase pi*h per bit)
+    # Frequency pulse g(t): a unit-height rect of width 1 bit, convolved with a Gaussian.
+    # The continuous pulse has area 1. phase = pi*h*cumsum(freq)/SPS steps one bit by pi*h.
     t = (np.arange(-span*SPS//2, span*SPS//2) + 0.5) / SPS   # in bit periods
     q = lambda x: 0.5*erfc(x/np.sqrt(2))
     s = 2*np.pi*bt/np.sqrt(np.log(2))
@@ -19,7 +20,6 @@ def gauss_freq_pulse(bt, span=8):
 
 def isi_metrics(bt):
     t, g = gauss_freq_pulse(bt)
-    g = g / g.max() if False else g
     total = g.sum()
     inbit = g[np.abs(t) <= 0.5].sum()
     peak = g.max()               # rect height 1 -> NRZ peak deviation fraction for isolated bit
