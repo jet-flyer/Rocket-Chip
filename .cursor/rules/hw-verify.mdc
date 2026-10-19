@@ -8,5 +8,6 @@ Any change to hardware-facing code (`src/drivers/`, `src/active_objects/ao_radio
 - You can commit first. The `Verified:` line must say `UNBENCHED` until the check is done.
 - The check covers warm restarts (CLI `k` and `picotool reboot`), a power-on boot, and a short soak with the radio link live.
 - Hook and pre-push checks alone do not count.
+- The bench assumes the board console is USB serial; a UART-only console needs a USB-UART adapter.
 
 Full rule: `AGENTS.md`, Key Project Rules. Why: `c4278fb3` (host-tested only) caused the station PA1010D warm-restart hang.

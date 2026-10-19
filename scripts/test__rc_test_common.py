@@ -121,6 +121,9 @@ HEALTH_RING_DUMP = (
 _failures: list[str] = []
 
 
+# Hermetic: ignore a real scripts/ci/boards.local.json on this PC.
+os.environ['RC_BOARDS_CONFIG'] = os.path.join(__import__('tempfile').gettempdir(), 'rc-no-boards-config.json')
+
 def check(label: str, predicate: bool, detail: str = '') -> None:
     if predicate:
         print(f'  [PASS] {label}')
@@ -954,6 +957,66 @@ def test_usb_fault_handling() -> None:
           'subprocess' not in src and 'picotool' not in src)
 
 
+def test_board_config_roles() -> None:
+    """boards.local.json drives the bench's role serial; fallback chain."""
+    print('test_board_config_roles')
+    import io as _io, json as _json, tempfile as _tf
+    from contextlib import redirect_stdout
+    import _rc_test_common as rc
+    bc = rc.board_config
+    d = _tf.mkdtemp()
+    p = os.path.join(d, 'boards.local.json')
+    with open(p, 'w') as f:
+        _json.dump({'boards': [{'serial': '02fbddb8e1ca1281', 'role': 'vehicle'},
+                               {'serial': 'BEC71B8EDC6AEBD1', 'role': 'station',
+                                'probe': True}]}, f)
+    cfg = bc.load(p)
+    attached = lambda: {'02FBDDB8E1CA1281': 'COM5', 'BEC71B8EDC6AEBD1': 'COM7',
+                        'DEAD0000BEEF0000': 'COM9'}
+    buf = _io.StringIO()
+    with redirect_stdout(buf):
+        ser, strict = rc.role_usb_serial('vehicle', cfg_fn=lambda: cfg, ports=attached, env={})
+    out = buf.getvalue()
+    check('config maps the vehicle role to its serial (strict)',
+          ser == '02FBDDB8E1CA1281' and strict, f'{ser} {strict}')
+    check('unknown attached serial is reported by the bench',
+          'DEAD0000BEEF0000' in out and 'not used for any role' in out, out)
+    check('probe flag read from config', cfg['BEC71B8EDC6AEBD1'].probe
+          and not cfg['02FBDDB8E1CA1281'].probe)
+    with redirect_stdout(_io.StringIO()):
+        ser, strict = rc.role_usb_serial('station', cfg_fn=lambda: None, ports=attached,
+                                         env={'RC_STATION_USB_SERIAL': 'bec71b8edc6aebd1'})
+    check('missing file -> RC_STATION_USB_SERIAL (not strict)',
+          ser == 'BEC71B8EDC6AEBD1' and not strict)
+    with redirect_stdout(_io.StringIO()):
+        ser, strict = rc.role_usb_serial('station', cfg_fn=lambda: None, ports=attached, env={})
+    check('missing file + no env -> banner peek', ser is None and not strict)
+    check('missing file -> load() is None', bc.load(os.path.join(d, 'nope.json')) is None)
+
+    class Clock:
+        def __init__(self): self.t = 0.0
+        def now(self): return self.t
+        def sleep(self, s): self.t += s
+    found = []
+    def find_any(target, override=None, verbose=False):
+        found.append(override); return ('COM9', 'BANNER')   # banner would accept COM9
+    clk = Clock()
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, prefer_serial='02FBDDB8E1CA1281',
+                                     strict=True, budget_s=5.0, find=find_any,
+                                     ports=lambda: {'DEAD0000BEEF0000': 'COM9'},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('strict (config): listed serial absent -> no banner guess onto another board',
+          pw.port is None and found == [] and 'not attached' in str(pw.meta), str(pw))
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, prefer_serial=None, strict=False,
+                                     budget_s=5.0, find=find_any, ports=lambda: {},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('no config: banner peek still finds the board (unchanged)', pw.port == 'COM9')
+    check('2E8A filter kept, noted as set by our firmware descriptor',
+          rc.ROCKETCHIP_USB_VID == 0x2E8A)
+
+
 def test_pre_commit_matrix_triggers() -> None:
     print('test_pre_commit_matrix_triggers')
     ci_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci')
@@ -1136,6 +1199,7 @@ def main() -> int:
     tests = [
         test_classify_vehicle_flight,
         test_usb_fault_handling,
+        test_board_config_roles,
         test_classify_station_kmenu,
         test_classify_station_dashboard,
         test_classify_station_dashboard_waiting,

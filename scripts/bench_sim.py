@@ -31,6 +31,7 @@ Exit codes:
     2 = could not connect to target or tool self-check failed
 """
 
+import functools
 import argparse
 import os
 import re
@@ -50,6 +51,8 @@ from _rc_test_common import (  # noqa: E402
     PORT_LOST_MSG,
     NO_BANNER_MSG,
     HOLD_EXPIRED_MSG,
+    board_config,
+    role_usb_serial,
     EXIT_UPTIME_RESET,
     vehicle_reopen_uptimes,
     uptime_gap_extra_s,
@@ -297,9 +300,14 @@ def main():
         sys.exit(1)
 
     # --- Port detection + connect ---
+    try:
+        role_ser, strict = role_usb_serial('vehicle')
+    except board_config.BoardConfigError as e:
+        print(f'ERROR: {e}')
+        sys.exit(2)
     pw = wait_for_target_port(
         TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose,
-        prefer_serial=os.environ.get('RC_VEHICLE_USB_SERIAL'))
+        prefer_serial=role_ser, strict=strict)
     port_name, meta = pw.port, pw.meta
     if port_name is None:
         print('ERROR: No vehicle RocketChip USB CDC port found.')
@@ -331,7 +339,8 @@ def main():
     # back lower = reset (4); never back = port lost (3). USB only, no probe.
     verdict, ups, hb_port = vehicle_reopen_uptimes(
         TARGET_VEHICLE_ANY, override=args.port,
-        prefer_serial=os.environ.get('RC_VEHICLE_USB_SERIAL'))
+        prefer_serial=role_ser,
+        wait=functools.partial(wait_for_target_port, strict=strict))
     print(f'  uptime check (banner Uptime s over 3 reopens): {ups}')
     if verdict != 'ok':
         last = next((u for u in reversed(ups) if u is not None), None)

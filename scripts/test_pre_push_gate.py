@@ -28,6 +28,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+# Hermetic: a real scripts/ci/boards.local.json on this PC must not
+# change results. Tests that need a config pass one explicitly.
+os.environ['RC_BOARDS_CONFIG'] = os.path.join(tempfile.gettempdir(), 'rc-no-boards-config.json')
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -37,7 +40,7 @@ GATE_NO_OPENOCD = (
     'import pre_push_gate as pg; pg.openocd_listening = lambda: False; '
     'pg.prepare_worktree = lambda *a: (_ for _ in ()).throw('
     'pg.GateFail("STUB: bench worktree reached")); '
-    'pg.early_board_check = lambda *a: None; '
+    'pg.early_board_check = lambda *a, **k: None; '
     'sys.exit(pg.main(sys.argv[1:]))')
 LIST = HERE / 'ci' / 'firmware_paths.txt'
 ZERO = '0' * 40
@@ -577,8 +580,8 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     saved_tree = ft.elf_tree_id
     try:
         pg.openocd_listening = lambda: True
-        pg.early_board_check = lambda *a: None
-        pg.prepare_worktree = lambda *a: None
+        pg.early_board_check = lambda *a, **k: None
+        pg.prepare_worktree = lambda *a, **k: None
         ft.elf_tree_id = lambda *a, **k: 'feedface' * 5
         pg.build_role = lambda wt, r, want, keyed: (wt / 'rocketchip.elf', 'abc123')
         pg.flash_recorded = lambda elf: True
@@ -684,6 +687,73 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     pg.early_board_check(['station', 'vehicle'], {'S1', 'S2'})
     pg.early_board_check(['station'], None)
     check('enough boards / no pyserial -> no early block', True)
+
+    print('test_board_config (boards.local.json roles, probe flag)')
+    import board_config as bc
+    cfgp = td / 'boards.local.json'
+    cfgp.write_text('{"boards": ['
+                    '{"serial": "aaaa000011112222", "role": "vehicle", "probe": false},'
+                    '{"serial": "E6614C311B4A2E2F", "role": "station", "probe": true}]}')
+    cfg = bc.load(cfgp)
+    check('config maps roles (serial upper-cased)',
+          bc.role_of('AAAA000011112222', cfg) == 'vehicle'
+          and bc.role_serial('station', cfg, {})[:2] == ('E6614C311B4A2E2F', 'boards.local.json'))
+    check('missing file -> None, falls back to RC_*_USB_SERIAL then banner peek',
+          bc.load(td / 'nope.json') is None
+          and bc.role_serial('vehicle', None, {'RC_VEHICLE_USB_SERIAL': 'abc'}) == ('ABC', 'RC_VEHICLE_USB_SERIAL', False)
+          and bc.role_serial('vehicle', None, {}) == (None, 'banner peek', False))
+    check('unknown serial is reported, not given a role',
+          bc.unknown_serials({'AAAA000011112222', 'beef0000beef0000'}, cfg) == ['BEEF0000BEEF0000']
+          and bc.role_of('BEEF0000BEEF0000', cfg) is None
+          and 'not used for any role' in bc.unknown_message('BEEF0000BEEF0000'))
+    for bad, why in (('{"boards": [{"serial": "A", "role": "rover"}]}', 'role'),
+                     ('{"boards": [{"serial": "A", "role": "vehicle"},'
+                      '{"serial": "B", "role": "vehicle"}]}', 'one board per role'),
+                     ('not json', 'JSON')):
+        cfgb = td / 'bad.json'; cfgb.write_text(bad)
+        try:
+            bc.load(cfgb); okb = False
+        except bc.BoardConfigError as e:
+            okb = why in str(e)
+        check(f'malformed config is an error, never ignored ({why})', okb)
+    noban = lambda p: (_ for _ in ()).throw(AssertionError('banner peek used'))
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, noban, cfg_fn=lambda: cfg)
+    check('probe flag true + chip ID match -> role from config, no banner peek',
+          got == 'station', str(got))
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'AAAA000011112222'}, ports, noban, cfg_fn=lambda: cfg)))
+    check('probe flag false -> USB only even when the chip ID matches',
+          out.strip().endswith('None') and '"probe": false' in out, out)
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'1234567812345678'}, lambda: {'1234567812345678': 'COM4'}, noban,
+        cfg_fn=lambda: cfg)))
+    check('probe on an unlisted serial -> reported, USB only, not guessed',
+          out.strip().endswith('None') and 'not in boards.local.json' in out, out)
+    check('chip ID still decides: flagged board but no ID match -> unknown',
+          pg.identify_probe_role(lambda: {'0000111122223333'}, ports, noban,
+                                 cfg_fn=lambda: cfg) is None)
+    check('no config -> probe role by banner peek (unchanged)',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get,
+                                 cfg_fn=lambda: None) == 'station')
+    out = captured(lambda: pg.early_board_check(
+        ['station', 'vehicle'], {'AAAA000011112222', 'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+        cfg_fn=lambda: cfg))
+    check('early check with config: listed boards attached pass, extra serial reported',
+          'BEEF0000BEEF0000' in out and 'not in boards.local.json' in out, out)
+    try:
+        captured(lambda: pg.early_board_check(['station', 'vehicle'],
+                                              {'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+                                              cfg_fn=lambda: cfg))
+        okm = False
+    except pg.GateFail as e:
+        okm = 'vehicle board AAAA000011112222' in str(e)
+    check('early check with config: listed vehicle missing -> hard fail (unlisted board not used)', okm)
+    import json as _json
+    ex = _json.loads((Path(__file__).resolve().parent / 'ci' / 'boards.example.json').read_text())
+    exf = td / 'ex.json'; exf.write_text(_json.dumps(ex))
+    check('boards.example.json loads cleanly', len(bc.load(exf)) == 2)
+    gi = (Path(__file__).resolve().parents[1] / '.gitignore').read_text()
+    check('boards.local.json is gitignored', 'scripts/ci/boards.local.json' in gi)
 
     print('test_main_worktree_lookup (git worktree list, first line)')
     from types import SimpleNamespace

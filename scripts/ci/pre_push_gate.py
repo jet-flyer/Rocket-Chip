@@ -100,6 +100,7 @@ for _p in (_SCRIPTS, _SCRIPTS / 'ci'):
 import check_elf_paths as cep  # noqa: E402
 import firmware_tree as ft  # noqa: E402
 import pre_commit_matrix as matrix  # noqa: E402
+import board_config  # noqa: E402
 
 ZERO = '0' * 40
 NOTES_REF = 'refs/notes/rc-bench'
@@ -596,22 +597,64 @@ def port_role(port: str) -> Optional[str]:
 
 
 def identify_probe_role(ids_fn=probe_target_ids, ports_fn=board_ports,
-                        role_fn=port_role) -> Optional[str]:
-    """Role of the board the probe is on, or None (unknown: USB only)."""
+                        role_fn=port_role,
+                        cfg_fn=board_config.load) -> Optional[str]:
+    """Role of the board the probe is on, or None (unknown: USB only).
+    The probe target is always identified by chip ID = USB serial. With
+    boards.local.json the role comes from the file and the board must be
+    flagged "probe": true; an unlisted serial is reported, never guessed.
+    Without the file: one banner peek (unchanged)."""
     ids = ids_fn()
     if not ids:
         return None
-    hits = [p for s, p in ports_fn().items() if s.upper() in ids]
+    hits = [(s, p) for s, p in ports_fn().items() if s.upper() in ids]
     if len(hits) != 1:
         return None
-    role = role_fn(hits[0])
+    ser, port = hits[0]
+    try:
+        cfg = cfg_fn()
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    if cfg is None:
+        role = role_fn(port)
+        return role if role in ROLES else None
+    role = board_config.role_of(ser, cfg)
+    if role is None:
+        warn(board_config.unknown_message(ser.upper()) + ' Probe: USB only.')
+        return None
+    if not board_config.probe_flagged(ser, cfg):
+        warn(f'probe chip ID matches the {role} board ({ser.upper()}) but '
+             'boards.local.json has "probe": false for it. USB only.')
+        return None
     return role if role in ROLES else None
 
 
-def early_board_check(roles: List[str], serials: Optional[Set[str]]) -> None:
+def early_board_check(roles: List[str], serials: Optional[Set[str]],
+                      cfg_fn=lambda: None) -> None:
     """Before the build: fewer attached RocketChip ports than roles is a
     hard fail now (the bench still checks each board by banner later).
+    With boards.local.json: each role's listed serial must be attached, and
+    attached serials the file does not list are reported (never used).
     None (no pyserial) -> no early check."""
+    try:
+        cfg = cfg_fn()
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    if serials is not None and cfg is not None:
+        for u in board_config.unknown_serials(serials, cfg):
+            warn(board_config.unknown_message(u))
+        up = {s.upper() for s in serials}
+        for r in roles:
+            ser, _, _ = board_config.role_serial(r, cfg)
+            if ser is None:
+                raise GateFail(f'board missing: no {r} board listed in '
+                               f'{board_config.config_path()}. Add it, then run '
+                               'git push again. (A skip is a fail.)')
+            if ser not in up:
+                raise GateFail(f'board missing: {r} board {ser} '
+                               '(boards.local.json) is not attached. Attach '
+                               'it, then run git push again. (A skip is a fail.)')
+        return
     if serials is not None and len(serials) < len(roles):
         raise GateFail(f'board missing: this push benches {len(roles)} board(s) '
                        f'({", ".join(roles)}) but {len(serials)} RocketChip USB '
@@ -633,9 +676,19 @@ def run_bench(wt: Path, script: str, sha: str, label: str) -> Tuple[str, str]:
     """(result text, USB serial of the benched board or UNKNOWN_SERIAL)."""
     cmd = [sys.executable, '-u', str(wt / 'scripts' / script), '--commit', sha]
     say(f'{label}: $ ' + ' '.join(cmd))
-    r = subprocess.run(cmd, cwd=str(wt), capture_output=True, text=True)
-    out = (r.stdout or '') + (r.stderr or '')
-    print(out, flush=True)
+    # Stream the child live (each line echoed and flushed as it arrives) so
+    # long runs such as RC_UPTIME_HOLD_S show progress; the text is still
+    # collected for the result / board-serial parse below.
+    env = dict(os.environ, PYTHONUNBUFFERED='1')
+    p = subprocess.Popen(cmd, cwd=str(wt), stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, bufsize=1,
+                         errors='replace', env=env)
+    lines: List[str] = []
+    for line in p.stdout:
+        print(line, end='', flush=True)
+        lines.append(line)
+    r = subprocess.CompletedProcess(cmd, p.wait())
+    out = ''.join(lines)
     if r.returncode == 2:
         raise GateFail(f'{label}: exit 2 (board not found / tool self-check / '
                        f'watchdog). The push needs this bench: a skip is a fail.')
@@ -738,7 +791,7 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     # flash record, bench and radio checks below are the same either way.
     listening = openocd_listening()
     early_board_check(sorted(set(plan.roles) | (set(ROLES) if plan.radio else set())),
-                      attached_board_serials())
+                      attached_board_serials(), cfg_fn=board_config.load)
     prepare_worktree(primary, wt, local_sha)
     want = ft.elf_tree_id(wt, local_sha)
     built: Dict[str, Tuple[Path, str]] = {r: build_role(wt, r, want, versions)

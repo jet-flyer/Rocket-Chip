@@ -47,6 +47,7 @@
 - Do not rewrite existing documents or old commits from this rule, aside from re-evaluation passes explicitly triggered by a human user.
 - Code, comments, and firmware log strings stay under `standards/CODING_STANDARDS.md`.
 - **Hardware-facing changes need a real-board check before merge to main.** Scope: `src/drivers/` (I2C, SPI, UART, GPS, IMU, baro, RFM95), `src/active_objects/ao_radio*`, `src/diag/radio_*`, `src/logging/radio_config_storage*`, `src/safety/` (boot, watchdog), `src/main.cpp`, `src/cli/` (CLI `k` restart path), `pio/*.pio`, and any ISR, boot or reset path. You can commit before the check. Until then the commit's `Verified:` line must say `UNBENCHED`. The check is a run on real boards by Buzz or Grok Build. It must cover warm restarts (CLI `k` and `picotool reboot`), a power-on boot, and a short soak with the radio link live. Hook and pre-push checks alone do not count. Why: `c4278fb3` (cloud agent, host-tested only) caused the station PA1010D warm-restart hang. Also in `.cursor/rules/hw-verify.mdc`.
+- The bench assumes the board console is USB serial (USB CDC); a board with a UART-only console needs a USB-UART adapter.
 
 ---
 

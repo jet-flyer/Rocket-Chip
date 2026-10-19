@@ -48,6 +48,7 @@ Exit codes:
 """
 
 import argparse
+import functools
 import os
 import re
 import serial
@@ -75,6 +76,8 @@ from _rc_test_common import (  # noqa: E402
     PORT_LOST_MSG,
     NO_DASH_UPTIME_MSG,
     HOLD_EXPIRED_MSG,
+    board_config,
+    role_usb_serial,
     TARGET_STATION_ANY,
     make_reconnect,
     report_usb_fault,
@@ -316,7 +319,10 @@ def _station_bench_run_inner(ser: serial.Serial,
             ser, STATION_UPTIME_KEYS,
             reconnect=make_reconnect(TARGET_STATION_ANY, ser,
                                      override=getattr(args, 'port', None),
-                                     prefer_serial=os.environ.get('RC_STATION_USB_SERIAL')))
+                                     prefer_serial=getattr(args, '_role_ser', None),
+                                     wait=functools.partial(
+                                         wait_for_target_port,
+                                         strict=getattr(args, '_strict', False))))
         print(f'  uptime check (dashboard Up s over 3 polls): {ups}')
         if verdict != 'ok':
             last = next((u for u in reversed(ups) if u is not None), None)
@@ -444,9 +450,15 @@ def main():
         port_name = args.port
         meta = peek_banner(port_name)
     else:
+        try:
+            role_ser, strict = role_usb_serial('station')
+        except board_config.BoardConfigError as e:
+            print(f'ERROR: {e}')
+            sys.exit(2)
         pw = wait_for_target_port(
             TARGET_STATION_ANY, override=args.port, verbose=args.verbose,
-            prefer_serial=os.environ.get('RC_STATION_USB_SERIAL'))
+            prefer_serial=role_ser, strict=strict)
+        args._role_ser, args._strict = role_ser, strict
         port_name, reason = pw.port, pw.meta
         if port_name is None:
             report_usb_fault('port never appeared' if not pw.appeared else 'not this role',

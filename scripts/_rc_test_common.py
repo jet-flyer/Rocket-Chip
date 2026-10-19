@@ -103,12 +103,18 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 import firmware_tree  # noqa: E402  (scripts/firmware_tree.py)
+if os.path.join(_THIS_DIR, 'ci') not in sys.path:
+    sys.path.insert(0, os.path.join(_THIS_DIR, 'ci'))
+import board_config  # noqa: E402  (scripts/ci/board_config.py)
 
 
 # ============================================================================
 # Constants
 # ============================================================================
 
+# 2E8A:0009 is the VID:PID our firmware's USB descriptor sets (pico-sdk
+# stdio_usb descriptor, pico_enable_stdio_usb in CMakeLists.txt). Keep the
+# filter; roles come from board_config, never from this ID.
 ROCKETCHIP_USB_VID = 0x2E8A
 ROCKETCHIP_USB_PID = 0x0009
 
@@ -1290,6 +1296,7 @@ def wait_for_target_port(target: Target,
                          override: Optional[str] = None,
                          verbose: bool = False,
                          prefer_serial: Optional[str] = None,
+                         strict: bool = False,
                          budget_s: Optional[float] = None,
                          poll_s: float = 1.0,
                          find: Callable = None,
@@ -1299,7 +1306,9 @@ def wait_for_target_port(target: Target,
     """find_target_port, retried within a total budget. The port is
     located by USB serial first when one is given (RC_<ROLE>_USB_SERIAL),
     else by VID:PID + banner (find_target_port). Never flashes, never
-    reboots. Every match is still classified by banner."""
+    reboots. Every match is still classified by banner. strict (role from
+    boards.local.json): only prefer_serial may match; no banner fallback to
+    another board."""
     find = find or find_target_port
     ports = ports or _serial_to_port
     budget = port_wait_budget() if budget_s is None else budget_s
@@ -1310,9 +1319,16 @@ def wait_for_target_port(target: Target,
         seen = ports()
         appeared = appeared or bool(seen)
         use, method = override, ('--port' if override else 'VID:PID + banner')
+        seen = {k.upper(): v for k, v in seen.items()}
         if override is None and prefer_serial and prefer_serial.upper() in seen:
             use, method = seen[prefer_serial.upper()], f'USB serial {prefer_serial}'
-        port, meta = find(target, override=use, verbose=verbose)
+        if strict and override is None and use is None:
+            port, meta = None, (f'USB serial {prefer_serial} (boards.local.json) '
+                                'not attached' if prefer_serial else
+                                'role not listed in boards.local.json')
+            method = 'boards.local.json'
+        else:
+            port, meta = find(target, override=use, verbose=verbose)
         if port is not None:
             dt = clock() - t0
             print(f'  port {port} located by {method} after {dt:.1f}s')
@@ -1320,6 +1336,22 @@ def wait_for_target_port(target: Target,
         if clock() - t0 + poll_s > budget:
             return PortWait(None, meta, appeared, None, method)
         sleep(poll_s)
+
+
+def role_usb_serial(role: str, cfg_fn: Callable = None,
+                    ports: Callable = None,
+                    env=os.environ) -> Tuple[Optional[str], bool]:
+    """(USB serial to look for, strict) for a role: boards.local.json, else
+    RC_<ROLE>_USB_SERIAL, else (None, False) = banner peek. Prints the
+    source and reports every attached serial the config does not list.
+    Raises board_config.BoardConfigError for a malformed file."""
+    cfg = (cfg_fn or board_config.load)()
+    ser, source, strict = board_config.role_serial(role, cfg, env)
+    print(f'  {role} board: ' + (f'USB serial {ser} from {source}' if ser else
+          ('NOT LISTED in boards.local.json' if strict else source)))
+    for u in board_config.unknown_serials((ports or _serial_to_port)().keys(), cfg):
+        print('  ' + board_config.unknown_message(u))
+    return ser, strict
 
 
 def banner_wait_s() -> float:
@@ -1714,7 +1746,7 @@ __all__ = [
     'uptime_hold_s', 'HOLD_EXPIRED_MSG',
     'report_usb_fault', 'port_wait_budget', 'EXIT_UPTIME_RESET',
     'banner_uptime', 'classify_uptimes', 'vehicle_reopen_uptimes',
-    'PORT_LOST_MSG', 'NO_BANNER_MSG', 'NO_DASH_UPTIME_MSG', 'make_reconnect', 'banner_wait_s',
+    'PORT_LOST_MSG', 'NO_BANNER_MSG', 'NO_DASH_UPTIME_MSG', 'make_reconnect', 'banner_wait_s', 'role_usb_serial',
     'VEHICLE_UPTIME_KEYS', 'STATION_UPTIME_KEYS',
     # Decorator
     'rc_test',
