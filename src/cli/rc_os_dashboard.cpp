@@ -284,19 +284,16 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour,
     const bool rf_live = (rxn > 0U) && (gap < kStationBarHoldMs);
     const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U) && rf_live;
 #ifndef ROCKETCHIP_HOST_TEST
-    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 #else
-    const uint32_t window_ms = 0;
+    const uint32_t now_ms = 0;
 #endif
     const uint32_t ok = g_radioRateCounters.rx_crc_ok_n;
     const uint32_t fail = g_radioRateCounters.rx_crc_fail_n;
     const uint8_t lq = rc::dash::crc_lq_pct(ok, fail);
-    const bool hz_ok = (window_ms >= 1000U);
-    uint32_t hz10 = 0;
-    if (hz_ok) {
-        hz10 = static_cast<uint32_t>(
-            (static_cast<uint64_t>(ok) * 10U) / (window_ms / 1000U));
-    }
+    // Last 2 s of CRC-ok packets. The span stays up across the edge.
+    const uint32_t hz10 = radio_rate_rx_window_hz10(now_ms);
+    const bool hz_ok = (hz10 != kRadioRxWindowBlankHz10);
     if (copp_lock) {
         colour = kGreen;
     } else if (rf_live) {
