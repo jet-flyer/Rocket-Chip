@@ -17,6 +17,28 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Fruit Jam PA1010D hang after a warm restart (OPEN) (2026-10-19)
+
+The Fruit Jam PA1010D at I2C 0x10 hung after 3 of 4 warm restarts on 2026-10-19. The first #38 bench used `k`, then a picotool reboot onto `c4278fb3`. The module was fine after 1 picotool reboot before the 2 dBm soak. The power switch cleared the hang every time. That clear was board-measured (Buzz).
+
+Fact: STEMMA QT runs from the always-on 3V regulator. Firmware cannot switch that rail. GPIO22 resets only the ESP32-C6 and the DAC (Adafruit Fruit Jam pinout guide; pico-sdk `adafruit_fruit_jam.h`).
+
+Fact: `i2c_master_abort_and_idle()` already sends 9 SCL clocks and STOP when SDA is held low. The probe still failed after that recovery.
+
+Inference: the PA1010D hangs inside the module. The bus recovery already ran.
+
+Open test: read SDA and SCL right after a warm restart.
+
+## soak_two_board.py score file (OPEN) (2026-10-19)
+
+Quirks from the `c7d70cc6` 2 dBm soak. Score file: `logs/soak/2026-10-19_A1_c7d70cc6_2dBm_score.txt`.
+
+- `veh_git` takes the last hex run of 7 or more characters (`scripts/soak_two_board.py` about line 175). Match `flight-([0-9a-f]+)` first. The vehicle banner was `flight-c7d70cc6`. The score file stored the tree hash.
+- The operator bar prints yellow. Pad RSSI on that soak was about -53 dBm.
+- `paper_duty` uses 5 Hz when the run omits `--nav-hz 10`. The flashed nav rate was 10 Hz.
+- The pad CRC count does not match RATE `rx_crc_fail=0`.
+- The debug HW line always prints `20dBm` (`cli_print_hw_status`).
+
 ## +20 dBm limit cause (OPEN) (2026-10-14)
 
 Nathan, 2026-10-14. The driver init default is now +15 dBm. +20 dBm stays available when a caller passes a power above +17 dBm. The driver enables `RegPaDac` for that call. It does not enforce the 1% transmit duty or the 3:1 VSWR limit.
@@ -79,7 +101,7 @@ Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 20
 
 Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nathan decides the split before any FSK pivot code.
 
-- **Before the pivot:** ESKF rate measured 2026-10-14 (R-33): about 116 Hz with USB connected and with USB gone. Council the same day: leave the filter in place through the FSK bench. The 200 Hz label is IMU-poll/5 from Stage 5, not a dynamics requirement, and the live ~4.6 ms body does not fit a 5 ms period. A still-board debug `s` measured predict at 246 µs average inside a 4685 µs full tick. New FSK FIFO service runs from the DIO interrupt. Idle-hook stalls are fixed: GPS reinit is one slice per idle pass (no 250 ms busy-wait), and the station GPS poll arms an I2C IRQ read (the hook does not spin on the bus). Do not move that poll to core 1 until after the pivot (Nathan, 2026-10-12; fixed 2026-10-18).
+- **Before the pivot:** ESKF rate measured 2026-10-14 (R-33): about 116 Hz with USB connected and with USB gone. Council the same day: leave the filter in place through the FSK bench. The 200 Hz label is IMU-poll/5 from Stage 5, not a dynamics requirement, and the live ~4.6 ms body does not fit a 5 ms period. A still-board debug `s` measured predict at 246 µs average inside a 4685 µs full tick. New FSK FIFO service runs from the DIO interrupt.
 - **With the pivot:** Radio's ~9 mode flags to real QEP states; the ~100 ms flash write out of the Radio handler; Telemetry split. The pivot rewrites this code.
 - **Anytime (not during a bench run):** QP 8.1.3 to 8.1.5 (re-vendored files).
 - **After the pivot:** RCOS / calibration wizard split; station GPS poll to core 1; STARS re-evaluation; paywall re-check (below).

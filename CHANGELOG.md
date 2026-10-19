@@ -43,6 +43,12 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-19-001 | Grok 4.7 (Build CLI) | bugfix, hardware, tooling
+
+PR #36 is on main (`9b72944f`). Linux host tests pass. The `banked_turn_10s` references are keyed by host libm (`glibc-2.39` and `msvc-1929`). `rc_log` uses `va_copy`. This merge supersedes #35. PR #38 is on main (`b0c4f87d`). GPS UART reinit is one slice per idle pass. The station PA1010D read finishes in the I2C IRQ. The bench was vehicle 2/2 and station 3/3 on `flight-c4278fb3`. The 2 dBm soak of `c7d70cc6` passed. In that window the vehicle sent 2,947 packets with 0 fail. The station received 3,033 packets and the pad CRC count rose by 23. RSSI was -56 to -52 dBm on 2,861 of 2,881 samples (8 samples at -57 dBm, 12 at -51 dBm). Score file: `logs/soak/2026-10-19_A1_c7d70cc6_2dBm_score.txt`.
+
+Verified: pure-docs change. No firmware path changed.
+
 ### 2026-10-14-002 | Grok 4.7 (Build CLI) | documentation
 
 R-33 records the ESKF idle-hook rate (`docs/PROBLEM_REPORTS.md`). The 2026-10-14 bench measured about 116 Hz with the USB cable connected and with the cable gone. The full tick is about 4.6 ms. The 200 Hz label is the 1 kHz IMU poll divided by 5. A still-board debug `s` after a dark power cycle measured predict at 246 µs average and the full tick at 4685 µs average over 10921 calls. The council leaves the filter in the idle hook through the FSK bench.
