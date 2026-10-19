@@ -43,15 +43,9 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
-### 2026-10-19-002 | Grok Buzz (Grok Bot) | documentation
-
-PR #37 is on main (`17bfd595`). It adds the S17 PC-side GFSK BT report (BT 0.25 vs 0.3, simulation only; the board half is still pending): `docs/reports/2026-10-18_buzz_s17-gfsk-bt-pc.md`, plus its `scripts/s17_*.py` helpers. Merged branches for #35 to #38 were deleted.
-
-Verified: pure-docs change. No firmware path changed.
-
 ### 2026-10-19-001 | Grok 4.7 (Build CLI) | bugfix, hardware, tooling
 
-PR #36 is on main (`9b72944f`). Linux host tests pass. The `banked_turn_10s` references are keyed by host libm (`glibc-2.39` and `msvc-1929`). `rc_log` uses `va_copy`. This merge supersedes #35. PR #38 is on main (`b0c4f87d`). GPS UART reinit is one slice per idle pass. The station PA1010D read finishes in the I2C IRQ. The bench was vehicle 2/2 and station 3/3 on `flight-c4278fb3`. The 2 dBm soak of `c7d70cc6` passed. In that window the vehicle sent 2,947 packets with 0 fail. The station received 3,033 packets and the pad CRC count rose by 23. RSSI was -56 to -52 dBm on 2,861 of 2,881 samples (8 samples at -57 dBm, 12 at -51 dBm). Score file: `logs/soak/2026-10-19_A1_c7d70cc6_2dBm_score.txt`.
+PR #36 is on main (`9b72944f`). Linux host tests pass. The `banked_turn_10s` references are keyed by host libm (`glibc-2.39` and `msvc-1929`). `rc_log` uses `va_copy`. This merge supersedes #35. PR #38 is on main (`b0c4f87d`). GPS UART reinit is one slice per idle pass. The station PA1010D read finishes in the I2C IRQ. The bench was vehicle 2/2 and station 3/3 on `flight-c4278fb3`. The 2 dBm soak of `c7d70cc6` passed. In that window the vehicle sent 2,947 packets with 0 fail. The station received 3,033 packets and the pad CRC count rose by 23. RSSI was -56 to -52 dBm on 2,861 of 2,881 samples (8 samples at -57 dBm, 12 at -51 dBm). Score file: `logs/soak/2026-10-19_A1_c7d70cc6_2dBm_score.txt`. PR #37 is on main (`17bfd595`). It adds the S17 PC-side GFSK BT report (BT 0.25 vs 0.3, simulation only; D4 is still open and the board half is pending): `docs/reports/2026-10-18_buzz_s17-gfsk-bt-pc.md`. Merged branches for #35 to #38 were deleted.
 
 Verified: pure-docs change. No firmware path changed.
 
