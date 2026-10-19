@@ -7,11 +7,14 @@
 #include "i2c_master.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
+#include "hardware/irq.h"
 #include "pico/error.h"
 #include "pico/mutex.h"
 #include "pico/time.h"
 #include "hardware/sync.h"
 #include "rocketchip/rc_log.h"
+#include <atomic>
+#include <cstdint>
 
 constexpr uint8_t  kSdaStuckClocks     = 9;       // UM10204 §3.1.16
 constexpr uint32_t kRecoverPulseUs     = 5;       // Linux i2c-core RECOVERY_NDELAY
@@ -329,7 +332,228 @@ bool i2c_master_reset() {
     return g_initialized;
 }
 
+// ---- IRQ-driven read (station GPS poll) ---------------------------------
+// DW_apb RX/TX FIFO depth is 16. The IRQ keeps the FIFO fed so the
+// 255-byte GlobalTop read stays one transaction. The idle hook polls.
+
+constexpr uint8_t kI2cFifoDepth = 16;  // DW_apb_i2c RX_BUFFER_DEPTH / TX
+
+struct AsyncRead {
+    uint8_t* data;
+    absolute_time_t deadline;
+    absolute_time_t abort_deadline;
+    uint16_t len;
+    uint16_t queued;
+    uint16_t got;
+    int result;
+    bool armed;
+    bool lock_held;
+    bool ready;
+    bool aborting;
+    std::atomic<bool> done;
+};
+
+static AsyncRead g_async{};
+static bool g_asyncIrqReady = false;
+static uint g_i2cIrqNum = I2C0_IRQ;
+
+static void async_mask() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    uint32_t mask = I2C_IC_INTR_MASK_M_RX_FULL_BITS |
+                    I2C_IC_INTR_MASK_M_RX_OVER_BITS |
+                    I2C_IC_INTR_MASK_M_STOP_DET_BITS |
+                    I2C_IC_INTR_MASK_M_TX_ABRT_BITS;
+    if (g_async.queued < g_async.len) {
+        mask |= I2C_IC_INTR_MASK_M_TX_EMPTY_BITS;
+    }
+    hw->intr_mask = mask;
+}
+
+static void async_finish(int result) {
+    if (g_async.done.load(std::memory_order_relaxed)) {
+        return;
+    }
+    I2C_MASTER_INSTANCE->hw->intr_mask = 0;
+    g_async.aborting = false;
+    g_async.result = result;
+    g_async.done.store(true, std::memory_order_release);
+}
+
+// Hardware ABORT issues STOP. The idle hook polls until the abort bit clears.
+static void async_fail(int result) {
+    if (g_async.done.load(std::memory_order_relaxed) || g_async.aborting) {
+        return;
+    }
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    g_async.result = result;
+    g_async.aborting = true;
+    g_async.abort_deadline = make_timeout_time_us(kI2cMasterDefaultTimeoutUs);
+    hw->intr_mask = 0;
+    if ((hw->enable_status & I2C_IC_ENABLE_STATUS_IC_EN_BITS) != 0U) {
+        hw->enable = I2C_IC_ENABLE_ENABLE_BITS | I2C_IC_ENABLE_ABORT_BITS;
+    }
+}
+
+static void async_pump_abort() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    const bool abort_live = (hw->enable & I2C_IC_ENABLE_ABORT_BITS) != 0U;
+    if (abort_live && !time_reached(g_async.abort_deadline)) {
+        return;
+    }
+    if (abort_live) {
+        hw->enable = 0;
+    }
+    hw->intr_mask = 0;
+    (void)hw->clr_stop_det;
+    (void)hw->clr_tx_abrt;
+    drain_rx();
+    async_finish(g_async.result);
+}
+
+static void async_drain() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    for (uint8_t n = 0; n < kI2cFifoDepth; n++) {
+        if (i2c_get_read_available(I2C_MASTER_INSTANCE) == 0U) {
+            break;
+        }
+        if (g_async.got >= g_async.len) {
+            (void)hw->data_cmd;
+        } else {
+            g_async.data[g_async.got] = static_cast<uint8_t>(hw->data_cmd);
+            g_async.got = static_cast<uint16_t>(g_async.got + 1U);
+        }
+    }
+}
+
+static void async_fill() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    for (uint8_t n = 0; n < kI2cFifoDepth; n++) {
+        if (g_async.queued >= g_async.len) {
+            break;
+        }
+        if (i2c_get_write_available(I2C_MASTER_INSTANCE) == 0U) {
+            break;
+        }
+        const bool first = (g_async.queued == 0U);
+        const uint16_t next = static_cast<uint16_t>(g_async.queued + 1U);
+        const bool last = (next == g_async.len);
+        hw->data_cmd =
+            (bool_to_bit(first && I2C_MASTER_INSTANCE->restart_on_next)
+             << I2C_IC_DATA_CMD_RESTART_LSB) |
+            (bool_to_bit(last) << I2C_IC_DATA_CMD_STOP_LSB) |
+            I2C_IC_DATA_CMD_CMD_BITS;
+        g_async.queued = next;
+    }
+}
+
+static bool async_rx_over() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    if ((hw->raw_intr_stat & I2C_IC_RAW_INTR_STAT_RX_OVER_BITS) == 0U) {
+        return false;
+    }
+    (void)hw->clr_rx_over;
+    return true;
+}
+
+static bool async_stop() {
+    i2c_hw_t* hw = I2C_MASTER_INSTANCE->hw;
+    if ((hw->raw_intr_stat & I2C_IC_RAW_INTR_STAT_STOP_DET_BITS) == 0U) {
+        return false;
+    }
+    (void)hw->clr_stop_det;
+    return true;
+}
+
+static void async_pump() {
+    if (g_async.done.load(std::memory_order_relaxed)) {
+        return;
+    }
+    if (g_async.aborting) {
+        async_pump_abort();
+        return;
+    }
+    if (take_tx_abort() || async_rx_over()) {
+        async_fail(PICO_ERROR_GENERIC);
+        return;
+    }
+    if (time_reached(g_async.deadline)) {
+        async_fail(PICO_ERROR_TIMEOUT);
+        return;
+    }
+    async_drain();
+    async_fill();
+    if ((g_async.got == g_async.len) && async_stop()) {
+        async_finish(static_cast<int>(g_async.got));
+        return;
+    }
+    async_mask();
+}
+
+static void i2c_async_isr() {
+    if (!g_async.armed) {
+        I2C_MASTER_INSTANCE->hw->intr_mask = 0;
+        return;
+    }
+    async_pump();
+}
+
+static void async_release_lock() {
+    if (!g_async.lock_held) {
+        return;
+    }
+    g_async.lock_held = false;
+    i2c_master_unlock();
+}
+
+static void async_disarm_hw() {
+    I2C_MASTER_INSTANCE->hw->intr_mask = 0;
+    if (g_asyncIrqReady) {
+        irq_set_enabled(g_i2cIrqNum, false);
+    }
+}
+
+static void join_async() {
+    if (!g_async.armed) {
+        return;
+    }
+    async_disarm_hw();
+    const uint32_t limit = spin_limit(kI2cMasterDefaultTimeoutUs);
+    for (uint32_t n = 0; n < limit; n++) {
+        if (g_async.done.load(std::memory_order_acquire)) {
+            break;
+        }
+        async_pump();
+        if (g_async.done.load(std::memory_order_acquire)) {
+            break;
+        }
+        tight_loop_contents();
+    }
+    if (!g_async.done.load(std::memory_order_acquire)) {
+        const int result = g_async.aborting ? g_async.result
+                                             : PICO_ERROR_TIMEOUT;
+        I2C_MASTER_INSTANCE->hw->enable = 0;
+        async_finish(result);
+    }
+    g_async.armed = false;
+    g_async.ready = true;
+    async_release_lock();
+}
+
+static void abandon_async() {
+    if (!g_async.armed && !g_async.lock_held) {
+        return;
+    }
+    async_disarm_hw();
+    if (!g_async.done.load(std::memory_order_relaxed)) {
+        async_finish(PICO_ERROR_GENERIC);
+    }
+    g_async.armed = false;
+    g_async.ready = true;
+    async_release_lock();
+}
+
 void i2c_master_abort_and_idle() {
+    abandon_async();
     abort_controller();
     sio_pads();
     sleep_us(kRecoverPulseUs);
@@ -488,6 +712,7 @@ static int xfer_read(uint8_t addr, uint8_t* data, size_t len, bool nostop,
 }
 
 static bool take_lock(uint32_t timeout_us) {
+    join_async();
     if (g_quiescing || !g_initialized) {
         return false;
     }
@@ -510,6 +735,12 @@ bool i2c_master_init() {
     attach_controller();
     g_initialized = (I2C_MASTER_INSTANCE->hw->enable != 0U);
     g_quiescing = false;
+    if (g_initialized && !g_asyncIrqReady) {
+        g_i2cIrqNum = (I2C_MASTER_INSTANCE == i2c1) ? I2C1_IRQ : I2C0_IRQ;
+        irq_set_exclusive_handler(g_i2cIrqNum, i2c_async_isr);
+        irq_set_enabled(g_i2cIrqNum, false);
+        g_asyncIrqReady = true;
+    }
     return g_initialized;
 }
 
@@ -545,6 +776,69 @@ int i2c_master_read(uint8_t addr, uint8_t* data, size_t len,
     int rc = xfer_read(addr, data, len, false, timeout_us);
     i2c_master_unlock();
     return rc;
+}
+
+bool i2c_master_read_async_start(uint8_t addr, uint8_t* data, size_t len,
+                                 uint32_t timeout_us) {
+    if (data == nullptr || len == 0U || len > static_cast<size_t>(UINT16_MAX)) {
+        return false;
+    }
+    if (g_async.armed || !g_asyncIrqReady || !i2c_master_lines_idle()) {
+        return false;
+    }
+    async_disarm_hw();
+    if (!take_lock(0U)) {
+        return false;
+    }
+    g_async.data = data;
+    g_async.len = static_cast<uint16_t>(len);
+    g_async.queued = 0;
+    g_async.got = 0;
+    g_async.result = 0;
+    g_async.ready = false;
+    g_async.aborting = false;
+    g_async.done.store(false, std::memory_order_relaxed);
+    g_async.deadline = make_timeout_time_us(timeout_us);
+    g_async.lock_held = true;
+    g_async.armed = true;
+    I2C_MASTER_INSTANCE->restart_on_next = false;
+    arm_target(addr);
+    drain_rx();
+    (void)I2C_MASTER_INSTANCE->hw->clr_tx_abrt;
+    (void)I2C_MASTER_INSTANCE->hw->clr_stop_det;
+    (void)I2C_MASTER_INSTANCE->hw->clr_rx_over;
+    async_fill();
+    async_mask();
+    irq_set_enabled(g_i2cIrqNum, true);
+    return true;
+}
+
+int i2c_master_read_async_poll(int* result) {
+    if (result == nullptr) {
+        return -1;
+    }
+    if (g_async.armed && !g_async.done.load(std::memory_order_acquire)) {
+        irq_set_enabled(g_i2cIrqNum, false);
+        async_pump();
+        if (!g_async.done.load(std::memory_order_acquire)) {
+            irq_set_enabled(g_i2cIrqNum, true);
+            return 0;
+        }
+    } else if (!g_async.armed && !g_async.ready) {
+        return 0;
+    }
+    if (g_async.armed) {
+        async_disarm_hw();
+        g_async.armed = false;
+        g_async.ready = true;
+        async_release_lock();
+    }
+    *result = g_async.result;
+    g_async.ready = false;
+    if (g_async.result < 0) {
+        return -1;
+    }
+    return 1;
 }
 
 int i2c_master_write_read(uint8_t addr, const uint8_t* tx, size_t tx_len,

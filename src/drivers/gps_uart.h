@@ -59,16 +59,23 @@ void gps_uart_drain(void);
 // (Core 1) isn't draining fast enough.
 [[nodiscard]] uint32_t gps_uart_get_overflow_count(void);
 
-// Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ
-// on THIS core. Call only from the core that ran gps_uart_init() (Core 0).
-// Blocks up to two presence windows (~4 s) plus 250 ms negotiate.
-// Do not call from Core 1 — use gps_uart_request_reinit() instead.
-[[nodiscard]] bool gps_uart_reinit(void);
+// One slice of a Core-0 reinit. Call from the idle hook every pass.
+// Does not busy-wait. kIdle = nothing pending. kBusy = still in a
+// presence window or the 250 ms baud settle. kDone = UART is back at
+// 57600. kFailed = no NMEA start in either window.
+enum class GpsUartReinitStatus : uint8_t {
+    kIdle = 0,
+    kBusy,
+    kDone,
+    kFailed,
+};
+
+[[nodiscard]] GpsUartReinitStatus gps_uart_reinit_service(void);
 
 // Core 1: request a Core-0 reinit after UART GPS staleness. Non-blocking.
 void gps_uart_request_reinit(void);
 
-// Core 0: consume a pending request. true = caller should run gps_uart_reinit().
+// Core 0: consume a pending request. Used by gps_uart_reinit_service().
 [[nodiscard]] bool gps_uart_take_reinit_request(void);
 
 #endif // ROCKETCHIP_GPS_UART_H

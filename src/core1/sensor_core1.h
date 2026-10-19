@@ -70,4 +70,10 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
 void core1_read_gps(shared_sensor_data_t* localData,
                     uint32_t* lastGpsReadUs);
 
+// Station I2C GPS. Copies the latest PA1010D sample. Does not touch
+// the bus — gps_pa1010d_service() owns the transfer.
+// count_read true: same counters as core1_read_gps (10 Hz tick).
+// count_read false: refresh position only (read just finished).
+void core1_accept_i2c_gps(shared_sensor_data_t* localData, bool countRead);
+
 #endif // ROCKETCHIP_SENSOR_CORE1_H

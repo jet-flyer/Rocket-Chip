@@ -416,10 +416,8 @@ extern "C" void qv_idle_bridge(void) {
         watchdog_kick_tick();
     }
 
-    if (gps_uart_take_reinit_request()) {
-        if (!gps_uart_reinit()) {
-            g_gpsInitialized.store(false, std::memory_order_release);
-        }
+    if (gps_uart_reinit_service() == GpsUartReinitStatus::kFailed) {
+        g_gpsInitialized.store(false, std::memory_order_release);
     }
 
     eskf_runner_tick();

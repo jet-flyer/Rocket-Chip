@@ -352,6 +352,62 @@ static void apply_gps_nmea_utc(shared_sensor_data_t* local_data,
     local_data->gps_date_valid = true;
 }
 
+static void copy_gps_position(shared_sensor_data_t* local_data,
+                             const gps_data_t* d) {
+    // Hold-on-valid (ArduPilot GPS backend new_data): keep the last fix
+    // between NMEA bursts. Overwrite only when the driver says valid.
+    if (!d->valid) {
+        return;
+    }
+    double lat = d->latitude;
+    double lon = d->longitude;
+    if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
+    if (lat < kLatMinDeg) { lat = kLatMinDeg; }
+    if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
+    if (lon < kLonMinDeg) { lon = kLonMinDeg; }
+    local_data->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+    local_data->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
+    local_data->gps_alt_msl_m = d->altitudeM;
+    local_data->gps_ground_speed_mps = d->speedMps;
+    local_data->gps_course_deg = d->courseDeg;
+    local_data->gps_valid = true;
+    local_data->gps_hdop = d->hdop;
+    local_data->gps_vdop = d->vdop;
+}
+
+static void copy_gps_diag(shared_sensor_data_t* local_data, const gps_data_t* d) {
+    local_data->gps_fix_type = static_cast<uint8_t>(d->fix);
+    local_data->gps_satellites = d->satellites;
+    local_data->gps_gga_fix = d->ggaFix;
+    local_data->gps_gsa_fix_mode = d->gsaFixMode;
+    local_data->gps_rmc_valid = d->rmcValid;
+}
+
+static void commit_gps_sample(shared_sensor_data_t* local_data,
+                              const gps_data_t* d,
+                              bool parsed,
+                              uint32_t now_us,
+                              bool count_read) {
+    if (count_read) {
+        // Counts driver polls, not valid fixes.
+        local_data->gps_read_count++;
+        local_data->gps_timestamp_us = now_us;
+    }
+    copy_gps_position(local_data, d);
+    apply_gps_nmea_utc(local_data, *d);
+    copy_gps_diag(local_data, d);
+    if (count_read && !parsed) {
+        local_data->gps_error_count++;
+    }
+    if (!count_read) {
+        core1_update_best_gps_fix(local_data);
+        return;
+    }
+    core1_gps_staleness_check(parsed, now_us);
+    core1_update_best_gps_fix(local_data);
+    poll_i2c_gps_sidecar();
+}
+
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
 void core1_read_gps(shared_sensor_data_t* local_data,
                     uint32_t* last_gps_read_us) {
@@ -367,49 +423,17 @@ void core1_read_gps(shared_sensor_data_t* local_data,
     if (!poll_bound_gps(&d, &parsed)) {
         return;
     }
+    commit_gps_sample(local_data, &d, parsed, gps_now_us, true);
+}
 
-    // gps_read_count always increments -- counts driver polls, not valid fixes.
-    local_data->gps_read_count++;
-    local_data->gps_timestamp_us = gps_now_us;
-
-    // Hold-on-valid pattern (ArduPilot GPS backend `new_data` flag):
-    // Between 1Hz NMEA bursts at 10Hz polling, 9/10 cycles have d.valid==false.
-    // Only overwrite position/velocity fields when the driver reports valid data.
-    // localData retains last-valid values between bursts.
-    if (d.valid) {
-        double lat = d.latitude;
-        double lon = d.longitude;
-        if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
-        if (lat < kLatMinDeg) { lat = kLatMinDeg; }
-        if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
-        if (lon < kLonMinDeg) { lon = kLonMinDeg; }
-
-        local_data->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
-        local_data->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
-        local_data->gps_alt_msl_m = d.altitudeM;
-        local_data->gps_ground_speed_mps = d.speedMps;
-        local_data->gps_course_deg = d.courseDeg;
-        local_data->gps_valid = true;
-        local_data->gps_hdop = d.hdop;
-        local_data->gps_vdop = d.vdop;
+void core1_accept_i2c_gps(shared_sensor_data_t* local_data, bool count_read) {
+    gps_data_t d{};
+    bool parsed = true;
+    if (count_read) {
+        parsed = gps_pa1010d_consume_read_ok();
     }
-
-    apply_gps_nmea_utc(local_data, d);
-
-    // Always update diagnostic fields (satellites, fix type, raw sentence flags)
-    local_data->gps_fix_type = static_cast<uint8_t>(d.fix);
-    local_data->gps_satellites = d.satellites;
-    local_data->gps_gga_fix = d.ggaFix;
-    local_data->gps_gsa_fix_mode = d.gsaFixMode;
-    local_data->gps_rmc_valid = d.rmcValid;
-
-    if (!parsed) {
-        local_data->gps_error_count++;
-    }
-
-    core1_gps_staleness_check(parsed, gps_now_us);
-    core1_update_best_gps_fix(local_data);
-    poll_i2c_gps_sidecar();
+    (void)gps_pa1010d_get_data(&d);
+    commit_gps_sample(local_data, &d, parsed, time_us_32(), count_read);
 }
 
 // ============================================================================

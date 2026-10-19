@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// Station GPS poll — same core1_read_gps() / seqlock_write as vehicle.
-// ~10 Hz. Not an AO (LL 32 does not apply). GPS I2C ~6 ms is OK here.
+// Station GPS poll — same seqlock fields as the vehicle.
+// ~10 Hz publish. The I2C read runs from the I2C IRQ, not this tick.
 //============================================================================
 #include "station/station_idle_tick.h"
 
@@ -70,15 +70,30 @@ static void try_gps_init() {
 }
 
 void station_idle_tick() {
+    // Every idle pass. service() arms or harvests one I2C slice and
+    // returns. A just-finished read is published below, inside this pass.
+    const bool i2c_gps = (g_gpsTransport == GPS_TRANSPORT_I2C);
+    const bool fresh = i2c_gps && gps_pa1010d_service();
+
     const uint32_t now_us = time_us_32();
-    if ((now_us - g_lastTickUs) < kStationGpsTickIntervalUs) {
+    const bool outer = (now_us - g_lastTickUs) >= kStationGpsTickIntervalUs;
+    if (!outer && !fresh) {
+        return;
+    }
+    if (!outer) {
+        core1_accept_i2c_gps(&g_localData, false);
+        seqlock_write(&g_sensorSeqlock, &g_localData);
         return;
     }
     g_lastTickUs = now_us;
 
     // GPS poll is optional; MCU-temp still runs without a GPS (CW-B30-02).
     if (g_gpsInitialized.load(std::memory_order_acquire)) {
-        core1_read_gps(&g_localData, &g_lastGpsReadUs);
+        if (i2c_gps) {
+            core1_accept_i2c_gps(&g_localData, true);
+        } else {
+            core1_read_gps(&g_localData, &g_lastGpsReadUs);
+        }
     } else if ((now_us - g_lastGpsRetryUs) >= kGpsRetryUs) {
         g_lastGpsRetryUs = now_us;
         try_gps_init();

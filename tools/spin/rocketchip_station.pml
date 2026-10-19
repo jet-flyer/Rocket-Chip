@@ -34,7 +34,9 @@
  *   - MAVLink parser state (byte-by-byte decoding)
  *   - RadioScheduler TX window arbitration (the actual fix to the
  *     RadioScheduler-sync gap requires modelling the scheduler)
- *   - station_idle_tick GPS poll interleave with AO_Radio poll
+ *   - station_idle_tick GPS poll used to block the idle hook. The
+ *     PA1010D read now completes in the I2C IRQ, so this model does
+ *     not treat GPS as a blocker of the radio process.
  *   - Multiple simultaneous pending commands (firmware is single-pending
  *     today; when that changes, add seq-mismatch modelling).
  *
