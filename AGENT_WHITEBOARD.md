@@ -107,6 +107,17 @@ Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nat
 
 - STARS was rejected as a commercial autocoder, but it is open source (Apache-2.0, docs/flight_director/TOOLCHAIN_EVALUATION.md). Re-check every other tool or standard that the docs rejected as paid, commercial or paywalled; confirm the licence and price from the source before the decision stands (Nathan, 2026-10-11).
 
+## Opening-shock detector parked on `wip/opening-shock` (OPEN) (2026-10-19)
+
+Committed as WIP `3cd5dbd3` on local `wip/opening-shock` (not pushed). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Details: "Room test tomorrow" section below.
+
+## Link status from Starcom, not raw radio counters (OPEN) (2026-10-19)
+
+- **"Lock" never goes stale (code-read).** Every "lock" is `fop.plcw_heard && mac_mode == active` (`ao_telemetry.cpp` `peer_plcw`). That flag only says a PLCW was heard once. The soak MIB sets `synch_timeout = 0` (`src/starcom_adapt/byte_pump.cpp`), so SYNCH_TIMER never runs. The vehicle `t` and RC_OS text (`rc_os_commands.cpp`, `ao_rcos.cpp`) print "lock" with no freshness check. Only the pad RF Link row adds `rf_live`. Seen on the bench 2026-10-19: the station USB died, vehicle TX froze (window full, normal FOP-P), and the vehicle still said lock.
+- **What Prox-1 says (Duke, 211.0-B-6).** It has no COP-P "lock". The closest concept is FOP-P sync. SYNCH_TIMER (7.2.2 i) is cleared by a valid PLCW (SE2) and started by an invalid one (SE3), and expiry (SE4) gives COP-P LOSS OF SYNCHRONIZATION (Annex D item 8). No table event starts it on plain silence (Duke's reading). The informative prose in 4.2.2.1 expects a not-synchronized notice when no valid PLCW arrives in time. Timeout values and display behavior are left to the implementation.
+- **To do.** Rename the status "COP-P sync". Set a nonzero `synch_timeout`, and start the timer on silence too (our extension). The timeout is Duke's suggestion: a multiple of the station PLCW_Repeat_Interval. On expiry, raise loss-of-sync and drop the indicator.
+- **Station Pkts/RSSI line and LED bar (Buzz, code-read).** The RSSI, Pkts/CRC counts and bar length still come from the raw radio counters (`rx_count`, `last_rx_rssi`). Only the colour/mode reads Starcom state. Move them onto the Starcom and rate counters, like the RX window, so they can't disagree with the RF Link row.
+
 ## Space Packet as the core unit; MAVLink out of the GCS path (LATER) (2026-10-19)
 
 - Nathan (2026-10-19): the code handles the core unit of information, the CCSDS Space Packet (133.0-B-2). Every other format is a translation layer on top. No translating back and forth, and not through MAVLink. Larger job, after the FSK pivot.
