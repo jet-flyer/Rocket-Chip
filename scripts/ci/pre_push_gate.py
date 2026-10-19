@@ -639,6 +639,15 @@ def run_bench(wt: Path, script: str, sha: str, label: str) -> Tuple[str, str]:
     if r.returncode == 2:
         raise GateFail(f'{label}: exit 2 (board not found / tool self-check / '
                        f'watchdog). The push needs this bench: a skip is a fail.')
+    if r.returncode == 3:
+        raise GateFail(f'{label}: exit 3 (board uptime did not rise: frozen '
+                       f'firmware; or no banner / uptime reading after retries; or '
+                       f'port lost mid-check and not back within RC_PORT_WAIT_S). '
+                       f'Hard fail; the USB fault block above names which.')
+    if r.returncode == 4:
+        raise GateFail(f'{label}: exit 4 (board uptime dropped during the uptime '
+                       f'check: the board reset). Hard fail; '
+                       f'see the USB fault block above.')
     if r.returncode != 0:
         raise GateFail(f'{label}: FAIL (exit {r.returncode})')
     m = _RE_RESULT.search(out)

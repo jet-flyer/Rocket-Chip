@@ -532,6 +532,43 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     out = captured(lambda: print(pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench')))
     check('no serial line -> unknown + warning',
           "'unknown'" in out and 'WARNING' in out, out)
+    fake.write_text("import sys; print('uptime not rising'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok3 = False
+    except pg.GateFail as e:
+        ok3 = ('exit 3' in str(e) and 'did not rise' in str(e)
+               and 'port lost mid-check' in str(e)
+               and 'no banner' in str(e) and 'after retries' in str(e))
+    check('bench exit 3 (uptime flat or port lost mid-check) -> own hard-fail message', ok3)
+    fake.write_text("import sys; print('ERROR: vehicle USB fault: port lost mid-check'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok3b = False
+    except pg.GateFail as e:
+        ok3b = 'exit 3' in str(e) and 'not back' in str(e)
+    check('bench: vanished and never back -> exit 3 hard fail (not exit 2)', ok3b)
+    fake.write_text("import sys; sys.exit(2)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok2 = False
+    except pg.GateFail as e:
+        ok2 = 'exit 2' in str(e) and 'a skip is a fail' in str(e)
+    check('bench exit 2 (board absent at start) still a hard fail (unchanged)', ok2)
+    fake.write_text("import sys; sys.exit(4)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok4 = False
+    except pg.GateFail as e:
+        ok4 = 'exit 4' in str(e) and 'reset' in str(e)
+    check('bench exit 4 (vanished, back with lower uptime: reset) -> own hard-fail message', ok4)
+    fake.write_text("import sys; print('RESULT: PASS'); sys.exit(0)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok0 = True
+    except pg.GateFail as e:
+        ok0 = 'exit' not in str(e)
+    check('bench exit 0 (vanished, back with higher uptime) -> no exit-code hard fail', ok0)
 
     print('test_pass_note_format (bench steps faked, no board)')
     saved = {n: getattr(pg, n) for n in ('openocd_listening', 'prepare_worktree',

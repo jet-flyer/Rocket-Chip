@@ -409,12 +409,22 @@ def passive_dump_needs_help(banner: Banner) -> bool:
 # ============================================================================
 
 def open_cdc_hold_dtr(port_name: str, baud: int = 115200,
-                      timeout: float = 0.1) -> serial.Serial:
+                      timeout: float = 0.1,
+                      dtr_low_s: float = 0.0) -> serial.Serial:
     """Open TinyUSB CDC without the pyserial DTR-high pulse.
 
     FLASHING.md rule 5: default Serial() USB-resets Core 0 into bootrom
     so post-open re-classify sees unknown firmware. DTR low at open, then
     SETDTR so tud_cdc_connected() is true.
+
+    dtr_low_s > 0: hold DTR low that long after open before raising it, so
+    the firmware sees DTR drop and rise again (a fresh connect). The CLI
+    banner keys on the DTR level, polled: src/cli/rc_os.cpp:80-85
+    cli_terminal_connected() = tud_cdc_connected(); a DTR-low poll resets
+    g_wasConnected (rc_os.cpp:409-413), and the banner prints
+    kUsbSettlePolls (5) polls after DTR is seen high again (rc_os.cpp:31,
+    291-308). A close/reopen faster than one poll is never seen as a
+    disconnect, so no banner.
     """
     ser = serial.Serial()
     ser.port = port_name
@@ -426,6 +436,9 @@ def open_cdc_hold_dtr(port_name: str, baud: int = 115200,
     ser.dtr = False
     ser.rts = False
     ser.open()
+    if dtr_low_s > 0:
+        ser.dtr = False
+        time.sleep(dtr_low_s)
     ser.dtr = True
     time.sleep(0.5)
     return ser
@@ -1212,6 +1225,467 @@ def arm_test_mode_via_probe(elf_path: str,
         return False
 
 
+# =============================================================================
+# USB fault handling: bounded port wait + uptime check (exit 2 / 3 / 4)
+# =============================================================================
+EXIT_NO_BOARD = 2    # board not there at the start / not this role (gate: hard fail)
+EXIT_UPTIME_NOT_RISING = 3   # uptime flat, or port lost mid-check and not back (gate: hard fail)
+EXIT_UPTIME_RESET = 4  # uptime dropped between samples: board reset (gate: hard fail)
+PORT_LOST_MSG = 'port lost mid-check'
+NO_BANNER_MSG = 'no banner after retries'          # vehicle: every try gave no Uptime
+BANNER_WAIT_ENV = 'RC_BANNER_WAIT_S'
+BANNER_WAIT_DEFAULT_S = 5.0
+VEHICLE_RETRIES = 2            # per missing reading, gap_s apart
+REOPEN_SETTLE_S = 2.0          # before the first reopen after the main connection closes
+DTR_LOW_S = 0.3                # vehicle reopen: DTR low before high (fresh connect edge)
+NO_DASH_UPTIME_MSG = 'no dashboard uptime after retry'  # station: poll gave no Up twice
+PORT_WAIT_ENV = 'RC_PORT_WAIT_S'
+PORT_WAIT_DEFAULT_S = 20.0
+UPTIME_GAP_ENV = 'RC_UPTIME_GAP_S'  # test-only: seconds between the 3 uptime readings
+STATION_UPTIME_GAP_S = 1.5         # default gap, station dashboard polls
+VEHICLE_UPTIME_GAP_S = 3.0         # default gap, vehicle reopens
+UPTIME_HOLD_ENV = 'RC_UPTIME_HOLD_S'  # test-only: keep reading after the 3 until a reset
+HOLD_EXPIRED_MSG = 'hold expired: no reset seen'      # hold ran out, no drop (exit 3)
+UPTIME_GAP_MARGIN_S = 10.0         # watchdog margin when RC_UPTIME_GAP_S widens the check
+# Station dashboard "Up: Ns" (src/cli/rc_os_dashboard_format.h). Vehicle
+# "Uptime: Ns" (rc_os_commands.cpp cli_print_boot_summary) prints on every
+# fresh CDC open (connect banner; a reopen does not reset the board, bench
+# 2026-10-19). No key reaches it ('b' is the find-me beacon, never sent), so
+# the vehicle uptime check closes and reopens the port (vehicle_reopen_uptimes).
+UPTIME_RE = re.compile(r'Up(?:time)?: (\d+)s')
+VEHICLE_UPTIME_KEYS = ()            # nothing is sent: the banner prints on open
+STATION_UPTIME_KEYS = (b'z',)        # harmless; dashboard redraws itself
+PICOTOOL_HINT = ('  Manual last resort, only when no probe is attached: '
+                 'picotool info -f\n'
+                 '  (it reboots the board to BOOTSEL and destroys the frozen '
+                 'state; the scripts never run it).')
+
+
+def port_wait_budget() -> float:
+    """Total seconds to wait for the port (RC_PORT_WAIT_S, default 20)."""
+    try:
+        v = float(os.environ.get(PORT_WAIT_ENV, PORT_WAIT_DEFAULT_S))
+    except ValueError:
+        v = PORT_WAIT_DEFAULT_S
+    return v if v > 0 else PORT_WAIT_DEFAULT_S
+
+
+def _serial_to_port() -> dict:
+    return {i.serial_number.upper(): i.device
+            for i in serial.tools.list_ports.comports()
+            if i.vid == ROCKETCHIP_USB_VID and i.pid == ROCKETCHIP_USB_PID
+            and i.serial_number}
+
+
+@dataclass
+class PortWait:
+    port: Optional[str]
+    meta: object             # Banner on success, reason string on failure
+    appeared: bool           # any RocketChip CDC port seen in the window
+    seconds: Optional[float]  # time until the target port matched
+    method: str              # 'USB serial <x>' / 'VID:PID + banner' / '--port'
+
+
+def wait_for_target_port(target: Target,
+                         override: Optional[str] = None,
+                         verbose: bool = False,
+                         prefer_serial: Optional[str] = None,
+                         budget_s: Optional[float] = None,
+                         poll_s: float = 1.0,
+                         find: Callable = None,
+                         ports: Callable = None,
+                         sleep: Callable = time.sleep,
+                         clock: Callable = time.monotonic) -> PortWait:
+    """find_target_port, retried within a total budget. The port is
+    located by USB serial first when one is given (RC_<ROLE>_USB_SERIAL),
+    else by VID:PID + banner (find_target_port). Never flashes, never
+    reboots. Every match is still classified by banner."""
+    find = find or find_target_port
+    ports = ports or _serial_to_port
+    budget = port_wait_budget() if budget_s is None else budget_s
+    t0 = clock()
+    appeared = False
+    meta: object = 'not tried'
+    while True:
+        seen = ports()
+        appeared = appeared or bool(seen)
+        use, method = override, ('--port' if override else 'VID:PID + banner')
+        if override is None and prefer_serial and prefer_serial.upper() in seen:
+            use, method = seen[prefer_serial.upper()], f'USB serial {prefer_serial}'
+        port, meta = find(target, override=use, verbose=verbose)
+        if port is not None:
+            dt = clock() - t0
+            print(f'  port {port} located by {method} after {dt:.1f}s')
+            return PortWait(port, meta, True, dt, method)
+        if clock() - t0 + poll_s > budget:
+            return PortWait(None, meta, appeared, None, method)
+        sleep(poll_s)
+
+
+def banner_wait_s() -> float:
+    """Max seconds to wait for an Uptime line (RC_BANNER_WAIT_S, default 5)."""
+    try:
+        v = float(os.environ.get(BANNER_WAIT_ENV, BANNER_WAIT_DEFAULT_S))
+    except ValueError:
+        v = BANNER_WAIT_DEFAULT_S
+    return v if v > 0 else BANNER_WAIT_DEFAULT_S
+
+
+def uptime_gap_s(default: float) -> float:
+    """Seconds between uptime readings: RC_UPTIME_GAP_S (test-only, widens
+    the window for reset/unplug bench tests), else `default` (unset, bad or
+    <= 0). Retry spacing and every pass rule are unchanged."""
+    try:
+        v = float(os.environ[UPTIME_GAP_ENV])
+    except (KeyError, ValueError):
+        return default
+    return v if v > 0 else default
+
+
+def uptime_gap_extra_s(default: float, gaps: int = 2) -> float:
+    """Extra watchdog seconds for RC_UPTIME_GAP_S: gaps * (gap - default)
+    + UPTIME_GAP_MARGIN_S when the var widens the gap, else 0 (unset, bad,
+    <= 0 or not wider), so the --max-runtime limit is unchanged by default."""
+    extra = max(0.0, gaps * (uptime_gap_s(default) - default))
+    hold = uptime_hold_s()
+    if hold > 0:   # hold + one last gap + port-return wait + banner wait
+        extra += hold + uptime_gap_s(default) + port_wait_budget() + banner_wait_s()
+    return extra + UPTIME_GAP_MARGIN_S if extra > 0 else 0.0
+
+
+def uptime_hold_s() -> float:
+    """RC_UPTIME_HOLD_S (test-only) in seconds, else 0 (unset, bad, <= 0)."""
+    try:
+        v = float(os.environ[UPTIME_HOLD_ENV])
+    except (KeyError, ValueError):
+        return 0.0
+    return v if v > 0 else 0.0
+
+
+def _hold_banner(hold: float) -> None:
+    print(f'  HOLD: press reset now (up to {hold:.0f} s)', flush=True)
+
+
+def _port_present(prefer_serial: Optional[str], port: Optional[str]) -> Optional[bool]:
+    """Enumeration only (never opens): is the board's port listed right now?
+    USB serial when known, else the port name among RocketChip VID:PID
+    ports. None if enumeration itself fails."""
+    try:
+        if prefer_serial:
+            return prefer_serial.upper() in _serial_to_port()
+        return port in _candidate_ports() if port else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _hold_log(n: int, t: float, uptime: Optional[int], present: Optional[bool],
+              reopens: int, note: str = '') -> None:
+    """One flushed line per hold poll, so a live run shows what was read."""
+    up = f'{uptime}s' if uptime is not None else 'no uptime'
+    pr = {True: 'present', False: 'ABSENT', None: 'unknown'}[present]
+    print(f'  HOLD poll {n} {time.strftime("%H:%M:%S")} t+{t:.1f}s: uptime {up}, '
+          f'port {pr}, reopens {reopens}' + (f' ({note})' if note else ''), flush=True)
+
+
+def read_uptime(ser, keys, listen_s: float = 2.5,
+                sleep: Callable = time.sleep,
+                clock: Callable = time.monotonic,
+                until_match: bool = False,
+                max_s: Optional[float] = None) -> Optional[int]:
+    """Send the keys, listen, return the last Up/Uptime seconds or None.
+    until_match: return as soon as an Uptime line is read (fresh open, no
+    stale data). max_s: if nothing matched after listen_s, keep listening
+    up to max_s in total (station: RC_BANNER_WAIT_S)."""
+    for k in keys:
+        ser.write(k)
+        ser.flush()
+        sleep(0.3)
+    buf = b''
+    t0 = clock()
+    end = t0 + listen_s
+    while True:
+        while clock() < end:
+            chunk = ser.read(4096)
+            if chunk:
+                buf += chunk
+                if until_match and UPTIME_RE.search(buf.decode('utf-8', errors='replace')):
+                    break
+            else:
+                sleep(0.05)
+        found = UPTIME_RE.findall(buf.decode('utf-8', errors='replace'))
+        if found or max_s is None or t0 + max_s <= end:
+            return int(found[-1]) if found else None
+        end = t0 + max_s
+
+
+def _station_read(ser, keys):
+    return read_uptime(ser, keys, max_s=banner_wait_s())
+
+
+def check_uptime(ser, keys, polls: int = 3, gap_s: float = STATION_UPTIME_GAP_S,
+                 read: Callable = _station_read,
+                 sleep: Callable = time.sleep,
+                 reconnect: Optional[Callable] = None,
+                 clock: Callable = time.monotonic,
+                 present: Optional[Callable] = None) -> Tuple[str, list, object]:
+    """Uptime check on an open port: read on every poll, must rise strictly.
+    If the port vanishes mid-check (read raises), reconnect() is called once
+    per loss; it waits RC_PORT_WAIT_S (USB serial first) and returns a new
+    open port or None. A poll that reads no uptime (None) is retried once
+    after gap_s; still None -> NO_DASH_UPTIME_MSG (exit 3). It still takes
+    `polls` real readings, strictly rising. Returns (verdict, values, ser):
+    verdict is classify_uptimes() ('ok' / 'reset' / 'not rising'),
+    PORT_LOST_MSG or NO_DASH_UPTIME_MSG. USB only; no probe."""
+    vals: list = []
+    for i in range(polls):
+        v = None
+        for attempt in range(2):          # one retry for a None reading
+            if attempt:
+                sleep(gap_s)
+            try:
+                v = read(ser, keys)
+            except (serial.SerialException, OSError):
+                ser = reconnect() if reconnect else None
+                if ser is None:
+                    return PORT_LOST_MSG, vals, None
+                try:
+                    v = read(ser, keys)
+                except (serial.SerialException, OSError):
+                    return PORT_LOST_MSG, vals, None
+            if v is not None:
+                break
+        vals.append(v)
+        if v is None:
+            return NO_DASH_UPTIME_MSG, vals, ser
+        if i < polls - 1:
+            sleep(uptime_gap_s(gap_s))
+    verdict = classify_uptimes(vals)
+    hold = uptime_hold_s()
+    if verdict != 'ok' or hold <= 0:
+        return verdict, vals, ser
+    # RC_UPTIME_HOLD_S: keep polling until a drop (reset, exit 4), a port
+    # that never returns (exit 3) or the hold runs out (HOLD_EXPIRED_MSG, 3).
+    # A held-open Windows CDC handle can go stale across a board reset and
+    # read empty instead of raising (inference, Goddard 2026-10-19), so a
+    # poll with no uptime also closes and reopens via reconnect().
+    _hold_banner(hold)
+    t0 = clock()
+    end = t0 + hold
+    n = reopens = 0
+    present_fn = present or (lambda: None)
+    while clock() < end:
+        sleep(uptime_gap_s(gap_s))
+        n += 1
+        note = ''
+        try:
+            v = read(ser, keys)
+        except (serial.SerialException, OSError):
+            v, note = None, 'read raised'
+        if v is None and reconnect:
+            reopens += 1
+            ser = reconnect()
+            if ser is None:
+                _hold_log(n, clock() - t0, None, present_fn(), reopens, 'port not back')
+                return PORT_LOST_MSG, vals, None
+            try:
+                v = read(ser, keys)
+            except (serial.SerialException, OSError):
+                _hold_log(n, clock() - t0, None, present_fn(), reopens, 'read raised after reopen')
+                return PORT_LOST_MSG, vals, None
+            note = (note + ', ' if note else '') + 'reopened'
+        _hold_log(n, clock() - t0, v, present_fn(), reopens, note)
+        if v is None:
+            continue
+        vals.append(v)
+        if v < vals[-2]:
+            return 'reset', vals, ser
+    return HOLD_EXPIRED_MSG, vals, ser
+
+
+def make_reconnect(target: 'Target', old_ser, override: Optional[str] = None,
+                   prefer_serial: Optional[str] = None,
+                   wait: Callable = None, open_fn: Callable = None) -> Callable:
+    """reconnect() for check_uptime: close the dead port, wait the normal
+    RC_PORT_WAIT_S for it to come back (USB serial first, banner-classified),
+    reopen with DTR held. None if it never comes back."""
+    def _reconnect():
+        try:
+            old_ser.close()
+        except Exception:  # noqa: BLE001
+            pass
+        pw = (wait or wait_for_target_port)(target, override=override,
+                                            prefer_serial=prefer_serial)
+        if pw.port is None:
+            return None
+        try:
+            return (open_fn or open_cdc_hold_dtr)(pw.port)
+        except (serial.SerialException, OSError):
+            return None
+    return _reconnect
+
+
+OPEN_TIMEOUT_S = 5.0   # serial open can block in C code on Windows (see peek_banner)
+
+
+def _open_with_timeout(open_fn: Callable, port: str,
+                       timeout_s: float = OPEN_TIMEOUT_S):
+    """open_fn(port) in a daemon thread joined with a timeout. None if it
+    raises or does not return in time (a late open is closed when it lands)."""
+    box: dict = {}
+    late = threading.Event()
+
+    def _go() -> None:
+        try:
+            s = open_fn(port)
+        except (serial.SerialException, OSError):
+            return
+        if late.is_set():
+            try:
+                s.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        box['s'] = s
+    t = threading.Thread(target=_go, daemon=True, name=f'open-{port}')
+    t.start()
+    t.join(timeout_s)
+    if 's' not in box:
+        late.set()
+        if t.is_alive():
+            print(f'  open {port}: no return after {timeout_s:.0f}s (treated as no reading)', flush=True)
+        return box.get('s')
+    return box['s']
+
+
+def banner_uptime(port: str, listen_s: Optional[float] = None,
+                  open_fn: Callable = None,
+                  sleep: Callable = time.sleep,
+                  clock: Callable = time.monotonic) -> Optional[int]:
+    """Fresh open (DTR held, FLASHING rule 5), read the connect banner,
+    close. Waits up to RC_BANNER_WAIT_S (default 5 s) for the Uptime line,
+    returning as soon as it arrives. The open drops DTR, pauses DTR_LOW_S,
+    then raises it, so the firmware always sees a fresh connect (see
+    open_cdc_hold_dtr). 'Uptime: Ns' or None. Sends nothing."""
+    open_fn = open_fn or (lambda p: open_cdc_hold_dtr(p, dtr_low_s=DTR_LOW_S))
+    listen_s = banner_wait_s() if listen_s is None else listen_s
+    ser = _open_with_timeout(open_fn, port)
+    if ser is None:
+        return None
+    try:
+        return read_uptime(ser, VEHICLE_UPTIME_KEYS, listen_s=listen_s,
+                           sleep=sleep, clock=clock, until_match=True)
+    finally:
+        try:
+            ser.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def classify_uptimes(vals: list) -> str:
+    """'ok' (all read, strictly rising), 'reset' (a drop), else 'not rising'."""
+    if any(v is None for v in vals):
+        return 'not rising'
+    if any(b < a for a, b in zip(vals, vals[1:])):
+        return 'reset'
+    if all(b > a for a, b in zip(vals, vals[1:])):
+        return 'ok'
+    return 'not rising'
+
+
+def vehicle_reopen_uptimes(target: Target, override: Optional[str] = None,
+                           prefer_serial: Optional[str] = None,
+                           samples: int = 3, gap_s: float = VEHICLE_UPTIME_GAP_S,
+                           wait: Callable = None, read: Callable = None,
+                           sleep: Callable = time.sleep,
+                           retries: int = VEHICLE_RETRIES,
+                           settle_s: float = REOPEN_SETTLE_S,
+                           clock: Callable = time.monotonic,
+                           present: Optional[Callable] = None) -> Tuple[str, list, Optional[str]]:
+    """Uptime check, vehicle: close/reopen the port `samples` times, gap_s
+    apart. Each reopen re-resolves the port with wait_for_target_port
+    (RC_PORT_WAIT_S, USB serial first), so a port that vanished and came
+    back is found again; a lower uptime then classifies as 'reset'. If the
+    port does not come back (wait fails, or the banner read fails and a
+    second wait fails too) the verdict is PORT_LOST_MSG (exit 3). The board
+    was already found before this runs, so a miss here is never exit 2.
+    settle_s pause before the first reopen (the main connection just closed;
+    Buzz, e53d0771: COM5 took 7 s to reappear). Each open waits up to
+    RC_BANNER_WAIT_S for the banner. A reopen with no banner / no uptime is
+    retried up to `retries` times, gap_s apart, each with the serial-first
+    wait; every try empty -> NO_BANNER_MSG (exit 3). It still takes
+    `samples` real readings, strictly rising; a drop is 'reset' (exit 4).
+    Returns (verdict, values, last port)."""
+    wait = wait or wait_for_target_port
+    read = read or banner_uptime
+    vals: list = []
+    port: Optional[str] = None
+    if settle_s > 0:
+        sleep(settle_s)
+    for i in range(samples):
+        v = None
+        for attempt in range(1 + retries):  # retries if no banner / no uptime
+            if attempt:
+                sleep(gap_s)
+            pw = wait(target, override=override, prefer_serial=prefer_serial)
+            if pw.port is None:
+                return PORT_LOST_MSG, vals, port
+            port = pw.port
+            v = read(port)
+            if v is not None:
+                break
+        vals.append(v)
+        if v is None:
+            return NO_BANNER_MSG, vals, port
+        if i < samples - 1:
+            sleep(uptime_gap_s(gap_s))
+    verdict = classify_uptimes(vals)
+    hold = uptime_hold_s()
+    if verdict != 'ok' or hold <= 0:
+        return verdict, vals, port
+    # RC_UPTIME_HOLD_S: keep reopening until a drop (reset, exit 4), a port
+    # that never returns within RC_PORT_WAIT_S (exit 3) or the hold runs out.
+    _hold_banner(hold)
+    present_fn = present or (lambda: _port_present(prefer_serial, port))
+    t0 = clock()
+    end = t0 + hold
+    n = 0
+    while clock() < end:
+        sleep(uptime_gap_s(gap_s))
+        n += 1
+        seen = present_fn()
+        pw = wait(target, override=override, prefer_serial=prefer_serial)
+        if pw.port is None:
+            _hold_log(n, clock() - t0, None, seen, n, 'port not back')
+            return PORT_LOST_MSG, vals, port
+        port = pw.port
+        v = read(port)
+        _hold_log(n, clock() - t0, v, seen, n)
+        if v is None:
+            continue
+        vals.append(v)
+        if v < vals[-2]:
+            return 'reset', vals, port
+    return HOLD_EXPIRED_MSG, vals, port
+
+
+def report_usb_fault(kind: str, role: str, *, appeared: bool,
+                     seconds: Optional[float], last_uptime: Optional[int],
+                     port: Optional[str] = None,
+                     transport: str = 'USB CDC') -> None:
+    """One failure block. kind: 'port never appeared' / 'not this role' /
+    'uptime not rising' / PORT_LOST_MSG."""
+    print(f'ERROR: {role} USB fault: {kind}')
+    print(f'  port appeared: {"yes" if appeared else "no"}'
+          + (f' ({port})' if port else ''))
+    print('  time to appear: '
+          + (f'{seconds:.1f}s' if seconds is not None else
+             f'not within {port_wait_budget():.0f}s ({PORT_WAIT_ENV})'))
+    print(f'  last uptime: {last_uptime if last_uptime is not None else "none read"}')
+    print(f'  transport: {transport}')
+    print(PICOTOOL_HINT)
+
+
+
 __all__ = [
     # Watchdog
     'start_watchdog',
@@ -1233,6 +1707,15 @@ __all__ = [
     'record_flashed_elf', 'load_expected_image',
     'tree_matches_elf_error', 'flash_stamp_error',
     'banner_matches_elf_error', 'refuse_stale_tree_and_elf',
+    # USB fault handling
+    'EXIT_NO_BOARD', 'EXIT_UPTIME_NOT_RISING', 'UPTIME_RE', 'PortWait',
+    'wait_for_target_port', 'read_uptime', 'check_uptime', 'uptime_gap_s',
+    'uptime_gap_extra_s', 'STATION_UPTIME_GAP_S', 'VEHICLE_UPTIME_GAP_S',
+    'uptime_hold_s', 'HOLD_EXPIRED_MSG',
+    'report_usb_fault', 'port_wait_budget', 'EXIT_UPTIME_RESET',
+    'banner_uptime', 'classify_uptimes', 'vehicle_reopen_uptimes',
+    'PORT_LOST_MSG', 'NO_BANNER_MSG', 'NO_DASH_UPTIME_MSG', 'make_reconnect', 'banner_wait_s',
+    'VEHICLE_UPTIME_KEYS', 'STATION_UPTIME_KEYS',
     # Decorator
     'rc_test',
 ]

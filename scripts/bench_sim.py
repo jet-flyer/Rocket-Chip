@@ -46,12 +46,21 @@ if _SCRIPTS_DIR not in sys.path:
 from _rc_test_common import (  # noqa: E402
     Banner,
     banner_matches_elf_error,
-    find_target_port,
+    EXIT_UPTIME_NOT_RISING,
+    PORT_LOST_MSG,
+    NO_BANNER_MSG,
+    HOLD_EXPIRED_MSG,
+    EXIT_UPTIME_RESET,
+    vehicle_reopen_uptimes,
+    uptime_gap_extra_s,
+    VEHICLE_UPTIME_GAP_S,
     open_classified_port,
     print_board_usb_serial,
     rc_test,
     refuse_stale_tree_and_elf,
+    report_usb_fault,
     TARGET_VEHICLE_ANY,
+    wait_for_target_port,
 )
 
 
@@ -276,7 +285,9 @@ def main():
 
     # Wall-clock watchdog: hard kill after deadline, even if stuck inside
     # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
-    _start_watchdog(args.max_runtime)
+    # RC_UPTIME_GAP_S (test-only) widens the uptime check; the watchdog gets
+    # exactly that extra time (2 gaps + margin). Unset: --max-runtime as is.
+    _start_watchdog(args.max_runtime + uptime_gap_extra_s(VEHICLE_UPTIME_GAP_S))
 
     repo = Path(_SCRIPTS_DIR).resolve().parent
     expected, ident_err = refuse_stale_tree_and_elf(repo, 'vehicle', commit=args.commit)
@@ -286,11 +297,16 @@ def main():
         sys.exit(1)
 
     # --- Port detection + connect ---
-    port_name, meta = find_target_port(
-        TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose)
+    pw = wait_for_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose,
+        prefer_serial=os.environ.get('RC_VEHICLE_USB_SERIAL'))
+    port_name, meta = pw.port, pw.meta
     if port_name is None:
         print('ERROR: No vehicle RocketChip USB CDC port found.')
         print(f'  {meta}')
+        report_usb_fault('port never appeared' if not pw.appeared else 'not this role',
+                         'vehicle', appeared=pw.appeared, seconds=None,
+                         last_uptime=None)
         print('  Plug the vehicle Feather, unplug station-only rigs, or set '
               '--port.')
         sys.exit(2)
@@ -308,6 +324,27 @@ def main():
     print(f'Using {port_name} ({meta.short_summary()})')
     print_board_usb_serial(port_name)
     print(f'  image: flight-{expected.git_hash} sha256={expected.sha256[:12]}…')
+
+    # Uptime check: the connect banner prints 'Uptime: Ns' on every fresh open.
+    # Close/reopen 3 times; uptime must rise strictly. Nothing is sent.
+    # A vanished port is waited for (RC_PORT_WAIT_S, USB serial first):
+    # back lower = reset (4); never back = port lost (3). USB only, no probe.
+    verdict, ups, hb_port = vehicle_reopen_uptimes(
+        TARGET_VEHICLE_ANY, override=args.port,
+        prefer_serial=os.environ.get('RC_VEHICLE_USB_SERIAL'))
+    print(f'  uptime check (banner Uptime s over 3 reopens): {ups}')
+    if verdict != 'ok':
+        last = next((u for u in reversed(ups) if u is not None), None)
+        if verdict == 'reset':
+            report_usb_fault('uptime dropped between reopens (board reset)',
+                             'vehicle', appeared=True, seconds=pw.seconds,
+                             port=hb_port, last_uptime=last)
+            sys.exit(EXIT_UPTIME_RESET)
+        report_usb_fault(verdict if verdict in (PORT_LOST_MSG, NO_BANNER_MSG, HOLD_EXPIRED_MSG)
+                         else 'uptime not rising', 'vehicle', appeared=True,
+                         seconds=pw.seconds, port=hb_port, last_uptime=last)
+        sys.exit(EXIT_UPTIME_NOT_RISING)
+    port_name = hb_port or port_name
 
     try:
         # find_target_port already classified. A second CDC open with the
