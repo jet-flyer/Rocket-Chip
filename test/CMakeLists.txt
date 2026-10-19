@@ -313,6 +313,17 @@ target_include_directories(test_radio_pa_decode PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_pa_decode)
 
+# Pad RX Hz: 2 s sliding window over CRC-ok counts. No Pico time.
+add_executable(test_radio_rx_window
+    test_radio_rx_window.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/radio_rate_counters.cpp)
+target_link_libraries(test_radio_rx_window PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_radio_rx_window PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_radio_rx_window PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_radio_rx_window)
+
 # Forced radio HW TX timeout latch. Header-only. No SPI.
 add_executable(test_radio_tx_force test_radio_tx_force.cpp)
 target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)
