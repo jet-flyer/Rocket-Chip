@@ -19,6 +19,13 @@
 #include <string>
 #include <vector>
 
+#if defined(__GLIBC__)
+#include <gnu/libc-version.h>
+#endif
+#if defined(__MINGW32__)
+#include <_mingw.h>
+#endif
+
 #include "replay/sensor_log.h"
 #include "fusion/eskf.h"
 #include "math/vec3.h"
@@ -165,6 +172,44 @@ const char* kColNames[] = {
     "P10", "P11", "P12", "P13", "P14"
 };
 
+// banked_turn_10s reference key.
+// update_mag_heading rebuilds roll and pitch with atan2f and asinf,
+// then rotates the body magnetometer with sinf and cosf. Those calls
+// are not bit-identical across libm. A 30 degree bank carries that
+// difference past the CR-2 tolerance. The other four trajectories
+// stay inside CR-2, so they keep one reference file.
+//
+// The key is the libm name and version. On glibc 2.39 the replay CSV
+// was byte-identical for GCC 13.3 Debug, GCC 13.3 Release, and
+// Clang 18.1.3 Release. glibc and musl are separate keys. MinGW and
+// the UCRT are separate keys. A missing file means this libm has no
+// capture yet. Leave approx_eq at the CR-2 tolerance.
+std::string banked_turn_libm_key() {
+#if defined(__GLIBC__)
+    return std::string("glibc-") + gnu_get_libc_version();
+#elif defined(__MINGW64_VERSION_MAJOR)
+    return std::string("mingw-w64-")
+        + std::to_string(__MINGW64_VERSION_MAJOR) + "."
+        + std::to_string(__MINGW64_VERSION_MINOR);
+#elif defined(__MINGW32__)
+    return "mingw32";
+#elif defined(_MSC_VER)
+    return std::string("msvc-") + std::to_string(_MSC_VER);
+#elif defined(__APPLE__)
+    return "apple-libm";
+#else
+    return "libm-unknown";
+#endif
+}
+
+std::string reference_path_for(const std::string& name) {
+    if (name == "banked_turn_10s") {
+        return "test/data/reference/banked_turn_10s_ref."
+            + banked_turn_libm_key() + ".csv";
+    }
+    return "test/data/reference/" + name + "_ref.csv";
+}
+
 class ReplayRegressionTest : public ::testing::TestWithParam<std::string> {
 protected:
     void SetUp() override {
@@ -176,7 +221,7 @@ protected:
 TEST_P(ReplayRegressionTest, MatchesReference) {
     const std::string& name = GetParam();
     const std::string input_path = "test/data/" + name + ".csv";
-    const std::string ref_path = "test/data/reference/" + name + "_ref.csv";
+    const std::string ref_path = reference_path_for(name);
 
     // Run replay
     auto replay = run_replay(input_path);
@@ -185,6 +230,16 @@ TEST_P(ReplayRegressionTest, MatchesReference) {
 
     // Load reference
     auto reference = load_reference(ref_path);
+    if (name == "banked_turn_10s" && reference.empty()) {
+        const std::string key = banked_turn_libm_key();
+        std::string capture = " Run replay_harness on this host and commit that CSV."
+                              " Keep the CR-2 tolerance.";
+        if (key.rfind("mingw", 0) == 0 || key.rfind("msvc-", 0) == 0) {
+            capture += " Buzz captures that file on Nathan's PC.";
+        }
+        FAIL() << "No banked_turn_10s reference for libm key '"
+               << key << "'. Expected file: " << ref_path << "." << capture;
+    }
     ASSERT_GT(reference.size(), 0u)
         << "Could not load reference file: " << ref_path;
 
