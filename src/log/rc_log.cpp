@@ -556,11 +556,10 @@ bool handle_percent_token(etl::istring& out, const char** p, va_list& args) {
 
 // Shared parse+format loop for rc_log (CDC sink) and rc_snprintf (buf sink).
 // SysV x86-64 defines va_list as __va_list_tag[1]. A by-value parameter
-// decays to a pointer and cannot bind to va_list&. va_copy makes a real
-// array object for the helpers to advance. The caller's list stays for
-// va_end, as it does when this parameter is a struct or pointer copy
-// (AArch64, AAPCS, Windows x64).
-void format_into(etl::istring& out, const char* fmt, va_list args) {
+// decays to a pointer and cannot bind to va_list&. This parameter is a
+// reference so the caller's array binds. va_copy makes a real array
+// object for the helpers to advance. The caller's list stays for va_end.
+void format_into(etl::istring& out, const char* fmt, va_list& args) {
     va_list local_args;
     va_copy(local_args, args);
     const char* p = fmt;

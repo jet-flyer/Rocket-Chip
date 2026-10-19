@@ -2,7 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
 // Station idle tick — Core 0 GPS poll from qv_idle_bridge (not an AO).
-// Blocking GPS I2C is OK here (LL 32 is AO-only).
+// The PA1010D read is armed here and finished by the I2C IRQ.
+// The tick does not wait on the bus. Do not move this poll to core 1.
 //============================================================================
 #ifndef ROCKETCHIP_STATION_IDLE_TICK_H
 #define ROCKETCHIP_STATION_IDLE_TICK_H

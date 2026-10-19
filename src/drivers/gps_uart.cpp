@@ -60,8 +60,9 @@ constexpr uint32_t kGpsBaudNegotiateDelayMs = 250;  // ms — module stabilize t
 // Init: presence detection timeout
 // MT3339 outputs NMEA at 1Hz default — 2 seconds guarantees at least one sentence.
 constexpr uint32_t kInitTimeoutUs   = 2000000; // 2 seconds
-// Presence poll can last two windows (~4 s) on Core 0 reinit. Feed the PIO
-// heartbeat (timeout ~2 s, pio_watchdog.h) well inside that window.
+// Boot presence poll can last two windows (~4 s). Feed the PIO heartbeat
+// (timeout ~2 s, pio_watchdog.h) inside that spin. Idle-hook reinit does
+// not spin: each slice returns and qv_idle_bridge feeds the heartbeat.
 constexpr uint32_t kPresenceWatchdogFeedUs = 100000;  // 100 ms
 
 // ============================================================================
@@ -164,6 +165,10 @@ static bool g_initialized = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
 static std::atomic<bool> g_reinitRequested{false};
+// Presence window: the RX ISR latches '$' so the idle hook can return.
+// The 32-byte UART FIFO overflows in ~5.6 ms at 57600 if nothing drains it.
+static std::atomic<bool> g_reinitWatchDollar{false};
+static std::atomic<bool> g_reinitSawDollar{false};
 
 // ============================================================================
 // ISR
@@ -179,15 +184,21 @@ static void gps_uart_rx_isr() {
     while (uart_is_readable(GPS_UART_INST)) {
         uint8_t byte = static_cast<uint8_t>(uart_get_hw(GPS_UART_INST)->dr);
 
-        uint32_t head = g_rxHead.load(std::memory_order_relaxed);
-        uint32_t next = (head + 1) & kRxBufMask;
-        uint32_t tail = g_rxTail.load(std::memory_order_acquire);
-
-        if (next == tail) {
-            g_rxOverflow.fetch_add(1U, std::memory_order_relaxed);
+        if (g_reinitWatchDollar.load(std::memory_order_relaxed)) {
+            if (byte == static_cast<uint8_t>(kNmeaStart)) {
+                g_reinitSawDollar.store(true, std::memory_order_relaxed);
+            }
         } else {
-            g_rxBuf[head] = byte;
-            g_rxHead.store(next, std::memory_order_release);
+            uint32_t head = g_rxHead.load(std::memory_order_relaxed);
+            uint32_t next = (head + 1) & kRxBufMask;
+            uint32_t tail = g_rxTail.load(std::memory_order_acquire);
+
+            if (next == tail) {
+                g_rxOverflow.fetch_add(1U, std::memory_order_relaxed);
+            } else {
+                g_rxBuf[head] = byte;
+                g_rxHead.store(next, std::memory_order_release);
+            }
         }
     }
 }
@@ -261,6 +272,12 @@ static void update_data_from_lwgps() {
 // R-5 Unit D part 2b: writes the precomputed kPmtk251_57600Sentence directly
 // via uart_write_blocking. The prior `gps_uart_send_command(cmd)` call here
 // was dead — see file-top comment about the latent g_initialized bug.
+static void open_uart(uint32_t baud) {
+    uart_init(GPS_UART_INST, baud);
+    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
+    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+}
+
 static void negotiate_baud_to_57600() {
     uart_write_blocking(
         GPS_UART_INST,
@@ -268,12 +285,11 @@ static void negotiate_baud_to_57600() {
         sizeof(kPmtk25157600Sentence) - 1);
 
     // ACK arrives at the new baud — use delay, don't try to read it.
+    // Boot only. Idle-hook reinit waits on a deadline instead.
     busy_wait_ms(kGpsBaudNegotiateDelayMs);
 
     uart_deinit(GPS_UART_INST);
-    uart_init(GPS_UART_INST, 57600);
-    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
-    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+    open_uart(kGpsUartBaudTarget);
 }
 
 // Write a precomputed PMTK sentence directly. Used after baud negotiation
@@ -313,9 +329,7 @@ static bool detect_gps_presence() {
 
 // Bring UART up at `baud` and check for NMEA `$`. Deinits on failure.
 static bool try_baud(uint32_t baud) {
-    uart_init(GPS_UART_INST, baud);
-    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
-    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+    open_uart(baud);
     if (detect_gps_presence()) {
         return true;
     }
@@ -433,40 +447,148 @@ uint32_t gps_uart_get_overflow_count() {
     return g_rxOverflow.load(std::memory_order_relaxed);
 }
 
-bool gps_uart_reinit() {
-    if constexpr (!board::kUartGpsAvailable) {
-        return false;
-    }
+// Idle-hook reinit. One slice per call. Boot still uses acquire_at_target_baud().
+enum class ReinitPhase : uint8_t {
+    kIdle = 0,
+    kWaitDollar,
+    kWaitBaud,
+    kWriteCfg,
+};
 
-    // irq_set_enabled is per executing core. Caller must be Core 0 (init core).
+static ReinitPhase g_reinitPhase = ReinitPhase::kIdle;
+static uint8_t g_baudTry = 0;
+static uint8_t g_cfgStep = 0;
+static absolute_time_t g_reinitDeadline{};
+
+static void disable_uart_irq() {
+    g_reinitWatchDollar.store(false, std::memory_order_relaxed);
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), false);
     uart_set_irqs_enabled(GPS_UART_INST, false, false);
+}
 
-    uart_deinit(GPS_UART_INST);
-
-    g_rxHead.store(0, std::memory_order_relaxed);
-    g_rxTail.store(0, std::memory_order_relaxed);
-    g_rxOverflow.store(0, std::memory_order_relaxed);
-
-    lwgps_init(&g_gps);
-    memset(&g_data, 0, sizeof(g_data));
-
-    // g_initialized=false guards drain/update; PMTK writes below bypass via uart_write_blocking.
-    g_initialized = false;
-
-    if (!acquire_at_target_baud()) {
-        return false;
-    }
-
-    uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
-    uart_write_pmtk(kPmtk2205HzSentence, sizeof(kPmtk2205HzSentence) - 1);
-
-    g_initialized = true;
-
+static void enable_uart_irq() {
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
     uart_set_irqs_enabled(GPS_UART_INST, true, false);
+}
 
-    return true;
+static void clear_rx_ring() {
+    g_rxHead.store(0, std::memory_order_relaxed);
+    g_rxTail.store(0, std::memory_order_relaxed);
+}
+
+static void arm_presence(uint32_t baud) {
+    open_uart(baud);
+    clear_rx_ring();
+    g_reinitSawDollar.store(false, std::memory_order_relaxed);
+    g_reinitWatchDollar.store(true, std::memory_order_release);
+    enable_uart_irq();
+    g_reinitDeadline = make_timeout_time_us(kInitTimeoutUs);
+    g_reinitPhase = ReinitPhase::kWaitDollar;
+}
+
+static void begin_reinit() {
+    disable_uart_irq();
+    uart_deinit(GPS_UART_INST);
+    clear_rx_ring();
+    g_rxOverflow.store(0, std::memory_order_relaxed);
+    lwgps_init(&g_gps);
+    memset(&g_data, 0, sizeof(g_data));
+    g_initialized = false;
+    g_baudTry = 0;
+    g_cfgStep = 0;
+    arm_presence(kGpsUartBaudTarget);
+}
+
+static GpsUartReinitStatus fail_reinit() {
+    disable_uart_irq();
+    uart_deinit(GPS_UART_INST);
+    g_reinitPhase = ReinitPhase::kIdle;
+    return GpsUartReinitStatus::kFailed;
+}
+
+static GpsUartReinitStatus dollar_found() {
+    disable_uart_irq();
+    if (g_baudTry == 0U) {
+        g_reinitPhase = ReinitPhase::kWriteCfg;
+        return GpsUartReinitStatus::kBusy;
+    }
+    uart_write_blocking(
+        GPS_UART_INST,
+        reinterpret_cast<const uint8_t*>(kPmtk25157600Sentence),
+        sizeof(kPmtk25157600Sentence) - 1);
+    g_reinitDeadline = make_timeout_time_ms(kGpsBaudNegotiateDelayMs);
+    g_reinitPhase = ReinitPhase::kWaitBaud;
+    return GpsUartReinitStatus::kBusy;
+}
+
+static GpsUartReinitStatus service_dollar() {
+    if (g_reinitSawDollar.exchange(false, std::memory_order_acq_rel)) {
+        return dollar_found();
+    }
+    if (!time_reached(g_reinitDeadline)) {
+        return GpsUartReinitStatus::kBusy;
+    }
+    if (g_reinitSawDollar.exchange(false, std::memory_order_acq_rel)) {
+        return dollar_found();
+    }
+    disable_uart_irq();
+    uart_deinit(GPS_UART_INST);
+    if (g_baudTry == 0U) {
+        g_baudTry = 1U;
+        arm_presence(kGpsUartBaudFactory);
+        return GpsUartReinitStatus::kBusy;
+    }
+    return fail_reinit();
+}
+
+static GpsUartReinitStatus service_baud_wait() {
+    if (!time_reached(g_reinitDeadline)) {
+        return GpsUartReinitStatus::kBusy;
+    }
+    uart_deinit(GPS_UART_INST);
+    open_uart(kGpsUartBaudTarget);
+    clear_rx_ring();
+    g_cfgStep = 0;
+    g_reinitPhase = ReinitPhase::kWriteCfg;
+    return GpsUartReinitStatus::kBusy;
+}
+
+static GpsUartReinitStatus service_cfg() {
+    if (g_cfgStep == 0U) {
+        uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
+        g_cfgStep = 1U;
+        return GpsUartReinitStatus::kBusy;
+    }
+    if (g_cfgStep == 1U) {
+        uart_write_pmtk(kPmtk2205HzSentence, sizeof(kPmtk2205HzSentence) - 1);
+        g_cfgStep = 2U;
+        return GpsUartReinitStatus::kBusy;
+    }
+    clear_rx_ring();
+    g_initialized = true;
+    enable_uart_irq();
+    g_reinitPhase = ReinitPhase::kIdle;
+    return GpsUartReinitStatus::kDone;
+}
+
+GpsUartReinitStatus gps_uart_reinit_service() {
+    if constexpr (!board::kUartGpsAvailable) {
+        return GpsUartReinitStatus::kIdle;
+    }
+    if (g_reinitPhase == ReinitPhase::kIdle) {
+        if (!gps_uart_take_reinit_request()) {
+            return GpsUartReinitStatus::kIdle;
+        }
+        begin_reinit();
+        return GpsUartReinitStatus::kBusy;
+    }
+    if (g_reinitPhase == ReinitPhase::kWaitDollar) {
+        return service_dollar();
+    }
+    if (g_reinitPhase == ReinitPhase::kWaitBaud) {
+        return service_baud_wait();
+    }
+    return service_cfg();
 }
 
 void gps_uart_request_reinit() {
