@@ -17,9 +17,9 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Fruit Jam PA1010D warm-restart hang (fixed, pending push) (2026-10-19)
+## pre_push_gate.py role table: SWD on the wrong role (OPEN) (2026-10-19)
 
-Fixed in `98052d10` on `grok/gps-warm-restart` (cause: `c4278fb3` quiesce cut off the GPS read mid-transfer). Board-measured (Buzz, `flight-98052d10`): 15/15 `k` restarts and 10/10 picotool reboots with 0 hangs, GPS back within about 6.5 s; 15 min idle soak, no freeze, 3D fix 8 sats, no radio link. Erase this row once it is on main.
+`scripts/ci/pre_push_gate.py` about line 125 still marks the vehicle as the SWD board. When the chip ID matches the station, the station is never offered the Path 2 (SWD) flash steps; it falls back to USB. Harmless (SWD is never offered to the wrong board). Fix next sitting (Buzz, code-read 2026-10-19).
 
 ## Fruit Jam full-station freeze (OPEN) (2026-10-19)
 
@@ -105,7 +105,7 @@ Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nat
 
 ## Opening-shock detector parked on `wip/opening-shock` (OPEN) (2026-10-19)
 
-Committed as WIP `3cd5dbd3` on local `wip/opening-shock` (not pushed). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Details: "Room test tomorrow" section below.
+Committed as WIP `3cd5dbd3` on `wip/opening-shock` (pushed as its own branch, 2026-10-19). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Details: "Room test tomorrow" section below.
 
 ## Link status from Starcom, not raw radio counters (OPEN) (2026-10-19)
 

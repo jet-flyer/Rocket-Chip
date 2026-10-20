@@ -43,6 +43,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-19-004 | Grok Hamilton (Grok Bot) | tooling, bugfix, hardware
+
+Pre-push gate hardware checks are on main (merge `ecb69bc6` of `grok/hw-verify-rule` `f69392b7`): board roles from a local `scripts/ci/boards.local.json` (template `boards.example.json`), the probe offered only for the board whose chip ID matches, bounded USB fault handling with uptime checks, test-only knobs `RC_UPTIME_GAP_S` / `RC_UPTIME_HOLD_S`, the hold reset-detection fix, and live gate output (`docs/FLASHING.md` "Board roles (local config)"). The station GPS warm-restart fix is merged (`58698417` of `8a82dc97`). Board-measured on the merge of both (Buzz): a reset gives exit 4, an unplug gives exit 3, a missing board stops the gate with exit 1, OpenOCD up passes (probe matched to the station only; vehicle 2/2, station 3/3), and a stale `probe: true` with no OpenOCD falls back to USB and passes. `wip/opening-shock` (`3cd5dbd3`) is pushed as its own branch: opening-shock detector WIP, host-tested, not benched, needs a rebase and review.
+
 ### 2026-10-19-003 | Grok Hamilton (Grok Bot) | bugfix
 
 Fixes the station PA1010D warm-restart hang, a regression from `c4278fb3`: a quiesce cut off the background GPS read mid-transfer. The quiesce now joins the in-flight read, an early STOP_DET is cleared, and a failed station GPS probe gets a forced 9-clock bus recovery. Bench (Buzz, board-measured, 2026-10-19, `flight-98052d10`, Fruit Jam station): 15/15 verified `k` restarts and 10/10 picotool reboots with 0 hangs, GPS back within about 6.5 s; 15 min idle soak with no freeze and a 3D fix of 8 satellites, but with no radio link. Before the fix it hung within 2 restarts. The full-station freeze stays open (`AGENT_WHITEBOARD.md`).
