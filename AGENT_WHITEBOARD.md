@@ -17,17 +17,13 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Fruit Jam PA1010D hang after a warm restart (OPEN) (2026-10-19)
+## Fruit Jam PA1010D warm-restart hang (fixed, pending push) (2026-10-19)
 
-The Fruit Jam PA1010D at I2C 0x10 hung after 2 of 3 warm reboots that followed a flash on 2026-10-19. That set was the first #38 bench. The reboot was picotool onto `c4278fb3`. The module was fine after 1 picotool reboot before the 2 dBm soak. A `k` restart did not recover a GPS that was already hung. The power switch cleared the hang both times. That clear was board-measured (Buzz). The sample is too small for a rate. Buzz's warm-restart run next sitting will give one.
+Fixed in `98052d10` on `grok/gps-warm-restart` (cause: `c4278fb3` quiesce cut off the GPS read mid-transfer). Board-measured (Buzz, `flight-98052d10`): 15/15 `k` restarts and 10/10 picotool reboots with 0 hangs, GPS back within about 6.5 s; 15 min idle soak, no freeze, 3D fix 8 sats, no radio link. Erase this row once it is on main.
 
-Fact: STEMMA QT runs from the always-on 3V regulator. Firmware cannot switch that rail. GPIO22 resets only the ESP32-C6 and the DAC (Adafruit Fruit Jam pinout guide; pico-sdk `adafruit_fruit_jam.h`).
+## Fruit Jam full-station freeze (OPEN) (2026-10-19)
 
-Fact: `i2c_master_abort_and_idle()` already sends 9 SCL clocks and STOP when SDA is held low. The probe still failed after that recovery.
-
-Inference: the PA1010D hangs inside the module. The bus recovery already ran.
-
-Open test: read SDA and SCL right after a warm restart.
+Fact: the station froze about 10 min after power-up with the radio link live, twice (COM7 hangs on open, TX stops). Fact: no hardware watchdog is enabled in `src/`. Unknown: the cause. Next: SWD halt of core 0 at the next freeze, before any power cycle. The probe is now on the Fruit Jam; it goes back on the vehicle before a push.
 
 ## soak_two_board.py score file (OPEN) (2026-10-19)
 

@@ -486,11 +486,17 @@ static void async_pump() {
         async_finish(static_cast<int>(g_async.got));
         return;
     }
+    // STOP before len bytes: the transfer is over. Clear it, or the
+    // unmasked STOP_DET re-fires this ISR until the deadline.
+    if (async_stop()) {
+        async_finish(PICO_ERROR_GENERIC);
+        return;
+    }
     async_mask();
 }
 
 static void i2c_async_isr() {
-    if (!g_async.armed) {
+    if (!g_async.armed || g_async.done.load(std::memory_order_relaxed)) {
         I2C_MASTER_INSTANCE->hw->intr_mask = 0;
         return;
     }
@@ -539,21 +545,9 @@ static void join_async() {
     async_release_lock();
 }
 
-static void abandon_async() {
-    if (!g_async.armed && !g_async.lock_held) {
-        return;
-    }
-    async_disarm_hw();
-    if (!g_async.done.load(std::memory_order_relaxed)) {
-        async_finish(PICO_ERROR_GENERIC);
-    }
-    g_async.armed = false;
-    g_async.ready = true;
-    async_release_lock();
-}
-
+// Finish an in-flight async read (bounded) so no reset lands mid-read.
 void i2c_master_abort_and_idle() {
-    abandon_async();
+    join_async();
     abort_controller();
     sio_pads();
     sleep_us(kRecoverPulseUs);
@@ -888,6 +882,22 @@ bool i2c_master_lines_idle() {
 bool i2c_master_probe(uint8_t addr, uint32_t timeout_us) {
     uint8_t dummy = 0;
     return i2c_master_read(addr, &dummy, 1, timeout_us) >= 0;
+}
+
+// 9 clocks + STOP even when SDA reads high (UM10204 3.1.16). For a slave
+// that stopped answering, not routine init (f17ae3da).
+bool i2c_master_recover_bus() {
+    if (g_quiescing) {
+        return false;
+    }
+    join_async();
+    abort_controller();
+    sio_pads();
+    sleep_us(kRecoverPulseUs);
+    clock_sda_stuck();
+    bitbang_stop();
+    i2c_master_reattach();
+    return g_initialized;
 }
 
 i2c_quiesce_trace_t i2c_master_quiesce_trace() {

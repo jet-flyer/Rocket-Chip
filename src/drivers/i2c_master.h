@@ -77,6 +77,8 @@ void i2c_master_abort_and_idle(void);
 void i2c_master_reattach(void);
 // After flash_safe_execute (LL 31): abort + reattach. Not a slave reset.
 [[nodiscard]] bool i2c_master_reset(void);
+// Unconditional 9 clocks + STOP + reattach. For a slave that stopped ACKing.
+[[nodiscard]] bool i2c_master_recover_bus(void);
 
 void i2c_master_quiesce(uint32_t via);
 void i2c_master_park(void);  // quiesce + WFI until MCU reset (probe flash)
