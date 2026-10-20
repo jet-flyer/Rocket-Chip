@@ -105,7 +105,7 @@ Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nat
 
 ## Opening-shock detector parked on `wip/opening-shock` (OPEN) (2026-10-19)
 
-Committed as WIP `3cd5dbd3` on `wip/opening-shock` (pushed as its own branch, 2026-10-19). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Details: "Room test tomorrow" section below.
+Committed as WIP `3cd5dbd3` on `wip/opening-shock` (kept local on purpose, not on origin: the pre-push gate requires a bench for any firmware push and this WIP is not benched; off-machine copy is a git bundle, Nathan 2026-10-19). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Details: "Room test tomorrow" section below.
 
 ## Link status from Starcom, not raw radio counters (OPEN) (2026-10-19)
 
