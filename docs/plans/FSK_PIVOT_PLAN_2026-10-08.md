@@ -138,6 +138,35 @@ Nothing runs until Nathan says go.
 - Reason (SX1276 Rev 6 datasheet): Table 3 gives +10 dBm as the absolute maximum RF input level, and a higher level "may cause permanent device failure". Table 35 gives a 1% maximum TX duty cycle and a 3:1 maximum VSWR at the antenna port at +20 dBm.
 - Estimate (Buzz, not measured): free-space loss at 915 MHz over 10 cm is about 12 dB, so a +20 dBm shot puts about +8 dBm into the other radio. Antenna gain or a shorter distance can push it above +10 dBm. At 10 cm the boards are in the near field, so the real level is less certain.
 
+### 5.1 LoRa baseline and FSK acceptance (ROOM, 2026-10-20)
+
+Goal (Nathan, 2026-10-20): the FSK pivot must show no regression against today's LoRa link, and should show a gain in reliability, performance or air time. Rule: measure LoRa first, before any FSK code is flashed. Then run the same procedure on FSK.
+
+Procedure (Buzz): one script for both runs, same steps, same output format. Both boards at 2 dBm, at a fixed desk distance, 300 s two-board soak, same payloads. A walk on a fixed route follows for sensitivity margin.
+
+| Metric | How it is measured | Source |
+|---|---|---|
+| Frame delivery | Frames sent vs frames received intact; corrupt (CRC fail) and missing counted apart; longest run of drops | Buzz, Goddard, Duke |
+| TX faults | Busy drops and TX failures | Buzz |
+| Signal | RSSI and SNR, mean and spread. FSK gives no SNR: compare RSSI plus loss | Buzz, Goddard |
+| Air time per delivered payload byte | Whole on-air time (preamble, header, CRC; on FSK also acquisition sequence and ASM) divided by useful bytes delivered | Duke |
+| Throughput and rates | Time on air per frame (TX-done minus TX-start); payload bytes/s; offered vs delivered telemetry rate; station TX rate; duty cycle | Buzz, Goddard |
+| Turnaround and first frame | Key-up to first good frame decoded (half-duplex switch plus receiver acquisition); RX window miss rate | Duke, Goddard |
+| Command path | Command to acknowledgement time; resends (COP-P retransmits on FSK) | Buzz, Duke, Goddard |
+| Recovery | Time for the link to come back after a dropout or a power cycle of one board | Buzz, Goddard |
+| Board cost | Radio interrupt and CPU time; flash-write stall | Hamilton, Buzz |
+| COP-P sync (both links) | COP-P loss of synchronization count ([211.0-B-6](https://ccsds.org/Pubs/211x0b6e1.pdf) Annex D item 8). COP-P already runs on LoRa, so this counter goes into the LoRa firmware before the rerun | Duke |
+| FSK only: ASM | ASM (Attached Sync Marker) misses, counted apart from CRC failures. LoRa frames carry no ASM | Duke |
+
+Checkpoints (Nathan, 2026-10-20): rerun the same script after each phase lands (each section of 4.2, and the AO split), not only at the end. Compare each run to the LoRa baseline and to the previous checkpoint, so a regression shows up in the phase that caused it. Each run needs Nathan's go and a layout briefing first, and gets its own docs/reports/ entry.
+
+Pass rule: FSK is not worse than the LoRa baseline on any metric, beyond normal run-to-run spread, unless Nathan accepts the loss with a written reason (same form as a deviation row, §8).
+
+Notes:
+- **Inference (Duke):** the Prox-1 books define the frames and COP-P. They set no pass/fail targets for these numbers. "No regression" is our own target.
+- **Inference (Goddard, Hamilton):** FSK should win on air time and throughput. LoRa may keep a margin and range lead from its spreading gain. Judge range against the L3 coverage baseline (4.46 km, §1), not against LoRa. A desk test barely touches margin; the walk and a later field run settle it.
+- LoRa baseline (measured 2026-10-20, build flight-3e9c38e2, distance not recorded): `docs/reports/2026-10-20_buzz_lora_baseline.md`.
+
 ## 6. Pico logic analyzer choice (map §10.2)
 
 - **Agent drivability is a top consideration** (Nathan, ROOM, 2026-10-08).
