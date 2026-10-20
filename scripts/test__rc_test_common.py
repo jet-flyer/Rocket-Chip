@@ -121,6 +121,9 @@ HEALTH_RING_DUMP = (
 _failures: list[str] = []
 
 
+# Hermetic: ignore a real scripts/ci/boards.local.json on this PC.
+os.environ['RC_BOARDS_CONFIG'] = os.path.join(__import__('tempfile').gettempdir(), 'rc-no-boards-config.json')
+
 def check(label: str, predicate: bool, detail: str = '') -> None:
     if predicate:
         print(f'  [PASS] {label}')
@@ -513,6 +516,507 @@ def test_board_usb_serial_from_enumeration() -> None:
               buf.getvalue() == 'board_usb_serial: unknown\n', buf.getvalue())
 
 
+def test_usb_fault_handling() -> None:
+    """Port wait budget, USB-serial preference, uptime check exit 2 / 3 / 4.
+    Serial and clock mocked; no board."""
+    print('test_usb_fault_handling')
+    import io as _io
+    from contextlib import redirect_stdout
+    import _rc_test_common as rc
+
+    class Clock:
+        def __init__(self): self.t = 0.0
+        def now(self): return self.t
+        def sleep(self, s): self.t += s
+    clk = Clock()
+    calls = []
+    def find_never(target, override=None, verbose=False):
+        calls.append(override); return None, 'no RocketChip USB CDC ports plugged in'
+    buf = _io.StringIO()
+    with redirect_stdout(buf):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, budget_s=20.0,
+                                     find=find_never, ports=lambda: {},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('never appears -> no port, appeared False', pw.port is None and not pw.appeared)
+    check('wait is bounded by the budget (<= 20 s)', clk.t <= 20.0 and len(calls) >= 10,
+          f'{clk.t} {len(calls)}')
+
+    clk = Clock(); n = [0]
+    def find_late(target, override=None, verbose=False):
+        n[0] += 1
+        return ('COM9', 'BANNER') if n[0] >= 4 else (None, 'none')
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, budget_s=20.0,
+                                     find=find_late, ports=lambda: {'S1': 'COM9'},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('late port within budget -> found, time logged',
+          pw.port == 'COM9' and pw.seconds == 3.0, str(pw))
+
+    got = []
+    def find_rec(target, override=None, verbose=False):
+        got.append(override); return override, 'BANNER'
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_STATION_ANY, prefer_serial='abc1',
+                                     find=find_rec,
+                                     ports=lambda: {'ABC1': 'COM12', 'XYZ': 'COM3'},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('USB serial preferred over COM number, still classified',
+          got == ['COM12'] and pw.method == 'USB serial abc1', str(got))
+
+    seq = iter([10, 12, 14])
+    v, vals, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                                 sleep=lambda s: None)
+    check('uptime rising over 3 polls -> pass', v == 'ok' and vals == [10, 12, 14])
+    seq = iter([10, 10, 10])
+    v, _, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                              sleep=lambda s: None)
+    check('uptime frozen -> not rising (exit 3)', v == 'not rising')
+    seq = iter([10, None, 14, 18])
+    v, vals, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                                 sleep=lambda s: None)
+    check('station: a None poll is retried once -> 3 real rising readings pass',
+          v == 'ok' and vals == [10, 14, 18], f'{v} {vals}')
+    seq = iter([10, None, None, 18])
+    v, vals, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                                 sleep=lambda s: None)
+    check('station: still None after the retry -> no dashboard uptime after retry (exit 3)',
+          v == rc.NO_DASH_UPTIME_MSG and 'after retry' in v, f'{v} {vals}')
+    seq = iter([10, None, 3, 6])
+    v, _, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                              sleep=lambda s: None)
+    check('station: retry then a drop -> reset (exit 4)', v == 'reset')
+    slept = []
+    seq = iter([10, 12, 14])
+    rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq), sleep=slept.append)
+    check('RC_UPTIME_GAP_S unset -> default 1.5 s gap', slept == [1.5, 1.5], str(slept))
+    os.environ['RC_UPTIME_GAP_S'] = '20'
+    try:
+        slept = []
+        seq = iter([10, None, 14, 18])
+        v, vals, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: next(seq),
+                                     sleep=slept.append)
+        vslept = []
+        vv, _, _ = rc.vehicle_reopen_uptimes(
+            rc.TARGET_VEHICLE_ANY, wait=lambda t, override=None, prefer_serial=None:
+            rc.PortWait('COM5', 'B', True, 0.0, 'x'), read=lambda p, it=iter([1, 4, 7]): next(it), sleep=vslept.append)
+    finally:
+        del os.environ['RC_UPTIME_GAP_S']
+    check('RC_UPTIME_GAP_S=20 -> 20 s between station readings, retry gap unchanged',
+          v == 'ok' and slept == [20.0, 1.5, 20.0], str(slept))
+    check('RC_UPTIME_GAP_S=20 -> 20 s between vehicle reopens, settle unchanged',
+          vv == 'ok' and vslept == [2.0, 20.0, 20.0], str(vslept))
+    check('RC_UPTIME_GAP_S unset -> no watchdog extension (60 s / 120 s as is)',
+          rc.uptime_gap_extra_s(1.5) == 0.0 and rc.uptime_gap_extra_s(3.0) == 0.0)
+    for bad in ('', 'x', '0', '-5', '1'):
+        os.environ['RC_UPTIME_GAP_S'] = bad
+        try:
+            ok_bad = rc.uptime_gap_extra_s(1.5) == 0.0
+        finally:
+            del os.environ['RC_UPTIME_GAP_S']
+        check(f'RC_UPTIME_GAP_S={bad!r} -> no watchdog extension', ok_bad)
+    os.environ['RC_UPTIME_GAP_S'] = '20'
+    try:
+        st, ve = rc.uptime_gap_extra_s(1.5), rc.uptime_gap_extra_s(3.0)
+    finally:
+        del os.environ['RC_UPTIME_GAP_S']
+    check('RC_UPTIME_GAP_S=20 -> station watchdog +47 s (2*18.5+10), vehicle +44 s',
+          st == 47.0 and ve == 44.0, f'{st} {ve}')
+    # RC_UPTIME_HOLD_S: keep reading after the 3 until reset / loss / expiry.
+    import contextlib, io as _io
+    class HC:
+        def __init__(self): self.t = 0.0
+        def now(self): return self.t
+        def sleep(self, d): self.t += d
+    def hold_run(fn, **kw):
+        out = _io.StringIO()
+        os.environ['RC_UPTIME_HOLD_S'] = '30'
+        try:
+            with contextlib.redirect_stdout(out):
+                r = fn(**kw)
+        finally:
+            del os.environ['RC_UPTIME_HOLD_S']
+        return r, out.getvalue()
+    hc = HC(); seq = iter([10, 12, 14, 16, 18, 3])
+    (v, vals, _), out = hold_run(rc.check_uptime, ser=None, keys=(b'z',),
+                                 read=lambda s, k: next(seq), sleep=hc.sleep, clock=hc.now)
+    check('hold, station: drop mid-hold -> reset (exit 4), HOLD line printed',
+          v == 'reset' and vals[-1] == 3 and 'HOLD: press reset now (up to 30 s)' in out, f'{v} {vals} {out!r}')
+    hc = HC()
+    (v, vals, _), out = hold_run(rc.check_uptime, ser=None, keys=(b'z',),
+                                 read=lambda s, k: 10 + int(hc.t), sleep=hc.sleep, clock=hc.now)
+    check('hold, station: expires with no drop -> hold expired: no reset seen (exit 3)',
+          v == rc.HOLD_EXPIRED_MSG == 'hold expired: no reset seen' and hc.t >= 30, f'{v} {hc.t}')
+    def lost_in_hold(after):
+        def read(ser, k):
+            read.n += 1
+            if ser == 'OLD' and read.n > 5:
+                raise rc.serial.SerialException('device gone')
+            return 100 + read.n if ser == 'OLD' else after
+        read.n = 0
+        return read
+    hc = HC()
+    (v, vals, ser), _ = hold_run(rc.check_uptime, ser='OLD', keys=(b'z',), read=lost_in_hold(2),
+                                 sleep=hc.sleep, clock=hc.now, reconnect=lambda: 'NEW')
+    check('hold, station: port lost, back lower -> reset (exit 4)',
+          v == 'reset' and ser == 'NEW' and vals[-1] == 2, f'{v} {vals}')
+    hc = HC()
+    (v, vals, ser), _ = hold_run(rc.check_uptime, ser='OLD', keys=(b'z',), read=lost_in_hold(2),
+                                 sleep=hc.sleep, clock=hc.now, reconnect=lambda: None)
+    check('hold, station: port lost, never back -> port lost mid-check (exit 3)',
+          v == rc.PORT_LOST_MSG and ser is None, f'{v} {vals}')
+    PWh = rc.PortWait
+    def vwait(fail_after=None):
+        def w(target, override=None, prefer_serial=None):
+            w.n += 1
+            if fail_after is not None and w.n > fail_after:
+                return PWh(None, 'gone', False, None, 'x')
+            return PWh('COM5', 'B', True, 0.0, 'x')
+        w.n = 0
+        return w
+    hc = HC(); vseq = iter([1, 4, 7, 9, 2])
+    (v, vals, _), out = hold_run(rc.vehicle_reopen_uptimes, target=rc.TARGET_VEHICLE_ANY,
+                                 wait=vwait(), read=lambda p: next(vseq),
+                                 sleep=hc.sleep, clock=hc.now)
+    check('hold, vehicle: reopen shows lower uptime (reset, port back) -> reset (exit 4)',
+          v == 'reset' and vals == [1, 4, 7, 9, 2] and 'HOLD:' in out, f'{v} {vals}')
+    hc = HC()
+    (v, vals, _), _ = hold_run(rc.vehicle_reopen_uptimes, target=rc.TARGET_VEHICLE_ANY,
+                               wait=vwait(fail_after=4), read=lambda p: 10 + int(hc.t),
+                               sleep=hc.sleep, clock=hc.now)
+    check('hold, vehicle: port never back -> port lost mid-check (exit 3)',
+          v == rc.PORT_LOST_MSG, f'{v} {vals}')
+    hc = HC()
+    (v, vals, _), _ = hold_run(rc.vehicle_reopen_uptimes, target=rc.TARGET_VEHICLE_ANY,
+                               wait=vwait(), read=lambda p: 10 + int(hc.t),
+                               sleep=hc.sleep, clock=hc.now)
+    check('hold, vehicle: expires with no drop -> hold expired: no reset seen (exit 3)',
+          v == rc.HOLD_EXPIRED_MSG and hc.t >= 30, f'{v} {hc.t}')
+    # Stale held-open handle: reads go empty (no raise) after the reset; the
+    # hold must reopen and see the lower uptime, logging every poll.
+    def stale_read(ser, k):
+        stale_read.n += 1
+        if ser == 'OLD':
+            return 100 + stale_read.n if stale_read.n <= 4 else None
+        return 2
+    stale_read.n = 0
+    hc = HC(); reo = []
+    (v, vals, ser), out = hold_run(rc.check_uptime, ser='OLD', keys=(b'z',), read=stale_read,
+                                   sleep=hc.sleep, clock=hc.now,
+                                   reconnect=lambda: reo.append(1) or 'NEW', present=lambda: True)
+    check('hold, station: stale handle reads empty -> reopen -> lower uptime -> reset (exit 4)',
+          v == 'reset' and ser == 'NEW' and vals[-1] == 2 and len(reo) == 1, f'{v} {vals} {reo}')
+    check('hold, station: one flushed HOLD poll line per poll (uptime, port, reopens)',
+          'HOLD poll 1 ' in out and 'uptime 2s, port present, reopens 1 (reopened)' in out, out)
+    hc = HC(); pres = iter([True, False, True])
+    vseq = iter([1, 4, 7, 9, None, 3])
+    (v, vals, _), out = hold_run(rc.vehicle_reopen_uptimes, target=rc.TARGET_VEHICLE_ANY,
+                                 wait=vwait(), read=lambda p: next(vseq), sleep=hc.sleep,
+                                 clock=hc.now, present=lambda: next(pres))
+    check('hold, vehicle: port ABSENT poll, no-uptime poll, then lower uptime -> reset; each poll logged',
+          v == 'reset' and vals[-1] == 3 and 'HOLD poll 2 ' in out and 'uptime no uptime, port ABSENT' in out
+          and 'HOLD poll 3 ' in out, out)
+    import threading as _th
+    blk = _th.Event()
+    t_open = rc._open_with_timeout(lambda p: blk.wait(5) and 'S', 'COM9', timeout_s=0.2)
+    blk.set()
+    check('banner open that blocks -> treated as no reading (None), never hangs', t_open is None)
+    check('banner open that raises -> None',
+          rc._open_with_timeout(lambda p: (_ for _ in ()).throw(OSError('x')), 'COM9', 0.5) is None)
+    for bad in (None, '', 'x', '0', '-1'):
+        if bad is not None:
+            os.environ['RC_UPTIME_HOLD_S'] = bad
+        try:
+            n = []
+            seq = iter([10, 12, 14, 16])
+            out = _io.StringIO()
+            with contextlib.redirect_stdout(out):
+                v, vals, _ = rc.check_uptime(None, (b'z',), read=lambda s, k: (n.append(1), next(seq))[1],
+                                             sleep=lambda s: None)
+            ext = rc.uptime_gap_extra_s(1.5)
+        finally:
+            os.environ.pop('RC_UPTIME_HOLD_S', None)
+        check(f'RC_UPTIME_HOLD_S={bad!r} -> unchanged: 3 reads, ok, no HOLD line, no watchdog extension',
+              v == 'ok' and len(n) == 3 and 'HOLD' not in out.getvalue() and ext == 0.0)
+    os.environ['RC_UPTIME_HOLD_S'] = '120'
+    try:
+        hx = rc.uptime_gap_extra_s(1.5)
+    finally:
+        del os.environ['RC_UPTIME_HOLD_S']
+    check('RC_UPTIME_HOLD_S=120 -> station watchdog +156.5 s (120+1.5+20 port+5 banner+10)',
+          hx == 156.5, str(hx))
+    here = os.path.dirname(os.path.abspath(__file__))
+    for script, const in (('station_bench_sim.py', 'STATION_UPTIME_GAP_S'),
+                          ('bench_sim.py', 'VEHICLE_UPTIME_GAP_S')):
+        with open(os.path.join(here, script), encoding='utf-8') as fh:
+            src = fh.read()
+        check(f'{script}: watchdog = --max-runtime + uptime_gap_extra_s({const})',
+              f'_start_watchdog(args.max_runtime + uptime_gap_extra_s({const}))' in src
+              and src.count('_start_watchdog(args.') == 1)
+
+    # Station: port vanishes mid-check (read raises), reconnect after the wait.
+    def vanish_then(vals_after):
+        it = iter(vals_after)
+        def read(ser, k):
+            if ser == 'OLD' and read.n >= 1:
+                raise rc.serial.SerialException('device gone')
+            read.n += 1
+            return 100 if ser == 'OLD' else next(it)
+        read.n = 0
+        return read
+    v, vals, ser = rc.check_uptime('OLD', (b'z',), read=vanish_then([105, 108]),
+                                   sleep=lambda s: None, reconnect=lambda: 'NEW')
+    check('station: vanished, back with higher uptime -> pass on the new port',
+          v == 'ok' and vals == [100, 105, 108] and ser == 'NEW', f'{v} {vals} {ser}')
+    v, vals, _ = rc.check_uptime('OLD', (b'z',), read=vanish_then([2, 5]),
+                                 sleep=lambda s: None, reconnect=lambda: 'NEW')
+    check('station: vanished, back with lower uptime -> reset (exit 4)',
+          v == 'reset', f'{v} {vals}')
+    v, vals, ser = rc.check_uptime('OLD', (b'z',), read=vanish_then([]),
+                                   sleep=lambda s: None, reconnect=lambda: None)
+    check('station: vanished, never back -> port lost mid-check (exit 3)',
+          v == rc.PORT_LOST_MSG == 'port lost mid-check' and ser is None, f'{v} {vals}')
+    PW0 = rc.PortWait
+    closed = []
+    class Dead:
+        def close(self): closed.append(True)
+    waits0 = []
+    def w_back(target, override=None, prefer_serial=None):
+        waits0.append(prefer_serial); return PW0('COM12', 'B', True, 4.0, 'USB serial S')
+    rcn = rc.make_reconnect(rc.TARGET_STATION_ANY, Dead(), prefer_serial='S',
+                            wait=w_back, open_fn=lambda p: 'OPEN:' + p)
+    check('make_reconnect: closes dead port, serial-first wait, reopens',
+          rcn() == 'OPEN:COM12' and closed and waits0 == ['S'])
+    rcn = rc.make_reconnect(rc.TARGET_STATION_ANY, Dead(),
+                            wait=lambda t, override=None, prefer_serial=None:
+                            PW0(None, 'gone', False, None, 'x'),
+                            open_fn=lambda p: 'x')
+    check('make_reconnect: never back -> None', rcn() is None)
+
+    class FakeSer:
+        def __init__(self, data): self.data = [data]; self.sent = []
+        def write(self, b): self.sent.append(b)
+        def flush(self): pass
+        def read(self, n): return self.data.pop(0) if self.data else b''
+    clk = Clock()
+    fs = FakeSer(b'Stn GPS: 3D      9 sat  Up: 812s\r\n')
+    v = rc.read_uptime(fs, rc.STATION_UPTIME_KEYS, sleep=clk.sleep, clock=clk.now)
+    import inspect
+    check('station dashboard "Up: Ns" parsed, only z sent', v == 812 and fs.sent == [b'z'])
+    fs = FakeSer(b'  Profile: Rocket  Uptime: 95s\r\n')
+    v = rc.read_uptime(fs, (), sleep=clk.sleep, clock=clk.now)
+    check('vehicle banner "Uptime: Ns" parsed', v == 95)
+    check("vehicle poll never sends 'b' (find-me beacon)",
+          b'b' not in (rc.VEHICLE_UPTIME_KEYS or ()))
+    import bench_sim
+    bsrc = inspect.getsource(bench_sim)
+    check("bench_sim: no 'b' key, no NOT CHECKED path, uses the reopen uptime check",
+          "b'b'" not in bsrc and 'NOT CHECKED' not in bsrc
+          and 'vehicle_reopen_uptimes' in bsrc)
+
+    check('classify: rising -> ok', rc.classify_uptimes([4095, 4098, 4101]) == 'ok')
+    check('classify: flat -> not rising', rc.classify_uptimes([10, 10, 13]) == 'not rising')
+    check('classify: drop -> reset', rc.classify_uptimes([4095, 3, 6]) == 'reset')
+    check('classify: missing sample -> not rising',
+          rc.classify_uptimes([10, None, 16]) == 'not rising')
+    PW = rc.PortWait
+    waits = []
+    def wait_ok(target, override=None, prefer_serial=None):
+        waits.append(prefer_serial); return PW('COM5', 'B', True, 0.0, 'USB serial X')
+    seq = iter([4095, 4098, 4101]); slept = []
+    v, vals, port = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, prefer_serial='X',
+                                              wait=wait_ok, read=lambda p: next(seq),
+                                              sleep=slept.append)
+    check('3 reopens, each re-resolved with the serial wait, gaps between',
+          v == 'ok' and vals == [4095, 4098, 4101] and waits == ['X'] * 3
+          and slept == [2.0, 3.0, 3.0] and port == 'COM5', f'{v} {vals} {waits} {slept}')
+    seq = iter([50, 50, 50])
+    v, _, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_ok,
+                                        read=lambda p: next(seq), sleep=lambda s: None)
+    check('frozen uptime -> not rising (exit 3)', v == 'not rising')
+    seq = iter([4095, 2, 5])
+    v, _, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_ok,
+                                        read=lambda p: next(seq), sleep=lambda s: None)
+    check('uptime drop -> reset (exit 4)', v == 'reset')
+    n = [0]
+    def wait_gone(target, override=None, prefer_serial=None):
+        n[0] += 1
+        return PW('COM5', 'B', True, 0.0, 'x') if n[0] == 1 else PW(None, 'gone', False, None, 'x')
+    v, vals, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_gone,
+                                           read=lambda p: 100, sleep=lambda s: None)
+    check('vehicle: vanished, never back -> port lost mid-check (exit 3)',
+          v == rc.PORT_LOST_MSG and vals == [100], str(vals))
+    # Vanished between reopens: the banner read fails once, the re-find
+    # (normal wait) finds it again.
+    for after, want, label in (([None, 4105, 4108], 'ok', 'higher uptime -> pass'),
+                               ([None, 3, 6], 'reset', 'lower uptime -> reset (exit 4)')):
+        seq = iter([4100] + after); waits.clear()
+        v, vals, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, prefer_serial='X',
+                                               wait=wait_ok, read=lambda p: next(seq),
+                                               sleep=lambda s: None)
+        check(f'vehicle: vanished, back with {label}',
+              v == want and None not in vals and waits == ['X'] * 4, f'{v} {vals} {waits}')
+    # Buzz, build 3e9c38e2: first reopen gave no banner -> false exit 3.
+    seq = iter([None, 52, 61, 70]); waits.clear(); slept2 = []
+    v, vals, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, prefer_serial='X',
+                                           wait=wait_ok, read=lambda p: next(seq),
+                                           sleep=slept2.append)
+    check('vehicle: [None -> retry 52], 61, 70 -> pass (retry uses the serial-first wait)',
+          v == 'ok' and vals == [52, 61, 70] and waits == ['X'] * 4
+          and len(slept2) == 4, f'{v} {vals} {waits} {slept2}')
+    seq = iter([None, None, 52, 61, 70]); waits.clear(); sl = []
+    v, vals, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, prefer_serial='X',
+                                           wait=wait_ok, read=lambda p: next(seq),
+                                           sleep=sl.append)
+    check('vehicle: empty twice, then a reading -> pass (2 retries, 3 s apart, serial-first)',
+          v == 'ok' and vals == [52, 61, 70] and waits == ['X'] * 5
+          and sl[:3] == [2.0, 3.0, 3.0], f'{v} {vals} {waits} {sl}')
+    seq = iter([None, None, None, 61, 70])
+    v, vals, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_ok,
+                                           read=lambda p: next(seq), sleep=lambda s: None)
+    check('vehicle: empty on all 3 tries -> no banner after retries (exit 3)',
+          v == rc.NO_BANNER_MSG == 'no banner after retries' and vals == [None], f'{v} {vals}')
+    seq = iter([None, 52, 61, 30])
+    v, _, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_ok,
+                                        read=lambda p: next(seq), sleep=lambda s: None)
+    check('vehicle: drop after a retry -> still reset (exit 4)', v == 'reset')
+
+    class LateSer:   # banner arrives 4 s after open
+        def __init__(self, clk): self.clk = clk; self.sent = False; self.closed = False
+        def write(self, b): raise AssertionError('vehicle sends nothing')
+        def flush(self): pass
+        def read(self, n):
+            if self.clk.t >= 4.0 and not self.sent:
+                self.sent = True; return b'  Profile: Rocket  Uptime: 52s\r\n'
+            return b''
+        def close(self): self.closed = True
+    clk = Clock(); ls = LateSer(clk)
+    v = rc.banner_uptime('COM5', open_fn=lambda p: ls, sleep=clk.sleep, clock=clk.now)
+    check('vehicle: banner 4 s late -> read (RC_BANNER_WAIT_S default 5), returns on match',
+          v == 52 and clk.t < 4.5 and ls.closed, f'{v} {clk.t}')
+    clk = Clock(); ls = LateSer(clk)
+    os.environ['RC_BANNER_WAIT_S'] = '3'
+    try:
+        v = rc.banner_uptime('COM5', open_fn=lambda p: ls, sleep=clk.sleep, clock=clk.now)
+    finally:
+        del os.environ['RC_BANNER_WAIT_S']
+    check('RC_BANNER_WAIT_S=3 -> 4 s late banner missed (configurable)', v is None)
+    clk = Clock(); ls = LateSer(clk)
+    v = rc.read_uptime(ls, (), listen_s=2.5, max_s=5.0, sleep=clk.sleep, clock=clk.now)
+    check('station read: nothing in 2.5 s -> keeps listening up to RC_BANNER_WAIT_S', v == 52)
+    src_open = inspect.getsource(rc.open_cdc_hold_dtr)
+    check('vehicle open drops DTR, pauses, raises it (fresh connect edge)',
+          'dtr_low_s' in src_open and rc.DTR_LOW_S > 0
+          and 'dtr_low_s=DTR_LOW_S' in inspect.getsource(rc.banner_uptime))
+    seq = iter([None, 52, 61, 3])
+    v, _, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_ok,
+                                        read=lambda p: next(seq), sleep=lambda s: None)
+    check('vehicle: retry, then a drop -> reset (exit 4)', v == 'reset')
+    import bench_sim as _bs2
+    check('bench_sim reports the no-banner verdict, not "uptime not rising"',
+          'NO_BANNER_MSG' in inspect.getsource(_bs2))
+    n2 = [0]
+    def wait_gone2(target, override=None, prefer_serial=None):
+        n2[0] += 1
+        return PW('COM5', 'B', True, 0.0, 'x') if n2[0] == 1 else PW(None, 'gone', False, None, 'x')
+    seq = iter([4100, None])
+    v, _, _ = rc.vehicle_reopen_uptimes(rc.TARGET_VEHICLE_ANY, wait=wait_gone2,
+                                        read=lambda p: next(seq), sleep=lambda s: None)
+    check('vehicle: read fails and re-find fails -> port lost (never exit 2)',
+          v == rc.PORT_LOST_MSG)
+    import bench_sim as _bs
+    _bsrc = inspect.getsource(_bs)
+    check('bench_sim: exit 2 only before the uptime check (no "else 2" after it)',
+          'else 2)' not in _bsrc and 'PORT_LOST_MSG' in _bsrc)
+    sent = []
+    class Ser:
+        def __init__(self): self.d = [b'  Profile: Rocket  Uptime: 4095s\r\n']; self.closed = False
+        def write(self, b): sent.append(b)
+        def flush(self): pass
+        def read(self, n): return self.d.pop(0) if self.d else b''
+        def close(self): self.closed = True
+    s1 = Ser(); clk = Clock()
+    v = rc.banner_uptime('COM5', open_fn=lambda p: s1, sleep=clk.sleep, clock=clk.now)
+    check('banner_uptime: parses the banner, sends nothing, closes the port',
+          v == 4095 and sent == [] and s1.closed, f'{v} {sent}')
+    check('exit codes 2 / 3 / 4 distinct',
+          len({rc.EXIT_NO_BOARD, rc.EXIT_UPTIME_NOT_RISING, rc.EXIT_UPTIME_RESET}) == 3)
+    check('exit codes: 2 no board, 3 frozen/port lost, 4 reset', rc.EXIT_NO_BOARD == 2 and rc.EXIT_UPTIME_NOT_RISING == 3 and rc.EXIT_UPTIME_RESET == 4)
+
+    buf = _io.StringIO()
+    with redirect_stdout(buf):
+        rc.report_usb_fault('uptime not rising', 'station', appeared=True,
+                            seconds=2.0, last_uptime=812, port='COM12')
+    out = buf.getvalue()
+    check('failure log: appeared, time, last uptime, transport, manual hint only',
+          'port appeared: yes' in out and '2.0s' in out and 'last uptime: 812' in out
+          and 'transport: USB CDC' in out and 'picotool info -f' in out
+          and 'never run it' in out, out)
+    import inspect
+    src = inspect.getsource(rc.wait_for_target_port) + inspect.getsource(rc.check_uptime)
+    check('no picotool / reflash call in the connect path',
+          'subprocess' not in src and 'picotool' not in src)
+
+
+def test_board_config_roles() -> None:
+    """boards.local.json drives the bench's role serial; fallback chain."""
+    print('test_board_config_roles')
+    import io as _io, json as _json, tempfile as _tf
+    from contextlib import redirect_stdout
+    import _rc_test_common as rc
+    bc = rc.board_config
+    d = _tf.mkdtemp()
+    p = os.path.join(d, 'boards.local.json')
+    with open(p, 'w') as f:
+        _json.dump({'boards': [{'serial': '02fbddb8e1ca1281', 'role': 'vehicle'},
+                               {'serial': 'BEC71B8EDC6AEBD1', 'role': 'station',
+                                'probe': True}]}, f)
+    cfg = bc.load(p)
+    attached = lambda: {'02FBDDB8E1CA1281': 'COM5', 'BEC71B8EDC6AEBD1': 'COM7',
+                        'DEAD0000BEEF0000': 'COM9'}
+    buf = _io.StringIO()
+    with redirect_stdout(buf):
+        ser, strict = rc.role_usb_serial('vehicle', cfg_fn=lambda: cfg, ports=attached, env={})
+    out = buf.getvalue()
+    check('config maps the vehicle role to its serial (strict)',
+          ser == '02FBDDB8E1CA1281' and strict, f'{ser} {strict}')
+    check('unknown attached serial is reported by the bench',
+          'DEAD0000BEEF0000' in out and 'not used for any role' in out, out)
+    check('probe flag read from config', cfg['BEC71B8EDC6AEBD1'].probe
+          and not cfg['02FBDDB8E1CA1281'].probe)
+    with redirect_stdout(_io.StringIO()):
+        ser, strict = rc.role_usb_serial('station', cfg_fn=lambda: None, ports=attached,
+                                         env={'RC_STATION_USB_SERIAL': 'bec71b8edc6aebd1'})
+    check('missing file -> RC_STATION_USB_SERIAL (not strict)',
+          ser == 'BEC71B8EDC6AEBD1' and not strict)
+    with redirect_stdout(_io.StringIO()):
+        ser, strict = rc.role_usb_serial('station', cfg_fn=lambda: None, ports=attached, env={})
+    check('missing file + no env -> banner peek', ser is None and not strict)
+    check('missing file -> load() is None', bc.load(os.path.join(d, 'nope.json')) is None)
+
+    class Clock:
+        def __init__(self): self.t = 0.0
+        def now(self): return self.t
+        def sleep(self, s): self.t += s
+    found = []
+    def find_any(target, override=None, verbose=False):
+        found.append(override); return ('COM9', 'BANNER')   # banner would accept COM9
+    clk = Clock()
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, prefer_serial='02FBDDB8E1CA1281',
+                                     strict=True, budget_s=5.0, find=find_any,
+                                     ports=lambda: {'DEAD0000BEEF0000': 'COM9'},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('strict (config): listed serial absent -> no banner guess onto another board',
+          pw.port is None and found == [] and 'not attached' in str(pw.meta), str(pw))
+    with redirect_stdout(_io.StringIO()):
+        pw = rc.wait_for_target_port(rc.TARGET_VEHICLE_ANY, prefer_serial=None, strict=False,
+                                     budget_s=5.0, find=find_any, ports=lambda: {},
+                                     sleep=clk.sleep, clock=clk.now)
+    check('no config: banner peek still finds the board (unchanged)', pw.port == 'COM9')
+    check('2E8A filter kept, noted as set by our firmware descriptor',
+          rc.ROCKETCHIP_USB_VID == 0x2E8A)
+
+
 def test_pre_commit_matrix_triggers() -> None:
     print('test_pre_commit_matrix_triggers')
     ci_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci')
@@ -694,6 +1198,8 @@ def test_firmware_tree_identity_gate() -> None:
 def main() -> int:
     tests = [
         test_classify_vehicle_flight,
+        test_usb_fault_handling,
+        test_board_config_roles,
         test_classify_station_kmenu,
         test_classify_station_dashboard,
         test_classify_station_dashboard_waiting,

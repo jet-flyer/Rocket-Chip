@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy to boards.local.json (gitignored) and fill in your boards. serial = the board USB serial (picotool info, or the bench's board_usb_serial line). role = vehicle or station. probe = true only on the board the debug probe is wired to; the gate still confirms it by chip ID. See docs/FLASHING.md, Board roles (local config).",
+  "boards": [
+    {"serial": "0123456789ABCDEF", "role": "vehicle", "probe": false},
+    {"serial": "FEDCBA9876543210", "role": "station", "probe": true}
+  ]
+}

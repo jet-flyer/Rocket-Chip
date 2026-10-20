@@ -222,6 +222,26 @@ picotool info -f --ser <chip-serial> -a
 That reports what is **in the UF2**, not whether it is on the correct
 physical board. See verification below.
 
+### Board roles (local config)
+
+The bench and the pre-push gate take each board's role from
+`scripts/ci/boards.local.json` (gitignored). Copy
+`scripts/ci/boards.example.json` and list each board's USB serial with
+`"role": "vehicle"` or `"station"`, and `"probe": true` only on the board
+the debug probe is wired to. One board per role.
+
+- If the file is missing: `RC_VEHICLE_USB_SERIAL` /
+  `RC_STATION_USB_SERIAL`, then the banner peek (unchanged behaviour).
+- If the file exists: only the listed serial is used for a role. An
+  attached board whose serial is not listed is reported and never used.
+- The probe stays optional. SWD is offered only when the probe's chip ID
+  matches a board flagged `"probe": true`.
+- Ports are filtered by VID:PID `2E8A:0009`, which our firmware's USB
+  descriptor sets (pico-sdk `stdio_usb`).
+- `RC_BOARDS_CONFIG` points at a different file.
+- `RC_UPTIME_GAP_S` (test-only) sets the seconds between the 3 uptime readings; unset keeps the defaults.
+- `RC_UPTIME_HOLD_S` (test-only) keeps reading uptime for up to N s after the 3 readings; a reset gives exit 4, no reset fails with 'hold expired: no reset seen' (exit 3).
+
 ---
 
 ## Board / firmware verification

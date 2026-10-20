@@ -28,6 +28,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+# Hermetic: a real scripts/ci/boards.local.json on this PC must not
+# change results. Tests that need a config pass one explicitly.
+os.environ['RC_BOARDS_CONFIG'] = os.path.join(tempfile.gettempdir(), 'rc-no-boards-config.json')
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -35,9 +38,13 @@ GATE = HERE / 'ci' / 'pre_push_gate.py'
 GATE_NO_OPENOCD = (
     'import os, sys; sys.path.insert(0, os.path.dirname(sys.argv[1])); '
     'import pre_push_gate as pg; pg.openocd_listening = lambda: False; '
+    'pg.prepare_worktree = lambda *a: (_ for _ in ()).throw('
+    'pg.GateFail("STUB: bench worktree reached")); '
+    'pg.early_board_check = lambda *a, **k: None; '
     'sys.exit(pg.main(sys.argv[1:]))')
 LIST = HERE / 'ci' / 'firmware_paths.txt'
 ZERO = '0' * 40
+STUB = 'STUB: bench worktree reached'
 FAILS = 0
 
 
@@ -67,9 +74,9 @@ def commit(repo: Path, path: str, text: str, msg: str) -> str:
 
 def gate(repo: Path, lines: list, **env_extra: str) -> tuple:
     env = dict(os.environ, PATH=os.environ.get('PATH', ''), **env_extra)
-    # Run the real gate with OpenOCD reported as down, so a bench PC with
-    # OpenOCD running gives the same result as a PC without it: the gate
-    # blocks before the bench worktree, the build and the flash step.
+    # Run the real gate with OpenOCD reported as down (the probe is optional,
+    # USB transport) and the bench worktree step stubbed to block, so the
+    # gate stops before the build and the flash step on any PC.
     r = subprocess.run([sys.executable, '-c', GATE_NO_OPENOCD, str(GATE), 'origin', 'file:///nowhere'],
                        cwd=str(repo), input='\n'.join(lines) + '\n',
                        capture_output=True, text=True, env=env)
@@ -184,8 +191,8 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {ZERO}'])
         check('2 new commits, 1 firmware, not the whole history',
               '2 commit(s), 1 firmware' in out, out)
-        check('bench needed -> blocks without OpenOCD (rc 1)',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('bench needed -> blocks at the bench step without OpenOCD (rc 1)',
+              rc == 1 and 'bench needed' in out and STUB in out, out)
 
         print('test_shape_warns_but_does_not_block')
         # six firmware commits, one of them an isolate class: warning only.
@@ -195,8 +202,8 @@ def main() -> int:
         tip = commit(repo, 'src/flight_director/guard_evaluator.cpp', '// g', 'guard change')
         rc, out = gate(repo, [f'refs/heads/feat {tip} refs/heads/feat {ZERO}'])
         check('shape warning printed', 'WARNING' in out, out)
-        check('shape does not block (still the OpenOCD block)',
-              rc == 1 and 'OpenOCD' in out and 'firmware commits in one push' in out, out)
+        check('shape does not block (still the bench block)',
+              rc == 1 and STUB in out and 'firmware commits in one push' in out, out)
 
         print('test_delete (local sha zeroes)')
         rc, out = gate(repo, [f'(delete) {ZERO} refs/heads/old {base}'])
@@ -256,8 +263,8 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
         check('warns that the radio rule is not active',
               'NOT radio-benched' in out, out)
-        check('does not block on the missing script; fails closed at OpenOCD',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('does not block on the missing script; fails closed at the bench',
+              rc == 1 and STUB in out, out)
 
         print('test_existing_branch_update (remote..local)')
         git(repo, 'update-ref', 'refs/remotes/origin/feat', d)
@@ -511,9 +518,9 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {d}'],
                    RC_BENCH_FRESH='1')
     check('real push in fresh mode: says so, ignores the note, benches '
-          '(fails closed at OpenOCD here)',
+          '(fails closed at the bench step here)',
           rc == 1 and 'FRESH MODE' in out and 'fresh mode: notes ignored' in out
-          and 'OpenOCD' in out, out)
+          and STUB in out, out)
 
     print('test_bench_output_board_serial_goes_to_note')
     wt = td / 'wt'
@@ -528,14 +535,53 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     out = captured(lambda: print(pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench')))
     check('no serial line -> unknown + warning',
           "'unknown'" in out and 'WARNING' in out, out)
+    fake.write_text("import sys; print('uptime not rising'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok3 = False
+    except pg.GateFail as e:
+        ok3 = ('exit 3' in str(e) and 'did not rise' in str(e)
+               and 'port lost mid-check' in str(e)
+               and 'no banner' in str(e) and 'after retries' in str(e))
+    check('bench exit 3 (uptime flat or port lost mid-check) -> own hard-fail message', ok3)
+    fake.write_text("import sys; print('ERROR: vehicle USB fault: port lost mid-check'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok3b = False
+    except pg.GateFail as e:
+        ok3b = 'exit 3' in str(e) and 'not back' in str(e)
+    check('bench: vanished and never back -> exit 3 hard fail (not exit 2)', ok3b)
+    fake.write_text("import sys; sys.exit(2)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok2 = False
+    except pg.GateFail as e:
+        ok2 = 'exit 2' in str(e) and 'a skip is a fail' in str(e)
+    check('bench exit 2 (board absent at start) still a hard fail (unchanged)', ok2)
+    fake.write_text("import sys; sys.exit(4)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok4 = False
+    except pg.GateFail as e:
+        ok4 = 'exit 4' in str(e) and 'reset' in str(e)
+    check('bench exit 4 (vanished, back with lower uptime: reset) -> own hard-fail message', ok4)
+    fake.write_text("import sys; print('RESULT: PASS'); sys.exit(0)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok0 = True
+    except pg.GateFail as e:
+        ok0 = 'exit' not in str(e)
+    check('bench exit 0 (vanished, back with higher uptime) -> no exit-code hard fail', ok0)
 
     print('test_pass_note_format (bench steps faked, no board)')
     saved = {n: getattr(pg, n) for n in ('openocd_listening', 'prepare_worktree',
-                                          'build_role', 'flash_recorded', 'run_bench')}
+                                          'build_role', 'flash_recorded', 'run_bench',
+                                          'early_board_check')}
     saved_tree = ft.elf_tree_id
     try:
         pg.openocd_listening = lambda: True
-        pg.prepare_worktree = lambda *a: None
+        pg.early_board_check = lambda *a, **k: None
+        pg.prepare_worktree = lambda *a, **k: None
         ft.elf_tree_id = lambda *a, **k: 'feedface' * 5
         pg.build_role = lambda wt, r, want, keyed: (wt / 'rocketchip.elf', 'abc123')
         pg.flash_recorded = lambda elf: True
@@ -559,6 +605,8 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     check('note has the v2 lines', all(ln in body.splitlines() for ln in want_lines),
           body + '\n---\n' + out)
     check('citation line printed', 'Verified at push:' in out, out)
+    check('flash transport printed for each role',
+          'vehicle flash transport:' in out and 'station flash transport:' in out, out)
     out = plan({'SER1', 'SER2'})
     check('the new note is reused with the same boards', 'skip flash and bench' in out, out)
 
@@ -578,6 +626,134 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         check(f'{r}: instructions name the role', txt.lstrip().startswith(r), txt)
     check('station-only push needs no OpenOCD', not pg.needs_openocd(['station']))
     check('vehicle + station push needs OpenOCD', pg.needs_openocd(['vehicle', 'station']))
+    for r, v in pg.ROLES.items():
+        txt = pg.flash_instructions(td, td / 'wt', r, td / 'x.elf', 'PT', False)
+        check(f'{r}: no OpenOCD -> USB path only, same record + LED + CDC steps',
+              'PT load' in txt and '--record-only' in txt and 'LED + CDC' in txt
+              and 'Path 2' not in txt, txt)
+        check(f'{r}: no OpenOCD -> transport is USB',
+              pg.flash_transport(r, None).startswith('USB'))
+
+    print('test_probe_target_identified_by_chip_id (OpenOCD Tcl mocked)')
+    # OTP CHIPID rows 0..3 = 2E2F 1B4A 4C31 E661 -> USB serial E6614C311B4A2E2F.
+    def tcl_ok(cmd):
+        if cmd.startswith(f'read_memory {pg.OTP_DATA_BASE:#x}'):
+            return '0x1b4a2e2f 0xe6614c31'
+        return '0x00002e2f 0x00001b4a 0x00004c31 0x0000e661'
+    ids = pg.probe_target_ids(tcl_ok)
+    check('chip ID formatted as the USB serial', ids == {'E6614C311B4A2E2F'}, str(ids))
+    # Bench 2026-10-19 (Buzz, Fruit Jam station): read_memory 0x40130000 32 2
+    # -> 0xdc6aebd1 0xbec71b8e; station USB serial BEC71B8EDC6AEBD1.
+    def tcl_fj(cmd):
+        return '0xdc6aebd1 0xbec71b8e' if cmd.startswith(
+            f'read_memory {pg.OTP_DATA_BASE:#x}') else None
+    check('regression: Fruit Jam OTP words -> its USB serial (word[1] then word[0])',
+          pg.probe_target_ids(tcl_fj) == {'BEC71B8EDC6AEBD1'},
+          str(pg.probe_target_ids(tcl_fj)))
+    check('OpenOCD down -> no ID', pg.probe_target_ids(lambda c: None) == set())
+    check('error text -> no ID',
+          pg.probe_target_ids(lambda c: 'invalid command name') == set())
+    sent = []
+    pg.probe_target_ids(lambda c: sent.append(c) or None)
+    check('identification is read_memory only (no halt, reset, resume)',
+          sent and all(c.startswith('read_memory ') for c in sent), str(sent))
+    ports = lambda: {'E6614C311B4A2E2F': 'COM9', 'AAAA000011112222': 'COM7'}
+    roles = {'COM9': 'station', 'COM7': 'vehicle'}
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get)
+    check('probe on the station board -> station (not the SWD-tagged vehicle)',
+          got == 'station', str(got))
+    check('no ID -> unknown', pg.identify_probe_role(lambda: set(), ports, roles.get) is None)
+    check('ID matches no attached board -> unknown',
+          pg.identify_probe_role(lambda: {'1234567812345678'}, ports, roles.get) is None)
+    check('role banner unknown -> unknown',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, lambda p: None) is None)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', False)
+    check('vehicle without the probe -> no SWD path', 'Path 2' not in txt, txt)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', True)
+    check('stale "serves only the OpenOCD check" text is gone',
+          'serves only' not in txt and 'Path 2' in txt, txt)
+    check('probe present, target unknown -> USB only text',
+          'probe present, target unknown: USB only' in pg.flash_transport('vehicle', None, True))
+    check('probe on station -> vehicle transport is USB',
+          pg.flash_transport('vehicle', 'station', True).startswith('USB'))
+
+    print('test_early_board_check (before the build)')
+    try:
+        pg.early_board_check(['station', 'vehicle'], {'S1'})
+        ok = False
+    except pg.GateFail as e:
+        ok = 'board missing' in str(e)
+    check('1 board for a 2-role push -> hard fail before build', ok)
+    pg.early_board_check(['station', 'vehicle'], {'S1', 'S2'})
+    pg.early_board_check(['station'], None)
+    check('enough boards / no pyserial -> no early block', True)
+
+    print('test_board_config (boards.local.json roles, probe flag)')
+    import board_config as bc
+    cfgp = td / 'boards.local.json'
+    cfgp.write_text('{"boards": ['
+                    '{"serial": "aaaa000011112222", "role": "vehicle", "probe": false},'
+                    '{"serial": "E6614C311B4A2E2F", "role": "station", "probe": true}]}')
+    cfg = bc.load(cfgp)
+    check('config maps roles (serial upper-cased)',
+          bc.role_of('AAAA000011112222', cfg) == 'vehicle'
+          and bc.role_serial('station', cfg, {})[:2] == ('E6614C311B4A2E2F', 'boards.local.json'))
+    check('missing file -> None, falls back to RC_*_USB_SERIAL then banner peek',
+          bc.load(td / 'nope.json') is None
+          and bc.role_serial('vehicle', None, {'RC_VEHICLE_USB_SERIAL': 'abc'}) == ('ABC', 'RC_VEHICLE_USB_SERIAL', False)
+          and bc.role_serial('vehicle', None, {}) == (None, 'banner peek', False))
+    check('unknown serial is reported, not given a role',
+          bc.unknown_serials({'AAAA000011112222', 'beef0000beef0000'}, cfg) == ['BEEF0000BEEF0000']
+          and bc.role_of('BEEF0000BEEF0000', cfg) is None
+          and 'not used for any role' in bc.unknown_message('BEEF0000BEEF0000'))
+    for bad, why in (('{"boards": [{"serial": "A", "role": "rover"}]}', 'role'),
+                     ('{"boards": [{"serial": "A", "role": "vehicle"},'
+                      '{"serial": "B", "role": "vehicle"}]}', 'one board per role'),
+                     ('not json', 'JSON')):
+        cfgb = td / 'bad.json'; cfgb.write_text(bad)
+        try:
+            bc.load(cfgb); okb = False
+        except bc.BoardConfigError as e:
+            okb = why in str(e)
+        check(f'malformed config is an error, never ignored ({why})', okb)
+    noban = lambda p: (_ for _ in ()).throw(AssertionError('banner peek used'))
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, noban, cfg_fn=lambda: cfg)
+    check('probe flag true + chip ID match -> role from config, no banner peek',
+          got == 'station', str(got))
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'AAAA000011112222'}, ports, noban, cfg_fn=lambda: cfg)))
+    check('probe flag false -> USB only even when the chip ID matches',
+          out.strip().endswith('None') and '"probe": false' in out, out)
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'1234567812345678'}, lambda: {'1234567812345678': 'COM4'}, noban,
+        cfg_fn=lambda: cfg)))
+    check('probe on an unlisted serial -> reported, USB only, not guessed',
+          out.strip().endswith('None') and 'not in boards.local.json' in out, out)
+    check('chip ID still decides: flagged board but no ID match -> unknown',
+          pg.identify_probe_role(lambda: {'0000111122223333'}, ports, noban,
+                                 cfg_fn=lambda: cfg) is None)
+    check('no config -> probe role by banner peek (unchanged)',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get,
+                                 cfg_fn=lambda: None) == 'station')
+    out = captured(lambda: pg.early_board_check(
+        ['station', 'vehicle'], {'AAAA000011112222', 'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+        cfg_fn=lambda: cfg))
+    check('early check with config: listed boards attached pass, extra serial reported',
+          'BEEF0000BEEF0000' in out and 'not in boards.local.json' in out, out)
+    try:
+        captured(lambda: pg.early_board_check(['station', 'vehicle'],
+                                              {'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+                                              cfg_fn=lambda: cfg))
+        okm = False
+    except pg.GateFail as e:
+        okm = 'vehicle board AAAA000011112222' in str(e)
+    check('early check with config: listed vehicle missing -> hard fail (unlisted board not used)', okm)
+    import json as _json
+    ex = _json.loads((Path(__file__).resolve().parent / 'ci' / 'boards.example.json').read_text())
+    exf = td / 'ex.json'; exf.write_text(_json.dumps(ex))
+    check('boards.example.json loads cleanly', len(bc.load(exf)) == 2)
+    gi = (Path(__file__).resolve().parents[1] / '.gitignore').read_text()
+    check('boards.local.json is gitignored', 'scripts/ci/boards.local.json' in gi)
 
     print('test_main_worktree_lookup (git worktree list, first line)')
     from types import SimpleNamespace

@@ -48,6 +48,7 @@ Exit codes:
 """
 
 import argparse
+import functools
 import os
 import re
 import serial
@@ -66,7 +67,21 @@ from _rc_test_common import (  # noqa: E402
     banner_matches_elf_error,
     classify_banner,
     ensure_station_in_dashboard_state,
-    find_target_port,
+    EXIT_UPTIME_NOT_RISING,
+    STATION_UPTIME_KEYS,
+    check_uptime,
+    uptime_gap_extra_s,
+    STATION_UPTIME_GAP_S,
+    EXIT_UPTIME_RESET,
+    PORT_LOST_MSG,
+    NO_DASH_UPTIME_MSG,
+    HOLD_EXPIRED_MSG,
+    board_config,
+    role_usb_serial,
+    TARGET_STATION_ANY,
+    make_reconnect,
+    report_usb_fault,
+    wait_for_target_port,
     open_classified_port,
     print_board_usb_serial,
     peek_banner,
@@ -297,6 +312,33 @@ def _station_bench_run_inner(ser: serial.Serial,
     # change (2026-05-27).
     if meta.role == Role.STATION:
         ensure_station_in_dashboard_state(ser)
+        # Uptime check. A vanished port is waited for (RC_PORT_WAIT_S, USB
+        # serial first) and reopened: back lower = reset (4); never back =
+        # port lost (3). USB only, no probe.
+        verdict, ups, new_ser = check_uptime(
+            ser, STATION_UPTIME_KEYS,
+            reconnect=make_reconnect(TARGET_STATION_ANY, ser,
+                                     override=getattr(args, 'port', None),
+                                     prefer_serial=getattr(args, '_role_ser', None),
+                                     wait=functools.partial(
+                                         wait_for_target_port,
+                                         strict=getattr(args, '_strict', False))))
+        print(f'  uptime check (dashboard Up s over 3 polls): {ups}')
+        if verdict != 'ok':
+            last = next((u for u in reversed(ups) if u is not None), None)
+            if verdict == 'reset':
+                report_usb_fault('uptime dropped during the check (board reset)',
+                                 'station', appeared=True, seconds=None,
+                                 port=port_name, last_uptime=last)
+                sys.exit(EXIT_UPTIME_RESET)
+            report_usb_fault(verdict if verdict in (PORT_LOST_MSG, NO_DASH_UPTIME_MSG, HOLD_EXPIRED_MSG)
+                             else 'uptime not rising',
+                             'station', appeared=True, seconds=None,
+                             port=port_name, last_uptime=last)
+            sys.exit(EXIT_UPTIME_NOT_RISING)
+        if new_ser is not ser:      # port came back mid-check; keep using it
+            ser = new_ser
+            ensure_station_in_dashboard_state(ser)
 
     # Re-confirm we are still on station firmware after open() — defends
     # against the (rare) case where the user hot-swapped boards between
@@ -399,17 +441,29 @@ def main():
 
     # Wall-clock watchdog: hard kill after deadline, regardless of where
     # we are in the test (including stuck inside serial.Serial() C calls).
-    _start_watchdog(args.max_runtime)
+    # RC_UPTIME_GAP_S (test-only) widens the uptime check; the watchdog gets
+    # exactly that extra time (2 gaps + margin). Unset: --max-runtime as is.
+    _start_watchdog(args.max_runtime + uptime_gap_extra_s(STATION_UPTIME_GAP_S))
 
     if args.allow_non_station and args.port is not None:
         # Unsafe path: manual port without strict target match (debugging).
         port_name = args.port
         meta = peek_banner(port_name)
     else:
-        port_name, reason = find_target_port(
-            TARGET_STATION_ANY,
-            override=args.port, verbose=args.verbose)
+        try:
+            role_ser, strict = role_usb_serial('station')
+        except board_config.BoardConfigError as e:
+            print(f'ERROR: {e}')
+            sys.exit(2)
+        pw = wait_for_target_port(
+            TARGET_STATION_ANY, override=args.port, verbose=args.verbose,
+            prefer_serial=role_ser, strict=strict)
+        args._role_ser, args._strict = role_ser, strict
+        port_name, reason = pw.port, pw.meta
         if port_name is None:
+            report_usb_fault('port never appeared' if not pw.appeared else 'not this role',
+                             'station', appeared=pw.appeared, seconds=None,
+                             last_uptime=None)
             print(f'INFO: No station detected — {reason}.')
             print('  Skipping station_bench_sim (this is exit code 2 = '
                   '"no station to test", not a test failure).')
