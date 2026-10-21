@@ -180,3 +180,98 @@ These are the holes an FSK comparison will hit if the firmware stays as it is.
 ## Notes
 
 - **Inference (Goddard, not measured):** the 16.7 percent uplink loss is likely half-duplex scheduling, not RF. The vehicle transmits about 65 percent of the time, and station frames sent during vehicle TX are lost; SNR (9.8 dB) is not the limit. Next run should log each uplink loss against vehicle TX state. FSK's shorter air time may improve uplink for this reason alone.
+
+## Three-run repeat on flight-c71fcbcf
+
+This section is three later soaks. The section above is the single flight-3e9c38e2 run. The numbers come from the local summaries `Documents/rc-bench-archive/baseline_lora_2026-10-20/run1/summary.md`, `run2/summary.md`, and `run3/summary.md`. Raw logs stay on the bench PC. They are not in this repo.
+
+Both boards ran firmware flight-c71fcbcf (board-measured). Both boards reported tree 16d5da71e7b3317c3294c3395f32e3bedd4c7928 (board-measured). The branch is grok/t1-0-counters. That firmware commit is not on main.
+
+Each run used the same radio settings (board-measured CFG). SF 7. BW 250 kHz. CR 5, which means 4/5. Nav rate 10 Hz. The vehicle PA readback was 2 dBm. The station PA readback was 2 dBm. Frequency is 915 MHz. That value is the init constant kDefaultFreqHz.
+
+Each soak is 300 s. The three runs are back to back on 2026-10-20, about 10:59-11:16 PM CDT. Station log stamps, CDT: run 1 SOAK_START 22:59:59.100 and SOAK_END 23:05:01.214. Run 2 SOAK_START 23:06:07.638 and SOAK_END 23:11:09.679. Run 3 SOAK_START 23:12:00.514 and SOAK_END 23:17:02.620.
+
+Layout: unchanged from bench photo (photo kept local, not in repo).
+
+These three runs finished before the DIO jumpers were soldered (operator note).
+
+Rate figures use the RATE counter window (board-measured). Vehicle windows: 300.103 s, 300.010 s, 300.104 s. Station windows: 300.150 s, 300.050 s, 300.149 s. Pad log spans: 302.1 s, 301.9 s, 302.0 s (board-measured).
+
+Spread in the table is the maximum minus the minimum (computed). Counts, LINK fields, air_ms, air_bytes, station_tx, copp_rtx, and the recovery time are board-measured. Rates, loss percents, delivery percents, payload bytes/s, RSSI stats, SNR stats, duty cycle, and the air-time quotient are computed.
+
+Station LINK delivered equals station RX pkts on each run (board-measured). Downlink delivery is station RX divided by vehicle TX sent (computed).
+
+| Metric | Run 1 | Run 2 | Run 3 | Spread |
+| --- | ---: | ---: | ---: | ---: |
+| Vehicle TX sent | 3056 | 3061 | 3066 | 10 |
+| Station LINK delivered | 2991 | 2985 | 3026 | 41 |
+| Station LINK missing | 28 | 41 | 27 | 14 |
+| Station LINK crc_fail | 29 | 46 | 25 | 21 |
+| Downlink delivery % | 97.87 | 97.52 | 98.70 | 1.18 |
+| Frame loss % | 2.127 | 2.483 | 1.305 | 1.178 |
+| Longest missed run | 1 | 1 | 1 | 0 |
+| Vehicle LINK delivered | 387 | 378 | 361 | 26 |
+| Vehicle LINK missing | 0 | 0 | 0 | 0 |
+| Vehicle LINK crc_fail | 0 | 0 | 0 | 0 |
+| station_tx | 459 | 446 | 439 | 20 |
+| Uplink loss % | 15.69 | 15.25 | 17.77 | 2.52 |
+| RSSI mean dBm | -46.52 | -46.77 | -46.32 | 0.45 |
+| RSSI min dBm | -49 | -49 | -48 | 1 |
+| RSSI max dBm | -44 | -45 | -44 | 1 |
+| RSSI sample stdev dB | 0.69 | 0.64 | 0.60 | 0.09 |
+| SNR mean dB | 9.56 | 9.54 | 9.49 | 0.07 |
+| SNR min dB | 4 | 5 | 5 | 1 |
+| SNR max dB | 13 | 13 | 13 | 0 |
+| Nav offered Hz | 8.634 | 8.653 | 8.660 | 0.026 |
+| Nav delivered Hz | 8.543 | 8.524 | 8.579 | 0.055 |
+| Vehicle TX rate Hz | 10.183 | 10.203 | 10.216 | 0.033 |
+| Station TX rate Hz | 1.529 | 1.486 | 1.463 | 0.066 |
+| Payload bytes/s | 435.72 | 434.70 | 437.51 | 2.81 |
+| Vehicle air_ms | 178199 | 179093 | 179577 | 1378 |
+| Vehicle air_bytes | 186994 | 188109 | 188674 | 1680 |
+| Station air_ms | 10634 | 10333 | 10171 | 463 |
+| Station air_bytes | 6426 | 6244 | 6146 | 280 |
+| Vehicle duty cycle % | 65.30 | 65.43 | 65.52 | 0.22 |
+| Station duty cycle % | 3.54 | 3.44 | 3.39 | 0.15 |
+| Vehicle copp_rtx | 0 | 0 | 0 | 0 |
+| Station copp_rtx | 0 | 0 | 0 | 0 |
+| Recovery after vehicle reboot s | 3.794 | 3.404 | 4.171 | 0.767 |
+| Air time us/byte | 1257.41 | 1257.41 | 1257.41 | 0 |
+
+RSSI and SNR use pad paints that have a new Pkts value. Sample counts are 2920, 2927, and 2943. Air time per delivered payload byte is 1257.41 us/byte on each run (computed). The quotient is the whole nav on-air time, 64128 us, divided by the 51-byte nav user payload.
+
+The vehicle got one CLI soft reboot on each run. The station stayed up. Recovery time is the gap from the REBOOT_K stamp until the station Pkts count rose after a silence of at least 1 s (board-measured).
+
+### Uplink loss
+
+Vehicle LINK crc_fail is 0 on each run (board-measured). Vehicle RX CRC err is 0 on each run (board-measured). Uplink loss is about 15 to 18 percent (computed). The three values are 15.69 percent, 15.25 percent, and 17.77 percent.
+
+INFERENCE: the uplink loss is likely half-duplex. The vehicle transmits about 65 percent of the time. Station frames can arrive while the vehicle transmits. No RX-window-miss counter exists to confirm that cause.
+
+### CRC counters
+
+LINK crc_fail equals the old CLI CRC err field (board-measured). The three values are 29, 46, and 25. RATE rx_crc_fail stays 0 on each run (board-measured).
+
+### copp_sync_loss
+
+copp_sync_loss: not measured (sync timeout disabled). The soak MIB keeps the SYNCH timer from expiring.
+
+### Not measured
+
+- Flash-write stall. These runs did not flush the log.
+- Command ACK time. No command was sent.
+- Command resends. No command was sent.
+- RX window misses.
+- Half-duplex switch time.
+- Radio IRQ time.
+- CPU time in the radio path.
+- Live frequency readback.
+- Live preamble readback.
+
+### Script notes
+
+The summary line "The expected build was flight-3e9c38e2" is a stale script constant. The boards reported flight-c71fcbcf (board-measured).
+
+The summary line "Distance: unknown" is present because the script has no bench note.
+
+Run 1 was started by `baseline_lora.py --help` (operator note). The script ignores that argument. Only `--analyze-only` selects another path. Run 1 was a valid full run. The station log has SOAK_START, a 300 s soak, SOAK_END, and the vehicle reboot.
