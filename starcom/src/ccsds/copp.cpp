@@ -66,6 +66,9 @@ void clearSynch(FopP& f) noexcept {
   f.synch_deadline = 0;
 }
 
+// 211.0-B-6 Annex D item 8. Not cleared by coppReset.
+std::uint32_t g_coppSyncLossN = 0;
+
 }  // namespace
 
 void farmPInit(FarmP& f) noexcept {
@@ -204,8 +207,9 @@ void fopPTick(FopP& f, Tick now) noexcept {
   if (now < f.synch_deadline) {
     return;
   }
-  // SE4
+  // SE4. 211.0-B-6 Annex D item 8: COP-P LOSS OF SYNCHRONIZATION.
   f.synch_expired_latched = true;
+  ++g_coppSyncLossN;
   clearSynch(f);
   if (f.state == FopPState::s1_active && f.mib.resync_local) {
     f.rr_r = false;
@@ -530,6 +534,10 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
 
 std::uint32_t coppRetransmitCount() noexcept {
   return g_coppRetransmitN;
+}
+
+std::uint32_t coppSyncLossCount() noexcept {
+  return g_coppSyncLossN;
 }
 
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e,

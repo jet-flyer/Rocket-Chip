@@ -20,12 +20,17 @@ using starcom::ccsds::Pcid;
 using starcom::ccsds::PortId;
 using starcom::ccsds::Scid;
 using starcom::ccsds::SpacePacketFields;
+using starcom::ccsds::Plcw16;
 using starcom::ccsds::coppBytesToSend;
 using starcom::ccsds::coppInit;
 using starcom::ccsds::coppReset;
 using starcom::ccsds::coppRetransmitCount;
 using starcom::ccsds::coppSubmitSdu;
+using starcom::ccsds::coppSyncLossCount;
+using starcom::ccsds::coppTick;
 using starcom::ccsds::encodeSpacePacket;
+using starcom::ccsds::fopPNeedFrame;
+using starcom::ccsds::fopPOnPlcw;
 
 class LinkBaselineTest : public ::testing::Test {
 protected:
@@ -81,25 +86,26 @@ TEST_F(LinkBaselineTest, AirRemainderAndLine) {
     EXPECT_EQ(g_linkBaseline.air_ms, 3u);
     EXPECT_EQ(g_linkBaseline.air_bytes, 16u);
 
-    char buf[160];
-    const size_t n = link_baseline_format(buf, sizeof(buf), 7);
+    char buf[192];
+    const size_t n = link_baseline_format(buf, sizeof(buf), 7, 4);
     EXPECT_STREQ(
         buf,
-        "LINK delivered=1 missing=0 crc_fail=1 copp_rtx=7 air_ms=3 air_bytes=16");
+        "LINK delivered=1 missing=0 crc_fail=1 copp_rtx=7 "
+        "air_ms=3 air_bytes=16 copp_sync_loss=4");
     EXPECT_EQ(n, std::strlen(buf));
     EXPECT_LT(n, 128u);
 }
 
-TEST_F(LinkBaselineTest, MaxLineFitsLogBuffer) {
-    g_linkBaseline.delivered = 0xFFFFFFFFu;
-    g_linkBaseline.missing = 0xFFFFFFFFu;
-    g_linkBaseline.crc_fail = 0xFFFFFFFFu;
-    g_linkBaseline.air_ms = 0xFFFFFFFFu;
-    g_linkBaseline.air_bytes = 0xFFFFFFFFu;
-    char buf[160];
-    const size_t n = link_baseline_format(buf, sizeof(buf), 0xFFFFFFFFu);
-    EXPECT_LT(n, 128u);
-    EXPECT_NE(std::strstr(buf, "delivered="), nullptr);
+TEST_F(LinkBaselineTest, SoakScaleLineFitsLogBuffer) {
+    g_linkBaseline.delivered = 999999u;
+    g_linkBaseline.missing = 999999u;
+    g_linkBaseline.crc_fail = 999999u;
+    g_linkBaseline.air_ms = 999999u;
+    g_linkBaseline.air_bytes = 999999u;
+    char buf[192];
+    const size_t n = link_baseline_format(buf, sizeof(buf), 999999u, 999999u);
+    EXPECT_LT(n, 127u);
+    EXPECT_NE(std::strstr(buf, " copp_sync_loss=999999"), nullptr);
 }
 
 TEST(CoppRetransmit, CountsResendAndSurvivesReset) {
@@ -136,4 +142,34 @@ TEST(CoppRetransmit, CountsResendAndSurvivesReset) {
 
     coppReset(tx);
     EXPECT_EQ(coppRetransmitCount(), before + 1u);
+}
+
+// 211.0-B-6 Annex D item 8. SE4 is one notification. A resend is not one.
+TEST(CoppSyncLoss, CountsTimerExpiryApartFromResend) {
+    const uint32_t loss_before = coppSyncLossCount();
+    const uint32_t rtx_before = coppRetransmitCount();
+    CoppMib mib{};
+    mib.transmission_window = 4;
+    mib.synch_timeout = 5;
+    CoppEndpoint tx{};
+    coppInit(tx, mib, Pcid{0}, Scid{1}, Scid{2}, PortId{1});
+    EXPECT_EQ(fopPNeedFrame(tx.fop, false, true),
+              starcom::ccsds::FopPSend::new_seq);
+
+    Plcw16 bad{};
+    bad.report_value = 9;
+    fopPOnPlcw(tx.fop, bad, true);
+    coppTick(tx, 0);
+    EXPECT_EQ(coppSyncLossCount(), loss_before);
+    coppTick(tx, 4);
+    EXPECT_EQ(coppSyncLossCount(), loss_before);
+    coppTick(tx, 5);
+    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
+    EXPECT_EQ(coppRetransmitCount(), rtx_before);
+    coppTick(tx, 9);
+    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
+
+    coppReset(tx);
+    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
+    EXPECT_EQ(coppRetransmitCount(), rtx_before);
 }

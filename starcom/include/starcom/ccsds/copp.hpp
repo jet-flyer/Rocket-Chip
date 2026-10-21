@@ -143,6 +143,9 @@ Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) n
 // Sequence-controlled resends since process start. coppReset does not clear it.
 // LoRa and a later FSK bearer share this count.
 std::uint32_t coppRetransmitCount() noexcept;
+// 211.0-B-6 Annex D item 8. One count per SE4 notification.
+// coppReset does not clear it. Separate from coppRetransmitCount.
+std::uint32_t coppSyncLossCount() noexcept;
 Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
 // User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3

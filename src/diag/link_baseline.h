@@ -42,8 +42,11 @@ void link_baseline_note_seq(uint16_t apid, uint16_t seq);
 // bytes is the modem payload length of that transmission.
 void link_baseline_note_air(uint32_t add_us, uint32_t bytes);
 
-// One line, no newline. copp_rtx is the COP-P resend count.
-size_t link_baseline_format(char* buf, size_t n, uint32_t copp_rtx);
+// One line, no newline.
+// copp_rtx is the COP-P resend count.
+// copp_sync_loss is Annex D item 8 (SE4). It is not a resend.
+size_t link_baseline_format(char* buf, size_t n, uint32_t copp_rtx,
+                            uint32_t copp_sync_loss);
 void link_baseline_dump(void);
 
 #endif  // ROCKETCHIP_DIAG_LINK_BASELINE_H

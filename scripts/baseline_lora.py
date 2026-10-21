@@ -208,7 +208,7 @@ def parse_rate_blocks(text: str) -> list[dict[str, int]]:
 
 LINK_RE = re.compile(
     r"\bLINK delivered=(\d+) missing=(\d+) crc_fail=(\d+) "
-    r"copp_rtx=(\d+) air_ms=(\d+) air_bytes=(\d+)"
+    r"copp_rtx=(\d+) air_ms=(\d+) air_bytes=(\d+) copp_sync_loss=(\d+)"
 )
 
 
@@ -224,6 +224,7 @@ def parse_link_lines(text: str) -> list[dict[str, int]]:
                 "copp_rtx": int(m.group(4)),
                 "air_ms": int(m.group(5)),
                 "air_bytes": int(m.group(6)),
+                "copp_sync_loss": int(m.group(7)),
             }
         )
     return rows
@@ -1124,6 +1125,9 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a(f"Vehicle LINK copp_rtx delta: {nlabel(link_delta(v_link, 'copp_rtx'), 'board-measured')}.")
     a(f"Station LINK copp_rtx delta: {nlabel(link_delta(s_link, 'copp_rtx'), 'board-measured')}.")
     a("copp_rtx counts COP-P sequence resends. The counter lives in COP-P. LoRa and FSK share it.")
+    a(f"Vehicle LINK copp_sync_loss delta: {nlabel(link_delta(v_link, 'copp_sync_loss'), 'board-measured')}.")
+    a(f"Station LINK copp_sync_loss delta: {nlabel(link_delta(s_link, 'copp_sync_loss'), 'board-measured')}.")
+    a("copp_sync_loss counts COP-P LOSS OF SYNCHRONIZATION. 211.0-B-6 Annex D item 8. That event is SE4. It is not a resend.")
     if retry_block:
         a("Station diag printed CmdRetryStats. See stn_raw.log. Rows with a zero sent count are omitted by the firmware.")
     else:
@@ -1169,7 +1173,9 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a("## FSK only: sync")
     a("")
     a("N/A for LoRa. LoRa has no ASM. This baseline does not count ASM misses.")
-    a("COP-P loss of synchronization is not a separate counter in this firmware.")
+    a(f"Vehicle LINK copp_sync_loss delta: {nlabel(link_delta(v_link, 'copp_sync_loss'), 'board-measured')}.")
+    a(f"Station LINK copp_sync_loss delta: {nlabel(link_delta(s_link, 'copp_sync_loss'), 'board-measured')}.")
+    a("That count is Annex D item 8. It is separate from copp_rtx.")
     a("")
     a("## Metrics that need new firmware counters")
     a("")
@@ -1184,7 +1190,7 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a("- Radio interrupt time and CPU time in the radio path.")
     a("- Flash-write stall time.")
     a("- A live readback of frequency and preamble length. Both are init constants today.")
-    a("- ASM miss count and COP-P loss-of-sync count. LoRa does not use ASM. FSK needs both, kept apart from CRC fails.")
+    a("- ASM miss count. LoRa does not use ASM. LINK copp_sync_loss is the COP-P loss-of-sync count.")
     a("")
 
     path = os.path.join(HERE, "summary.md")
