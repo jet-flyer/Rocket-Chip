@@ -17,6 +17,28 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
+## Handover 2026-10-21 (OPEN) (Hamilton)
+
+- **Exact state:** branch `grok/t1-0-counters` adds LINK counters (incl. COP-P sync-loss count) and the three-run LoRa baseline report (`docs/reports/2026-10-20_buzz_lora_baseline.md`). Host tests pass in pre-commit; board results are in the report. FSK work has not started.
+- **In progress:** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` is the reorganized draft, **WIP and unreviewed**. Three open questions for Nathan are still unanswered (AO split = T1-A?, title rename, 13a vs 15a); see its status line.
+- **Blocked / concerns:** the online citation check runs in every pre-commit (JSF AV link row below); COP-P open checks (row below); `baseline_lora.py` bugs (row below).
+- **Files:** the plan file above, the baseline report, `scripts/baseline_lora.py`, this whiteboard. Off-repo: `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md) and `rc-bench-archive\plan_reorg_draft\CHANGES.md`.
+- **Cleanup still due:** remove the `rc-t1-0` worktree after the push (Buzz's prompt files are already archived).
+
+## JSF AV link flaky; pre-commit runs online citation check (OPEN) (2026-10-21)
+
+`https://www.stroustrup.com/JSF-AV-rules.pdf` 404'd intermittently on 2026-10-20/21 (200 again at ~01:33). Archived fallback: `https://web.archive.org/web/20250101111826/https://www.stroustrup.com/JSF-AV-rules.pdf`. The real issue: `scripts/hooks/pre-commit` line 84 runs plain `ctest`, so the online `audit-cycle` citation check (`scripts_verify_citations`) runs on every commit despite the `test/CMakeLists.txt` 455-460 comment. Proposed fix (not applied, hook unchanged): `ctest -LE audit-cycle` in the hook. Owner decision.
+
+## COP-P open checks from the LoRa baseline (OPEN, unverified) (2026-10-21)
+
+1. **PLCW repeat:** confirm the firmware re-sends the PLCW on a timer per PLCW_Repeat_Interval (CCSDS 211.0-B-6 Annex C). Lost ACKs depend on it.
+2. **SYNCH_TIMER = 0** (`copp.hpp:32`, never expires): `copp_sync_loss` is unmeasured, and lost Sequence Controlled frames are resent with no backoff.
+3. **Command resend untested:** the baseline sent only Expedited traffic, so `copp_rtx=0` does not prove resend works.
+
+## baseline_lora.py bugs (OPEN) (2026-10-20)
+
+RATE rx_crc_fail reads 0 while the new LINK crc_fail matches CLI 'CRC err' (29/46/25 across the three runs); the summary header has a stale expected-build string (flight-3e9c38e2). Source: `docs/reports/2026-10-20_buzz_lora_baseline.md` CRC counters and Script notes. Fix before the FSK run (Buzz).
+
 ## pre_push_gate.py role table: SWD on the wrong role (OPEN) (2026-10-19)
 
 `scripts/ci/pre_push_gate.py` about line 125 still marks the vehicle as the SWD board. When the chip ID matches the station, the station is never offered the Path 2 (SWD) flash steps; it falls back to USB. Harmless (SWD is never offered to the wrong board). Fix next sitting (Buzz, code-read 2026-10-19).

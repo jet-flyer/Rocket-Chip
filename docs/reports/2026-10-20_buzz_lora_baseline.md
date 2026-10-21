@@ -2,6 +2,10 @@
 
 Author: Buzz (bench run), written up by Hamilton. Purpose: the LoRa side of the FSK pivot no-regression check, metrics per docs/plans/FSK_PIVOT_PLAN_2026-10-08.md section 5.1. Raw vehicle and station logs are archived locally on the bench PC at Documents/rc-bench-archive/baseline_lora_2026-10-20 (stn_raw.log, veh_raw.log, summary.md; not in git). The run script is tracked as scripts/baseline_lora.py, unchanged from this run (ports COM5 vehicle, COM7 station are hardcoded); the FSK run reuses it.
 
+## Single run on flight-3e9c38e2 (SUPERSEDED)
+
+SUPERSEDED by the three-run repeat on flight-c71fcbcf below. This single run is kept as a record. Its figures (16.7 percent uplink loss, SNR 9.8 dB) are from before the repeat; use the three-run table for the baseline.
+
 Measured build flight-3e9c38e2 (identical to main 47005521).
 Date: 2026-10-20.
 Vehicle flight id: 3e9c38e2 (board-measured).
@@ -31,7 +35,7 @@ Power:
 - TX_POWER catalog class is locked. No runtime CLI sets power alone. Power was not changed.
 - The debug HW line prints a fixed '20dBm' string. That string is not the PA register.
 
-Distance: not measured. Layout (Nathan, 2026-10-20, photo archived with the raw logs): the station Fruit Jam sits on top of the PC tower with its antenna near the edge; the vehicle board is on the floor below, in a parts bin. Spacing about 1-1.5 m on a diagonal, with partial blockage from the case edge (Buzz estimate from the photo, confirmed by Nathan; not tape-measured). Antenna orientation not recorded; the FSK run must use the same placement.
+Distance: not measured. Layout (Nathan, 2026-10-20; photo kept locally on the bench PC outside the repo, not committed): the station Fruit Jam sits on top of the PC tower with its antenna near the edge; the vehicle board is on the floor below, in a parts bin. Spacing about 1-1.5 m on a diagonal, with partial blockage from the case edge (Buzz estimate from the photo, confirmed by Nathan; not tape-measured). Antenna orientation not recorded; the FSK run must use the same placement.
 
 Vehicle counter span: 300.201 s (board-measured, RATE window_ms end minus start).
 Station counter span: 300.249 s (board-measured, RATE window_ms end minus start).
@@ -179,7 +183,7 @@ These are the holes an FSK comparison will hit if the firmware stays as it is.
 
 ## Notes
 
-- **Inference (Goddard, not measured):** the 16.7 percent uplink loss is likely half-duplex scheduling, not RF. The vehicle transmits about 65 percent of the time, and station frames sent during vehicle TX are lost; SNR (9.8 dB) is not the limit. Next run should log each uplink loss against vehicle TX state. FSK's shorter air time may improve uplink for this reason alone.
+- **Superseded by the three-run repeat below. Inference (Goddard, not measured):** the 16.7 percent uplink loss is likely half-duplex scheduling, not RF. The vehicle transmits about 65 percent of the time, and station frames sent during vehicle TX are lost; SNR (9.8 dB) is not the limit. Next run should log each uplink loss against vehicle TX state. FSK's shorter air time may improve uplink for this reason alone.
 
 ## Three-run repeat on flight-c71fcbcf
 
@@ -247,6 +251,8 @@ The vehicle got one CLI soft reboot on each run. The station stayed up. Recovery
 Vehicle LINK crc_fail is 0 on each run (board-measured). Vehicle RX CRC err is 0 on each run (board-measured). Uplink loss is about 15 to 18 percent (computed). The three values are 15.69 percent, 15.25 percent, and 17.77 percent.
 
 INFERENCE: the uplink loss is likely half-duplex. The vehicle transmits about 65 percent of the time. Station frames can arrive while the vehicle transmits. No RX-window-miss counter exists to confirm that cause.
+
+INFERENCE (Duke, not checked in station code): uplink lost 15 to 18 percent while COP-P logged 0 retransmits. COP-P (CCSDS 211.0-B-6) only retransmits sequence-controlled frames, so the lost uplink frames were likely sent expedited. Confirm the station uplink frame type before FSK work.
 
 ### CRC counters
 
