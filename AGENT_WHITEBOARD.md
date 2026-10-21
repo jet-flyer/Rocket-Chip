@@ -23,6 +23,7 @@
 - **In progress:** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` is the reorganized draft, **WIP and unreviewed**. Three open questions for Nathan are still unanswered (AO split = T1-A?, title rename, 13a vs 15a); see its status line.
 - **Blocked / concerns:** the online citation check runs in every pre-commit (JSF AV link row below); COP-P open checks (row below); `baseline_lora.py` bugs (row below).
 - **Files:** the plan file above, the baseline report, `scripts/baseline_lora.py`, this whiteboard. Off-repo: `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md) and `rc-bench-archive\plan_reorg_draft\CHANGES.md`.
+- **Next bench:** (1) +17 dBm driver clamp, with a deliberate override to go higher; (2) soak script fixes: BW/rate labels, station CRC parse, `--help` starting a soak; (3) station stuck at ABORT, and DISARM getting no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering. Push-gate bench archives: `rc-bench-archive\pushgate_8a80734d_2026-10-21\` and `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
 - **Cleanup still due:** remove the `rc-t1-0` worktree after the push (Buzz's prompt files are already archived).
 
 ## JSF AV link flaky; pre-commit runs online citation check (OPEN) (2026-10-21)
@@ -33,11 +34,11 @@
 
 1. **PLCW repeat:** confirm the firmware re-sends the PLCW on a timer per PLCW_Repeat_Interval (CCSDS 211.0-B-6 Annex C). Lost ACKs depend on it.
 2. **SYNCH_TIMER = 0** (`copp.hpp:32`, never expires): `copp_sync_loss` is unmeasured, and lost Sequence Controlled frames are resent with no backoff.
-3. **Command resend untested:** the baseline sent only Expedited traffic, so `copp_rtx=0` does not prove resend works.
+3. **Command resend untested:** the baseline sent only Expedited traffic, so `copp_rtx=0` does not prove resend works. Folds in: DISARM got no ack in the push-gate soaks, plus Duke's note on it (unchecked).
 
 ## baseline_lora.py bugs (OPEN) (2026-10-20)
 
-RATE rx_crc_fail reads 0 while the new LINK crc_fail matches CLI 'CRC err' (29/46/25 across the three runs); the summary header has a stale expected-build string (flight-3e9c38e2). Source: `docs/reports/2026-10-20_buzz_lora_baseline.md` CRC counters and Script notes. Fix before the FSK run (Buzz).
+RATE rx_crc_fail reads 0 while the new LINK crc_fail matches CLI 'CRC err' (29/46/25 across the three runs); the summary header has a stale expected-build string (flight-3e9c38e2). `scripts/soak_two_board.py` (push-gate soak of `8a80734d`, 2026-10-21): the score file labels still say BW125/5 Hz while the boards ran BW250/10 Hz, and `stn_crc` parses as None while the screen showed 0; push 3 soak (`41a304f5`): station RATE `rx_crc_fail` 0 vs LINK `crc_fail` 53 (logs: `rc-bench-archive\pushgate_8a80734d_2026-10-21\`). Source: `docs/reports/2026-10-20_buzz_lora_baseline.md` CRC counters and Script notes. Fix before the FSK run (Buzz).
 
 ## pre_push_gate.py role table: SWD on the wrong role (OPEN) (2026-10-19)
 
