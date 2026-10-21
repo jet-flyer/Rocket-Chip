@@ -281,3 +281,10 @@ The summary line "The expected build was flight-3e9c38e2" is a stale script cons
 The summary line "Distance: unknown" is present because the script has no bench note.
 
 Run 1 was started by `baseline_lora.py --help` (operator note). The script ignores that argument. Only `--analyze-only` selects another path. Run 1 was a valid full run. The station log has SOAK_START, a 300 s soak, SOAK_END, and the vehicle reboot.
+
+## Push-gate soaks (2026-10-21)
+
+Hand-run `soak_two_board.py` soaks for the 2026-10-21 push gate. Copied from CHANGELOG 2026-10-21-001 as first pushed. Not flight qualification.
+
+- **Push 2, `8a80734d`:** Hand soak (Buzz, `soak_two_board.py`, 120 s at 2 dBm, 01:48-01:50 CDT): downlink 99.64%, 0 CRC both boards, RSSI -46.1 dBm, SNR 9.6 dB, vehicle 0 missing (uplink loss not computable), copp_rtx 0, ARM acked. Logs: `rc-bench-archive\pushgate_8a80734d_2026-10-21\summary.md`.
+- **Push 3, `41a304f5`:** Hand soak (120 s at 2 dBm, 02:02-02:04 CDT): conditional PASS, downlink 98.2% (1,079/1,099), vehicle 1,099 TX 0 fail, uplink 137 received 0 missing 0 CRC, station CRC 15 (push 2: 0), RSSI -47.0 dBm, SNR 9.7 dB (two dips to 4 dB), copp_rtx 0, COP-P locked. Logs: `rc-bench-archive\pushgate_41a304f5_2026-10-21\summary.md`.

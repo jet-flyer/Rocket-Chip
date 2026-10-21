@@ -26,6 +26,10 @@
 - **Next bench:** (1) +17 dBm driver clamp, with a deliberate override to go higher; (2) soak script fixes: BW/rate labels, station CRC parse, `--help` starting a soak; (3) station stuck at ABORT, and DISARM getting no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering. Push-gate bench archives: `rc-bench-archive\pushgate_8a80734d_2026-10-21\` and `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
 - **Cleanup still due:** remove the `rc-t1-0` worktree after the push (Buzz's prompt files are already archived).
 
+## CHANGELOG entries stay short (OPEN, standing) (Nathan, 2026-10-21)
+
+CHANGELOG entries say only what changed, what was verified, and where the logs/report are; numbers stay in reports.
+
 ## JSF AV link flaky; pre-commit runs online citation check (OPEN) (2026-10-21)
 
 `https://www.stroustrup.com/JSF-AV-rules.pdf` 404'd intermittently on 2026-10-20/21 (200 again at ~01:33). Archived fallback: `https://web.archive.org/web/20250101111826/https://www.stroustrup.com/JSF-AV-rules.pdf`. The real issue: `scripts/hooks/pre-commit` line 84 runs plain `ctest`, so the online `audit-cycle` citation check (`scripts_verify_citations`) runs on every commit despite the `test/CMakeLists.txt` 455-460 comment. Proposed fix (not applied, hook unchanged): `ctest -LE audit-cycle` in the hook. Owner decision.
