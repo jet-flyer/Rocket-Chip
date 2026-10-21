@@ -2,13 +2,16 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // RFM95W (SX1276) LoRa radio driver implementation
 // Prior Art:
-// - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
+// - SX1276 datasheet Rev. 4, March 2015
+//   (docs/hardware/datasheets/SX1276-datasheet.pdf).
+//   An older line named Semtech DS_SX1276-7-8-9_W_APP_V7.
 // - RadioHead RH_RF95 (airspayce.com)
 // - Adafruit CircuitPython adafruit_rfm9x
 
 #include "rfm95w.h"
 #include "spi_bus.h"
 #include "rocketchip/rc_debug.h"
+#include "rocketchip/rc_log.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -49,9 +52,11 @@ static constexpr uint8_t kLnaDefault = 0x23;
 // BW>=125), AgcAutoOn[2]=1 (LNA gain set adaptively). SX1276 datasheet §5.4.3.
 static constexpr uint8_t kModemCfg3Default = 0x04;
 
-// Init value. At or below +17 dBm, so RegPaDac stays in normal mode.
-// A caller selects +20 dBm by passing a value above kPaDacThreshDbm.
-// This driver does not apply the datasheet 1% duty or 3:1 VSWR limits.
+// Init value is +15 dBm. That is at or below +17 dBm, so RegPaDac stays 0x84.
+// +20 dBm needs rfm95w_set_tx_high_power or RC_RFM95_ALLOW_20DBM.
+// A value above +17 dBm does not by itself select +20 dBm.
+// The caller keeps +20 dBm at <= 1% duty and VSWR <= 3:1 (Rev. 4 Table 35 p.84).
+// This driver does not enforce those limits.
 static constexpr int8_t kDefaultTxPowerDbm = 15;
 
 // Private sync word (SX1276 default LoRa sync)
@@ -59,21 +64,6 @@ static constexpr uint8_t kSyncWordDefault = 0x12;
 
 // RSSI offset for HF port (868/915 MHz) per SX1276 datasheet Section 5.5.5
 static constexpr int16_t kRssiOffsetHf = -157;
-
-// PA_BOOST power configuration (SX1276 datasheet Section 5.4.3)
-static constexpr int8_t kPaBoostMinDbm     = 2;   // Minimum PA_BOOST output
-static constexpr int8_t kPaBoostMaxDbm     = 20;  // Maximum PA_BOOST output
-static constexpr int8_t kPaDacThreshDbm    = 17;  // Above this, use PA_DAC high-power mode
-static constexpr uint8_t kPaDacHighPower   = 0x87; // PA_DAC: +20 dBm mode
-static constexpr uint8_t kPaDacNormal      = 0x84; // PA_DAC: default (normal mode)
-static constexpr uint8_t kPaBoostBit       = 0x80; // PA_SELECT = PA_BOOST
-static constexpr uint8_t kMaxPowerBits     = 0x70; // MaxPower=7 (bits[6:4])
-static constexpr int8_t kPaOffsetHighPower = 5;    // OutputPower = dbm - 5 in high-power mode
-static constexpr int8_t kPaOffsetNormal    = 2;    // OutputPower = dbm - 2 in normal mode
-static_assert(kPaBoostBit == 0x80, "PA_BOOST bit");
-static_assert((kPaDacNormal & 0x07) == 0x04, "default PaDac field");
-static_assert((kPaDacHighPower & 0x07) == 0x07, "+20 PaDac field");
-static_assert(kPaOffsetNormal == 2, "default PaDac dBm offset");
 
 // Bandwidth register mask: lower nibble preserved (CR + header bits)
 static constexpr uint8_t kBwLowerNibbleMask = 0x0F;
@@ -169,6 +159,7 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     dev->mode        = rfm95w::mode::kSleep;
     dev->last_rssi   = 0;
     dev->last_snr    = 0;
+    dev->tx_power_allow_20 = kRfm95Allow20DbmDefault;
 #if defined(ROCKETCHIP_DEV_MODE)
     dev->force_tx_timeout = false;
 #endif
@@ -373,24 +364,26 @@ void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
                       static_cast<uint8_t>(frf & 0xFF));
 }
 
-void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
-    // Clamp is PA_BOOST hardware, not a legal limit. RF_COMPLIANCE.md.
-    if (dbm < kPaBoostMinDbm) { dbm = kPaBoostMinDbm; }
-    if (dbm > kPaBoostMaxDbm) { dbm = kPaBoostMaxDbm; }
-
-    if (dbm > kPaDacThreshDbm) {
-        // High power mode: enable PA_DAC for +20 dBm
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacHighPower);
-        // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 5
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetHighPower)));
-    } else {
-        // Normal mode: disable PA_DAC
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacNormal);
-        // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 2
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetNormal)));
+int8_t rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
+    // Cap is +17 dBm unless the +20 dBm opt-in is on. RF_COMPLIANCE.md.
+    // A value above +17 dBm does not by itself select +20 dBm.
+    // TODO: RegOcp (0x0B) is not written. A bench supply-current check
+    // comes first. Rev. 4 §5.4.2 p.83: set OcpTrim for the highest power.
+    // Register table p.109. Reset value is 0x2B (100 mA).
+    const rfm95w_tx_power_prog prog =
+        rfm95w_plan_tx_power(dbm, dev->tx_power_allow_20);
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, prog.pa_dac);
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig, prog.pa_config);
+    if (prog.clamped) {
+        rc::rc_log("RADIO: TX power clamp %d -> %d dBm\n",
+                   static_cast<int>(prog.requested_dbm),
+                   static_cast<int>(prog.applied_dbm));
     }
+    return prog.applied_dbm;
+}
+
+void rfm95w_set_tx_high_power(rfm95w_t* dev, bool enable) {
+    dev->tx_power_allow_20 = enable;
 }
 
 int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev) {

@@ -86,8 +86,10 @@ void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
 void AO_Radio_apply_config_now(const rc::RadioConfig& cfg);
 
 // Stage T IVP-T5.5: read-only access to the AO's current runtime config.
-// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
 const rc::RadioConfig* AO_Radio_get_runtime_config();
+
+// True when this radio may use the +20 dBm PA code.
+bool AO_Radio_tx_high_power_enabled();
 
 // Stage T IVP-T5.5 sub 2f: consume the "config just changed" flag.
 // Returns true ONCE after a ao_radio_commit_pending_config or

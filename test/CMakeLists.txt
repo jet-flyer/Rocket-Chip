@@ -313,6 +313,23 @@ target_include_directories(test_radio_pa_decode PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_pa_decode)
 
+# Radio HW TX power clamp. Header-only plan. No SPI.
+add_executable(test_radio_tx_power_clamp test_radio_tx_power_clamp.cpp)
+target_link_libraries(test_radio_tx_power_clamp PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_power_clamp PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_radio_tx_power_clamp)
+
+# Same header with the +20 dBm compile-time opt-in defined.
+add_executable(test_radio_tx_power_allow20 test_radio_tx_power_allow20.cpp)
+target_link_libraries(test_radio_tx_power_allow20 PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_power_allow20 PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(test_radio_tx_power_allow20 PRIVATE
+    RC_RFM95_ALLOW_20DBM=1)
+gtest_discover_tests(test_radio_tx_power_allow20)
+
 # Pad RX Hz: 2 s sliding window over CRC-ok counts. No Pico time.
 add_executable(test_radio_rx_window
     test_radio_rx_window.cpp

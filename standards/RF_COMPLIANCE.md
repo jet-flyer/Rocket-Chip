@@ -1,7 +1,7 @@
 # RF Compliance Reference
 
 **Status:** Active — check on every radio code change
-**Last Updated:** 2026-10-08 (antenna gains, the (b)(4) cite, the BW500 measured bandwidth and the grant status, from the 2026-10-07 research set; not legal advice)
+**Last Updated:** 2026-10-21 (TX power accept rule; RegOcp and the +20 dBm duty guard are not in the driver; not legal advice)
 **Applies to:** `src/drivers/rfm95w.cpp`, `ground_station/radio_rx.cpp`, telemetry service, any code touching radio TX/RX parameters
 
 ---
@@ -78,9 +78,20 @@ Reference: FCC KDB 996369 — Module Certification requirements under 47 CFR 15.
 
 ### Default (firmware): SF7 / BW125 / CR 4/5 / 915 MHz / +15 dBm
 
-Matches `rfm95w_init` / `kDefaultRadioConfig`. +15 dBm stays in continuous
-PA_BOOST. +20 dBm is a caller value above +17 dBm. The driver does not
-apply the datasheet 1% duty or 3:1 VSWR limits for that value.
+Matches `rfm95w_init` / `kDefaultRadioConfig`. The init value is +15 dBm.
+The driver clamps a direct request to +17 dBm (PA_BOOST continuous, RegPaDac 0x84).
+A request below +2 dBm is raised to +2 dBm. That raise is quiet.
++20 dBm (RegPaDac 0x87, OutputPower 15) needs `rfm95w_set_tx_high_power(dev, true)`
+or the compile flag `RC_RFM95_ALLOW_20DBM`.
+`SET_RADIO_CONFIG` allows 2 dBm through 17 dBm. It allows 20 dBm only when the opt-in is on.
+18 dBm and 19 dBm are rejected. A request above 17 dBm without the opt-in is rejected.
+The vehicle NACK uses `CmdAckResult::kDenied`. The reason code is `CommandAckPayload.reserved`
+(1 = out of range, 2 = 18 or 19, 3 = 20 without the opt-in). The station checks the same rule before it sends.
+A reject leaves the config unchanged.
+The dBm returned by `rfm95w_set_tx_power()` is the stored power.
+A value above +17 dBm does not by itself select +20 dBm.
+`RegOcp` is not written. That write waits for a bench supply-current check. Rev. 4 §5.4.2 p.83 says to set OcpTrim for the highest power. The register table is p.109. The reset value is 0x2B (100 mA).
++20 dBm requires the caller to keep the duty cycle at or below 1% and the VSWR at or below 3:1 (SX1276 Rev. 4 §5.4.3 p.84 Table 35). The driver does not enforce either limit.
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
@@ -88,7 +99,7 @@ apply the datasheet 1% duty or 3:1 VSWR limits for that value.
 | Bandwidth | 125 kHz | Live default. BW250 is an alternate profile row. |
 | Coding Rate | 4/5 | Minimum redundancy, lowest overhead |
 | Frequency | 915.0 MHz | US ISM center (operator must stay in 902–928) |
-| TX Power | 15 dBm | Init default. Below the +17 dBm continuous limit. Module max remains +20 dBm |
+| TX Power | 15 dBm | Init default. SET allows 2–17 dBm, or 20 dBm with the opt-in. 18 and 19 are rejected. |
 | Preamble | 8 symbols | SX1276 default |
 | Sync Word | 0x12 | LoRa private network default |
 | CRC | Enabled | Hardware CRC-16 |
@@ -245,7 +256,9 @@ Radio TX is NOT the dominant power consumer. GPS and MCU together draw ~45 mA co
 - [ ] Frequency set via `rfm95w_set_frequency()` with validated input
 
 ### Power
-- [ ] TX power ≤ +20 dBm (module max, `rfm95w_set_tx_power()` clamps to 2–20)
+- [ ] TX power is 2–17 dBm, or 20 dBm with the opt-in (`rfm95w_set_tx_high_power` or `RC_RFM95_ALLOW_20DBM`). 18 dBm and 19 dBm are rejected.
+- [ ] +20 dBm is an opt-in. The caller keeps duty cycle <= 1% and VSWR <= 3:1 (Rev. 4 §5.4.3 p.84 Table 35). The driver does not enforce either limit.
+- [ ] `RegOcp` stays at the chip reset until a bench supply-current check (Rev. 4 §5.4.2 p.83, register table p.109).
 - [ ] EIRP = TX power + antenna gain - losses ≤ +36 dBm
 - [ ] If antenna gain > 6 dBi: TX power reduced by (gain - 6) dB
 
@@ -290,5 +303,5 @@ Radio TX is NOT the dominant power consumer. GPS and MCU together draw ~45 mA co
 - [Mouser AN120062 — FCC Pre-Compliance for LoRaWAN](https://www.mouser.com/pdfDocs/AN120062_BestPracticesforFCC_Rev_1_0_FINAL.pdf) — Test methodology
 - [DigiKey — Unlicensed 915 MHz Band](https://www.digikey.com/en/articles/unlicensed-915-mhz-band-fits-many-applications-and-allows-higher-transmit-power) — Overview of ISM band regulations
 - [Raveon AN203 — FCC Part 15 ISM Regulations](https://raveon.com/wp-content/uploads/2019/05/AN203FCC-ISM.pdf) — Practical regulatory guide
-- SX1276 Datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7) — IC specifications
+- SX1276 datasheet Rev. 4, March 2015 (`docs/hardware/datasheets/SX1276-datasheet.pdf`). An older cite named Semtech DS_SX1276-7-8-9_W_APP_V7. That name does not match the PDF in this repo.
 - RFM95W Datasheet (HopeRF) — Module specifications

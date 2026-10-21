@@ -19,7 +19,7 @@ struct RadioConfigEntry {
     uint8_t  nav_rate_hz;   // presets: 2, 5, 10
     uint8_t  sf;            // presets: 7
     uint8_t  cr;            // presets: 5 (CR 4/5)
-    uint8_t  power_dbm;     // presets: 20 (legal 2-20)
+    uint8_t  power_dbm;     // presets: 2 (SET allows 2-17, or 20 with opt-in)
 };
 
 // Tested runtime-SET tuples. Default first, then higher-rate / wider-BW,
@@ -56,7 +56,45 @@ inline constexpr bool radio_config_in_whitelist(uint16_t bw_khz,
     return false;
 }
 
-// SX1276 gate: BW 125/250/500, SF 7-12, CR 5-8, power 2-20 dBm, nav 1-50 Hz.
+// Why SET_RADIO_CONFIG rejects a power byte. 0 is accept.
+// The vehicle copies this value into CommandAckPayload.reserved.
+enum class RadioPowerReject : uint8_t {
+    kOk = 0,
+    kOutOfRange = 1,       // below 2 dBm or above 20 dBm
+    kNoRegisterCode = 2,   // 18 dBm or 19 dBm
+    kOptInRequired = 3,    // 20 dBm and the high-power opt-in is off
+};
+
+inline constexpr RadioPowerReject radio_power_reject(uint8_t power_dbm,
+                                                     bool allow_20) {
+    if ((power_dbm < 2U) || (power_dbm > 20U)) {
+        return RadioPowerReject::kOutOfRange;
+    }
+    if ((power_dbm == 18U) || (power_dbm == 19U)) {
+        return RadioPowerReject::kNoRegisterCode;
+    }
+    if ((power_dbm > 17U) && !allow_20) {
+        return RadioPowerReject::kOptInRequired;
+    }
+    return RadioPowerReject::kOk;
+}
+
+inline const char* radio_power_reject_text(RadioPowerReject why) {
+    switch (why) {
+    case RadioPowerReject::kOk:
+        return "ok";
+    case RadioPowerReject::kOutOfRange:
+        return "out of range";
+    case RadioPowerReject::kNoRegisterCode:
+        return "18-19 not programmable";
+    case RadioPowerReject::kOptInRequired:
+        return "20 needs opt-in";
+    }
+    return "unknown";
+}
+
+// SX1276 gate: BW 125/250/500, SF 7-12, CR 5-8, power 2-17 or 20, nav 1-50 Hz.
+// 18 dBm and 19 dBm are not legal. 20 dBm still needs the opt-in at SET.
 // Chip-legal only. Hops (COMM_CHANGE / NAV_PRESET / SET) also need
 // radio_config_nav_fits_hz so commanded Hz can actually air.
 inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
@@ -67,10 +105,21 @@ inline constexpr bool radio_config_sx1276_legal(uint16_t bw_khz,
     if (bw_khz != 125 && bw_khz != 250 && bw_khz != 500) { return false; }
     if (sf < 7 || sf > 12) { return false; }
     if (cr < 5 || cr > 8) { return false; }
-    if (power_dbm < 2 || power_dbm > 20) { return false; }
+    if (radio_power_reject(power_dbm, true) != RadioPowerReject::kOk) {
+        return false;
+    }
     if (nav_rate_hz == 0 || nav_rate_hz > 50) { return false; }
     return true;
 }
+
+static_assert(!radio_config_sx1276_legal(250, 10, 7, 5, 18),
+              "18 dBm has no PA code");
+static_assert(!radio_config_sx1276_legal(250, 10, 7, 5, 19),
+              "19 dBm has no PA code");
+static_assert(radio_config_sx1276_legal(250, 10, 7, 5, 20),
+              "20 dBm is a PA code");
+static_assert(radio_config_sx1276_legal(250, 10, 7, 5, 17),
+              "17 dBm stays legal");
 
 // Nav PLTU on air: ASM+V-3+Space Packet+CRC = 18 + kNavSduUserBytes (51).
 // Source: test_starcom_byte_pump encode_nav. Same formula as rfm95w_airtime_us

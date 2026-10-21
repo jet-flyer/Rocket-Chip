@@ -30,6 +30,12 @@
 
 CHANGELOG entries say only what changed, what was verified, and where the logs/report are; numbers stay in reports.
 
+## Needs rework: legacy modules to rewrite (OPEN) (Nathan, 2026-10-21)
+
+Modules to rewrite from scratch rather than patch. Add rows as they turn up.
+
+- **RFM95/SX1276 driver** (`src/drivers/rfm95w.*`): writes config registers while in RX (datasheet Rev 4 p.38 needs Sleep/Standby/FSTX), airtime math assumes CR 4/5 with LDRO off, setters return nothing and never read back, validation spread over 3 layers, 3 packet-done paths, `RegOcp` never set. The link-loss revert (`tick_symmetric_revert`) only compiles with `ROCKETCHIP_RADIO_PERSIST`, which is off and broken (CW-B39-01), so it is not live. The +/-6 dB per-command power rule had no datasheet or FCC basis; removed 2026-10-21 on `grok/tx-power-clamp` (no host test yet proves a single 2-to-17 dBm SET is accepted; `dispatch_set_radio_config` is not in the host build). Until the rewrite, the 2-17/20 dBm range check is the only live power guard. Overlaps AO split option A (Radio mode flags to QEP states); sizing in the room 2026-10-21 (Buzz).
+
 ## JSF AV link flaky; pre-commit runs online citation check (OPEN) (2026-10-21)
 
 `https://www.stroustrup.com/JSF-AV-rules.pdf` 404'd intermittently on 2026-10-20/21 (200 again at ~01:33). Archived fallback: `https://web.archive.org/web/20250101111826/https://www.stroustrup.com/JSF-AV-rules.pdf`. The real issue: `scripts/hooks/pre-commit` line 84 runs plain `ctest`, so the online `audit-cycle` citation check (`scripts_verify_citations`) runs on every commit despite the `test/CMakeLists.txt` 455-460 comment. Proposed fix (not applied, hook unchanged): `ctest -LE audit-cycle` in the hook. Owner decision.

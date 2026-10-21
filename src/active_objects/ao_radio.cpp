@@ -379,7 +379,12 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     if (ack_retry_ms > 1000U) { ack_retry_ms = 1000U; }
     AO_Telemetry_set_ack_retry_timeout_ms(ack_retry_ms);
     // Power LAST — per correctness council edit #3 item 3.
-    rfm95w_set_tx_power(&s.radio, rc.power_dbm);
+    // Store the dBm the driver wrote. CFG and the saved config read it.
+    const int8_t applied = rfm95w_set_tx_power(
+        &s.radio, static_cast<int8_t>(rc.power_dbm));
+    if (applied >= 0) {
+        s.runtime_config.power_dbm = static_cast<uint8_t>(applied);
+    }
 }
 
 // Stage T IVP-T5.5 sub 2b/2d: commit a pending config to the radio.
@@ -744,9 +749,9 @@ static void tick_symmetric_revert(RadioAoState& s) {
 #endif  // ROCKETCHIP_RADIO_PERSIST
 }
 
-// Sub-persist: debounced flash write. flash_safe_execute() is blocking
-// (~100 ms) but QV cooperative scheduling means it only delays the next
-// tick — no AO queues race with us.
+// Sub-persist: debounced flash write. flash_safe_execute() is blocking.
+// The block time is unmeasured. QV cooperative scheduling means it only
+// delays the next tick — no AO queues race with us.
 // Stage T IVP-T6 — gated by ROCKETCHIP_RADIO_PERSIST. When disabled, any
 // set/apply simply clears the persist-requested state and never reaches
 // flash_safe_execute. Keeps boards deterministic across reboots during
@@ -900,6 +905,10 @@ void AO_Radio_apply_config_now(const rc::RadioConfig& cfg) {
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {
     return &g_radioAo.state.runtime_config;
+}
+
+bool AO_Radio_tx_high_power_enabled() {
+    return g_radioAo.state.radio.tx_power_allow_20;
 }
 
 bool AO_Radio_consume_just_changed() {

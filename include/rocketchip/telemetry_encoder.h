@@ -62,7 +62,7 @@ struct __attribute__((packed)) CommandAckPayload {
     uint8_t  cmd_seq;      // Sequence number echoed from COMMAND_LONG confirmation field
     uint16_t cmd_id;       // MAVLink command ID (e.g., MAV_CMD_COMPONENT_ARM_DISARM = 400)
     uint8_t  result;       // CmdAckResult
-    uint8_t  reserved;     // Pad to even size
+    uint8_t  reserved;     // SET deny: RadioPowerReject. Else 0.
     // Sub 2e: config echo (QUERY responses only; zero for others)
     uint16_t cfg_bw_khz;       // 125 / 250 / 500
     uint8_t  cfg_nav_hz;       // 2 / 5 / 10

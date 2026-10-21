@@ -26,6 +26,7 @@ TEST(CmdSdu, PackUnpackAck) {
     ack.cmd_seq = 3;
     ack.cmd_id = 400;
     ack.result = 0;
+    ack.reserved = 2;
     uint8_t buf[rc::kAckSduUserBytes] = {};
     ASSERT_EQ(rc::pack_ack_sdu_user(buf, sizeof(buf), ack), rc::kAckSduUserBytes);
     rc::ccsds::CommandAckPayload out{};
@@ -33,6 +34,7 @@ TEST(CmdSdu, PackUnpackAck) {
     EXPECT_EQ(out.cmd_seq, 3);
     EXPECT_EQ(out.cmd_id, 400);
     EXPECT_EQ(out.result, 0);
+    EXPECT_EQ(out.reserved, 2);
 }
 
 TEST(CmdSdu, RejectsShortBuffer) {

@@ -224,6 +224,8 @@ static void gcs_station_tick(TelemAo* me) {
 // Vehicle-side pending ACK (queued for next TX opportunity)
 static rc::ccsds::CommandAckPayload g_pendingAck = {};
 static bool g_pendingAckValid = false;
+// SET_RADIO_CONFIG deny reason. Copied into the ACK reserved byte.
+static uint8_t g_cmdRejectReason = 0;
 
 // Station-side pending command. p1..p5 replay SET_RADIO_CONFIG on retry.
 static struct {
@@ -557,10 +559,26 @@ static void encode_and_send(TelemAo* me) {
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
+// Power gate. Does not write the config.
+static bool set_radio_power_ok(uint8_t new_pwr) {
+    const bool allow = AO_Radio_tx_high_power_enabled();
+    const rc::RadioPowerReject why = rc::radio_power_reject(new_pwr, allow);
+    if (why == rc::RadioPowerReject::kOk) {
+        g_cmdRejectReason = 0;
+        return true;
+    }
+    g_cmdRejectReason = static_cast<uint8_t>(why);
+    rc::rc_log("[CMD] SET denied — pwr=%u reason=%u %s\n",
+               static_cast<unsigned>(new_pwr),
+               static_cast<unsigned>(g_cmdRejectReason),
+               rc::radio_power_reject_text(why));
+    return false;
+}
+
 // SET_RADIO_CONFIG dispatcher. Returns ACK result.
-// 4 gates (flight-state, SX1276-legal, nav ToA fits Hz, ±6 dB power
-// delta) before queue.
+// Gates: flight-state, power, SX1276-legal, nav ToA fits Hz.
 static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
+    g_cmdRejectReason = 0;
     uint16_t new_bw  = static_cast<uint16_t>(lroundf(cmd.param1));
     uint8_t  new_nav = static_cast<uint8_t> (lroundf(cmd.param2));
     uint8_t  new_sf  = static_cast<uint8_t> (lroundf(cmd.param3));
@@ -569,6 +587,9 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
 
     if (!AO_FlightDirector_is_ground_state()) {
         rc::rc_log("[CMD] SET denied — not ground state\n");
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    if (!set_radio_power_ok(new_pwr)) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     // Presets are debug-menu defaults; advanced path accepts SX1276-legal
@@ -591,13 +612,6 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
-    int pwr_delta = static_cast<int>(new_pwr) - static_cast<int>(cur->power_dbm);
-    if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
-    if (pwr_delta > 6) {
-        rc::rc_log("[CMD] SET denied — power delta %d dB\n", pwr_delta);
-        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
-    }
-
     rc::RadioConfig new_cfg = *cur;  // inherit mode/protocol
     new_cfg.nav_rate_hz      = new_nav;
     new_cfg.power_dbm        = new_pwr;
@@ -704,7 +718,8 @@ static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result)
     g_pendingAck.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
     g_pendingAck.cmd_id  = cmd.command;
     g_pendingAck.result  = ack_result;
-    g_pendingAck.reserved = 0;
+    g_pendingAck.reserved = g_cmdRejectReason;
+    g_cmdRejectReason = 0;
     if (cmd.command == MAV_CMD_USER_3) {
         const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
         g_pendingAck.cfg_bw_khz = cur->bandwidth_khz;
@@ -865,6 +880,21 @@ static void station_on_tminus_ack(const rc::ccsds::CommandAckPayload& ack) {
 }
 #endif
 
+static void log_cmd_ack_result(uint8_t seq, bool accepted, uint8_t reason) {
+    if (accepted) {
+        rc::rc_log("[CMD] ACK'd (seq=%u)\n", seq);
+        return;
+    }
+    if (reason == 0U) {
+        rc::rc_log("[CMD] DENIED (seq=%u)\n", seq);
+        return;
+    }
+    const auto why = static_cast<rc::RadioPowerReject>(reason);
+    rc::rc_log("[CMD] DENIED (seq=%u) reason=%u %s\n",
+               seq, static_cast<unsigned>(reason),
+               rc::radio_power_reject_text(why));
+}
+
 static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 #ifdef ROCKETCHIP_JOB_STATION
     // Inject ACK suppression (runtime-gated; 0 on production boots).
@@ -897,7 +927,7 @@ static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
-    rc::rc_log("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
+    log_cmd_ack_result(ack.cmd_seq, accepted, ack.reserved);
 
     record_ack_outcome(matched_cmd, matched_p1, retries_left_at_ack,
                        rtt_ms, accepted);
@@ -1323,10 +1353,42 @@ static void populate_pending(uint16_t command, uint8_t seq,
 }
 #endif  // !ROCKETCHIP_HOST_TEST
 
+#ifndef ROCKETCHIP_HOST_TEST
+// Station check before a SET leaves the radio. A reject does not send
+// and does not change the local config.
+static bool station_set_presend_ok(uint16_t command, float p5) {
+    if (command != 31011U) {
+        return true;
+    }
+    const long rounded = lroundf(p5);
+    const uint8_t pwr = ((rounded < 0) || (rounded > 255))
+        ? static_cast<uint8_t>(0)
+        : static_cast<uint8_t>(rounded);
+    const bool allow = AO_Radio_tx_high_power_enabled();
+    const rc::RadioPowerReject why = rc::radio_power_reject(pwr, allow);
+    if (why == rc::RadioPowerReject::kOk) {
+        return true;
+    }
+    rc::rc_log("[CMD] SET rejected pre-send pwr=%u reason=%u %s\n",
+               static_cast<unsigned>(pwr),
+               static_cast<unsigned>(static_cast<uint8_t>(why)),
+               rc::radio_power_reject_text(why));
+    g_lastCmdResult.valid = true;
+    g_lastCmdResult.ok = false;
+    g_lastCmdResult.cmd_id = command;
+    g_lastCmdResult.rtt_ms = 0;
+    g_lastCmdResult.at_ms = to_ms_since_boot(get_absolute_time());
+    return false;
+}
+#endif
+
 void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
                                        float p2, float p3,
                                        float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
+    if (!station_set_presend_ok(command, p5)) {
+        return;
+    }
     // 211.0 7.2.3 SE1: resend the Sent-queue; do not mint a new N(S).
     if (g_pendingCmd.pending) {
         rc::rc_log("[CMD] skip submit, FOP resends pending %u\n",

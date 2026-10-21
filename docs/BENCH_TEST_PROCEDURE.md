@@ -204,8 +204,10 @@ print l_radioAo.state.runtime_config.nav_rate_hz    # expect 10
 **Caveats.**
 
 - The mutation bypasses validation gates that would run if the command
-  came over the air (whitelist check, ground-state check, power-delta
-  limit). You're testing the DOWNSTREAM behavior only. Upstream gating
+  came over the air (whitelist check, ground-state check, power range
+  2-17 dBm or 20 dBm with the opt-in). The ±6 dB step limit is removed.
+  SUPERSEDED 2026-10-21 per Nathan: removed; no datasheet/regulatory basis.
+  You're testing the DOWNSTREAM behavior only. Upstream gating
   needs separate verification — host tests usually suffice for logic
   gates; RF validation is the only way to confirm end-to-end packet
   handling.

@@ -3,8 +3,11 @@
 // RFM95W (SX1276) LoRa radio driver
 // SPI-based driver for Adafruit LoRa Radio FeatherWing #3231.
 // GPIO-controlled CS for burst FIFO access (see spi_bus.h).
-// Register addresses and init sequence from SX1276 datasheet
-// (Semtech DS_SX1276-7-8-9_W_APP_V7) and RadioHead RH_RF95.
+// Register addresses and init sequence from the SX1276 datasheet
+// and RadioHead RH_RF95.
+// The PDF in docs/hardware/datasheets/SX1276-datasheet.pdf is Rev. 4,
+// March 2015. An older header named Semtech DS_SX1276-7-8-9_W_APP_V7.
+// Section cites in this file follow that Rev. 4 PDF.
 // Optional peripheral — absent FeatherWing detected at init time
 // via RegVersion read (returns 0x00/0xFF when not present).
 
@@ -131,6 +134,7 @@ struct rfm95w_t {
 #if defined(ROCKETCHIP_DEV_MODE)
     bool force_tx_timeout;   // One poll takes the timeout branch, then clears.
 #endif
+    bool     tx_power_allow_20; // +20 dBm PA_DAC opt-in. Off unless set.
 };
 
 // ============================================================================
@@ -160,8 +164,8 @@ uint8_t rfm95w_read_version(uint8_t cs);
 // 0xFF — caller should skip the comparison when radio is not initialized.
 void rfm95w_read_audit(rfm95w_t* dev, rfm95w_audit_t* audit);
 
-// Writes payload to FIFO, sets TX mode, polls DIO0 for TxDone with
-// 100ms timeout. Returns to Standby after completion.
+// Writes the FIFO and sets TX mode. Polls RegIrqFlags for TxDone.
+// The default timeout is 150 ms (kTxTimeoutUs). This is not GPIO DIO0.
 bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len);
 
 // ============================================================================
@@ -191,7 +195,7 @@ TxPollResult rfm95w_send_poll(rfm95w_t* dev);
 // Reads payload from FIFO, records RSSI and SNR.
 uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len);
 
-// Polls DIO0 for RxDone flag. Call periodically in main loop.
+// RxDone. Reads RegIrqFlags. board::kRadioTrustDio0 reads GPIO DIO0.
 bool rfm95w_available(rfm95w_t* dev);
 
 // Poll DIO0 (GPIO). Not an ISR.
@@ -200,13 +204,101 @@ bool rfm95w_poll_irq(rfm95w_t* dev);
 // 64-bit Frf so 915 MHz does not overflow.
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz);
 
-// Uses PA_BOOST pin. Valid range: 2-20 dBm.
-void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm);
+// PA_BOOST continuous range is +2 to +17 dBm (SX1276 datasheet §5.4.2).
+// Pout = OutputPower + 2 with RegPaDac 0x84.
+// +20 dBm is RegPaDac 0x87 and OutputPower = 15 (§5.4.3).
+// Default cap is +17 dBm. RC_RFM95_ALLOW_20DBM raises the init opt-in.
+inline constexpr int8_t kRfm95TxPowerMinDbm = 2;
+inline constexpr int8_t kRfm95TxPowerContinuousMaxDbm = 17;
+inline constexpr int8_t kRfm95TxPowerPeakMaxDbm = 20;
+inline constexpr uint8_t kRfm95PaDacNormal = 0x84;
+inline constexpr uint8_t kRfm95PaDacHigh = 0x87;
+inline constexpr uint8_t kRfm95PaSelectBoost = 0x80;
+inline constexpr uint8_t kRfm95PaMaxPower7 = 0x70;
+inline constexpr int8_t kRfm95PaOffsetNormal = 2;
+inline constexpr int8_t kRfm95PaOffsetHigh = 5;
+
+#if defined(RC_RFM95_ALLOW_20DBM)
+inline constexpr bool kRfm95Allow20DbmDefault = true;
+#else
+inline constexpr bool kRfm95Allow20DbmDefault = false;
+#endif
+
+static_assert((kRfm95PaDacNormal & 0x07) == 0x04, "default PaDac field");
+static_assert((kRfm95PaDacHigh & 0x07) == 0x07, "+20 PaDac field");
+static_assert(kRfm95PaOffsetNormal == 2, "default PaDac dBm offset");
+static_assert(kRfm95PaOffsetHigh == 5, "datasheet +20 dBm offset");
+static_assert(kRfm95TxPowerContinuousMaxDbm == 17, "continuous PA_BOOST cap");
+static_assert(kRfm95TxPowerPeakMaxDbm == 20, "PA_DAC peak");
+
+// Register bytes for one rfm95w_set_tx_power call. No SPI.
+struct rfm95w_tx_power_prog {
+    int8_t requested_dbm;
+    int8_t applied_dbm;
+    bool clamped;             // True when requested_dbm is above the cap.
+    uint8_t pa_dac;
+    uint8_t pa_config;
+};
+
+inline rfm95w_tx_power_prog rfm95w_plan_tx_power(int8_t requested_dbm,
+                                                 bool allow_20) {
+    const int8_t cap = allow_20 ? kRfm95TxPowerPeakMaxDbm
+                                : kRfm95TxPowerContinuousMaxDbm;
+    int8_t applied = requested_dbm;
+    if (applied < kRfm95TxPowerMinDbm) {
+        applied = kRfm95TxPowerMinDbm;
+    }
+    bool clamped = requested_dbm > cap;
+    if (applied > cap) {
+        applied = cap;
+    }
+    // 18 and 19 have no PA code. Rev. 4 p.105: 0x87 is +20 dBm
+    // only when OutputPower is 15. Step those requests to +17 dBm.
+    if ((applied == 18) || (applied == 19)) {
+        applied = kRfm95TxPowerContinuousMaxDbm;
+        clamped = true;
+    }
+
+    rfm95w_tx_power_prog prog{};
+    prog.requested_dbm = requested_dbm;
+    prog.applied_dbm = applied;
+    prog.clamped = clamped;
+    if (applied == kRfm95TxPowerPeakMaxDbm) {
+        prog.pa_dac = kRfm95PaDacHigh;
+        prog.pa_config = static_cast<uint8_t>(
+            kRfm95PaSelectBoost | kRfm95PaMaxPower7 | 0x0F);
+    } else {
+        prog.pa_dac = kRfm95PaDacNormal;
+        const int8_t out = static_cast<int8_t>(applied - kRfm95PaOffsetNormal);
+        prog.pa_config = static_cast<uint8_t>(
+            kRfm95PaSelectBoost | kRfm95PaMaxPower7 |
+            static_cast<uint8_t>(out));
+    }
+    return prog;
+}
+
+// Writes RegPaDac then RegPaConfig on PA_BOOST.
+// Cap is +17 dBm unless dev->tx_power_allow_20 is true. Then the cap is +20 dBm.
+// A request above +17 dBm does not by itself select +20 dBm.
+// 18 dBm and 19 dBm step to +17 dBm. Only +20 dBm uses RegPaDac 0x87.
+// A request above the cap is clamped and logged.
+// A request below +2 dBm is raised to +2 dBm. That raise is quiet.
+// Returns the dBm written.
+// TODO: RegOcp (0x0B) is not written. A bench supply-current check comes first.
+// Rev. 4 §5.4.2 p.83: set OcpTrim for the highest power. Register table p.109.
+int8_t rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm);
+
+// Arms or clears the +20 dBm opt-in. Does not write the PA registers.
+// The next rfm95w_set_tx_power call uses the flag.
+// RC_RFM95_ALLOW_20DBM sets the flag in rfm95w_init.
+// +20 dBm requires the caller to keep duty cycle <= 1% and VSWR <= 3:1
+// (SX1276 Rev. 4 §5.4.3 p.84 Table 35). This driver does not enforce that.
+void rfm95w_set_tx_high_power(rfm95w_t* dev, bool enable);
 
 // RegPaConfig + RegPaDac -> dBm. No SPI. PaDac is bits 2-0 (mask 0x07).
 // PA_BOOST (bit 0x80) clear -> -1 (unread).
-// radio HW datasheet Rev 6 Table 33 p.83: PaDac 0x04, dBm = OutputPower + 2.
-// Rev 6 p.105: PaDac 0x07 and OutputPower 15 -> 20 dBm.
+// Rev. 4 Table 33 p.83: PaDac 0x04, dBm = OutputPower + 2.
+// Rev. 4 p.105: PaDac 0x07 and OutputPower 15 -> 20 dBm.
 // Any other PaDac, or PaDac 0x07 with OutputPower != 15 -> -2 (unverified).
 inline int8_t rfm95w_decode_tx_power_dbm(uint8_t pa_config, uint8_t pa_dac) {
     constexpr uint8_t kBoostBit = 0x80;
