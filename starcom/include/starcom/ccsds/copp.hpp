@@ -140,6 +140,9 @@ void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
 void coppTick(CoppEndpoint& e, Tick now) noexcept;
 void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept;
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) noexcept;
+// Sequence-controlled resends since process start. coppReset does not clear it.
+// LoRa and a later FSK bearer share this count.
+std::uint32_t coppRetransmitCount() noexcept;
 Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
 // User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3

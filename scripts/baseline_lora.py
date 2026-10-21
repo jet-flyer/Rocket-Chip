@@ -206,6 +206,35 @@ def parse_rate_blocks(text: str) -> list[dict[str, int]]:
     return blocks
 
 
+LINK_RE = re.compile(
+    r"\bLINK delivered=(\d+) missing=(\d+) crc_fail=(\d+) "
+    r"copp_rtx=(\d+) air_ms=(\d+) air_bytes=(\d+)"
+)
+
+
+def parse_link_lines(text: str) -> list[dict[str, int]]:
+    """One dict per CLI `t` LINK line. Keys match the firmware line."""
+    rows = []
+    for m in LINK_RE.finditer(text):
+        rows.append(
+            {
+                "delivered": int(m.group(1)),
+                "missing": int(m.group(2)),
+                "crc_fail": int(m.group(3)),
+                "copp_rtx": int(m.group(4)),
+                "air_ms": int(m.group(5)),
+                "air_bytes": int(m.group(6)),
+            }
+        )
+    return rows
+
+
+def link_delta(rows: list[dict[str, int]], key: str) -> int | None:
+    if len(rows) < 2 or key not in rows[0] or key not in rows[-1]:
+        return None
+    return rows[-1][key] - rows[0][key]
+
+
 def parse_cfg(text: str) -> dict[str, int] | None:
     m = last_match(text, r"CFG: BW=(\d+) SF=(\d+) CR=(\d+) nav=(\d+)Hz pwr=(\d+)dBm")
     if m is None:
@@ -612,6 +641,8 @@ def write_summary(veh_path: str, stn_path: str) -> None:
 
     v_rates = parse_rate_blocks(soak_v)
     s_rates = parse_rate_blocks(soak_s)
+    v_link = parse_link_lines(soak_v)
+    s_link = parse_link_lines(soak_s)
     v0 = v_rates[0] if v_rates else None
     v1 = v_rates[-1] if v_rates else None
     s0 = s_rates[0] if s_rates else None
@@ -935,6 +966,14 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a(f"Station CRC err delta from the RX status line: {nlabel(d_crc, 'board-measured')}.")
     a(f"Station RATE rx_crc_ok delta: {nlabel(d_crc_ok, 'board-measured')}.")
     a(f"Station RATE rx_crc_fail delta: {nlabel(d_crc_fail, 'board-measured')}.")
+    a(f"Vehicle LINK delivered delta: {nlabel(link_delta(v_link, 'delivered'), 'board-measured')}.")
+    a(f"Vehicle LINK missing delta: {nlabel(link_delta(v_link, 'missing'), 'board-measured')}.")
+    a(f"Vehicle LINK crc_fail delta: {nlabel(link_delta(v_link, 'crc_fail'), 'board-measured')}.")
+    a(f"Station LINK delivered delta: {nlabel(link_delta(s_link, 'delivered'), 'board-measured')}.")
+    a(f"Station LINK missing delta: {nlabel(link_delta(s_link, 'missing'), 'board-measured')}.")
+    a(f"Station LINK crc_fail delta: {nlabel(link_delta(s_link, 'crc_fail'), 'board-measured')}.")
+    a("LINK is one line from CLI t. missing is the 14-bit sequence gap on each APID.")
+    a("A repeat adds no missing count. The first count on an APID opens that lane.")
     a("On this build the station RATE rx_crc_ok counter moved with RX pkts. The CLI CRC err field is a different counter. Both are reported.")
     a("The status-line seq field stayed 0. Nav sequence used for gaps is the pad Seq field.")
     if loss_rate is None:
@@ -984,7 +1023,14 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a("## Air time per delivered payload byte")
     a("")
     a(f"Nav on-air time: {toa_nav_us} us (computed, Semtech SX1276 §4.1.1.6, same integer form as rfm95w_airtime_us).")
-    a("TX-start and TX-done are counters. They are not timestamps. Measured air time is not exposed by firmware.")
+    a(f"Vehicle LINK air_ms delta: {nlabel(link_delta(v_link, 'air_ms'), 'board-measured')}.")
+    a(f"Vehicle LINK air_bytes delta: {nlabel(link_delta(v_link, 'air_bytes'), 'board-measured')}.")
+    a(f"Station LINK air_ms delta: {nlabel(link_delta(s_link, 'air_ms'), 'board-measured')}.")
+    a(f"Station LINK air_bytes delta: {nlabel(link_delta(s_link, 'air_bytes'), 'board-measured')}.")
+    a("LINK air_ms sums rfm95w_airtime_us for each TX that finished.")
+    a("LINK air_bytes is the modem payload length of those frames.")
+    a("A TX timeout does not add. The airtime function assumes coding rate 4/5.")
+    a("TX-start and TX-done are still counts. They are not timestamps.")
     a(f"Useful bytes per nav frame: {NAV_USER_BYTES} (firmware constant, not a live counter).")
     a(f"Air time per delivered payload byte: {fmt(air_per_byte_us, 2)} us/byte (computed).")
     a("The quotient uses whole nav on-air time, including preamble, header, and CRC, divided by the 51-byte nav user payload.")
@@ -1075,7 +1121,9 @@ def write_summary(veh_path: str, stn_path: str) -> None:
             a(f"- {row.strip()}")
     else:
         a("No [CMD] line was in the station log.")
-    a("COP-P retransmit counters for the command path are not a LoRa baseline target. FSK names them.")
+    a(f"Vehicle LINK copp_rtx delta: {nlabel(link_delta(v_link, 'copp_rtx'), 'board-measured')}.")
+    a(f"Station LINK copp_rtx delta: {nlabel(link_delta(s_link, 'copp_rtx'), 'board-measured')}.")
+    a("copp_rtx counts COP-P sequence resends. The counter lives in COP-P. LoRa and FSK share it.")
     if retry_block:
         a("Station diag printed CmdRetryStats. See stn_raw.log. Rows with a zero sent count are omitted by the firmware.")
     else:
@@ -1126,13 +1174,13 @@ def write_summary(veh_path: str, stn_path: str) -> None:
     a("## Metrics that need new firmware counters")
     a("")
     a("These are the holes an FSK comparison will hit if the firmware stays as it is.")
-    a("- Measured time on air. TX-start and TX-done are counts, not a pair of timestamps.")
+    a("- LINK air_ms uses the SX1276 airtime formula at TX done. It is not a pair of TX timestamps.")
     a("- Cumulative TX failures. The CLI fail field is consecutive only.")
-    a("- One CRC counter. On this run the CRC err field and RATE rx_crc_fail did not move together.")
+    a("- LINK crc_fail is the baseline CRC count. The older CLI CRC err field and RATE rx_crc_fail are still separate.")
     a("- Longest drop run inside the firmware, so the host does not infer it from pad paints.")
     a("- RX window misses. The 2 s RX Hz display is not a miss counter.")
     a("- Half-duplex key-up to first good frame, as a timer.")
-    a("- Command ACK time and resend count as a retained counter. The pad holds ACK text for about 3 s, then clears it.")
+    a("- Command ACK time as a retained counter. The pad holds ACK text for about 3 s, then clears it. LINK copp_rtx is the COP-P resend count.")
     a("- Radio interrupt time and CPU time in the radio path.")
     a("- Flash-write stall time.")
     a("- A live readback of frequency and preamble length. Both are init constants today.")

@@ -90,6 +90,7 @@ src/telemetry/
 src/starcom_adapt/
 src/logging/radio_config_storage*
 src/diag/radio_rate_counters*
+src/diag/link_baseline*
 include/rocketchip/radio_config*
 include/rocketchip/telemetry_encoder*
 starcom/include/

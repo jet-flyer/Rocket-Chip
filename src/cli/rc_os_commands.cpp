@@ -39,6 +39,7 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
 #include "rocketchip/radio_config_table.h"
 
 // MAVLink command IDs (common.h values; avoid pulling mavlink.h here).
@@ -1417,6 +1418,7 @@ void cmd_radio_status() {
                a.modem_config3, cfg3_ok ? "OK" : "MISMATCH");
     }
     radio_rate_counters_dump();
+    link_baseline_dump();
 }
 
 // ============================================================================

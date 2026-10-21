@@ -28,6 +28,7 @@
 #include "station_bar_mode.h"
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
 #if defined(ROCKETCHIP_DEV_MODE)
 #include "radio_tx_force.h"
 #endif
@@ -159,6 +160,8 @@ static inline void stage_t_log_tx_done(TxPollResult) {}
 
 static uint8_t g_heldTx[sizeof(rc::RadioTxEvt::buf)];
 static uint8_t g_heldTxLen = 0;
+// Modem payload length of the TX that is on the air. 0 means none.
+static uint8_t g_onairLen = 0;
 static bool g_macReceive = true;
 static bool g_macTransmit = false;
 static bool g_macSessionActive = false;
@@ -170,10 +173,26 @@ static RadioTxForceLatch g_txForce = {};
 // Hail: always-on. Active: 211.0 table 6-12 send then receive; 211.1 T3-3
 // RX off while TX.
 
+// SX1276 §4.1.1.6 via rfm95w_airtime_us. That function assumes CR 4/5.
+// bytes is the modem payload length. A timeout does not add.
+static void note_completed_air(const RadioAoState& s) {
+    const uint8_t len = g_onairLen;
+    g_onairLen = 0;
+    if (len == 0U) {
+        return;
+    }
+    const uint32_t us = rfm95w_airtime_us(
+        s.runtime_config.spreading_factor,
+        s.runtime_config.bandwidth_khz,
+        len);
+    link_baseline_note_air(us, len);
+}
+
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
     if (rfm95w_send_start(&s.radio, buf, len)) {
         s.tx_active = true;
+        g_onairLen = len;
 #if defined(ROCKETCHIP_DEV_MODE)
         if (radio_tx_force_on_start(g_txForce, true)) {
             s.radio.force_tx_timeout = true;
@@ -226,6 +245,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
 
 static void handle_tx_done(RadioAo* me) {
     RadioAoState& s = me->state;
+    note_completed_air(s);
     radio_rate_inc_tx_done();
     s.tx_consec_fail = 0;
     s.tx_count++;
@@ -257,6 +277,7 @@ static void handle_tx_done(RadioAo* me) {
 }
 
 static void handle_tx_timeout(RadioAoState& s) {
+    g_onairLen = 0;
 #if defined(ROCKETCHIP_DEV_MODE)
     if (!radio_tx_timeout_counts(g_txForce, s.tx_consec_fail)) {
         rc::rc_log("RADIO: TX timeout fired\n");
@@ -489,6 +510,7 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
             s.rx_crc_errors++;
+            link_baseline_note_crc_fail();
             if constexpr (job::kRadioModeRx) {
                 radio_rate_inc_rx_crc_fail();
             }
@@ -523,6 +545,7 @@ static void handle_rx_poll(RadioAo* me) {
     uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
     if (len == 0) {
         s.rx_crc_errors++;  // empty/CRC-fail RxDone is not counted by the driver
+        link_baseline_note_crc_fail();
         return;
     }
 

@@ -339,6 +339,8 @@ namespace {
 // Pico Core 0 stack is 4 KiB. Do not put kTransferFrameMax (2048) on the
 // stack in coppBytesToSend / coppSendPlcw (AO tick).
 std::array<std::byte, kTransferFrameMax> g_tfScratch{};
+// Not inside FopP. coppReset memsets FopP and would wipe a field there.
+std::uint32_t g_coppRetransmitN = 0;
 
 void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {
   e.farm_accepted_latched = true;
@@ -526,6 +528,10 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
 
 }  // namespace
 
+std::uint32_t coppRetransmitCount() noexcept {
+  return g_coppRetransmitN;
+}
+
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
                                        std::span<std::byte> out) noexcept {
   // 211.0 table 6-14: NEED_PLCW before any SDU. §7.2.3 SE1 fills the SDU slot.
@@ -540,15 +546,22 @@ Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
   std::span<const std::byte> payload{};
   bool user_defined = false;
   coppTakePayload(e, kind, hdr, payload, user_defined);
+  Result<std::size_t> n{std::size_t{0}};
   if (e.uslp) {
-    return coppEncodeUslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
+    n = coppEncodeUslp(e, out, false, hdr.qos_expedited, hdr.fsn, payload);
+  } else {
+    const auto vn = user_defined ? encodeV3UserDefined(g_tfScratch, hdr, payload)
+                                 : encodeV3(g_tfScratch, hdr, payload);
+    if (!vn) {
+      return vn;
+    }
+    n = encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
   }
-  const auto vn = user_defined ? encodeV3UserDefined(g_tfScratch, hdr, payload)
-                               : encodeV3(g_tfScratch, hdr, payload);
-  if (!vn) {
-    return vn;
+  // 211.0 §7.2.3 SE1 resend. Count a frame that left the sender.
+  if (kind == FopPSend::resend_seq && n.has_value() && *n > 0) {
+    ++g_coppRetransmitN;
   }
-  return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
+  return n;
 }
 
 }  // namespace starcom::ccsds

@@ -49,6 +49,7 @@
 
 #include "rocketchip/rc_log.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
 #include <string.h>
 #include <span>
 
@@ -992,6 +993,8 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     // 133.0-B-2 §4.3.2: continuity is per APID on this end.
     rc::starcom_adapt::pump_note_rx_seq(
         g_pump, pkt->fields.apid, pkt->fields.seq_count);
+    link_baseline_note_seq(static_cast<uint16_t>(pkt->fields.apid),
+                           pkt->fields.seq_count);
     if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
         return starcom_handle_nav_sdu(me, pkt->data, pkt->fields.seq_count);
     }
@@ -1036,16 +1039,19 @@ static void note_seq_delivered() {
 #endif
 
 static bool note_starcom_pltu_crc(std::span<const std::byte> octets) {
-    if constexpr (!job::kRadioModeRx) {
-        return false;
-    }
     const auto pltu = starcom::ccsds::decodePltu(octets);
     if (pltu) {
-        radio_rate_inc_rx_crc_ok();
+        link_baseline_note_delivered();
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_rx_crc_ok();
+        }
         return true;
     }
     if (pltu.error() == starcom::ccsds::Error::bad_crc) {
-        radio_rate_inc_rx_crc_fail();
+        link_baseline_note_crc_fail();
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_rx_crc_fail();
+        }
     }
     return false;
 }

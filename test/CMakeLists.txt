@@ -324,6 +324,17 @@ target_include_directories(test_radio_rx_window PRIVATE
 target_compile_definitions(test_radio_rx_window PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_radio_rx_window)
 
+# LINK baseline counters. Sequence gap, airtime remainder, COP-P resend.
+add_executable(test_link_baseline
+    test_link_baseline.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/link_baseline.cpp)
+target_link_libraries(test_link_baseline PRIVATE rc_log Starcom::starcom GTest::gtest_main)
+target_include_directories(test_link_baseline PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_link_baseline PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_link_baseline)
+
 # Forced radio HW TX timeout latch. Header-only. No SPI.
 add_executable(test_radio_tx_force test_radio_tx_force.cpp)
 target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)
