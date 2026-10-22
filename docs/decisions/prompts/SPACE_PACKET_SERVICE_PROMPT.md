@@ -1,6 +1,6 @@
 # Grok Build task: CCSDS 133.0-B-2 Space Packet Protocol service layer
 
-**Status: Not started. Must wait for `docs/decisions/prompts/SEQ_COUNT_FIX_PROMPT.md` (per-APID, per-direction sequence count) to be verified on the board.**
+**Status: Host-tested, not wired into the air path (CHANGELOG 2026-10-01-003). The sequence-count prerequisite was board-verified 2026-10-20.**
 
 TASK: Add the CCSDS 133.0-B-2 Space Packet Protocol service layer to Starcom (host-testable, no board dependency).
 

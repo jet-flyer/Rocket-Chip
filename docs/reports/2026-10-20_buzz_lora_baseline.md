@@ -288,3 +288,27 @@ Hand-run `soak_two_board.py` soaks for the 2026-10-21 push gate. Copied from CHA
 
 - **Push 2, `8a80734d`:** Hand soak (Buzz, `soak_two_board.py`, 120 s at 2 dBm, 01:48-01:50 CDT): downlink 99.64%, 0 CRC both boards, RSSI -46.1 dBm, SNR 9.6 dB, vehicle 0 missing (uplink loss not computable), copp_rtx 0, ARM acked. Logs: `rc-bench-archive\pushgate_8a80734d_2026-10-21\summary.md`.
 - **Push 3, `41a304f5`:** Hand soak (120 s at 2 dBm, 02:02-02:04 CDT): conditional PASS, downlink 98.2% (1,079/1,099), vehicle 1,099 TX 0 fail, uplink 137 received 0 missing 0 CRC, station CRC 15 (push 2: 0), RSSI -47.0 dBm, SNR 9.7 dB (two dips to 4 dB), copp_rtx 0, COP-P locked. Logs: `rc-bench-archive\pushgate_41a304f5_2026-10-21\summary.md`.
+- **Radio push soak, `7abfea14`** (Buzz, 15:34-15:39 CDT): 300 s at 2 dBm, BW250/SF7/CR5, 10 Hz nav; flight-7abfea14, HW 13/13. Vehicle 2930 TX, 0 fail; about 10.2 Hz both ends; 0 missing; 0 COP-P retransmits; 0 sync loss; 0 busy drops; station 0 new CRC, vehicle 2 new CRC; RSSI -46 to -47 dBm, SNR 9-10 dB, LQ 99%. Numbers from the raw logs (soak score parser bug, see below). Logs: `logs\soak\2026-10-21_A1_soak300_7abfea14_2dbm*`.
+
+## Open follow-ups (2026-10-21)
+
+Moved from `AGENT_WHITEBOARD.md` 2026-10-21. Fix before the FSK run (Buzz). Firmware items (debug HW line `20dBm`) stay on the whiteboard.
+
+### `scripts/baseline_lora.py`
+
+1. RATE `rx_crc_fail` reads 0 while LINK `crc_fail` matches CLI "CRC err" (29/46/25 across the three runs; see "CRC counters"). Read the LINK counter.
+2. Summary header has a stale expected-build constant (`flight-3e9c38e2`; boards reported `flight-c71fcbcf`). Take it from the board banner or an argument.
+3. `--help` is ignored and starts a full run (run 1 was started that way). Only `--analyze-only` selects another path. Add real argument parsing with a help exit.
+4. Summary prints "Distance: unknown" because there is no bench-note input. Add a `--distance` / note argument.
+
+### `scripts/soak_two_board.py` (score file quirks, 2026-10-19 and 2026-10-21)
+
+Score file from the `c7d70cc6` 2 dBm soak: `logs/soak/2026-10-19_A1_c7d70cc6_2dBm_score.txt`.
+
+- `veh_git` takes the last hex run of 7 or more characters (`scripts/soak_two_board.py` about line 175). Match `flight-([0-9a-f]+)` first. The vehicle banner was `flight-c7d70cc6`. The score file stored the tree hash.
+- The operator bar prints yellow. Pad RSSI on that soak was about -53 dBm.
+- `paper_duty` uses 5 Hz when the run omits `--nav-hz 10`. The flashed nav rate was 10 Hz.
+- The pad CRC count does not match RATE `rx_crc_fail=0`.
+- Push-gate soak of `8a80734d` (2026-10-21): score labels say BW125/5 Hz while the boards ran BW250/10 Hz; `stn_crc` parses as None while the screen showed 0; push 3 (`41a304f5`) RATE `rx_crc_fail` 0 vs LINK `crc_fail` 53. Logs: `rc-bench-archive\pushgate_8a80734d_2026-10-21\`.
+- Score window: report vehicle TX and station RX over the same time window, not totals since boot (from the 2026-10-08 follow-ups).
+

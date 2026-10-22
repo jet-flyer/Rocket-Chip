@@ -18,6 +18,8 @@ Files affected in parentheses if relevant.
 
 **Conciseness is the default.** An entry is **one brief paragraph** - what changed and why it matters, no more. **Do not restate information that already lives in another document** (design docs, decision records, usage guides, lessons-learned). Instead **point to it**: name the file/section that carries the detail and let the reader follow the link. The changelog is an index of *what happened*, not a place to re-explain *how it works*.
 
+**Numbers stay in reports.** An entry says what changed, what was verified, and where the logs or report are (Nathan, 2026-10-21).
+
 **Rationale sections are rare.** Only add an italicized rationale block when:
 - An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
 - A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
@@ -42,6 +44,13 @@ A note on reliability: brand and model are almost always in your context, but th
 ---
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
+
+### 2026-10-22-001 | Grok Hamilton (Grok Bot) | hardware, documentation
+
+TX power clamp and FSK plan cleanup. `7abfea14` clamps TX power to 2—17 dBm with +20 dBm as an opt-in (bench gate 13/13 vehicle, 11/11 station). Docs: REV2 merged into `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` as Appendix B and the REV2 file deleted; Nathan's open plan items closed; F-B2 (FIFO 64 vs 66 B datasheet conflict, Q31 open for a bench measurement); SX1276 cites set to Rev. 4 (§0.3); pyro marked post-MVP in `docs/hardware/HARDWARE.md`; `src/starcom_adapt/README.md` updated to REV2 D13; whiteboard rows in `AGENT_WHITEBOARD.md` and `starcom/AGENT_WHITEBOARD.md`, incl. an OPEN row: the gate path list has no exclude, so a `.md` under `src/` forces a bench.
+
+- Push 1 `7abfea14` alone (radio-adapter, SESSION_CHECKLIST 6b): Verified at push: pre-push gate pass, bench note 77658479ae26 reused.
+- Push 2 docs commit: pure-docs change, no bench needed.
 
 ### 2026-10-21-001 | Grok Hamilton (Grok Bot) | feature, documentation, hardware
 
@@ -99,7 +108,7 @@ Verified: pure-docs and tooling change; no firmware path changed.
 
 ### 2026-10-12-002 | Grok 4.7 (Build CLI) | documentation
 
-**FSK plan rev 2, 2026-10-12 decisions.** Commit `0a3bb150` puts §3.1 back after the local revert `649785e5` and records Nathan's 2026-10-12 choices. Detail: `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` §3.1. Whiteboard: high-priority row to find the SX1276 +20 dBm 1% limit cause before any driver-default edit.
+**FSK plan rev 2, 2026-10-12 decisions.** Commit `0a3bb150` puts §3.1 back after the local revert `649785e5` and records Nathan's 2026-10-12 choices. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` Appendix B (rev 2 merged there 2026-10-22) §3.1. Whiteboard: high-priority row to find the SX1276 +20 dBm 1% limit cause before any driver-default edit.
 
 Verified: pure-docs change.
 
@@ -111,7 +120,7 @@ Verified: pure-docs change; datasheet facts not board-checked.
 
 ### 2026-10-11-001 | Grok Hamilton (Grok Bot) | documentation
 
-**FSK plan rev 2, STARS correction, reports folder.** `docs/plans/FSK_PIVOT_PLAN_REV2_2026-10-09.md` is trimmed about 40% and adds the D3 host model, Q40 (receiver sync options) and S16; section 3.1 records Nathan's 2026-10-11 decisions (edited in the Grok Build session). STARS is JPL open source (Apache-2.0), not commercial: fixed in `docs/flight_director/TOOLCHAIN_EVALUATION.md`, the QP C vs C++ note and `IVP.md`. `docs/reports/` is now tracked (rules in its `README.md`), with Goddard's AO/QEP audit. Whiteboard: DIO5 gets no wire; OPEN item to settle the before/with/after-pivot split of the audit items before FSK pivot work; LATER item to re-check paywall decisions.
+**FSK plan rev 2, STARS correction, reports folder.** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` Appendix B (rev 2 merged there 2026-10-22) is trimmed about 40% and adds the D3 host model, Q40 (receiver sync options) and S16; section 3.1 records Nathan's 2026-10-11 decisions (edited in the Grok Build session). STARS is JPL open source (Apache-2.0), not commercial: fixed in `docs/flight_director/TOOLCHAIN_EVALUATION.md`, the QP C vs C++ note and `IVP.md`. `docs/reports/` is now tracked (rules in its `README.md`), with Goddard's AO/QEP audit. Whiteboard: DIO5 gets no wire; OPEN item to settle the before/with/after-pivot split of the audit items before FSK pivot work; LATER item to re-check paywall decisions.
 
 Verified: pure-docs change.
 

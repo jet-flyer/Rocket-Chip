@@ -1,6 +1,6 @@
 # Grok Build task: per-APID, per-direction sequence count (133.0-B-2)
 
-**Status: Not started.** After the change is built, mark this file "awaiting board verify"; it is done only after board verification. The Space Packet service-layer task (`docs/decisions/prompts/SPACE_PACKET_SERVICE_PROMPT.md`) waits for this one to be verified on the board.
+**Status: Done.** Landed in `1f23b35` (CHANGELOG 2026-10-01-003); board-verified 2026-10-20 on nav APID 0x001 (`docs/reports/2026-10-20_buzz_lora_baseline.md`, 2604 Seq steps, modulo 16384). APID 0x003 not checked separately. The Space Packet service-layer task (`docs/decisions/prompts/SPACE_PACKET_SERVICE_PROMPT.md`) waits for this one to be verified on the board.
 
 ## Context
 

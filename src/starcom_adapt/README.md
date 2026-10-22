@@ -14,8 +14,11 @@ lifetime is 0 (no abort): station radio is up ~0.6 s, vehicle ~2.8 s.
 
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
 
-COMM_CHANGE (211.0 table 6-11): catalog index rides SET PL EXTENSIONS
-(`mode_select` + `scrambler`, not 211.1). SX1276 is one modem — stay on
+COMM_CHANGE (211.0 table 6-11): per REV2 D13 the rate rides the SET PL
+EXTENSIONS Data Rate field; Mode Select and Scrambler keep their 211.0-B-6
+§B1.7.7 / §B1.7.6 meanings, and Transmitter Mode = 001. (`byte_pump.cpp`
+still packs the catalog index into `mode_select` + `scrambler`; open on
+the starcom whiteboard.) SX1276 is one modem — stay on
 the old PHY until the remote has echoed COMM_CHANGE (initiator:
 `peer_comm_change`, not E69 on the echo after E68 moves S62→S60). The
 remote radiates that echo from S56 then applies on `macPhy` receive.

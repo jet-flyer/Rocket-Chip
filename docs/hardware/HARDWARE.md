@@ -238,7 +238,7 @@ UBX output parsing is identical across M8/M9/M10 — only configuration commands
 |------|--------------|-------|
 | ADXL375 High-G Accelerometer | #5374 | ±200g for high-power rockets — **on hand** |
 | BMP580 | #6407 | 2cm noise @ 85Hz, upgrade from DPS310 |
-| Pyro channels | TBD | MOSFET drivers or dedicated board |
+| Pyro channels | TBD | MOSFET drivers or dedicated board; **post-MVP** (Nathan 2026-10-22: no pyro for MVP) |
 
 ### Storage Options
 | Part | Notes |
@@ -297,9 +297,17 @@ Radio parameters are configured in `src/hal/Radio_RFM95W.cpp`:
 | Bandwidth | 125 kHz | Standard LoRa |
 | Coding Rate | 4/5 | Minimum error correction |
 | Sync Word | 0x12 | Private network |
-| TX Power | +20 dBm | Maximum legal for ISM |
+| TX Power (module max) | +20 dBm | SX1276 datasheet, duty-cycled; see RFM95W / SX1276 PA limits below |
+| TX Power (firmware limit) | 2-17 dBm, +20 dBm opt-in | Clamp since `7abfea14`; boot 2 dBm |
 
 **Note**: Ground station must use matching settings. See `ground_station/radio_rx.cpp` for reference implementation (deprecated).
+
+### RFM95W / SX1276 PA limits (datasheet, not measured)
+
+- SX1276 DS Rev 7 p.83: continuous operation up to +17 dBm, duty-cycled operation up to +20 dBm.
+- Table 35 p.84: duty at +20 dBm is 1% maximum, VSWR at the antenna port is 3:1 maximum, over −40 to +85 °C. The page names no heat, no other damage mode, and no time window.
+- Table 6: 120 mA typical at +20 dBm, 87 mA typical at +17 dBm.
+- Default over-current trim is 100 mA (p.95).
 
 ## Market Benchmarks
 
@@ -325,8 +333,8 @@ Comparable rocket flight computers for feature/positioning reference:
 | **I2C** | ✓ | ✓ | ✓ | GPS, Qwiic expansion, low-rate sensors |
 | **UART** | ✓ | ✓ | ✓ | Debug console, GPS (alt), some radios |
 | **PIO** | ✓ | ✓ | ✓ | PWM output, WS2812 LEDs, custom protocols |
-| **GPIO** | ✓ | ✓ | ✓ | Arm switch, LEDs, pyro fire, continuity sense |
-| **ADC** | ✓ | ✓ | ✓ | Battery voltage, pyro continuity |
+| **GPIO** | ✓ | ✓ | ✓ | Arm switch, LEDs, pyro fire, continuity sense (pyro: post-MVP, Nathan 2026-10-22: no pyro for MVP) |
+| **ADC** | ✓ | ✓ | ✓ | Battery voltage, pyro continuity (pyro: post-MVP, Nathan 2026-10-22: no pyro for MVP) |
 | **CAN** | - | - | ✓ | Multi-board communication, Titan tier |
 | **HSTX** | - | - | ✓ | High-speed video/data output, Titan tier |
 
@@ -363,6 +371,7 @@ General-purpose digital I/O for discrete signals.
 - **Outputs**: Pyro fire channels (via MOSFET), status LEDs, enable signals
 - **Inputs**: Arm switch (debounced), continuity sense (with pull-ups), limit switches
 - **Note**: Pyro channels require hardware interlocks - see Safety section
+- **Post-MVP**: the pyro outputs and interlocks above are post-MVP (Nathan 2026-10-22: no pyro for MVP)
 
 #### ADC
 Analog input for voltage monitoring.
@@ -480,7 +489,7 @@ When Adafruit documentation says "CS on pin 10", they mean GPIO10 (silkscreen la
 | - | SPI CS (multiple) | Per-device chip selects TBD |
 | - | PIO PWM | TVC/deployment servos TBD |
 | - | Arm Switch | Input with debounce TBD |
-| - | Pyro Fire | Output via MOSFET TBD |
+| - | Pyro Fire | Output via MOSFET TBD; **post-MVP** (Nathan 2026-10-22: no pyro for MVP) |
 | - | Battery ADC | Voltage monitoring TBD |
 
 ### HSTX Connector (Back of Board)
@@ -620,6 +629,8 @@ Agency release is a lanyard or a latch, with vehicle motion as the backup. A mag
 Flight termination is a second radio. RCC 319-25 (June 2025) requires the termination uplink to operate independently of the telemetry transmitter and of the flight-control command link. Telemetry, or this hardline while it is mated, reports receiver signal strength, power, command-output state, and safe-and-arm. Once that receiver’s fail-safe is enabled, loss of its uplink is a termination condition. Command tones and the ordnance path stay in 319. They are not part of the proximity modem.
 
 ### Pyro Channels
+> **Post-MVP (Nathan 2026-10-22: no pyro for MVP).** Kept for later tiers; not part of the MVP.
+
 - Safety interlocks required in firmware
 - Physical arm switch recommended for Pro tier
 - Follow NAR/TRA safety codes for high-power rocketry

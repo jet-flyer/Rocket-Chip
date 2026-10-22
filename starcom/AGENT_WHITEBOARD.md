@@ -119,17 +119,47 @@ Same row as the root `AGENT_WHITEBOARD.md`. Owner will make ASD-STE100 the wordi
 
 ---
 
+## Space Packet as the core unit (LATER) (2026-10-19)
+
+Moved from the root board 2026-10-21. The RC-side file list (MAVLink paths to sort) stays on the root board.
+
+- Nathan (2026-10-19): the code handles the core unit of information, the CCSDS Space Packet (133.0-B-2, June 2020). Every other format is a translation layer on top. No translating back and forth, and not through MAVLink. Larger job, after the FSK pivot.
+- Today the ground station re-encodes received packets for its USB output (root board, RC side).
+- Candidate path (not decided): the ground station passes Space Packets over USB. Yamcs decodes CCSDS natively and loads XTCE packet definitions; Open MCT displays through the openmct-yamcs plugin (Goddard 2026-10-19: yamcs.org, docs.yamcs.org mdb, github.com/akhenry/openmct-yamcs).
+- Network forwarding (wanted now, not only pro; Nathan via Duke 2026-10-19): station passes what it receives to another GCS over Wi-Fi or a network. Space Packets over TCP first; Yamcs takes packets over TCP natively (docs.yamcs.org links). SLE (913.1-B-2 transport; RAF / FCLTU service books, issues unverified) only when the other end is an outside ground system that expects it (Duke inference). SLE has sessions (bind, start, transfer), so it costs more than a raw stream.
+- Pro version: XTCE 660.0-B-2 describes packets for the PC side (Duke; current issue not yet checked on the ccsds.org index). SLE (Space Link Extension) moves space-link data between ground stations, control centres and users over ordinary networks, never the radio link (910.3-G-3, Duke 2026-10-19). Services: Return All Frames 911.1, Return Channel Frames 911.2, Return OCF 911.5, Forward CLTU 912.1, Forward Space Packet 912.3; Internet mapping 913.1-B-2. Issues of 911.x/912.x unverified (ccsds.org links 404 on 2026-10-19). Yamcs plugin yamcs-sle covers RAF, RCF, FCLTU.
+
+---
+
+## COP-P sync indication (OPEN) (2026-10-19)
+
+Moved from the root board 2026-10-21 (root row: COP-P open checks, item 4, "lock" never goes stale). **What Prox-1 says (Duke, 211.0-B-6).** It has no COP-P "lock". The closest concept is FOP-P sync. SYNCH_TIMER (7.2.2 i) is cleared by a valid PLCW (SE2) and started by an invalid one (SE3), and expiry (SE4) gives COP-P LOSS OF SYNCHRONIZATION (Annex D item 8). No table event starts it on plain silence (Duke's reading). The informative prose in 4.2.2.1 expects a not-synchronized notice when no valid PLCW arrives in time. Timeout values and display behavior are left to the implementation.
+
+---
+
+## APID-to-path assignment (LOOK) (2026-10-21)
+
+Moved from the root board 2026-10-21. When the network grows past one ground/vehicle pair (other nodes, repeaters), revisit how APIDs map to managed data paths. Project decision (133.0-B-2 2.1.3). Options: a separate ACK APID, or a written rule that APID 0x003 plus the Packet Type bit names the path (4.1.3.3.4.2, 4.1.3.3.2). Relays forward packets without owning the count (2.1).
+
+---
+
 ## LoRa Hail (OPEN) (2026-09-02)
 
 **Starcom** Prox-1 §6 / Best-effort hail on RFM95/915 — not a 211.1 PICS tick. Wire `MacSession`; do not reimplement §6. **Coupled with RC FPV-style scan/find** (repo-root `AGENT_WHITEBOARD.md`): same first-impl slot, **FPV scan won**. Hail is not cancelled. Stash `wip phy-scan leds docs` had both in one row. Not this sitting.
 
 ---
 
+## byte_pump catalog packing is stale (OPEN) (2026-10-22)
+
+Open: `src/starcom_adapt/byte_pump.cpp` still packs the catalog index into Mode Select/Scrambler. Target is REV2 D13 (Nathan 2026-10-11/12): the rate goes in the Data Rate field, Mode Select/Scrambler keep their 211.0-B-6 §B1.7.7/§B1.7.6 meanings, Transmitter Mode 001. Update when byte_pump is next touched (Duke 2026-10-22). Fixed 2026-10-22: `src/starcom_adapt/README.md` now describes D13.
+
 ## FSK bitstream bearer (NEXT) (2026-09-29)
 
 SX1276 FSK, both ends in FSK for a session, no mode change inside a turn. Best-effort bearer, not 211.1, not hail. LoRa stays the long-range preset. The LoRa hitch sitting closed with a shorter periodic hitch still visible; pad numbers are the root `AGENT_WHITEBOARD.md` half-duplex row. Do not mint LoRa SF/BW from this row. A desk SET must not be a +20 dBm shot. Root log: `CHANGELOG.md` 2026-09-29-002. The 2026-10-01 note in `docs/DESIGN.md` records CCSDS 401, SatNOGS-COMMS, and RCC 106 as other physical layers. None of them is this FSK sitting, and none of them is a 211.1 claim. Same sitting: split Rocket-Chip `src/starcom_adapt/byte_pump.cpp` and use the library path where that file reimplemented a Blue Book procedure Starcom already provides. Root board: half-duplex row, "byte_pump surgery".
 
 **FEC bench question (2026-10-03, open, no decision):** Does 211.2-B-3 coding on the FSK link buy usable margin against LoRa? Facts: 211.2-B-3 allows rate 1/2 K=7 convolutional (3.4.3.1) or LDPC (2048,1024) rate 1/2 (3.4.4.3); rate 1/2 sends 2048 coded bits per 1024 data bits, so at a fixed over-the-air bit rate the data rate halves. SX127x datasheet Rev. 4 section 4.1.1.3 Table 14: LoRa coding is 4/5 to 4/8 (1.25x to 2x overhead) and its sensitivity table is at 4/5; Semtech gives no coding gain in dB. Only published LDPC figure found is about 1.2 dB over convolutional plus CRC at FER 1e-5, in simulation (DLR paper, elib.dlr.de/199854), not our radios. Decoder size: the ComBlock COM-1812SOFT k=1024 decoder uses 20,371 LUTs and 17 36-kb BRAMs on an Artix-7 100T (80 MHz, 36.8 Mbit/s); the T8 has 7,384 LEs and about 123 kbit (docs/hardware/FPGA/README.md), so that core does not fit. No smaller decoder or RP software-decoder figures were checked. Test: same payload over LoRa and FSK, with and without the code, stepping signal down until packets fail. Do not lock in the coding choice until bench results exist.
+
+**FSK pivot question, ask when FSK work starts (moved from the root half-duplex row 2026-10-21):** Which of the three 211.2-B-3 coding options (no coding, convolutional, LDPC) does Starcom claim for the FSK link? Facts: 211.2-B-3 3.4.2.2 allows exactly one; PICS items 3, 4, 5 are each O.1 (at least one must be supported); 3.4.4.4 "The LDPC Codewords shall be randomized according to 3.4.5" (page 3-9 defines the whole randomizer); there is no randomizer text for the no-coding or convolutional options. Existing FSK text does not choose among the three: `starcom/docs/DESIGN.md` note 2026-08-29 ("211.2 encode on RP/T8; decode on Pi"), `docs/hardware/FPGA/README.md` ("T8 211.2 encode and FSK continuous bitstream"; "Viterbi / LDPC decode (too large for T8)"), `starcom/docs/research/ccsds_domain_claude.md`. Clause quotes: `starcom/docs/CONFORMANCE.md`, 211.2-B-3 notes 2 and 3. Decide when FSK work starts.
 
 ---
 
