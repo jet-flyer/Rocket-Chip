@@ -42,6 +42,11 @@ inline constexpr uint8_t kRadioRstPin      = 6;
 inline constexpr uint8_t kRadioIrqPin      = 5;   // Shared with Button3
 inline constexpr bool    kRadioTrustDio0   = false;  // DIO0 not trusted on this pack
 
+// Fruit Jam JP3. FSK plan §7.1 and REV2 D5.
+// DIO1 (DCLK) is A1. DIO2 (DATA) is A2. DIO5 stays open.
+inline constexpr uint8_t kRadioDio1Pin     = 41;
+inline constexpr uint8_t kRadioDio2Pin     = 42;
+
 // --- NeoPixel (WS2812) ---
 // GPIO 32 requires PIO gpiobase=16 on RP2350B (pins 16-47 range)
 inline constexpr uint     kNeoPixelPin     = 32;

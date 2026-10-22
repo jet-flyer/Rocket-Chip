@@ -29,6 +29,9 @@
 #include "diag/radio_rate_counters.h"
 #include "logging/flash_gate.h"
 #include "logging/flash_scratch.h"
+#if defined(ROCKETCHIP_DEV_MODE)
+#include "diag/station_dio_bench.h"
+#endif
 #include "safety/pyro_edge_logger.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/mission_profile.h"
@@ -126,6 +129,8 @@ static void catalog_list() {
     } else {
         rc::rc_log("  STN_OUTPUT  basic  %s  (main m cycles)\n",
                    stn_out_name(AO_RCOS_get_output_mode()));
+        rc::rc_log("  DIO_TOGGLE  read   debug j\n");
+        rc::rc_log("  FIFO_DEPTH  read   debug n\n");
     }
 }
 
@@ -373,6 +378,14 @@ void run_action(ActionId act) {
 #if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
         case ActionId::kDebugFlashScratch:
             rc::flash_scratch_toggle();
+            break;
+#endif
+#if defined(ROCKETCHIP_DEV_MODE)
+        case ActionId::kDebugDioToggle:
+            station_dio_toggle_check();
+            break;
+        case ActionId::kDebugFifoDepth:
+            station_dio_fifo_depth();
             break;
 #endif
 #if defined(ROCKETCHIP_DEV_MODE)

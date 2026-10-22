@@ -421,6 +421,7 @@ else()
         src/diag/tick_skip.cpp            # QF tick skip after a stall (host-tested)
         src/diag/rx_quality_stats.cpp     # CRC-fail vs good packet RSSI/SNR (host-tested)
         src/diag/qf_tick.cpp              # 100 Hz QF tick alarm (bsp_qv.c QF_onStartup)
+        src/diag/station_dio_bench.cpp    # debug j/n: DIO jumper and Q31 FIFO (DEV_MODE)
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -621,6 +622,7 @@ else()
         src/diag/tick_skip.cpp                      # QF tick skip after a stall
         src/diag/rx_quality_stats.cpp               # CRC-fail vs good packet RSSI/SNR
         src/diag/qf_tick.cpp                        # 100 Hz QF tick alarm
+        src/diag/station_dio_bench.cpp              # debug j/n: DIO jumper and Q31 FIFO (DEV_MODE)
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp

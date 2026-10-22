@@ -892,6 +892,25 @@ const RadioAoState* AO_Radio_get_state() {
     return &g_radioAo.state;
 }
 
+#if defined(ROCKETCHIP_DEV_MODE)
+bool AO_Radio_restore_station_link() {
+    RadioAoState& s = g_radioAo.state;
+    s.tx_active = false;
+    const bool ok = rfm95w_init(&s.radio,
+                                 s.radio.cs_pin,
+                                 s.radio.rst_pin,
+                                 s.radio.irq_pin);
+    if (!ok) {
+        s.initialized = false;
+        return false;
+    }
+    s.initialized = true;
+    ao_radio_apply_runtime_config(s);
+    rfm95w_start_rx(&s.radio);
+    return true;
+}
+#endif
+
 bool AO_Radio_tx_active() {
     return g_radioAo.state.tx_active;
 }

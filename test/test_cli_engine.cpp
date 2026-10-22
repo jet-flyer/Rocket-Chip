@@ -159,6 +159,14 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'r').act,
               ActionId::kDebugRfRates);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'j').act,
+              ActionId::kDebugDioToggle);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'n').act,
+              ActionId::kDebugFifoDepth);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'b').act,
+              ActionId::kDebugBootHw);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'k').act,
+              ActionId::kDebugI2cQuiesce);
 }
 
 #if defined(ROCKETCHIP_DEV_MODE)

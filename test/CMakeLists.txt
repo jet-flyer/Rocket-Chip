@@ -523,6 +523,13 @@ target_include_directories(test_cli_keymap PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_cli_keymap)
 
+add_executable(test_station_dio_eval test_station_dio_eval.cpp)
+target_link_libraries(test_station_dio_eval PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_eval PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_station_dio_eval)
+
 add_executable(test_cli_engine test_cli_engine.cpp)
 target_link_libraries(test_cli_engine PRIVATE GTest::gtest_main)
 target_include_directories(test_cli_engine PRIVATE

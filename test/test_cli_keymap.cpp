@@ -17,7 +17,7 @@ using rc::cli::kVehicle;
 using rc::cli::Menu;
 
 TEST(CliKeymap, CountIsFrozenInventory) {
-    EXPECT_EQ(kKeyCount, 63u);
+    EXPECT_EQ(kKeyCount, 65u);
 }
 
 TEST(CliKeymap, MainHelpAndMenus) {
@@ -78,6 +78,17 @@ TEST(CliKeymap, DebugGatesAndLowercaseE) {
     EXPECT_EQ(find(Menu::kDebug, 'l', kVehicle)->gate, Gate::kTestMode);
     EXPECT_EQ(find(Menu::kDebug, '0', kVehicle)->action, Action::kDebugRadioCfg0);
     EXPECT_EQ(find(Menu::kDebug, '0', kVehicle)->gate, Gate::kTestMode);
+}
+
+TEST(CliKeymap, DebugStationDioKeys) {
+    EXPECT_EQ(find(Menu::kDebug, 'j', kStation)->action, Action::kDebugDioToggle);
+    EXPECT_EQ(find(Menu::kDebug, 'J', kStation)->action, Action::kDebugDioToggle);
+    EXPECT_EQ(find(Menu::kDebug, 'n', kStation)->action, Action::kDebugFifoDepth);
+    EXPECT_EQ(find(Menu::kDebug, 'N', kStation)->action, Action::kDebugFifoDepth);
+    EXPECT_EQ(find(Menu::kDebug, 'j', kVehicle), nullptr);
+    EXPECT_EQ(find(Menu::kDebug, 'n', kVehicle), nullptr);
+    EXPECT_EQ(find(Menu::kDebug, 'b', kStation)->action, Action::kDebugBootHw);
+    EXPECT_EQ(find(Menu::kDebug, 'k', kStation), nullptr);
 }
 
 TEST(CliKeymap, HelpPrintedMainKeysExist) {

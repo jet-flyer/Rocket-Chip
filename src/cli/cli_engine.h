@@ -82,6 +82,10 @@ enum class ActionId : uint8_t {
 #if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
     kDebugFlashScratch,
 #endif
+#if defined(ROCKETCHIP_DEV_MODE)
+    kDebugDioToggle,
+    kDebugFifoDepth,
+#endif
     kCatalogList,
     kCatalogNavNext,
 #if defined(ROCKETCHIP_DEV_MODE)

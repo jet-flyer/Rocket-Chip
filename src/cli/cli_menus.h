@@ -140,6 +140,10 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kDebug, 'b', true,  "boot/HW",    MenuId::kNone, ActionId::kDebugBootHw},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
     {MenuId::kDebug, 'w', true,  "flash stall", MenuId::kNone, ActionId::kDebugFlashStall},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'j', true,  "DIO1/DIO2 jumper", MenuId::kNone, ActionId::kDebugDioToggle},
+    {MenuId::kDebug, 'n', true,  "Q31 FIFO depth",   MenuId::kNone, ActionId::kDebugFifoDepth},
+#endif
     {MenuId::kDebug, 'h', true,  "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, '?', false, "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},

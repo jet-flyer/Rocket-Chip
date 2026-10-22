@@ -71,6 +71,12 @@ const RadioAoState* AO_Radio_get_state();
 // PayloadCrcErr packets, software CRC-16 failures, carrier frequency.
 void AO_Radio_rx_quality_dump();
 
+#if defined(ROCKETCHIP_DEV_MODE)
+// Sleep, LoRa init, runtime config, DioMapping from that init, then RX.
+// DIO bench calls this. Does not start Tx.
+bool AO_Radio_restore_station_link();
+#endif
+
 // True while a send is in flight. Telemetry must not drain a COP-P AD
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();
