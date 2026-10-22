@@ -50,7 +50,7 @@ A note on reliability: brand and model are almost always in your context, but th
 TX power clamp and FSK plan cleanup. `7abfea14` clamps TX power to 2—17 dBm with +20 dBm as an opt-in (bench gate 13/13 vehicle, 11/11 station). Docs: REV2 merged into `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` as Appendix B and the REV2 file deleted; Nathan's open plan items closed; F-B2 (FIFO 64 vs 66 B datasheet conflict, Q31 open for a bench measurement); SX1276 cites set to Rev. 4 (§0.3); pyro marked post-MVP in `docs/hardware/HARDWARE.md`; `src/starcom_adapt/README.md` updated to REV2 D13; whiteboard rows in `AGENT_WHITEBOARD.md` and `starcom/AGENT_WHITEBOARD.md`, incl. an OPEN row: the gate path list has no exclude, so a `.md` under `src/` forces a bench.
 
 - Push 1 `7abfea14` alone (radio-adapter, SESSION_CHECKLIST 6b): Verified at push: pre-push gate pass, bench note 77658479ae26 reused.
-- Push 2 docs commit: pure-docs change, no bench needed.
+- Push 2 docs commit: Verified at push: vehicle 2/2 PASS (flight-42f2a52f), station 3/3 PASS (flight-42f2a52f); firmware tree 2af3be529496.
 
 ### 2026-10-21-001 | Grok Hamilton (Grok Bot) | feature, documentation, hardware
 
