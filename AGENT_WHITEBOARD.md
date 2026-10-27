@@ -94,12 +94,6 @@ Hook still works; no change now. Gaps found in a read-only inventory:
 
 Plan: scratch `git worktree add` at HEAD in a temp folder, configure the build dirs there, then one known-bad change per check (host-only; no boards).
 
-### Gate path list has no exclude form (DONE 2026-10-26, `18e5e6d8`) (2026-10-22)
-
-Fixed: `!**/*.md` in `scripts/ci/firmware_paths.txt`; docs under firmware paths no longer change the tree ID. Old text:
-
-`scripts/ci/firmware_paths.txt` cannot exclude, so `.md` files under firmware paths (e.g. `src/starcom_adapt/README.md`) change the firmware tree ID and force a bench (Nathan 2026-10-22: flash for now, fix later). Fix is code, via Grok Build: an exclude in `scripts/firmware_tree.py` parse / entry_matches / _listing, the same filter in `cmake/rc_version.cmake` and `scripts/ci/check_elf_paths.py`, tests; also fix the stale soak wording in `scripts/ci/pre_push_gate.py` RADIO_GAP (l.715–719) per SESSION_CHECKLIST 6a. The fix commit itself needs a bench.
-
 ### Bench script fixes (2026-10-21)
 
 `baseline_lora.py` / `soak_two_board.py` bugs: `docs/reports/2026-10-20_buzz_lora_baseline.md`, "Open follow-ups". Scripts still usable via the raw logs.
