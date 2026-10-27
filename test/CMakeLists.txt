@@ -463,6 +463,11 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/audit/pre_commit_fixture_test.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    add_test(
+        NAME scripts_firmware_tree
+        COMMAND ${Python3_EXECUTABLE} scripts/test_firmware_tree.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     # L2-P3 citation inventory — informational. Produces a deduplicated
     # population of citations across standards/*.md for audit cycles per
     # standards/AUDIT_GUIDANCE.md Tier 3.8 (L2-P2 exhaustive + L2-P4 scope).
@@ -514,6 +519,7 @@ if(Python3_Interpreter_FOUND)
         scripts_python_compileall
         scripts_fault_force_gate_audit
         scripts_pre_commit_fixture
+        scripts_firmware_tree
         scripts_list_citations
         PROPERTIES LABELS "python"
     )

@@ -715,8 +715,9 @@ RADIO_GAP = (
     'RADIO PUSH: this push changes radio/link code ([radio] in\n'
     'scripts/ci/firmware_paths.txt). The two-board round trip\n'
     f'({RADIO_LINK_BENCH}) is not in this commit, so the radio rule is not\n'
-    'active and this push is NOT radio-benched. Agent rule (SESSION_CHECKLIST\n'
-    '6a): run the two-board soak by hand and cite it.')
+    'active and this push is NOT radio-benched. A push needs only what this\n'
+    'gate runs (SESSION_CHECKLIST 6a). The manual two-board soak is not a\n'
+    'push requirement.')
 
 
 def radio_rule_active(repo: Path, sha: str) -> bool:

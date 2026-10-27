@@ -169,6 +169,11 @@ FIXTURES = [
     # Starcom docs do not reach the image.
     ('starcom docs only',
      ['starcom/docs/research/x.md'], False, False),
+    # Global !**/*.md: markdown under a firmware path is not a bench.
+    ('markdown under a firmware path',
+     ['src/starcom_adapt/README.md'], False, False),
+    ('markdown plus a firmware edit still benches',
+     ['src/starcom_adapt/README.md', 'src/starcom_adapt/byte_pump.cpp'], True, True),
     ('firmware path list is gate machinery',
      ['scripts/ci/firmware_paths.txt'], True, True),
 

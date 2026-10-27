@@ -13,7 +13,17 @@
 #   dir/       every path under dir/
 #   name       that exact path, or every path under name/ (git literal pathspec)
 #   prefix*    any path that starts with prefix (NOT allowed in [elf])
+#   !glob      global exclude. It is not a path. It applies to every section,
+#              wherever the line sits ([elf], [radio], [gate], [isolate:*], ...).
+#              Excludes are global, not per-section. Write each glob once.
+#              * does not match /. ** matches across /. The match is
+#              case-sensitive. A path that matches is in no section, and the
+#              firmware-tree listing leaves it out (it does not change the
+#              build ID and it does not force a bench).
 # Lines starting with '#' are comments. Paths are repo-relative, '/' only.
+#
+# Markdown under a firmware path is not firmware.
+!**/*.md
 #
 # Changing this file changes which commits get a bench run. Removing a path
 # needs the repo owner's OK (and a council, per the matrix policy).

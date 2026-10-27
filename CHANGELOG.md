@@ -50,6 +50,7 @@ A note on reliability: brand and model are almost always in your context, but th
 Whiteboard and FSK plan updates, then the pre-push gate exclude fix.
 
 - Push 1: docs (whiteboard Twiggs LOOK row and 7abfea14 pushed status, FSK plan status/solder order); no bench needed.
+- Push 2: pre-push gate '!' exclude globs (`!**/*.md`) in `scripts/ci/firmware_paths.txt`; verified: host ctest 1037/1037, both flight builds; firmware tree 6ec6f83e9847; benched at push (see gate log / `refs/notes/rc-bench`).
 
 ### 2026-10-22-001 | Grok Hamilton (Grok Bot) | hardware, documentation
 

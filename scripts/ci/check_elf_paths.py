@@ -27,7 +27,9 @@ sources:
 It ignores files outside the repo (SDK, toolchain) and generated files in
 CMake build dirs (a repo top-level dir with a CMakeCache.txt). It accepts
 the [elf-exempt] paths (git metadata and the list file itself; each one
-has its reason in the list file). It prints an
+has its reason in the list file). A ``!`` line is a global exclude, not a
+path. A build input that matches an exclude is uncovered: the tree id
+does not hash it. It prints an
 info line when the build used a Pico SDK outside the repo. That SDK is not
 in [elf], but the bench key hashes it (path, commit, dirty state and
 submodules; scripts/firmware_tree.py).
@@ -177,16 +179,25 @@ class Result:
         return not self.uncovered
 
 
+def _includes(entries: Sequence[str]) -> List[str]:
+    """Drop global exclude lines. They are not paths."""
+    return [e for e in entries if not e.startswith('!')]
+
+
 def classify(repo: Path, bdir: Path, raw: Dict[str, List[str]],
              elf: Sequence[str], res: Result, exempt: Sequence[str] = (),
-             exists: Callable[[str], bool] = os.path.exists) -> None:
+             exists: Callable[[str], bool] = os.path.exists,
+             excludes: Sequence[str] = ()) -> None:
     root = _norm(str(repo))
     bnorm = _norm(str(bdir))
     build_tops = {_norm(str(d)) for d in Path(repo).iterdir()
                   if d.is_dir() and (d / 'CMakeCache.txt').is_file()} | {bnorm}
     nt = os.name == 'nt'
-    elf_cmp = [e.lower() for e in elf] if nt else list(elf)
-    exempt_cmp = [e.lower() for e in exempt] if nt else list(exempt)
+    elf_cmp = _includes([e.lower() for e in elf] if nt else list(elf))
+    exempt_cmp = _includes([e.lower() for e in exempt] if nt else list(exempt))
+    ex_cmp = [e[1:].strip() if e.startswith('!') else e for e in excludes]
+    ex_cmp = [e.lower() for e in ex_cmp] if nt else ex_cmp
+    ex_cmp = [e for e in ex_cmp if e]
     for src in SOURCES:
         c = res.counts.setdefault(f'{bdir.name}:{src}', Counter())
         seen: Set[str] = set()
@@ -217,9 +228,9 @@ def classify(repo: Path, bdir: Path, raw: Dict[str, List[str]],
             rel = os.path.relpath(full, root).replace('\\', '/')
             c['repo'] += 1
             key = rel.lower() if nt else rel
-            if any(ft.entry_matches(key, e) for e in elf_cmp):
+            if any(ft.entry_matches(key, e, ex_cmp) for e in elf_cmp):
                 c['covered'] += 1
-            elif any(ft.entry_matches(key, e) for e in exempt_cmp):
+            elif any(ft.entry_matches(key, e, ex_cmp) for e in exempt_cmp):
                 c['exempt'] += 1
             else:
                 c['uncovered'] += 1
@@ -229,7 +240,9 @@ def classify(repo: Path, bdir: Path, raw: Dict[str, List[str]],
 def check(repo: Path, bdirs: Iterable[Path],
           query: Callable[[Path], Dict[str, List[str]]] = query_build) -> Result:
     sections = ft.load(repo)
-    elf, exempt = sections['elf'], sections.get('elf-exempt', [])
+    elf = _includes(sections['elf'])
+    exempt = _includes(sections.get('elf-exempt', []))
+    excludes = sections.get(ft.EXCLUDE_KEY, [])
     res = Result()
     for bdir in bdirs:
         raw = query(bdir)
@@ -238,7 +251,7 @@ def check(repo: Path, bdirs: Iterable[Path],
         for src in SOURCES:
             if not raw.get(src):
                 raise CheckError(f'{bdir}: {src} query returned nothing')
-        classify(repo, bdir, raw, elf, res, exempt)
+        classify(repo, bdir, raw, elf, res, exempt, excludes=excludes)
     return res
 
 
