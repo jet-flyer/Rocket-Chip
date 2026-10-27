@@ -45,6 +45,12 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-26-001 | Grok Hamilton (Grok Bot) | documentation, tooling
+
+Whiteboard and FSK plan updates, then the pre-push gate exclude fix.
+
+- Push 1: docs (whiteboard Twiggs LOOK row and 7abfea14 pushed status, FSK plan status/solder order); no bench needed.
+
 ### 2026-10-22-001 | Grok Hamilton (Grok Bot) | hardware, documentation
 
 TX power clamp and FSK plan cleanup. `7abfea14` clamps TX power to 2—17 dBm with +20 dBm as an opt-in (bench gate 13/13 vehicle, 11/11 station). Docs: REV2 merged into `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` as Appendix B and the REV2 file deleted; Nathan's open plan items closed; F-B2 (FIFO 64 vs 66 B datasheet conflict, Q31 open for a bench measurement); SX1276 cites set to Rev. 4 (§0.3); pyro marked post-MVP in `docs/hardware/HARDWARE.md`; `src/starcom_adapt/README.md` updated to REV2 D13; whiteboard rows in `AGENT_WHITEBOARD.md` and `starcom/AGENT_WHITEBOARD.md`, incl. an OPEN row: the gate path list has no exclude, so a `.md` under `src/` forces a bench.

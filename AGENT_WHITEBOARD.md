@@ -19,7 +19,7 @@
 
 ## Handover 2026-10-21 (Hamilton)
 
-- **State:** LINK counters and the three-run LoRa baseline are on `main` (`8a80734d`, `c71fcbcf`, `06c398aa`; `docs/reports/2026-10-20_buzz_lora_baseline.md`). Working branch `grok/tx-power-clamp` at `7abfea14` (TX power clamp 2-17 dBm, +20 dBm opt-in), not pushed; push gate PASS 2026-10-21 (2 dBm link check only, note in `refs/notes/rc-bench`). FSK work has not started.
+- **State:** LINK counters and the three-run LoRa baseline are on `main` (`8a80734d`, `c71fcbcf`, `06c398aa`; `docs/reports/2026-10-20_buzz_lora_baseline.md`). TX power clamp `7abfea14` (2-17 dBm, +20 dBm opt-in) pushed to `main` 2026-10-22 (`c497b833..7abfea14`); push gate PASS 2026-10-21 (2 dBm link check only, note in `refs/notes/rc-bench`). FSK work has not started.
 - **Plan:** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` is WIP and unreviewed; its open questions are in its status block.
 - **Next bench, in order:** (1) Standby-before-write patch on `grok/tx-power-clamp`, then re-bench (Now: AO / QEP); (2) soak/baseline script fixes (baseline report, "Open follow-ups"); (3) station stuck at ABORT (seen again after the 2026-10-21 bench) and DISARM with no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering; (6) H6 part 1 and P36 part 1 (Next).
 - **Off-repo files:** `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md), `rc-bench-archive\plan_reorg_draft\CHANGES.md`, `rc-bench-archive\pushgate_8a80734d_2026-10-21\`, `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
@@ -294,6 +294,10 @@ Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and St
 ### Differential analog FPV video (Telestar FPV) (LOOK) (2026-10-13)
 
 Nathan, 2026-10-13. For the Telestar FPV board: send analog composite video as a differential signal over a twisted pair (like CCTV video baluns) to reject common-mode noise, with no added latency and no FPGA. Candidate parts: AD8132 driver + AD8130 receiver, both distributor-listed active (ADI pages not reachable; Octopart status ~4 yr old). Pointer only, nothing decided. Background: `starcom/spacewire/README.md`.
+
+### Twiggs Space Lab as a hardware reference (LOOK) (2026-10-25)
+
+Nathan, 2026-10-25: add Twiggs Space Lab as a hardware reference goal; STEM-focused small-sat hardware (supplier for the Aldrin Family Foundation S-Cubed program, per Goddard). Links (Goddard): [FlatSat kit](https://twiggs-space-lab.myshopify.com/products/tsl-flatsat-kit) (add-on connector for LoRa/GPS/SD), [TSLPB payload board](https://github.com/VCSFA-MARS/TSLPB/wiki) (Arduino Pro Mini); Mini Ground Station takes RF98 LoRa modules (SX127x family, but RFM98 is usually the 433 MHz part vs our 902-928 MHz RFM95; band unconfirmed, not plug-in compatible until their spec says so). Current FlatSat MCU and design-file openness not found. Pointer only, nothing decided; no outreach.
 
 ## Look (Starcom pointers)
 
