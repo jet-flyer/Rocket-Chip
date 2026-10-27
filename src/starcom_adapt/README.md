@@ -13,6 +13,8 @@ caller (`connecting-T`); vehicle is responder (`connecting-L`). Hail
 lifetime is 0 (no abort): station radio is up ~0.6 s, vehicle ~2.8 s.
 
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
+Edits to this README do not change the firmware tree ID (`!**/*.md` in
+`scripts/ci/firmware_paths.txt`), so a docs-only push needs no bench.
 
 COMM_CHANGE (211.0 table 6-11): per REV2 D13 the rate rides the SET PL
 EXTENSIONS Data Rate field; Mode Select and Scrambler keep their 211.0-B-6

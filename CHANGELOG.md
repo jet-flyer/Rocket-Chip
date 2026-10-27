@@ -50,6 +50,8 @@ A note on reliability: brand and model are almost always in your context, but th
 Whiteboard and FSK plan updates, then the pre-push gate exclude fix.
 
 - Push 1: docs (whiteboard Twiggs LOOK row and 7abfea14 pushed status, FSK plan status/solder order); no bench needed.
+- Push 2 `18e5e6d8` alone (gate `!**/*.md` exclude in `scripts/ci/firmware_paths.txt`, RADIO_GAP wording): Verified at push: vehicle 2/2 PASS (flight-18e5e6d8), station 3/3 PASS (flight-18e5e6d8); firmware tree 6ec6f83e9847.
+- Push 3: docs (this CHANGELOG, whiteboard gate row closed, `src/starcom_adapt/README.md` note); no bench, firmware tree stays 6ec6f83e9847 (checks the exclude).
 - Push 2: pre-push gate '!' exclude globs (`!**/*.md`) in `scripts/ci/firmware_paths.txt`; verified: host ctest 1037/1037, both flight builds; firmware tree 6ec6f83e9847; benched at push (see gate log / `refs/notes/rc-bench`).
 
 ### 2026-10-22-001 | Grok Hamilton (Grok Bot) | hardware, documentation
