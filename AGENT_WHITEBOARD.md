@@ -21,7 +21,7 @@
 
 - **State:** LINK counters and the three-run LoRa baseline are on `main` (`8a80734d`, `c71fcbcf`, `06c398aa`; `docs/reports/2026-10-20_buzz_lora_baseline.md`). TX power clamp `7abfea14` (2-17 dBm, +20 dBm opt-in) pushed to `main` 2026-10-22 (`c497b833..7abfea14`); push gate PASS 2026-10-21 (2 dBm link check only, note in `refs/notes/rc-bench`). FSK work has not started.
 - **Plan:** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` is WIP and unreviewed; its open questions are in its status block.
-- **Next bench, in order:** (1) Standby-before-write patch on `grok/tx-power-clamp`, then re-bench (Now: AO / QEP); (2) soak/baseline script fixes (baseline report, "Open follow-ups"); (3) station stuck at ABORT (seen again after the 2026-10-21 bench) and DISARM with no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering; (6) H6 part 1 and P36 part 1 (Next).
+- **Next bench, in order:** (1) Standby-before-write patch (not written yet; see the RFM95/SX1276 driver row), then re-bench (Now: AO / QEP); (2) soak/baseline script fixes (baseline report, "Open follow-ups"); (3) station stuck at ABORT (seen again after the 2026-10-21 bench) and DISARM with no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering; (6) H6 part 1 and P36 part 1 (Next).
 - **Off-repo files:** `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md), `rc-bench-archive\plan_reorg_draft\CHANGES.md`, `rc-bench-archive\pushgate_8a80734d_2026-10-21\`, `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
 
 ## Now (this sitting, before the next push)
@@ -81,6 +81,10 @@ Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` (line refs may be stale after 
 - IVP 21 (stale): `783a994` reset-looped, no second flash. Buzz suggests closing unless Nathan wants that branch.
 - Commit `scripts/radio_link_bench.py` (makes radio pushes blocking) after Nathan's bench run of it. Still untracked (2026-10-21).
 - Fruit Jam full-station freeze: open PR, `docs/PROBLEM_REPORTS.md` R-34.
+
+### clang-tidy config defects (PR-2 / PR-1b) (2026-10-29)
+
+Both `.clang-tidy` files glue comments into `Checks:` (root: 10 checks off, Starcom: 13, plus 23 `clang-analyzer-core.*` silenced in both), and `HeaderFilterRegex` uses `/`, so Windows reports no header hits. Fix order: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2 "Code-fix plan" (Grok Build on the PC; firmware tree, bench at push).
 
 ### Pre-commit hook positive controls + gaps (TODO) (2026-10-21)
 

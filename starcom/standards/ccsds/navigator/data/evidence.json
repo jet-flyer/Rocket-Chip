@@ -1,1 +1,1530 @@
-{}
+{
+  "133.0-B-2 1.6.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_space_packet.cpp test_roundtrip:85 golden header bytes",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.2.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.2.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.2.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.2.3.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:77 TEST(SpacePacketService,PacketRequestTransfersIntact)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:106 TEST(SpacePacketService,PacketIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:106 TEST(SpacePacketService,PacketIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.3.3.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:106 TEST(SpacePacketService,PacketIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.2.1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.2.1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:161 TEST(SpacePacketService,OctetStringIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:161 TEST(SpacePacketService,OctetStringIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 3.4.3.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:161 TEST(SpacePacketService,OctetStringIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.3.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.4.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.4.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.3.4.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.4.3.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.5.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.5.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.3.5.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.5": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.1.6": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.2.5": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.1.4.3.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/space_packet.cpp; tests/unit/test_space_packet.cpp test_roundtrip, test_reject_sp_pvn, test_sp_idle",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:130 TEST(SpacePacketService,OctetStringRequestBuildsOnePacket)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.2.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:185 TEST(SpacePacketService,SequenceCountPerApidPerDirectionWraps)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:279 TEST(SpacePacketService,PacketTransferKeepsSubmissionOrder)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:279 TEST(SpacePacketService,PacketTransferKeepsSubmissionOrder)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.2.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:279 TEST(SpacePacketService,PacketTransferKeepsSubmissionOrder)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:239 TEST(SpacePacketService,ExtractionRejectsMalformedAndShort)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:161 TEST(SpacePacketService,OctetStringIndicationDeliversOctetsAndApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.3.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:309 TEST(SpacePacketService,PacketReceptionDemuxesByApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.3.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:309 TEST(SpacePacketService,PacketReceptionDemuxesByApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 4.3.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:test/test_space_packet_service.cpp:309 TEST(SpacePacketService,PacketReceptionDemuxesByApid)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "133.0-B-2 A1.3": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/docs/CONFORMANCE.md:51 draft Annex A completed (unsigned)",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.4.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.4.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.5.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.5.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.5.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.6.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.6.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.7.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.7.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.8.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.8.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.8.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.9.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.9.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.9.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.10.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.10.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.11.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.11.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.2.11.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.5": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp encodeV3UserDefined:75; src/ccsds/copp.cpp coppSubmitUserDefined:332; tests/unit/test_user_defined.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.3.6": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/v3.cpp decodeV3:7/encodeV3:41; tests/unit/test_v3.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_ocf.cpp:45 [CHECK(out[0] == std::byte{0x80})]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.1.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.1.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.2.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.2.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.2.3": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.3.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.3.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.4.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.4.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.5.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.5.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.6.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.6.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 3.2.4.3.2.6.3": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/plcw.cpp encodePlcw:18-29 / decodePlcw:5-16; bit masks 0x20 retransmit (bit 2), pcid<<4 (bit 3), 0x08 spare=0 (bit 4), 0x07 counter (bits 5-7), octet 1 report value",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.1.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:493 [CHECK(macFifoSource(s) == MacFifoSource::plcw)]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.1.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:145,493,496 [CHECK(macFifoSource(s) == ...)]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.2.2.6.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:153 [CHECK(s.mac_frame_pending);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.2.2.6.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:153 [CHECK(s.mac_frame_pending);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.2.2.6.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:153 [CHECK(s.mac_frame_pending);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_copp.cpp:81 [farmPOnFrame expedited accepted], :115 [new_seq]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 4.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_copp.cpp:81 [farmPOnFrame expedited accepted], :115 [new_seq]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.3.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.3.6.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:176 [CHECK(s.need_plcw);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.3.6.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:176 [CHECK(s.need_plcw);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.3.8": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.2.4.9": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.1.1.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/include/starcom/ccsds/mac.hpp:16 Tick units; mac.cpp tickDec:226",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.1.1.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp tickDec:226; mac.hpp:16 \"0 = inactive\"",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.1.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp loadWait:6, tickDec:226",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.1.4.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:176 [CHECK(s.need_plcw);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.3.1.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 6.3.3.1.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_mac.cpp:523 [CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);]",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 7.2.3.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp; test_mac.cpp test_set_vr_persistent",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 7.2.3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp; test_mac.cpp test_set_vr_persistent",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.1.1": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp queueFromCv:163-193 concatenates 16-bit directives; spduDirectiveType:1099",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.1.2": [
+    {
+      "level": "read-in-code",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp queueFromCv:163-193 concatenates 16-bit directives; spduDirectiveType:1099",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.5.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp encodeSetVr:1015/decodeSetVr:1027; test_mac.cpp test_set_vr_codec",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.5.2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp encodeSetVr:1015/decodeSetVr:1027; test_mac.cpp test_set_vr_codec",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.5.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp encodeSetVr:1015/decodeSetVr:1027; test_mac.cpp test_set_vr_codec",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.5.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp encodeSetVr:1015/decodeSetVr:1027; test_mac.cpp test_set_vr_codec",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.0-B-6 B1.5.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/mac.cpp encodeSetVr:1015/decodeSetVr:1027; test_mac.cpp test_set_vr_codec",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 1.6.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/tests/unit/test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp encodePltu:126; test_pltu.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.3.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/include/starcom/ccsds/pltu.hpp:17-18 kPltuAsm FA F3 20; tests/unit/test_pltu.cpp test_reject_bad_asm",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.3.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/include/starcom/ccsds/pltu.hpp:17-18 kPltuAsm FA F3 20; tests/unit/test_pltu.cpp test_reject_bad_asm",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.4.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp decodePltu:111/encodePltu:126; test_pltu.cpp test_reject_tfvn_unknown, test_pltu_composition",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.4.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp decodePltu:111/encodePltu:126; test_pltu.cpp test_reject_tfvn_unknown, test_pltu_composition",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.5.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7 kPoly 0x00A00805, :14 init 0; pltu.cpp encodePltu:126; test_pltu.cpp test_crc_*, test_asm_in_crc, test_reject_bad_crc",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.5.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7 kPoly 0x00A00805, :14 init 0; pltu.cpp encodePltu:126; test_pltu.cpp test_crc_*, test_asm_in_crc, test_reject_bad_crc",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.5.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7 kPoly 0x00A00805, :14 init 0; pltu.cpp encodePltu:126; test_pltu.cpp test_crc_*, test_asm_in_crc, test_reject_bad_crc",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.2.5.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7 kPoly 0x00A00805, :14 init 0; pltu.cpp encodePltu:126; test_pltu.cpp test_crc_*, test_asm_in_crc, test_reject_bad_crc",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.5.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp encodePltu:126; test_pltu.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.5.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp encodePltu:126; test_pltu.cpp",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.6.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp huntPltu:157, decodePltu:111; test_pltu.cpp test_hunt_*, test_reject_bad_crc, test_reject_tfvn_unknown, test_hunt_bad_crc_consumes_unit",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.6.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp huntPltu:157, decodePltu:111; test_pltu.cpp test_hunt_*, test_reject_bad_crc, test_reject_tfvn_unknown, test_hunt_bad_crc_consumes_unit",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.6.5": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp huntPltu:157, decodePltu:111; test_pltu.cpp test_hunt_*, test_reject_bad_crc, test_reject_tfvn_unknown, test_hunt_bad_crc_consumes_unit",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.6.6": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp huntPltu:157, decodePltu:111; test_pltu.cpp test_hunt_*, test_reject_bad_crc, test_reject_tfvn_unknown, test_hunt_bad_crc_consumes_unit",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 3.6.7": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/pltu.cpp huntPltu:157, decodePltu:111; test_pltu.cpp test_hunt_*, test_reject_bad_crc, test_reject_tfvn_unknown, test_hunt_bad_crc_consumes_unit",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C1.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C1.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C1.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C1.4": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C2.1": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C2.2": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ],
+  "211.2-B-3 C2.3": [
+    {
+      "level": "host-test",
+      "ref": "579f0976:starcom/src/ccsds/crc32.cpp:7,:14; test_pltu.cpp test_crc_v3_header_only golden BCC004E7",
+      "date": "2026-10-29",
+      "by": "Duke"
+    }
+  ]
+}

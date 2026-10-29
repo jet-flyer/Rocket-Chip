@@ -151,7 +151,7 @@ Do not read those ticks as a whole-book PICS. Mandatory items still **0** in the
 | §7.3.3 | Interface to I/O (`take_sdu`) | Full | COP-P | `copp_take_sdu` | Named I/O in the book; Starcom verb is sans-I/O |
 | §8 | I/O sublayer operations | 0 | — | — | §4.4; segment reassembly 0; queues in `CoppEndpoint` are host-loop caps (`kCoppHold`) |
 | Annex A | PICS proforma | — | CONFORMANCE | this file | Completing Support is a published tick. M-not-in-core listed below |
-| Annex B | Variable-length SPDU formats | partial | SET V(R) | `encode_set_vr` / `decode_set_vr`; `test_set_vr_codec` | **B1.5 SET V(R) Full.** B1.2–B1.4 / B1.7 SET TRANSMITTER/RECEIVER/CONTROL/PL_EXTENSIONS **0** (PICS M). B1.6 / B1.8 O = 0. Type 2 time / Type 3 status = 0 |
+| Annex B | Variable-length SPDU formats | partial | SET V(R) | `encode_set_vr` / `decode_set_vr`; `test_set_vr_codec` | **B1.5 SET V(R) Full.** B1.2–B1.4 / B1.7 SET TRANSMITTER/RECEIVER/CONTROL/PL_EXTENSIONS codecs Full (mac.cpp encodeSetPhy/SetControl/SetPlExt; test_half_hail_octets, test_half_token_octets). B1.6 / B1.8 O = 0. Type 2 time / Type 3 status = 0 |
 | Annex C | MIB (normative) | partial | — | `CoppMib` / `MacMib` / `UslpMib` caller-owned | Names only; **no library default milliseconds**. 211.2 Idle durations are C&S PN, not these timers |
 | Annex D | Notifications to vehicle controller | partial | Prox-1 session / MAC | `MacNotify` | Mapped subset (`hail_fail`, `end_session`, …). Not a complete Annex D PICS |
 | Annex E, H, I, J | informative | unread | — | — | — |
@@ -179,8 +179,8 @@ CONFORMANCE: **Full (implemented options)**. FARM-1 Table 6-1 Full. FOP-1 E23 + 
 |----|-------|--------|-------|-------------|-----------|
 | §1 | Introduction | unread | — | — | — |
 | §2 | Overview | unread | — | — | AD / BD / BC service types; 232.0 CLCW; 732.1 OCF |
-| §3 | Inter-procedure interfaces | partial | COP-1 | `Cop1Endpoint` verbs | Directives §4; LLIF Accept/Reject are E41–E46 (**0**) |
-| §4 | Detailed service definition | partial | COP-1 | initiate / terminate APIs | E23–E29 subset; Resume E30–E34 **0**; setup E35–E40 **0** |
+| §3 | Inter-procedure interfaces | partial | COP-1 | `Cop1Endpoint` verbs | Directives §4; LLIF E41–E46 implemented; E42 tested |
+| §4 | Detailed service definition | partial | COP-1 | initiate / terminate APIs | E23–E29 subset; Resume E30–E34 and setup E35–E39 implemented and tested (test_cop1.cpp) |
 | §5 | FOP-1 | partial | COP-1 | `fop_1_*` / `test_fop_1_*` | Table 5-1 exploded below. States S1–S6 exist in `Fop1State` |
 | §5.1 / §5.2 | FOP-1 variables / actions | partial | COP-1 | `Fop1` / `Cop1Mib` | K, T1_Initial, Transmission_Limit, Timeout_Type; sent-queue cap `kFop1SentCap` is host-loop, not MIB |
 | §6 | FARM-1 | Full | COP-1 | `farm_1_*`; `test_farm_1_table` | Table 6-1 E1–E11. States Open/Wait/Lockout |
@@ -263,10 +263,10 @@ Issue 2, June 2020 (Editorial Change 1 October 2020, Editorial Change 2 Septembe
 | §2.4 | Services assumed from lower layers | — | PLTU repeater (related) | `repeat_pltu` / `PltuRepeatQ` | Store-and-forward **assumed**, not an SPP procedure. Starcom repeater is not a 133.0 product |
 | §3.3 | Packet service (PACKET.request §3.3.3.2, PACKET.indication §3.3.3.3: SPP-10 / SPP-11 M) | partial (PDU codec; no primitives) | Space Packet PDU codec, Packet Service only | `encode_space_packet` / `decode_space_packet` | APID; seq; length-minus-one. cFS/PUS/F´ *contents* stay out of `starcom::ccsds` |
 | §3.4 | Octet String service (OCTET_STRING.request §3.4.3.2, .indication §3.4.3.3: SPP-2, 6, 7, 8, 12, 13 M; SPP-9 O) | 0 | — | seq flags default `11` is unsegmented Packet, not this service | Table 5-1 |
-| §4.1 | Space Packet PDU | partial | Space Packet PDU codec, Packet Service only | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000`. Sequence count is caller-supplied (RC sends 0, §4.1.3.4.3.3 / .4: CONFORMANCE Known gaps). Idle secondary-header flag (§4.1.3.3.3.4) not forced on encode |
+| §4.1 | Space Packet PDU | partial | Space Packet PDU codec, Packet Service only | `test_roundtrip`; `test_sp_idle`; `test_reject_sp_pvn` | Fig 4-1 / 4-2; idle APID `0x7FF`; PVN `000`. Sequence count is caller-supplied; Rocket-Chip keeps one per APID (§4.1.3.4.3.3 / .4). Idle secondary-header flag (§4.1.3.3.3.4) not forced on encode |
 | §4.2 / §4.3 | Send/receive procedures: Packet Assembly §4.2.2, Transfer §4.2.3, Extraction §4.3.2, Reception §4.3.3 (SPP-19 to SPP-22 all M) | 0 | — | codec only | No SAP / routing. Counter text: 4.1.3.4.3.3 ("unique and independent per each user application as identified by the APID and are not shared across multiple APIDs"), 4.1.3.4.3.4 (continuous modulo-16384). Two senders on APID 0x003: not addressed in the 133.0-B-2 text (CONFORMANCE, APID allocation); decision needed (whiteboard) |
 | §5 | Managed parameters | 0 as a table | — | `Maximum_Packet_Size` named in SAD MIB working copy; caller supplies | Table 5-1. RC values: CONFORMANCE managed-parameter table |
-| Annex A | PICS | — | CONFORMANCE | Draft Annex A table (exceptions: Yes) | Tables A-1 to A-6, SPP-1 to SPP-26 |
+| Annex A | PICS | — | CONFORMANCE | Draft Annex A table (exceptions: No; service layer not integrated) | Tables A-1 to A-6, SPP-1 to SPP-26 |
 | Annex B–D | informative | unread | — | — | — |
 
 ---

@@ -45,6 +45,15 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-10-29-001 | Grok Hamilton (Grok Bot) | documentation, tooling
+
+Whiteboard cleanup, audit-guide currency fixes, and the 2026-10-29 Starcom audits.
+
+- Push 1 `579f0976`: docs (resolved whiteboard row erased); pushed 2026-10-29, no bench (docs only).
+- Guide currency: `standards/AUDIT_GUIDANCE.md` fixes and the Starcom audit procedure in `starcom/docs/audits/README.md` (Duke's G1-G13 adopted); whiteboard Standby-before-write handover line fixed.
+- Starcom coding-standards and CCSDS conformance audits: one report in ASD-STE100 with a glossary, `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`; `CONFORMANCE.md`, `COVERAGE.md` and the navigator evidence updated from the CCSDS audit.
+- Review follow-up (Nathan's 1:32 PM ruling): coding-report fixes (fail means fix), CCSDS parked, FSK plan D14 add reverted, audit-integrity rules in the guide, LL 49. The 3 `standards/STANDARDS_AUDIT.md` history rows are proposed and wait for owner approval. They are in the audit archive (`STANDARDS_AUDIT_with_3_rows.md`), not in this commit.
+
 ### 2026-10-26-001 | Grok Hamilton (Grok Bot) | documentation, tooling
 
 Whiteboard and FSK plan updates, then the pre-push gate exclude fix.

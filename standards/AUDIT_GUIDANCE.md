@@ -21,13 +21,14 @@ Use the decision table below to choose the right scope. Use the targeted documen
 | Trigger                                | Scope                          | Specific Tiers / Targeted Audits to Run                                       | Positive-Control Expectation                     | Notes |
 |----------------------------------------|--------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------|-------|
 | Every commit (small change)            | Incremental / targeted         | Tier 3 (coding standards) sub-walks on **changed files only**                 | clang-tidy clean on staged files                 | Pre-commit hook is Tier 1.3 mechanism |
-| Before push                            | Build parity + relevant targeted | Tier 2.6 (build-parity) + Tier 3 sub-walks on modified modules              | All 4 build tiers compile + standards pass       | See `SESSION_CHECKLIST.md` item 6 |
+| Before push                            | Build parity + relevant targeted | Tier 1.6 (build-parity) + Tier 3 sub-walks on modified modules              | All 4 build tiers compile + standards pass       | See `SESSION_CHECKLIST.md` item 6 |
 | Before field test / launch             | Pre-flight gate + safety review | Tier 5.1 (`PRE_FLIGHT_CHECKLIST.md`) + Tier 4 if scope warrants              | All GO verdicts + positive-control signals       | Highest safety bar |
 | Milestone / stage close                | **Full master procedure**      | All 7 tiers                                                                   | Complete set of positive-control outputs         | Super audit |
 | Safety-critical or architecture change | Targeted deep review           | Tiers 3 + 4 + 5 **scoped to affected modules**; Tier 1 mandatory regardless    | Positive-control signals on changed paths        | Do not re-audit untouched areas; Tier 1 always runs |
+| Starcom library audit                  | Starcom-owned procedure        | Follow `starcom/docs/audits/README.md` (Starcom audit procedure). RC's own part: audit `src/starcom_adapt/` (incl. `byte_pump.cpp`, known pre-D13 drift) against Starcom's conformance step | Per the Starcom README                           | Starcom procedure details live in Starcom, not here |
 | After failed audit or remediation      | Affected portions + regression | Re-enter at the tier the failure originated; later tiers re-run if affected   | Previously failed items now PASS                 | Severity gate per stop conditions |
 
-**Principle:** Use the smallest sufficient scope. The full master procedure is reserved for milestone/stage-close events.
+**Principle:** Use the smallest sufficient scope. The full master procedure is reserved for milestone/stage-close events. A request for "the audit" or "a standards audit" means the master 7-tier procedure for the RC flight tree (Nathan, 2026-10-29). A narrower scope (one library, one tier) needs the owner's written choice, quoted in the report header. See "Audit integrity rules" near the end of this file.
 
 **Severity gate (council amendment #3, applies to all stop conditions below):** stop-conditions fire on NASA SWE §8.05 (SW FMEA) **Catastrophic or Critical** findings only. Major / Minor / Trivial findings flow forward to Tier 7 disposition without re-walking earlier tiers. Without this gate, the procedure becomes a tar pit — every minor finding triggers re-walks and the audit never closes.
 
@@ -43,28 +44,29 @@ Each tier closes before the next begins. Within a tier, items can run in paralle
 
 Before measuring anything, confirm the measurement instruments are honest. Source: LL Entry 36 (bench_sim rot — gate had been silently broken for 5 days while 4+ commits claimed it as PASS) + Appendix C category 1 + DO-330 tool-qualification.
 
-1.1 Tool self-checks: `run_clang_tidy.sh`, `run_cppcheck.sh`, lizard, coverage harness produce expected output on known-good fixture inputs.
+1.1 Tool self-checks: `scripts/run_clang_tidy.sh`, `scripts/run_cppcheck.sh`, lizard, coverage harness produce expected output on known-good fixture inputs. (RC tools. Starcom uses its own tooling; see `starcom/docs/audits/README.md`.) **Planted-defect probe (2026-10-29):** run a probe file with one seeded defect per configured check family (including `clang-analyzer-core`) through each shipped config; each must warn. `--list-checks` is not proof that a check fires.
 1.2 SPIN models compile + load on current `spin.exe` (Cygwin per `tools/spin/README.md`).
 1.3 Pre-commit hook integrity: `scripts/hooks/pre-commit` runs on a synthetic staged diff and produces the expected gate matrix output. Mechanism: `scripts/audit/pre_commit_fixture_test.py` (exercises `scripts/ci/pre_commit_matrix.py` against a synthetic-staged-diff fixture table covering known-good / known-bad / no-fire / edge cases — exit 0 = all rows pass).
+1.3a Pre-push gate integrity: `scripts/hooks/pre-push` and `scripts/ci/pre_push_gate.py` (bench once per push since `ae0195c8`, 2026-10-08) are exercised the same way, including a run proving the gate cannot PASS on a leftover or wrong artifact (LL Entry 48, `docs/agents/LESSONS_LEARNED.md`).
 1.4 `bench_sim.py` **bidirectional regex audit** (council amendment #1):
     - (a) Rotted-regex check: every regex constant matches at least one live firmware log line from a freshly-flashed banner read.
     - (b) Deleted-regex check: every PASS-token / positive-control signal the firmware emits has at least one regex in the script looking for it. Mechanism: `scripts/audit/list_bench_sim_pass_tokens.py` (greps src/ for emitted positive-control tokens, groups by class, surfaces the inventory at `logs/bench_sim_pass_tokens.txt` for diff-against-prior-cycle comparison; empty token classes appear as NOTE-level signals for review).
 1.5 Host ctest fixture-suite passes.
 1.6 Build-parity script (`verify_build_parity.sh`) produces clean output for all 4 tiers.
 
-**Stop condition:** any Tier 1 failure halts the cycle until the tool/gate is repaired (no severity gate — broken instruments mean every downstream finding is unreliable by construction).
+**Stop condition:** any Tier 1 failure halts the cycle until the tool/gate is repaired (no severity gate — broken instruments mean every downstream finding is unreliable by construction). If work continues past a Tier 1 halt on owner instruction, the report opens with a tier-status table (tier; done / provisional / not started; owner; date), and every number below the halt is labeled provisional.
 
 ### Tier 2 — Establish the Foundation
 
 With instruments verified honest in Tier 1, capture the baseline data the rest of the audit reasons from. Source: Appendix C category 2 + traditional "baseline scripted sweeps" framing.
 
-2.1 Baseline scripted sweeps: `run_clang_tidy.sh`, `run_cppcheck.sh`, `analyze_stack_usage.sh`, `generate_coverage_report.sh`, lizard cyclomatic complexity sweep. Record verdicts + raw output paths.
+2.1 Baseline scripted sweeps: `scripts/run_clang_tidy.sh`, `scripts/run_cppcheck.sh`, `scripts/analyze_stack_usage.sh`, `scripts/generate_coverage_report.sh`, lizard cyclomatic complexity sweep. Record verdicts + raw output paths. (RC tools; Starcom uses its own, per `starcom/docs/audits/README.md`.)
 2.2 SPIN model verification: re-run all `tools/spin/*.pml` against current firmware. Master gate `run_stage_o_ao_spin.sh` produces SPIN_OK_N.
 2.3 Toolchain version audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P6 (current versions vs latest upstream, drift assessment). Absorbs `TOOLCHAIN_VERSION_AUDIT_*.md` sibling audit. Mechanism: `scripts/audit/check_toolchain_drift.py` (mechanically pulls upstream-latest versions for Pico SDK, picotool, OpenOCD Pi-fork branch HEAD, Pico Probe firmware, CMake; reads project-pinned versions from `CMakeLists.txt`; reads local installed versions from `~/.pico-sdk/<component>/`; produces drift table at `logs/toolchain_drift.txt`. Graceful degradation on network failure — does not block the cycle).
 2.4 Build-system audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P1-A through P5 (dev-tool gating, self-flagged dead code, ROCKETCHIP_SOURCES coverage, host/target split, vendor SYSTEM classification, IVP-era scaffolding comments).
 2.5 Active-deviations row walk: walk `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` Active section row-by-row, confirm each row's justification still holds.
-2.5a **Deferred-with-rationale row walk** (council amendment #4): walk every deferred-with-rationale row across the audit machinery (LOC-5/LOC-6 MISRA-C deferral; any DEFER row in active dated audit reports' `## Remediation` sections; deferred-with-safety-impact rows in `docs/PROBLEM_REPORTS.md`). Three cycles without re-evaluation = stale-rationale threshold; flag for explicit user re-disposition if exceeded.
-2.6 **Prior-cycle delta read** (council amendment #5, sourced from JPL F' Mars sustaining-engineering pattern): open most-recent prior dated audit report. List which findings closed, remained, were re-opened, are new. Feeds Tier 5.6 and Tier 7.
+2.5a **Deferred-with-rationale row walk** (council amendment #4): walk every deferred-with-rationale row across the audit machinery (LOC-5/LOC-6 MISRA-C deferral; any DEFER row in active dated audit reports' `## Remediation` sections; deferred-with-safety-impact rows in `docs/PROBLEM_REPORTS.md`; the L2-P5 manual walk's `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md`). Three cycles without re-evaluation = stale-rationale threshold; flag for explicit user re-disposition if exceeded.
+2.6 **Prior-cycle delta read** (council amendment #5, sourced from JPL F' Mars sustaining-engineering pattern): open most-recent prior dated audit report (and `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_LOG.md` for L2-P5 dispositions). List which findings closed, remained, were re-opened, are new. Feeds Tier 5.6 and Tier 7.
 
 **Stop condition:** Tier 2 finding that invalidates Tier 1's verified-gates assumption AND severity Catastrophic/Critical → return to Tier 1.
 
@@ -85,11 +87,11 @@ Mechanical catalog work. The big static pass against published rule sets the pro
 
 **Stop condition:** Tier 3 finding that invalidates Tier 2 baseline AND severity Catastrophic/Critical → return to Tier 2.
 
-**Positive-control expectation:** dated `STANDARDS_AUDIT_YYYY-MM-DD.md` produced with Sections A through E + F-1 populated.
+**Positive-control expectation:** dated `STANDARDS_AUDIT_YYYY-MM-DD.md` produced with Sections A through E + F-1 populated. **Evidence rule (2026-10-29):** PASS needs (a) a tool run that tests the rule's own condition, with its output path, or (b) a named assertion read against the rule text, with expected value = required value. "By read" alone is UNVERIFIED. An identifier match, a test file's existence, or doc text is never evidence.
 
 **Sampling-policy rule (L2-P2 disposition, 2026-05-13):** wherever this procedure asks for a walk against a defined population (cited sources, AO inventory, ifdef-gated dev code, version-string print sites), the default is **exhaustive coverage** against the distinct-item population, not a sample. The 2026-05-07 L2 audit demonstrated that exhaustive coverage is feasible (~23 distinct cited sources reducible from 78 cite sites) and load-bearing (R-26 was missed by the original 12-item sample). If sampling is used (e.g., because the population is too large), the report's scope-language must follow the L2-P4 disposition below.
 
-**Report scope-language rule (L2-P4 disposition, 2026-05-13):** PASS results in dated audit reports must name the population walked. Acceptable wording: "23/23 distinct cited sources CONFIRMED" (exhaustive); "12/23 sampled cited sources CONFIRMED — 11 not sampled this cycle" (acknowledged-incomplete). Unacceptable wording: "Citations PASS" (no scope), "All citations checked" (over-claim). The 2026-05-13 master cycle's Tier 3 brevity exception specifically calls out scope language in its coverage statement.
+**Report scope-language rule (L2-P4 disposition, 2026-05-13):** PASS results in dated audit reports must name the population walked. Acceptable wording: "23/23 distinct cited sources CONFIRMED" (exhaustive); "12/23 sampled cited sources CONFIRMED — 11 not sampled this cycle" (acknowledged-incomplete). Unacceptable wording: "Citations PASS" (no scope), "All citations checked" (over-claim). The 2026-05-13 master cycle's Tier 3 brevity exception specifically calls out scope language in its coverage statement. **Counting rule (2026-10-29):** every count is derived twice by independent methods on the pinned tool (clang-tidy 21.1.8, B.1 P10-10 note) and the gate's own platform; counts from other versions are labeled with the version and never used in summaries. **Report scope rule:** every summary sentence names its population (e.g. "549 shalls in 4 of 7 claimed books"); paths are repo-relative from the root.
 
 ### Tier 4 — Walk the Runtime Behavior
 
@@ -113,6 +115,7 @@ Prove the running system does what its requirements say. Source: existing Steps 
 5.1 **Pre-flight gate execution**: walk `docs/PRE_FLIGHT_CHECKLIST.md` in full. Every GO verdict + positive-control signal observed.
 5.2 **Stack / Memory / RP2350 Errata Deep Review** (Appendix A.2). E2 / E9 / E11 / E12 re-verification.
 5.3 **End-to-end gates**: `bench_sim.py` 2/2 PASS for vehicle (single flight binary post-R-25-exec 2026-05-13); `station_bench_sim.py` for station; `warm_reboot_audit.py` (R-22, R-25-exec step 11) for warm-reboot coverage; `verify_boot_parity.sh` (R-24, R-25-exec step 12) for cross-tier banner verification.
+    - **Bench procedure note (Buzz, measured 2026-10-26):** after a picotool flash the Feather IMU/baro can stay NO-GO until power-cycled. Bench order: power-cycle, check `p` preflight, then run. Never rerun a failed bench without a reset. Do not use `k` (restart, unverified) or `b` (find-me beacon). Hardware detail belongs in `docs/hardware/HARDWARE.md` when recorded there.
 5.4 **Host-side replay**: `scripts/replay_harness_host.py` end-to-end. (Currently a placeholder skeleton — R-25-exec council amendment #4 deleted the on-MCU CSV-streamer in steps 5+6; host-side ESKF replay implementation is follow-on work, IVP-131 verification model shifted. Documented gap; clears when the host-side ESKF replay implementation lands.)
 5.5 **Requirements traceability spot-check**: state machine, ESKF outputs, pyro commands, telemetry fields, safety flags. **Exhaustive coverage** against distinct-cited-source population (sampling missed R-26 in the 2026-05-07 L2 audit).
 5.6 **Regression check on prior-cycle closed findings** (council amendment #6): every finding closed in prior cycles (from Tier 2.6 delta read) gets a one-line regression check. If R-19 closed in cycle N by removing X, Tier 5.6 in cycle N+1 confirms X still gone.
@@ -125,7 +128,7 @@ Catch documentation that earlier tiers' work has invalidated. Last because earli
 
 6.1 **Section F-2 — Audit-cycle citations in non-standards docs** (council amendment #2): walk file:line references + audit-cycle citations in protected state-of-system docs OUTSIDE the standards documents — `PROJECT_STATUS.md`, `docs/SAD.md`, `CHANGELOG.md` (current-cycle entry), `docs/SCAFFOLDING.md`, `docs/AO_ARCHITECTURE.md`.
 6.2 **Section G — Audit History** (`STANDARDS_AUDIT.md` template). Roll up cycle's findings into audit-history table.
-6.3 **Section H — Ongoing Compliance Verification** (template). Walk pre-commit hook coverage, SESSION_CHECKLIST trigger coverage, milestone-close discipline coverage.
+6.3 **Section H — Ongoing Compliance Verification** (template). Walk pre-commit and pre-push hook coverage (`scripts/hooks/pre-push`, `scripts/ci/pre_push_gate.py`; LL Entry 48), SESSION_CHECKLIST trigger coverage, milestone-close discipline coverage.
 6.4 **Protected-doc drift check** (SESSION_CHECKLIST.md item 14): grep state-of-system docs for symbols / module paths that this audit's findings have deleted, renamed, or re-homed.
 6.5 **CHANGELOG audit-history rollup**: cycle's CHANGELOG entry references dated audit report + names every disposition (REMEDIATE / ACCEPT / DEFER) without ambiguity.
 
@@ -135,7 +138,7 @@ Catch documentation that earlier tiers' work has invalidated. Last because earli
 
 Existing structure preserved verbatim. Source: Appendix C (4-category remediation triage, unchanged).
 
-Findings disposition (REMEDIATE / ACCEPT / DEFER) per finding. Per **Appendix C**, remediation execution order is: Cat 1 (Gate Integrity) → Cat 2 (Shared Foundations) → Cat 3 (Behavior Changes) → Cat 4 (Cleanup). **DEFER disposition requires a safety-impact one-liner.** A finding can be deferred only if the dated report names — explicitly — why the deferral is acceptable from a safety perspective (typically: mission-phase exposure is bounded; doc-only with no behavior change; risk dominated by an unrelated dependency that must land first). Plain "DEFER — not blocking" is not sufficient. Source: DO-178C "open problem reports at certification must be evaluated for their safety impact." Equivalent rule in `docs/PROBLEM_REPORTS.md` for non-audit deferrals.
+Findings disposition (REMEDIATE / ACCEPT / DEFER) per finding. Per **Appendix C**, remediation execution order is: Cat 1 (Gate Integrity) → Cat 2 (Shared Foundations) → Cat 3 (Behavior Changes) → Cat 4 (Cleanup). **DEFER disposition requires a safety-impact one-liner.** A finding can be deferred only if the dated report names — explicitly — why the deferral is acceptable from a safety perspective (typically: mission-phase exposure is bounded; doc-only with no behavior change; risk dominated by an unrelated dependency that must land first). Plain "DEFER — not blocking" is not sufficient. Source: DO-178C "open problem reports at certification must be evaluated for their safety impact." Equivalent rule in `docs/PROBLEM_REPORTS.md` for non-audit deferrals. **Fail means fix (Nathan, 2026-10-29):** every FAIL is REMEDIATE; it is not "not a fail" because it will be fixed later. ACCEPT or DEFER of a FAIL needs an existing `ACCEPTED_STANDARDS_DEVIATIONS.md` row, cited by line. A finding outside the audit scope is filed in its owner's tracker (whiteboard row or problem report) the day it is found.
 
 ACCEPTED deviations require user sign-off and land in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Verification cadence per Appendix C.5 (local per-commit vs. category-transition regression vs. cycle-close regression).
 
@@ -151,7 +154,7 @@ ACCEPTED deviations require user sign-off and land in `ACCEPTED_STANDARDS_DEVIAT
 
 **Files to inspect:**
 - `src/active_objects/ao_flight_director.cpp` (state machine + guards)
-- `src/eskf/` (divergence detection + brake)
+- `src/fusion/` (`eskf.cpp`/`eskf.h`: divergence detection + brake)
 - `src/drivers/rfm95w.cpp` + radio scheduler (command path)
 - `src/cli/rc_os.cpp` (p, a, X commands)
 - `src/logging/` (pyro intent and disarm logs)
@@ -524,7 +527,7 @@ If the project's verification surface area changes meaningfully (new hardware ti
 
 ## Three-Category Plan Reference
 
-Full details of scripted vs manual work items are in `AUDIT_CLEANUP_2026-05-06.md` (Category 1–3 tables). This document only sequences their execution and defines scope.
+Full details of scripted vs manual work items were in `AUDIT_CLEANUP_2026-05-06.md` (Category 1–3 tables). *Historical: that file is no longer in the tree (checked 2026-10-29 at `579f0976`); no replacement is named.* This document only sequences their execution and defines scope.
 
 ---
 
@@ -556,6 +559,25 @@ New scripted audit tools will only enforce rules already present in `CODING_STAN
 - Historical audit reports → `docs/audits/`
 - Operational checklists (`PRE_FLIGHT_CHECKLIST.md`, `BENCH_TEST_PROCEDURE.md`) → `docs/`
 - Category 3 manual guides live inside this file as Appendix A
+- Starcom audit reports and raw logs → `starcom/docs/audits/` (Starcom-owned; procedure in its README)
+
+---
+
+## Audit integrity rules (2026-10-29)
+
+Added after the 2026-10-29 Starcom audits (report: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`). These are hard stop points; no deadline skips them. Audit work is slow and hand-read, with a spot check before posting (Nathan, 2026-10-29 12:16 PM CDT).
+
+1. **Hand-read evidence for every PASS.** A person or agent reads the cited assertion against the rule or shall text and writes the expected value next to the required value. Script output is a lead, never a verdict.
+2. **Two independent derivations of every count.** Two methods, or the same method on two machines, must agree before a number goes in a report. Name both in the report.
+3. **Second reader before commit or post.** A different agent or person reads the report against its evidence (at least a stated PASS sample and every summary sentence) and signs a line in the report. No commit, push or chat post of results before that line exists.
+4. **Pinned tool on the gate's own platform before any number is final.** Off-platform numbers are labeled "pre-check" and never copied into the final tables.
+5. **A fast result is a defect signal.** A result that arrives faster than its stop points allow is treated as unchecked, not as done.
+
+**Delegated audits.**
+- **Brief template.** Every delegated audit brief carries, verbatim: the owner's request in quotes; the procedure and "to completion" or the named subset with the owner's quote; the population; the evidence rule (Tier 3); the counting rule; the pinned tool and platform; the protected-file list; and what "done" means. The subagent echoes the scope back before starting and stops if the quote and the scope disagree.
+- **No paraphrase of scope.** A relay agent may add constraints but may not narrow the owner's scope without quoting the owner.
+- **Two-agent rule.** The agent that produced results may not be the only reader before commit.
+- **Deadline rule.** If time runs out, stop and report what is done and not done. Do not finish faster by lowering the evidence rule.
 
 ---
 
@@ -566,7 +588,7 @@ New scripted audit tools will only enforce rules already present in `CODING_STAN
 - `PRE_FLIGHT_CHECKLIST.md` — Tier 5.1 detail
 - `VERIFICATION_OVERVIEW.md` — Complementary verification layers
 - `AUDIT_REMEDIATION.md` — Historical fixes
-- `AUDIT_CLEANUP_2026-05-06.md` — Three-category plan
+- `AUDIT_CLEANUP_2026-05-06.md` — Three-category plan (historical; removed from the tree)
 - `RP2350_ERRATA.md` — Appendix A.2 reference
 - `docs/SAD.md` — State machine for FMEA mapping
 

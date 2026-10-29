@@ -57,6 +57,7 @@
 | 46 | Post-flash extra restart / GDB attach are process, not a new E2 |
 | 47 | FPV-twist of STEMMA 4-core freezes I2C (not GPS-last) |
 | 48 | Gate that talks to a DUT can PASS on leftover / wrong artifact |
+| 49 | A fast audit that looks finished is worse than a slow one |
 
 Process / tooling cluster (gates, citations, worktrees): **36–46, 48**. HW-debug journal continues around them; this index is the map.
 
@@ -1996,3 +1997,26 @@ Do not treat "OpenOCD is up," "CDC enumerated," "ctest 894/894," or "2/2 PASS" a
 - LL 43 — "clean" without proving the check applied. Same negative evidence, hardware edition.
 - LL 46 — first resume after `load` is not a counted boot; leftover CDC can lie the same way.
 - `standards/HW_GATE_DISCIPLINE.md` Rule 5; `standards/VERSIONING.md` SWE-084; `docs/FLASHING.md`.
+
+---
+
+## Entry 49: A Fast Audit That Looks Finished Is Worse Than a Slow One
+
+**What happened (2026-10-29).** An overnight Starcom audit was committed six minutes after its pinned-tool numbers came in. Several defects reached the commit:
+- script-graded CCSDS PASS rows, some citing assertions of the opposite value;
+- "by read" PASS rows that a compiler disproved (JSF 181: 12 redundant casts);
+- a count taken from the wrong clang-tidy version (12 instead of 10 for the RC root config);
+- 23 `clang-analyzer-core.*` checks counted as live because `--list-checks` listed them, though both shipped configs silence them;
+- a claim sync that only grepped known strings;
+- edits to a Hard-Protected and a frozen file. (The 3 `STANDARDS_AUDIT.md` history rows are now proposed. They wait for owner approval in the audit archive.)
+The RC master audit that was asked for never ran.
+
+**Why.** Scope was narrowed in the brief, not by the owner. PASS was allowed without reading the evidence against the rule. Counts were derived once. There was no second reader. A complete-looking report gave false confidence. Report: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`.
+
+### Prevention
+For any audit: owner-quoted scope; hand-read evidence for every PASS; two derivations of every count on the pinned tool and platform; a planted-defect probe before trusting a check; per-file permission for protected files; and a second reader before commit or post. No deadline skips these (`standards/AUDIT_GUIDANCE.md`, "Audit integrity rules"). If something fails, it is a FAIL to fix, not "not a fail" because it gets fixed eventually (Nathan, 2026-10-29).
+
+### Related
+- LL 36: an honor-system gate. Here a check was listed but silenced.
+- LL 43: "clean" without proving the check applied. The same negative evidence, in clang-tidy config.
+- LL 48: gate PASS on the wrong artifact.
