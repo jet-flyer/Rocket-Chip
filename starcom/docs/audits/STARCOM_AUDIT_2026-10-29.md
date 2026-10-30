@@ -1012,7 +1012,7 @@ At the end, push in segments that obey the gate's shape rule. Put no more than 5
 - **V-bench**: the Buzz bench run for this commit, if the gate classes make it necessary.
 - **V-duke**: Duke's book check of the on-air constants and field widths.
 - **V-air**: an on-air run on the two boards with `scripts/soak_two_board.py` (procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`). The bench (`bench_sim.py`, `station_bench_sim.py`) tests flight logic only. It does not send data on the air. V-air is necessary for the batches that change behavior in the MAC, COP-P, coding or `byte_pump`: C3, C4, C7, C8, C9, C11, C16, C17 and C18. Buzz does a run of about 60 s on the desk at 2 dBm after each of these batches. Buzz compares the counts with the A1 baseline: vehicle frames sent, station frames received, and station CRC errors. A count that is worse than the baseline is a FAIL for the batch.
-- **V-air+**: for C4, C11 and C18 (COP-P resend, PLCW feedback and the uplink command path), V-air also sends repeated station `X` (DISARM) uplinks. `X` and the `c` T-minus command go through COP-P (`src/active_objects/ao_telemetry.cpp:1385`; `src/cli/cli_actions.cpp:215`), and they are safe to repeat. Do not use `b`. Then `t` on each board prints a `LINK` line with `copp_rtx` (`starcom/src/ccsds/copp.cpp:570`) and `copp_sync_loss` (`src/diag/link_baseline.cpp:95-111`). Buzz compares `copp_rtx` and the COP-P lock state with the A1 baseline. The only frame drop on the boards is `fault_force_station_rx_drop` (`src/safety/station_fault_inject.cpp:35`). It is armed through GDB and the probe only, and it drops vehicle-to-station frames only. Thus V-air+ cannot drop an uplink or a PLCW. Label the V-air+ runs for C4, C11 and C18 "uplink path only". On a clean desk link, `copp_rtx` stays near zero, so the run cannot show that resend works. The host test T0 is the only coverage of resend and recovery. The vehicle-side drop hook stays an open item.
+- **V-air+**: for C4, C11 and C18 (COP-P resend, PLCW feedback and the uplink command path), V-air also sends repeated station `D` (dashboard DISARM) uplinks (`--uplink-disarm-every`). `D` and the `c` T-minus command go through COP-P (`src/active_objects/ao_rcos.cpp:280-281`; `src/active_objects/ao_telemetry.cpp:1385`; `src/cli/cli_actions.cpp:215`), and they are safe to repeat. Do not use `b`. Then `t` on each board prints a `LINK` line with `copp_rtx` (`starcom/src/ccsds/copp.cpp:570`) and `copp_sync_loss` (`src/diag/link_baseline.cpp:95-111`). Buzz compares `copp_rtx` and the COP-P lock state with the A1 baseline. The only frame drop on the boards is `fault_force_station_rx_drop` (`src/safety/station_fault_inject.cpp:35`). It is armed through GDB and the probe only, and it drops vehicle-to-station frames only. Thus V-air+ cannot drop an uplink or a PLCW. Label the V-air+ runs for C4, C11 and C18 "uplink path only". On a clean desk link, `copp_rtx` stays near zero, so the run cannot show that resend works. The host test T0 is the only coverage of resend and recovery. The vehicle-side drop hook stays an open item.
 
 **V-tidy command (PC, PowerShell).** The audit run used the 19 translation units in the MinGW compile database at `C:\Users\pow-w\Documents\rc-audit-logs\scbuild`. The audit did not keep its loop as a script. The log header is `starcom clang-tidy 21.1.8 scope=all config=...\starcom\.clang-tidy`. This loop gives the same inputs:
 
@@ -1041,7 +1041,7 @@ NB = no bench (no path in `firmware_paths.txt`). V-air = the on-air check above.
 | G4 | PR-1 (self-test and fixture; Tier 1.1) | New files only | Add the known-bad probe (text below) at `starcom/tests/tidy_probe/`. Add `starcom/scripts/tidy_selftest.sh`: run the pinned clang-tidy on the probe with `starcom/.clang-tidy`, fail if a check named in an `EXPECT` tag does not fire, fail if `probe_vendor.hpp` shows, and fail if `--list-checks` gives fewer than 169. Add a CTest entry in `starcom/tests/CMakeLists.txt` that runs it when the pinned clang-tidy is present | `starcom/tests/tidy_probe/*`, `starcom/scripts/tidy_selftest.sh`, `starcom/tests/CMakeLists.txt` | NB | no | Self-test passes on the G3 config; self-test fails on the shipped config (planted check); V-hook | Grok Build (Hamilton prompt) | G1, G3 |
 | T1 | PR-6 | `starcom/scripts/run_clang_tidy.sh` (mixed line endings, so `exit 0\r` fails, exit 2) | Change the file to LF only. Add `*.sh text eol=lf` for `starcom/scripts/` in `.gitattributes` if it is not there | `starcom/scripts/run_clang_tidy.sh`, `.gitattributes` | NB | no | `bash starcom/scripts/run_clang_tidy.sh --all` exits 0; `git ls-files --eol` shows `i/lf`; V-hook | Hamilton | — |
 | R1 | Baseline (no PR) | All 19 translation units | Run V-tidy with the G1+G3 config. Record the new counts for each check and each file in `starcom/docs/audits/CLANG_TIDY_R1_<date>.txt` and in a short Markdown note. This is the baseline for every code batch | `starcom/docs/audits/` | NB | no | Goddard runs the same loop again and gets the same counts | Hamilton | G1, G3 |
-| A0 | No PR (prerequisite for V-air) | `scripts/soak_two_board.py:175`, `:188`, `:337` | Four fixes. (1) `veh_git` takes the last hex string of 7 or more characters, so it can store a tree hash (`docs/reports/2026-10-20_buzz_lora_baseline.md:308`): match `flight-([0-9a-f]+)` first. (2) The station COP-P pattern at `:188` and `:337` has no colon, but the station prints `COP-P:` (`src/cli/rc_os_commands.cpp:921,1078,1378`), so it probably never matches: add the colon. (3) Read the `LINK` line (`copp_rtx`, `copp_sync_loss`) after `t` on each board; use the pattern in `scripts/baseline_lora.py:209-212`. (4) Add an uplink step: send station `X` at set times | `scripts/soak_two_board.py` | NB | no | Run the score part on the 2026-10-20 logs: `veh_git` is the `flight-` hash and the station COP-P state is found; a test log with a `LINK` line gives `copp_rtx`; V-hook | Buzz | — |
+| A0 | No PR (prerequisite for V-air) | `scripts/soak_two_board.py:175`, `:188`, `:337` | Four fixes. (1) `veh_git` takes the last hex string of 7 or more characters, so it can store a tree hash (`docs/reports/2026-10-20_buzz_lora_baseline.md:308`): match `flight-([0-9a-f]+)` first. (2) The station COP-P pattern at `:188` and `:337` has no colon, but the station prints `COP-P:` (`src/cli/rc_os_commands.cpp:921,1078,1378`), so it probably never matches: add the colon. (3) Read the `LINK` line (`copp_rtx`, `copp_sync_loss`) after `t` on each board; use the pattern in `scripts/baseline_lora.py:209-212`. (4) Add an uplink step: send station `D` (dashboard DISARM) at set times. Do not send `x` or `X`: on the dashboard they open the menu, where `x` is erase | `scripts/soak_two_board.py` | NB | no | Run the score part on the 2026-10-20 logs: `veh_git` is the `flight-` hash and the station COP-P state is found; a test log with a `LINK` line gives `copp_rtx`; V-hook | Buzz | — |
 | A1 | No PR (V-air baseline) | Current `main` (before C1) | One baseline run of `scripts/soak_two_board.py` on the two boards, 2 dBm, the same desk layout that the later V-air runs use. Record the counts and the SHA in `starcom/docs/audits/` | `starcom/docs/audits/` | NB (no code change) | no | Goddard reads the counts again from the log | Buzz | A0; Nathan's go; board layout checked with Nathan |
 | C1 | PR-33 (JSF 181) | `mac.cpp:234, 1127-1129, 1166-1168, 1212-1214`; `ldpc.cpp:159`; `adapters/host/udp.cpp:149` | Remove each redundant cast. Examples: `static_cast<unsigned>((w >> 15) & 1u)` -> `((w >> 15) & 1u)`; `t = static_cast<Tick>(t - dt);` -> `t = t - dt;`; `std::popcount(static_cast<unsigned>(r & 0x5Fu))` -> `std::popcount(r & 0x5Fu)` (only if the type of `r & 0x5Fu` is already `unsigned`); `static_cast<std::uint16_t>(ntohs(...))` -> `ntohs(...)` | `starcom/src/ccsds/mac.cpp`, `ldpc.cpp`, `starcom/adapters/host/udp.cpp` | B, R, T | yes (`ldpc.cpp:159` mask `0x5F`) | V-gcc `-Wuseless-cast` = 0; `readability-redundant-casting` = 0; V-obj for mac and ldpc; V-hook; V-bench | Grok Build | R1, A1 |
 | C2 | PR-34 (JSF 162) | `conv.cpp:16,17`; `ldpc.cpp:159`; `adapters/host/udp.cpp:73` | Make each sign change explicit. `c1 = std::popcount(v & kG1) & 1u;` -> `c1 = static_cast<unsigned>(std::popcount(v & kG1)) & 1U;` (same for `c2` and `ldpc.cpp:159`); `ioctlsocket(s, FIONBIO, &one)` -> `ioctlsocket(s, static_cast<long>(FIONBIO), &one)` or the type that the Windows header gives | `conv.cpp`, `ldpc.cpp`, `udp.cpp` | B, R | yes (`kG1`, `kG2`, G2 inversion, `0x5F`) | V-gcc `-Wsign-conversion` = 0 for these sites; test pins `kG1`, `kG2` and the PN taps; V-obj; V-hook; V-bench | Grok Build | R1, A1, C1 |
@@ -1112,6 +1112,51 @@ This list comes from a search for the 10 check names and `clang-analyzer-core` i
 - Goddard (2026-10-30): P10 Rule 9 bans function pointers because an indirect call stops the static proofs of the call graph and of no recursion. A virtual call is an indirect call through a table, so the same reason applies to it.
 
 Decision (Nathan, 2026-10-30, by the rule "if the standards make a change necessary and it is feasible, do it"): the adapter edge also uses templates. No virtual dispatch. Reasons: Goddard's P10 Rule 9 reason above; `CODING_STANDARDS.md:47` ("the MORE-RESTRICTIVE rule applies"); and the FP-1 change, which removed function pointers with template dispatch. D4 changes `starcom/docs/DESIGN.md:111` to agree. `docs/agents/PROTECTED_FILES.md` does not list `starcom/docs/DESIGN.md`, so the edit needs no permission.
+
+#### A1 baseline: two-board radio run (V-air reference)
+
+Status: recorded from the raw logs. Goddard re-read: pending.
+
+| Item | Value |
+|---|---|
+| Date and time | 2026-10-30, 01:50:23 to 01:51:24 CDT (log stamps). Run 60.9 s (score file). |
+| Operator | Buzz (Rocket Chip tester). Count re-read from raw logs: Hamilton. Second re-read: Goddard (pending). |
+| Firmware | `flight-18e5e6d8` on the two boards (vehicle and station banner; vehicle `ID: flight-18e5e6d8 tree=6ec6f83e984797731b2d6f3e95a6021612daabc5`; station `ID:` line the same). |
+| Log tag | The log names have `579f0976`. This is the `origin/main` commit that Buzz used as the run tag (`--tag`, `scripts/soak_two_board.py:317`). It is not the firmware. |
+| Tag vs firmware check | `git diff --stat 18e5e6d8 579f0976` changes 3 files: `AGENT_WHITEBOARD.md`, `CHANGELOG.md`, `src/starcom_adapt/README.md`. The only one under an `[elf]` path is a `.md` file, and `!**/*.md` in `scripts/ci/firmware_paths.txt` excludes it. Thus the firmware is the same at the two commits. `git diff --stat 18e5e6d8 6a616148` on the `[elf]` paths also shows only that README. |
+| Radio settings | 2 dBm, BW 250 kHz, SF 7, CR 4/5, nav 10 Hz (vehicle `CFG: BW=250 SF=7 CR=5 nav=10Hz pwr=2dBm`; station `Radio: BW250 10Hz SF7 CR5 pwr2`). |
+| Layout | Nathan's standard desk layout. |
+| Arm and uplink | Nothing armed (`arm_sent: False`). No uplink command sent (`uplink_disarm_sent: 0`). |
+| Preflight | Vehicle `Hardware: 13/13 OK`, `go_nogo=READY`. Station `Hardware: 11/11 OK`. |
+
+##### Counts (from the raw logs)
+
+All board counters are from boot. The run values are differences.
+
+| Count | Start | End | In the run |
+|---|---|---|---|
+| Vehicle frames sent (`TX: N sent`) | 2656 (01:50:27.746) | 3147 (01:51:15.994) | 491 in 48.2 s, 0 fail |
+| Station frames received (dashboard `Pkts:`) | 2557 (01:50:23.667) | 3171 (01:51:24.544) | 614 in 60.9 s |
+| Station CRC errors (dashboard `CRC:`) | 1 | 1 | 0 new |
+| Station `LINK` at end `t` | - | delivered=3090 missing=6 crc_fail=1 copp_rtx=0 copp_sync_loss=0 | no start value |
+| Vehicle `LINK` | delivered=313 copp_rtx=0 copp_sync_loss=0 | delivered=372 copp_rtx=0 copp_sync_loss=0 | 59 delivered, 0 resend, 0 sync loss |
+| Station COP-P state | lock in each dashboard frame | lock | lock all the run |
+| Link quality | LQ 100% in each frame | | |
+| Station RX rate (dashboard) | 8.5 to 11.0 Hz, last frame 10.4 Hz | | |
+| RSSI | -62 to -65 dBm | | |
+| SNR | 9 to 13 dB | | |
+
+Note: the station `missing=6` is from boot. This log has no start value, so it is not a run count.
+
+##### End sequence
+
+The station got one `x` (01:51:15.776), then `z` (01:51:16.177), `t` (01:51:16.427), `s` (01:51:16.778). The station was on its dashboard when `x` went out. No erase prompt is in the log. The station end dump printed. After `s` the station is in its settings menu; the next power cycle clears it.
+
+##### Logs (on the PC, gitignored)
+
+- `logs/soak/2026-10-30_A1_baseline_2dbm_579f0976.txt` (vehicle)
+- `logs/soak/2026-10-30_A1_baseline_2dbm_579f0976_stn.txt` (station)
+- `logs/soak/2026-10-30_A1_baseline_2dbm_579f0976_score.txt` (score; its RATE counters, layout and airtime lines are wrong. The script fix after this run corrects them. Use the counts above.)
 
 #### G1 proposed text (`starcom/.clang-tidy`, top of file to the end of `Checks:`)
 

@@ -106,6 +106,8 @@ Plan: scratch `git worktree add` at HEAD in a temp folder, configure the build d
 
 `baseline_lora.py` / `soak_two_board.py` bugs: `docs/reports/2026-10-20_buzz_lora_baseline.md`, "Open follow-ups". Scripts still usable via the raw logs.
 
+`soak_two_board.py` run window (2026-10-30, Goddard): `delta_window_s` starts after the vehicle answers the start `t` and stops after the end key sequence, so it is about 1 s shorter than the span the counts cover. Take both marks at the same point (key sent, or answer seen).
+
 ### Soldering to-do (can be done today) (2026-10-08)
 
 Prerequisite: Now, "Station-only wiring checks before soldering" (breadboard first).

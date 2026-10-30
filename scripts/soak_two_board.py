@@ -171,18 +171,49 @@ def strip_ansi_text(text: str) -> str:
     return _ANSI_RE.sub(b"", blob).decode("utf-8", errors="replace")
 
 
-def last_rate(text: str, key: str) -> int | None:
-    # Pad has no RATE row. CLI `t` / debug `r` dump is:
-    #   RATE window_ms=...
-    #     nav_submit=...  pltu_post=...
+# CLI `t` / debug `r`: "RATE window_ms=..." then indented integer rows.
+# "RATE:" is accepted. RATE_HZ is a different block and is not read.
+_RATE_HDR_RE = re.compile(
+    r"(?m)^(?:\[[^\]]*\][ \t]*)?RATE:?[ \t]+window_ms=(\d+)"
+)
+# Integer only. "9.9" and "10" of "10.1" do not match.
+_RATE_INT_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)=(\d+)(?![\d.])")
+
+RATE_KEYS = (
+    "nav_submit", "pltu_post", "tx_start", "tx_done",
+    "tx_busy_drop", "tx_hold_replace", "rx_crc_ok", "rx_crc_fail",
+    "station_tx",
+)
+
+
+def parse_rate_block(text: str) -> dict[str, int] | None:
+    """Last RATE block. Integers on the indented rows. Not RATE_HZ."""
     clean = strip_ansi_text(text)
-    same = last_int(clean, rf"RATE:?[^\n]*\b{re.escape(key)}\s*=\s*(\d+)")
-    if same is not None:
-        return same
-    hits = list(re.finditer(rf"(?m)^\s*{re.escape(key)}\s*=\s*(\d+)", clean))
-    if not hits:
+    headers = list(_RATE_HDR_RE.finditer(clean))
+    if not headers:
         return None
-    return int(hits[-1].group(1))
+    hdr = headers[-1]
+    nl = clean.find("\n", hdr.start())
+    body = ""
+    if nl >= 0:
+        rows: list[str] = []
+        for line in clean[nl + 1:].split("\n"):
+            if line.startswith(" ") or line.startswith("\t"):
+                rows.append(line)
+                continue
+            break
+        body = "\n".join(rows)
+    out: dict[str, int] = {"window_ms": int(hdr.group(1))}
+    for match in _RATE_INT_RE.finditer(body):
+        out[match.group(1)] = int(match.group(2))
+    return out
+
+
+def last_rate(text: str, key: str) -> int | None:
+    block = parse_rate_block(text)
+    if block is None:
+        return None
+    return block.get(key)
 
 
 def rate_hz(count: int | None, window_ms: int | None) -> str | None:
@@ -191,24 +222,124 @@ def rate_hz(count: int | None, window_ms: int | None) -> str | None:
     return f"{count / (window_ms / 1000.0):.2f}"
 
 
-LAYOUT_BLURB = {
-    "A": "A (station on metal PC, ~1.5 m, antennas up)",
-    "B": "B (vehicle on floor behind chassis, no LOS, antennas orthogonal)",
-    "C": "C (station lifted off metal, 2 m LOS, antennas vertical)",
-    "D": "D (outdoors range)",
-}
+def layout_label(layout: str) -> str:
+    if layout == "standard-desk":
+        return "Nathan's standard desk layout"
+    return "NON-STANDARD: " + layout
+
+
+def tx_sent(text: str) -> int | None:
+    return last_int(text, r"TX:\s+(\d+)\s+sent")
+
+
+def tx_fail(text: str) -> int | None:
+    return last_int(text, r"TX:\s+\d+\s+sent\s+(\d+)\s+fail")
+
+
+def link_field(text: str, key: str) -> int | None:
+    row = last_link(text)
+    if row is None:
+        return None
+    return row[key]
+
+
+# Dashboard "Pkts" / "CRC" and CLI "RX: N pkts" / "N CRC err" are both
+# RadioAoState.rx_count and rx_crc_errors (rc_os_dashboard.cpp build_frame;
+# rc_os_commands.cpp cmd_radio_status). Start is the dashboard row. End is
+# the CLI row. The CLI row is preferred at end so a later dashboard frame
+# does not replace the end snapshot.
+def dash_pkts(text: str) -> int | None:
+    return last_int(text, r"Pkts:\s+(\d+)")
+
+
+def cli_rx_pkts(text: str) -> int | None:
+    return last_int(text, r"RX:\s+(\d+)\s+pkts")
+
+
+def dash_crc(text: str) -> int | None:
+    return last_int(text, r"CRC:\s+(\d+)")
+
+
+def cli_crc_err(text: str) -> int | None:
+    return last_int(text, r"(\d+)\s+CRC err")
+
+
+def stn_pkts_start(text: str) -> int | None:
+    pkts = dash_pkts(text)
+    if pkts is not None:
+        return pkts
+    return cli_rx_pkts(text)
+
+
+def stn_pkts_end(text: str) -> int | None:
+    rx = cli_rx_pkts(text)
+    if rx is not None:
+        return rx
+    return dash_pkts(text)
+
+
+def stn_crc_start(text: str) -> int | None:
+    crc = dash_crc(text)
+    if crc is not None:
+        return crc
+    return cli_crc_err(text)
+
+
+def stn_crc_end(text: str) -> int | None:
+    crc = cli_crc_err(text)
+    if crc is not None:
+        return crc
+    return dash_crc(text)
+
+
+_CFG_RE = re.compile(
+    r"CFG:\s*BW=(\d+)\s+SF=(\d+)\s+CR=(\d+)\s+nav=(\d+)Hz"
+)
+
+
+def paper_report(veh: str, paper: dict) -> dict[str, object]:
+    """Paper ToA from the last vehicle CFG line. Args are the fallback.
+
+    paper_toa() does not take CR. SF, BW, and nav Hz come from CFG.
+    """
+    hits = list(_CFG_RE.finditer(veh))
+    if hits:
+        bw = int(hits[-1].group(1))
+        sf = int(hits[-1].group(2))
+        nav_hz = int(hits[-1].group(4))
+        nav_ms = paper_toa(sf, bw, 63)
+        plcw_ms = paper_toa(sf, bw, 14)
+        duty: object = None
+        if nav_hz > 0:
+            period_ms = 1000.0 / float(nav_hz)
+            duty = f"{(nav_ms + plcw_ms) / period_ms * 100:.0f}"
+        return {
+            "nav_ms": f"{nav_ms:.1f}",
+            "plcw_ms": f"{plcw_ms:.1f}",
+            "duty_pct": duty,
+            "nav_hz": nav_hz,
+            "source": "vehicle CFG",
+        }
+    return {
+        "nav_ms": paper.get("nav_ms"),
+        "plcw_ms": paper.get("plcw_ms"),
+        "duty_pct": paper.get("duty_pct"),
+        "nav_hz": paper.get("nav_hz"),
+        "source": "cli args (no CFG line)",
+    }
 
 
 def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
-          layout: str = "A", uplink_disarm_sent: int = 0) -> str:
+          layout: str = "standard-desk", uplink_disarm_sent: int = 0,
+          veh_start: str | None = None, stn_start: str | None = None,
+          delta_window_s: float | None = None) -> str:
     lines = []
     def add(k: str, v: object) -> None:
         lines.append(f"{k}: {v}")
 
     add("cell", cell)
     add("duration_s", f"{duration_s:.1f}")
-    add("layout", LAYOUT_BLURB.get(layout, layout))
-    add("operator_bar", "yellow (RSSI -80..-100; consistent with 2 dBm vs hist -40 @ +20)")
+    add("layout", layout_label(layout))
     add("veh_git", last_str(veh, VEH_GIT_RE))
     add("veh_air", last_str(veh, r"Air:\s+(\S+)"))
     add("stn_air", last_str(stn, r"Air:\s+(\S+)"))
@@ -227,6 +358,11 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
         row = last_link(blob)
         add(f"{prefix}_link_delivered", None if row is None else row["delivered"])
         add(f"{prefix}_link_crc_fail", None if row is None else row["crc_fail"])
+        if prefix == "stn":
+            # Station missing, copp_rtx and copp_sync_loss are written once,
+            # below, with the _since_boot names.
+            continue
+        add(f"{prefix}_link_missing", None if row is None else row["missing"])
         add(f"{prefix}_copp_rtx", None if row is None else row["copp_rtx"])
         add(f"{prefix}_copp_sync_loss", None if row is None else row["copp_sync_loss"])
     add("stn_rf_link", last_str(stn, r"(RF Link: [^\n]+)"))
@@ -235,25 +371,116 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
     add("arm_refused", "[SC] LoRa command refused" in stn or "[SC] LoRa command refused" in veh)
     add("fd_arm", bool(re.search(r"\[fd\].*ARM|ARMED|arm_ok", veh, re.I)))
     add("waiting_packets", "Waiting for vehicle packets" in stn)
-    add("paper_nav_toa_ms", paper.get("nav_ms"))
-    add("paper_plcw_toa_ms", paper.get("plcw_ms"))
-    add("paper_duty_5hz_pct", paper.get("duty_pct"))
+    reported = paper_report(veh, paper)
+    add("paper_nav_toa_ms", reported["nav_ms"])
+    add("paper_plcw_toa_ms", reported["plcw_ms"])
+    add("paper_duty_pct", reported["duty_pct"])
+    add("paper_nav_hz", reported["nav_hz"])
+    add("paper_source", reported["source"])
 
     veh_win = last_rate(veh, "window_ms")
     stn_win = last_rate(stn, "window_ms")
     add("veh_rate_window_ms", veh_win)
     add("stn_rate_window_ms", stn_win)
-    for key in (
-        "nav_submit", "pltu_post", "tx_start", "tx_done",
-        "tx_busy_drop", "tx_hold_replace", "rx_crc_ok", "rx_crc_fail",
-        "station_tx",
-    ):
+    for key in RATE_KEYS:
         vn = last_rate(veh, key)
         sn = last_rate(stn, key)
         add(f"veh_{key}_n", vn)
         add(f"stn_{key}_n", sn)
         add(f"veh_{key}_hz", rate_hz(vn, veh_win))
         add(f"stn_{key}_hz", rate_hz(sn, stn_win))
+
+    if delta_window_s is None:
+        add("delta_window_s", None)
+    else:
+        add("delta_window_s", f"{float(delta_window_s):.1f}")
+
+    have_veh = veh_start is not None
+    have_stn = stn_start is not None
+    v0 = veh_start if have_veh else ""
+    s0 = stn_start if have_stn else ""
+
+    def add_span(name: str, start: int | None, end: int | None,
+                 have_start: bool) -> None:
+        # No start snapshot, or no start value: do not use 0 or the boot total.
+        if not have_start or start is None:
+            add(f"{name}_start", None)
+            add(f"{name}_end", end)
+            add(f"{name}_delta", None)
+            return
+        add(f"{name}_start", start)
+        add(f"{name}_end", end)
+        if end is None:
+            add(f"{name}_delta", None)
+            return
+        if end < start:
+            add(f"{name}_delta", None)
+            add(f"{name}_delta_note", "counter went back (reboot?)")
+            return
+        add(f"{name}_delta", end - start)
+
+    add_span("veh_tx_sent", tx_sent(v0) if have_veh else None, tx_sent(veh), have_veh)
+    add_span("veh_tx_fail", tx_fail(v0) if have_veh else None, tx_fail(veh), have_veh)
+    add_span(
+        "stn_rx_pkts",
+        stn_pkts_start(s0) if have_stn else None,
+        stn_pkts_end(stn),
+        have_stn,
+    )
+    add_span(
+        "stn_crc_err",
+        stn_crc_start(s0) if have_stn else None,
+        stn_crc_end(stn),
+        have_stn,
+    )
+    add_span(
+        "veh_copp_rtx",
+        link_field(v0, "copp_rtx") if have_veh else None,
+        link_field(veh, "copp_rtx"),
+        have_veh,
+    )
+    add_span(
+        "veh_copp_sync_loss",
+        link_field(v0, "copp_sync_loss") if have_veh else None,
+        link_field(veh, "copp_sync_loss"),
+        have_veh,
+    )
+    add_span(
+        "veh_link_missing",
+        link_field(v0, "missing") if have_veh else None,
+        link_field(veh, "missing"),
+        have_veh,
+    )
+    # Station missing, copp_rtx, and copp_sync_loss are the end LINK line.
+    # They count since boot. The start path does not open the station menu.
+    for boot_name, boot_key in (
+        ("stn_link_missing", "missing"),
+        ("stn_copp_rtx", "copp_rtx"),
+        ("stn_copp_sync_loss", "copp_sync_loss"),
+    ):
+        add(f"{boot_name}_since_boot", link_field(stn, boot_key))
+    add(
+        "stn_link_counts_note",
+        "since boot; run started right after a power cycle only if the operator says so",
+    )
+
+    veh_rate_end = parse_rate_block(veh) or {}
+    stn_rate_end = parse_rate_block(stn) or {}
+    veh_rate_0 = (parse_rate_block(v0) or {}) if have_veh else {}
+    stn_rate_0 = (parse_rate_block(s0) or {}) if have_stn else {}
+    for key in RATE_KEYS:
+        add_span(
+            f"veh_{key}_n",
+            veh_rate_0.get(key) if have_veh else None,
+            veh_rate_end.get(key),
+            have_veh,
+        )
+        add_span(
+            f"stn_{key}_n",
+            stn_rate_0.get(key) if have_stn else None,
+            stn_rate_end.get(key),
+            have_stn,
+        )
 
     tx = last_int(veh, r"TX:\s+(\d+)\s+sent")
     rx = last_int(stn, r"Pkts:\s+(\d+)") or last_int(stn, r"RX:\s+(\d+)\s+pkts")
@@ -281,7 +508,7 @@ def paper_toa(sf: int, bw: int, pl: int) -> float:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cell", default="A1")
-    ap.add_argument("--tag", default="bw125_5hz_clsA")
+    ap.add_argument("--tag", default="run")
     ap.add_argument("--duration", type=float, default=120.0)
     ap.add_argument("--arm-at", type=float, default=90.0,
                     help="seconds; <0 skips ARM")
@@ -302,8 +529,11 @@ def main() -> int:
                     help="LoRa BW kHz for paper ToA (must match flashed CFG)")
     ap.add_argument("--nav-hz", type=int, default=5,
                     help="nav Hz for paper duty (must match flashed CFG)")
-    ap.add_argument("--layout", default="A", choices=sorted(LAYOUT_BLURB),
-                    help="physical layout class for the score file")
+    ap.add_argument(
+        "--layout",
+        default="standard-desk",
+        help="physical layout for the score file (free text; default standard-desk)",
+    )
     args = ap.parse_args()
     # A repeated DISARM would clear the ARM window. Refuse before any port opens.
     if args.uplink_disarm_every > 0 and args.arm_at >= 0:
@@ -325,6 +555,7 @@ def main() -> int:
         "nav_ms": f"{nav_ms:.1f}",
         "plcw_ms": f"{plcw_ms:.1f}",
         "duty_pct": f"{(nav_ms + plcw_ms) / period_ms * 100:.0f}",
+        "nav_hz": args.nav_hz,
     }
 
     def log(msg: str) -> None:
@@ -333,7 +564,10 @@ def main() -> int:
     log(f"capture {args.cell} {args.tag} {args.duration:.0f}s")
     log(f"  vehicle {VEH_PORT} ({VEH_SER}) -> {veh_path}")
     log(f"  station {STN_PORT} ({STN_SER}) -> {stn_path}")
-    log(f"  paper ToA nav={nav_ms:.1f}ms plcw={plcw_ms:.1f}ms duty@{args.nav_hz}Hz={paper['duty_pct']}%")
+    log(
+        f"  paper ToA nav={nav_ms:.1f}ms plcw={plcw_ms:.1f}ms "
+        f"duty@{args.nav_hz}Hz={paper['duty_pct']}% (from args, before CFG)"
+    )
 
     veh_ser = open_cdc(VEH_PORT)
     log(f"  {VEH_PORT} open ok")
@@ -366,6 +600,11 @@ def main() -> int:
     veh_init_sent = False
     uplink_disarm_sent = 0
     next_uplink_disarm = 15.0
+    start_marked = False
+    veh_start_txt: str | None = None
+    stn_start_txt: str | None = None
+    t_start_mark: float | None = None
+    t_end_mark: float | None = None
 
     try:
         while True:
@@ -422,6 +661,52 @@ def main() -> int:
                 if tx == 0 and stn is None:
                     log("  note: TX=0 at 12s (vehicle-only; station CDC down)")
                 t10_checked = True
+                # After the positive-control check. Deadline is this 12 s pass.
+                # Vehicle `t` only. Station start is the dashboard already in
+                # the log. Do not send a station key (end `x` leaves the menu).
+                if not start_marked:
+                    try:
+                        before = veh.snapshot_text()
+                        before_win = last_rate(before, "window_ms")
+                        veh.send(b"t")
+                        answered = False
+                        deadline = time.monotonic() + 2.0
+                        while time.monotonic() < deadline:
+                            time.sleep(0.05)
+                            cur = veh.snapshot_text()
+                            if len(cur) <= len(before):
+                                continue
+                            tail = cur[len(before):]
+                            win = last_rate(cur, "window_ms")
+                            if (
+                                win is not None
+                                and win != before_win
+                                and "LINK delivered=" in tail
+                            ):
+                                answered = True
+                                break
+                        if not answered:
+                            log(
+                                f"  t={elapsed:.0f}s start `t` no answer in 2 s; "
+                                "vehicle start values may be old or None"
+                            )
+                    except Exception as exc:
+                        log(f"  t={elapsed:.0f}s start-CLI soft-fail ({exc!r})")
+                    # Offset is len(snapshot_text()) at the mark. Keep that
+                    # string. A later ANSI byte must not move the cut.
+                    veh_now = veh.snapshot_text()
+                    veh_start_off = len(veh_now)
+                    veh_start_txt = veh_now[:veh_start_off]
+                    if stn is not None:
+                        stn_now = stn.snapshot_text()
+                        stn_start_off = len(stn_now)
+                        stn_start_txt = stn_now[:stn_start_off]
+                    t_start_mark = time.monotonic()
+                    start_marked = True
+                    log(
+                        f"  t={time.monotonic() - t0:.0f}s start snapshot "
+                        "(vehicle t; station dashboard)"
+                    )
 
             if args.arm_at >= 0 and not armed and elapsed >= args.arm_at:
                 if stn is not None:
@@ -477,6 +762,7 @@ def main() -> int:
                     log(f"  t={elapsed:.0f}s CLI t (end CFG + RATE) veh+stn")
                 except Exception as e:
                     log(f"  t={elapsed:.0f}s end-CLI soft-fail ({e!r}) — continue to score")
+                t_end_mark = time.monotonic()
                 cfg2_sent = True
 
             time.sleep(0.2)
@@ -499,11 +785,15 @@ def main() -> int:
     vtxt = veh.snapshot_text()
     stxt = stn.snapshot_text() if stn is not None else (
         f"STATION_CDC_UNAVAILABLE {stn_open_err}\n"
-        "operator visual: RSSI bar YELLOW\n"
     )
+    window_s = None
+    if t_start_mark is not None and t_end_mark is not None:
+        window_s = t_end_mark - t_start_mark
     summary = score(
         args.cell, vtxt, stxt, elapsed, paper,
         layout=args.layout, uplink_disarm_sent=uplink_disarm_sent,
+        veh_start=veh_start_txt, stn_start=stn_start_txt,
+        delta_window_s=window_s,
     )
     if stn_open_err:
         summary += f"stn_cdc: UNAVAILABLE ({stn_open_err})\n"
