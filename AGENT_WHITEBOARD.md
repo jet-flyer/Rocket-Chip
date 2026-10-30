@@ -84,7 +84,11 @@ Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` (line refs may be stale after 
 
 ### clang-tidy config defects (PR-2 / PR-1b) (2026-10-29)
 
-Both `.clang-tidy` files glue comments into `Checks:` (root: 10 checks off, Starcom: 13, plus 23 `clang-analyzer-core.*` silenced in both), and `HeaderFilterRegex` uses `/`, so Windows reports no header hits. Fix order: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2 "Code-fix plan" (Grok Build on the PC; firmware tree, bench at push).
+Both `.clang-tidy` files glue comments into `Checks:` (root: 10 checks off, Starcom: 13, plus 23 `clang-analyzer-core.*` silenced in both), and `HeaderFilterRegex` uses `/`, so Windows reports no header hits. Fix order: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2 "Code-fix plan" (Grok Build on the PC; firmware tree, bench at push). The root fix (G2) changes only `.clang-tidy`. New RC findings and the relabel of old RC PASS lines go to the RC master audit; each frozen `docs/audits/*` file needs Nathan's OK first (list: Section 2, "G2 relabel").
+
+### Two JSF rules broken with no stated reason: braces and names (Nathan, 2026-10-30)
+
+JSF 60/61 (braces on own lines) are mandatory "will" rules with no exception (JSF Rev C 4.2.1, AV Rule 5), but all code uses K&R, and `docs/audits/STANDARDS_AUDIT_2026-02-07.md:271-272` is a false PASS; the `standards/CODING_STANDARDS.md:63` camelBack override of JSF 45/51/52 gives no reason (`docs/audits/RULE_VERIFIABILITY_TRIAGE.md:466` says only "repo-owner authorized"); JPL C puts naming and formatting out of its scope and Power of 10 has no layout or naming rule (Goddard, checked against both texts), so JSF governs; MISRA not checked. RC master audit item; Starcom W2 waits (`starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2).
 
 ### Pre-commit hook positive controls + gaps (TODO) (2026-10-21)
 

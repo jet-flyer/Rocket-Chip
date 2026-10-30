@@ -937,7 +937,13 @@ The ledger is the main task of this section. It checks claims in the docs agains
   - The zero-Starcom-rows rule (`IVP23_REPORT.md:13`) gives no position for the two items.
 - **JSF 49 (acronyms in uppercase) and camelBack names, for example `decodePltu`.** The project supersession (`CODING_STANDARDS.md:63`) names only JSF 45, 51 and 52.
 - **JSF 60 and 61, brace position.** REMEDIATE (PR-36). The 2026-02-07 audit gave K&R braces a PASS, and it did not tell the cause. The repo has no `.clang-format`.
+- **Vehicle-side drop hook.** No hook drops a frame on the vehicle, an uplink or a PLCW. `fault_force_station_rx_drop` (`src/safety/station_fault_inject.cpp:35`) drops only vehicle-to-station frames. A vehicle hook is a firmware change. Nathan decides if V-air+ needs it.
+- **PLCW and FOP-P counters are not printed.** The COP-P line prints the state and N(R), V(S) and V(R) (`src/cli/rc_os_commands.cpp:921`), but no PLCW count and no FOP-P state name. Nathan decides if the firmware must print them.
 - **Starcom cppcheck gate (PR-4).** No record makes one necessary, and no record lets the project not have one. The Starcom tool list (`starcom/docs/audits/README.md:27`, not approved at this time) shows only the gap. PR-4 has no table row.
+
+### Brace and naming rules: project check
+
+The main `AGENT_WHITEBOARD.md` row "Two JSF rules broken with no stated reason: braces and names" tracks the project check of JSF 60/61 and of the `CODING_STANDARDS.md:63` naming override. W2 waits for it.
 
 ### Code-fix plan (in order; not done)
 
@@ -949,6 +955,505 @@ This commit does not do these steps. The owner rule is that Grok Build writes co
 4. **Remove the 12 JSF 181 casts** (PR-33): `src/ccsds/mac.cpp:234, 1127-1129, 1166-1168, 1212-1214`, `src/ccsds/ldpc.cpp:159`, `adapters/host/udp.cpp:149`. Do `g++ -Wuseless-cast` and `readability-redundant-casting` again. Each must show 0.
 
 **Review items in this section:** RV-2 (the whiteboard has a row for PR-2), RV-3 (PR-33) and RV-4 (PR-34).
+
+### Batch plan (proposed, 2026-10-29; not done)
+
+This plan is a proposal for the owner to check. It makes no change to code or configuration. Each row is one local commit. Each REMEDIATE item from PR-1 to PR-36 is in a batch. PR-19 and PR-32 each have two batches, because one commit for each is too large to examine (see "PR coverage" below).
+
+**Roles.**
+- Hamilton writes the instructions for Grok Build. Hamilton reviews each change and makes each commit from the PC shell.
+- Grok Build writes the code. Grok Build does no git operations.
+- Buzz runs the bench. Buzz uses one power cycle for each flashed commit, as Nathan does at the power switch. Buzz uses the plan mode of the pre-push gate to find which commits must have the bench.
+- Goddard is the second reader for each commit. Goddard counts the clang-tidy and compiler results again. Goddard makes sure that the target FAIL does not occur again before the next batch starts.
+- Duke checks the on-air constants and field widths in each batch that touches `starcom/src/ccsds/` or `src/starcom_adapt/byte_pump.cpp`. Examples are the ASM `FA F3 20`, the PN sequence, the CRC polynomials and the header field widths. Duke compares each value with the book text. This is a regression check. It is not conformance work.
+
+**Rules.**
+- Make one local commit for each batch. Make sure that the commit is correct before the next batch starts.
+- Do not push until Goddard and Buzz complete the checks of all batches, except D3. D3 waits for the D13 and FSK work, so the push does not wait for D3. Thus the push also waits for Nathan's decision on C9 and for the project brace check (W2).
+- New code in each batch uses uppercase literal suffixes (JSF 14) and named constants (JSF 151). Thus C12 and C13 do not have to wait for the other code batches.
+- C1 depends on A1. Thus no code batch starts before Nathan gives the go for the A1 baseline run and Buzz checks the board layout with him. Each firmware batch (bench B) depends on A1, because the baseline must show the code before any firmware change.
+- Order with the FSK pivot and D13 (Nathan, 2026-10-30): the order in this plan stays. These batches come before the FSK work, because the FSK pivot builds from this code. The no-push rule above stays.
+- No batch starts before Nathan gives the go for it. Before the first two-board run, Buzz checks the board layout with Nathan.
+- If a batch changes an on-air constant or field, keep the same value. Give it a name with `constexpr`. Add a test that pins the value.
+- If a batch changes behavior, add or update a unit test in `starcom/tests/unit/` in the same commit.
+
+**Bench rule (from the gate, not from this plan).** Only these two files tell if a commit must have the bench: `scripts/ci/pre_push_gate.py` and `scripts/ci/firmware_paths.txt`. The paths in this plan fall into these classes:
+- `starcom/src/`, `starcom/include/`, `starcom/CMakeLists.txt`, `src/` and `include/` are in `[elf]`. A commit that changes them must have the bench for the two roles. `starcom/src/`, `starcom/include/` and `src/starcom_adapt/` are also in `[radio]`. The radio test on the two boards gives only a message (no stop) until `scripts/radio_link_bench.py` is in the repo (`scripts/ci/pre_push_gate.py:111`, "GAP: not built yet"). Thus this plan adds its own on-air check (V-air, below).
+- `starcom/src/ccsds/mac.cpp` and `mac.hpp` are in `[isolate:turnaround]`. `src/starcom_adapt/` is in `[isolate:radio-adapter]`. The gate shows a message (no stop) if a push has one of these commits and a different firmware commit.
+- `starcom/.clang-tidy`, the root `.clang-tidy`, `starcom/scripts/`, `starcom/tests/`, `starcom/adapters/host/` and `starcom/docs/` are in no section. A commit that changes only these paths does not have to have the bench.
+- The gate does not use `**/*.md` files. A Markdown change does not have to have the bench.
+- `scripts/ci/` is in `[gate]`. Thus this plan puts the probe and the self-test in `starcom/`, not in `scripts/ci/`.
+
+**Bench sessions.** The gate does one bench run for each push. This plan benches each firmware commit, so that a regression is easy to trace. Buzz does the bench runs in groups:
+1. Hamilton makes the commits for a group (for example C1, C2 and C3) on the PC. Each commit has its hook run and its Goddard read.
+2. Nathan connects the boards one time for the group.
+3. Buzz checks out each firmware commit in order in the bench worktree. For each commit, Buzz builds the two roles, flashes, does one power cycle and runs `bench_sim.py` and `station_bench_sim.py`. Buzz records the SHA and the result for each commit.
+4. If the bench gives FAIL for a commit, Buzz stops. The commits after it wait.
+At the end, push in segments that obey the gate's shape rule. Put no more than 5 firmware commits in one push. Push each turnaround or radio-adapter commit with no other firmware commit (`git push origin <sha>:main`). Before each push, run `python scripts/ci/pre_push_gate.py --plan`. The gate does a bench run again on the last commit of each push.
+
+**Check steps (labels in the table).**
+- **V-hook**: the host tests of the pre-commit hook (`scripts/hooks/pre-commit`, Git Bash). It runs at commit time.
+- **V-tidy**: clang-tidy 21.1.8 on the PC, with the same inputs as the audit run. The command is below the table. Compare the counts for the target check with the R1 baseline. The target count must decrease by the number in the row. No other count must go up.
+- **V-gcc**: the MinGW g++ 15.2 build with the flag for the rule (for example `-Wuseless-cast` or `-Wsign-conversion`). The target count must be 0.
+- **V-unit**: a new or updated test in `starcom/tests/unit/`. `ctest` must give PASS.
+- **V-obj**: for a change that must not change behavior, compare the object files before and after (`objdump -d` with no debug data). They must be the same.
+- **V-bench**: the Buzz bench run for this commit, if the gate classes make it necessary.
+- **V-duke**: Duke's book check of the on-air constants and field widths.
+- **V-air**: an on-air run on the two boards with `scripts/soak_two_board.py` (procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`). The bench (`bench_sim.py`, `station_bench_sim.py`) tests flight logic only. It does not send data on the air. V-air is necessary for the batches that change behavior in the MAC, COP-P, coding or `byte_pump`: C3, C4, C7, C8, C9, C11, C16, C17 and C18. Buzz does a run of about 60 s on the desk at 2 dBm after each of these batches. Buzz compares the counts with the A1 baseline: vehicle frames sent, station frames received, and station CRC errors. A count that is worse than the baseline is a FAIL for the batch.
+- **V-air+**: for C4, C11 and C18 (COP-P resend, PLCW feedback and the uplink command path), V-air also sends repeated station `X` (DISARM) uplinks. `X` and the `c` T-minus command go through COP-P (`src/active_objects/ao_telemetry.cpp:1385`; `src/cli/cli_actions.cpp:215`), and they are safe to repeat. Do not use `b`. Then `t` on each board prints a `LINK` line with `copp_rtx` (`starcom/src/ccsds/copp.cpp:570`) and `copp_sync_loss` (`src/diag/link_baseline.cpp:95-111`). Buzz compares `copp_rtx` and the COP-P lock state with the A1 baseline. The only frame drop on the boards is `fault_force_station_rx_drop` (`src/safety/station_fault_inject.cpp:35`). It is armed through GDB and the probe only, and it drops vehicle-to-station frames only. Thus V-air+ cannot drop an uplink or a PLCW. Label the V-air+ runs for C4, C11 and C18 "uplink path only". On a clean desk link, `copp_rtx` stays near zero, so the run cannot show that resend works. The host test T0 is the only coverage of resend and recovery. The vehicle-side drop hook stays an open item.
+
+**V-tidy command (PC, PowerShell).** The audit run used the 19 translation units in the MinGW compile database at `C:\Users\pow-w\Documents\rc-audit-logs\scbuild`. The audit did not keep its loop as a script. The log header is `starcom clang-tidy 21.1.8 scope=all config=...\starcom\.clang-tidy`. This loop gives the same inputs:
+
+```powershell
+$ct = 'C:\Program Files\LLVM\bin\clang-tidy.exe'      # 21.1.8
+$r  = 'C:\Users\pow-w\Documents\rocket-chip'
+$b  = 'C:\Users\pow-w\Documents\rc-audit-logs\scbuild'
+$log = "C:\Users\pow-w\Documents\rc-audit-logs\CLANG_TIDY_<batch>_all_v21.1.8.txt"
+$files = @(Get-ChildItem "$r\starcom\src\ccsds\*.cpp") + @(Get-ChildItem "$r\starcom\adapters" -Recurse -Filter *.cpp)
+foreach ($f in $files) { "---- $($f.FullName) ----" >> $log
+  & $ct $f.FullName -p $b --config-file="$r\starcom\.clang-tidy" --quiet *>> $log }
+python C:\Users\pow-w\Documents\rc-audit-logs\tidycount.py $log
+```
+
+The MinGW flag `-Wstack-usage=1024` gives 2 `clang-diagnostic-unknown-warning-option` errors in each file that has the flag in the audit log. The counts do not include these errors. R1 records them as known noise.
+
+#### Batch table
+
+NB = no bench (no path in `firmware_paths.txt`). V-air = the on-air check above. B = bench, two roles (`[elf]`). R = also `[radio]` (the two-board radio test gives only a message (no stop) at this time). T = `[isolate:turnaround]`. A = `[isolate:radio-adapter]`. Goddard does the second read for each row.
+
+| Batch | PR items | Exact sites | Proposed change (old -> new) | Files | Bench | Duke | Verify | Owner | Depends on |
+|---|---|---|---|---|---|---|---|---|---|
+| G1 | PR-1 (comment defect) | `starcom/.clang-tidy:14-234` (`Checks: >`); 71 comment lines inside the block | Move all 71 `#` lines out of the folded block, word for word, in order, to one comment block above `Checks:`. A comment that says "enabled:" about the check above it gets that check name as a prefix. The 139 check entries do not change (script check: same list, same order). Exact text: "G1 proposed text" below | `starcom/.clang-tidy` | NB | no | `--list-checks` 156 -> 169 (+13) on 21.1.8; probe: goto, null dereference and divide by zero fire (done for this proposal, see below); V-hook | Hamilton | — |
+| G2 | PR-2 (config part only) | Root `.clang-tidy`, `Checks:` block; `:227-232` (analyzer comment block); 10 checks disabled | Same method as G1. G2 changes only the root `.clang-tidy`. The new Rocket-Chip findings that the 10 + 23 checks show go to the RC master audit list, not to this Starcom plan. The relabel of the earlier Rocket-Chip PASS lines (L2-P4, `AUDIT_GUIDANCE.md:94`) is not in G2: see "G2 relabel: files that need Nathan's confirmation" below | `.clang-tidy` | NB (the root `.clang-tidy` is in no section) | no | `--list-checks` +10 with the root config; probe with the root config; full-tree run `scripts/audit/full_tree_clang_tidy.sh` for the new count (record only; the fixes go to the RC master audit); V-hook | Hamilton | — (G2 uses the G1 method, but it changes a different file) |
+| G3 | PR-1b | `starcom/.clang-tidy:237` `HeaderFilterRegex: '.*(src/ccsds/.+\|include/starcom/.+)'` | New filter accepts `/` and `\` and matches only `starcom/include`, `starcom/src`, `starcom/adapters` and the Rocket-Chip `src/` and `include/`. New `ExcludeHeaderFilterRegex` removes `third_party`, `pico-sdk`, `lib` and `EXTERNAL`. Exact text: "G3 proposed text" below | `starcom/.clang-tidy` | NB | no | On 21.1.8 with `copp.cpp`: the header hits `copp.hpp:24,27`, `uslp.hpp:12`, `v3.hpp:13` show, and 0 hits in `third_party` (done for this proposal); probe header hit shows; probe vendor header gives 0; V-hook | Hamilton | G1 |
+| G4 | PR-1 (self-test and fixture; Tier 1.1) | New files only | Add the known-bad probe (text below) at `starcom/tests/tidy_probe/`. Add `starcom/scripts/tidy_selftest.sh`: run the pinned clang-tidy on the probe with `starcom/.clang-tidy`, fail if a check named in an `EXPECT` tag does not fire, fail if `probe_vendor.hpp` shows, and fail if `--list-checks` gives fewer than 169. Add a CTest entry in `starcom/tests/CMakeLists.txt` that runs it when the pinned clang-tidy is present | `starcom/tests/tidy_probe/*`, `starcom/scripts/tidy_selftest.sh`, `starcom/tests/CMakeLists.txt` | NB | no | Self-test passes on the G3 config; self-test fails on the shipped config (planted check); V-hook | Grok Build (Hamilton prompt) | G1, G3 |
+| T1 | PR-6 | `starcom/scripts/run_clang_tidy.sh` (mixed line endings, so `exit 0\r` fails, exit 2) | Change the file to LF only. Add `*.sh text eol=lf` for `starcom/scripts/` in `.gitattributes` if it is not there | `starcom/scripts/run_clang_tidy.sh`, `.gitattributes` | NB | no | `bash starcom/scripts/run_clang_tidy.sh --all` exits 0; `git ls-files --eol` shows `i/lf`; V-hook | Hamilton | — |
+| R1 | Baseline (no PR) | All 19 translation units | Run V-tidy with the G1+G3 config. Record the new counts for each check and each file in `starcom/docs/audits/CLANG_TIDY_R1_<date>.txt` and in a short Markdown note. This is the baseline for every code batch | `starcom/docs/audits/` | NB | no | Goddard runs the same loop again and gets the same counts | Hamilton | G1, G3 |
+| A0 | No PR (prerequisite for V-air) | `scripts/soak_two_board.py:175`, `:188`, `:337` | Four fixes. (1) `veh_git` takes the last hex string of 7 or more characters, so it can store a tree hash (`docs/reports/2026-10-20_buzz_lora_baseline.md:308`): match `flight-([0-9a-f]+)` first. (2) The station COP-P pattern at `:188` and `:337` has no colon, but the station prints `COP-P:` (`src/cli/rc_os_commands.cpp:921,1078,1378`), so it probably never matches: add the colon. (3) Read the `LINK` line (`copp_rtx`, `copp_sync_loss`) after `t` on each board; use the pattern in `scripts/baseline_lora.py:209-212`. (4) Add an uplink step: send station `X` at set times | `scripts/soak_two_board.py` | NB | no | Run the score part on the 2026-10-20 logs: `veh_git` is the `flight-` hash and the station COP-P state is found; a test log with a `LINK` line gives `copp_rtx`; V-hook | Buzz | — |
+| A1 | No PR (V-air baseline) | Current `main` (before C1) | One baseline run of `scripts/soak_two_board.py` on the two boards, 2 dBm, the same desk layout that the later V-air runs use. Record the counts and the SHA in `starcom/docs/audits/` | `starcom/docs/audits/` | NB (no code change) | no | Goddard reads the counts again from the log | Buzz | A0; Nathan's go; board layout checked with Nathan |
+| C1 | PR-33 (JSF 181) | `mac.cpp:234, 1127-1129, 1166-1168, 1212-1214`; `ldpc.cpp:159`; `adapters/host/udp.cpp:149` | Remove each redundant cast. Examples: `static_cast<unsigned>((w >> 15) & 1u)` -> `((w >> 15) & 1u)`; `t = static_cast<Tick>(t - dt);` -> `t = t - dt;`; `std::popcount(static_cast<unsigned>(r & 0x5Fu))` -> `std::popcount(r & 0x5Fu)` (only if the type of `r & 0x5Fu` is already `unsigned`); `static_cast<std::uint16_t>(ntohs(...))` -> `ntohs(...)` | `starcom/src/ccsds/mac.cpp`, `ldpc.cpp`, `starcom/adapters/host/udp.cpp` | B, R, T | yes (`ldpc.cpp:159` mask `0x5F`) | V-gcc `-Wuseless-cast` = 0; `readability-redundant-casting` = 0; V-obj for mac and ldpc; V-hook; V-bench | Grok Build | R1, A1 |
+| C2 | PR-34 (JSF 162) | `conv.cpp:16,17`; `ldpc.cpp:159`; `adapters/host/udp.cpp:73` | Make each sign change explicit. `c1 = std::popcount(v & kG1) & 1u;` -> `c1 = static_cast<unsigned>(std::popcount(v & kG1)) & 1U;` (same for `c2` and `ldpc.cpp:159`); `ioctlsocket(s, FIONBIO, &one)` -> `ioctlsocket(s, static_cast<long>(FIONBIO), &one)` or the type that the Windows header gives | `conv.cpp`, `ldpc.cpp`, `udp.cpp` | B, R | yes (`kG1`, `kG2`, G2 inversion, `0x5F`) | V-gcc `-Wsign-conversion` = 0 for these sites; test pins `kG1`, `kG2` and the PN taps; V-obj; V-hook; V-bench | Grok Build | R1, A1, C1 |
+| C3 | PR-13 (P10-4, JSF 3, LOC-25) | `mac.cpp:396` `macWaitExpiredHalf` (104 lines, CCN 22) | Test first: add a characterization test in `test_mac.cpp` for each branch. Then split the function into named helpers. Each helper has 60 lines or less and CCN 20 or less | `mac.cpp`, `mac.hpp` (if a helper is declared), `tests/unit/test_mac.cpp` | B, R, T | yes | `readability-function-size` and cognitive complexity for `mac.cpp` = 0 at this site; lizard CCN 20 or less; V-unit (test passes before and after the split); V-hook; V-bench; V-air | Grok Build | R1, A1 |
+| T0 | No PR (test before C4) | `starcom/tests/unit/test_copp.cpp`; `coppRetransmitCount()` (`starcom/include/starcom/ccsds/copp.hpp:145`, `starcom/src/ccsds/copp.cpp:535`) | No host test drops a PLTU or checks `coppRetransmitCount()`. Add a lossy loop between two endpoints: drop one PLTU, then check that the sender resends it, that the link recovers, and that `coppRetransmitCount()` goes up by the number of resends. Also check that the receiver delivers each frame in order, with no duplicate and no gap, and that after recovery the sender's V(S) agrees with the receiver's N(R). T0 is the only coverage of resend and recovery (V-air+ is uplink path only) | `starcom/tests/unit/test_copp.cpp` | NB (`starcom/tests/` is in no section) | no | V-unit (the test passes on current code); V-duke: Duke checks the expected behavior of the test against 211.0-B-6 when the test is written; V-hook | Grok Build | — |
+| C4 | PR-12b (JSF 207, LOC-8, P10-6) | `copp.cpp:70` `g_coppSyncLossN`, `copp.cpp:347` `g_coppRetransmitN` | Move the two counters into the caller-owned endpoint: `std::uint32_t g_coppSyncLossN = 0;` -> member `std::uint32_t syncLossN = 0;` in `CoppEndpoint`, and the same for `retransmitN`. Each use reads the member. `sizeof(CoppEndpoint)` gets larger by 8 | `copp.cpp`, `copp.hpp`, `tests/unit/test_copp.cpp` | B, R | yes | `avoid-non-const-global-variables` for these 2 = 0; V-unit (counters per endpoint); V-hook; V-bench; V-air; V-air+ (uplink path only) | Grok Build | R1, A1, T0 |
+| C5 | PR-14/15/16 | `copp.cpp:359` (name); `copp.cpp:433`, `pltu.cpp:192`, `space_packet.cpp:40`, `pltu.cpp:84`, `space_packet_service.cpp:52` (internal linkage); `mac.cpp:956` (branch clone) | Rename to the house case style. Put each file-local function in an unnamed namespace. Merge the two equal branches at `mac.cpp:956` | `copp.cpp`, `pltu.cpp`, `space_packet.cpp`, `space_packet_service.cpp`, `mac.cpp` | B, R, T | yes | `readability-identifier-naming`, `misc-use-internal-linkage`, `bugprone-branch-clone` = 0 at these sites; V-obj (except `mac.cpp:956`); V-hook; V-bench | Grok Build | R1, A1 |
+| C6 | PR-20 (JSF 17, 22, 26, 28, 31, 108, 182, 200, 215; P10-2; LOC-3) | `udp.cpp`: `reinterpret_cast` x6, vararg `:75,79`, `errno` `:192,228`, platform `#if`; `file_replay.cpp`: stdio `:5,43,63,76,91`, `for (;;)` `:70`, pointer arithmetic `:19,29,43` | `file_replay.cpp`: `<cstdio>` -> `<fstream>`; `for (;;)` -> `while (more)` with a named exit condition; `p + n` -> `std::span::subspan`. `udp.cpp`: `reinterpret_cast<sockaddr*>(&a)` -> copy through a `sockaddr_storage` with `std::memcpy` where the API permits; `fcntl` vararg call -> one wrapper at the OS edge; `errno` -> one read per call into a typed error. Each item that the OS API makes necessary is listed in the commit message as a remaining site | `starcom/adapters/host/udp.cpp`, `file_replay.cpp` | NB (`starcom/adapters/host/` is in no section) | no | V-tidy for the listed checks at these sites; `test_host_io.cpp` passes; V-hook | Grok Build | R1 |
+| C7 | PR-28 (JSF 110, LOC-25) | `cmd_sdu.cpp:9` `pack_cmd_sdu_user` (9 params), `cmd_sdu.cpp:27` `unpack_cmd_sdu_user` (9), `byte_pump.cpp:363` `pump_pack_cmd_packet` (9) | Add `struct CmdSduFields { uint16_t cmd_id; uint8_t seq; float p[5]; };` (the type of `p` follows C-arrays policy, or `std::array<float, 5>`). New forms: `pack_cmd_sdu_user(uint8_t* out, uint8_t out_len, const CmdSduFields& f)`; `unpack_cmd_sdu_user(const uint8_t* in, uint8_t in_len, CmdSduFields& f)`; `pump_pack_cmd_packet(BytePump& p, std::span<std::byte> out, const CmdSduFields& f)`. The bytes on the wire do not change | `src/starcom_adapt/cmd_sdu.cpp`, `cmd_sdu.h(pp)`, `byte_pump.cpp`, `byte_pump.h(pp)`, the callers, tests | B, R, A | yes (`byte_pump.cpp`; SDU byte layout) | `readability-function-size.ParameterThreshold` = 0 at these sites; test pins the packed bytes of one known command before and after; V-hook; V-bench; V-air | Grok Build | R1, A1 |
+| C8 | PR-25 (JSF 190, 191) | `continue` x10: `ldpc.cpp:139`, `pltu.cpp:164,183`, `file_replay.cpp:80,85`, `byte_pump.cpp:194,198,204,208,213`; loop `break`: `cop1.cpp:771`, `file_replay.cpp:88` | `if (skip) { continue; } work();` -> `if (!skip) { work(); }`. A loop `break` -> a loop condition with a named flag, for example `while (i < n && !found)` | `ldpc.cpp`, `pltu.cpp`, `cop1.cpp`, `file_replay.cpp`, `byte_pump.cpp` | B, R, A | yes | grep: 0 `continue` and 0 loop `break` at these sites; V-unit (existing tests for each loop); V-hook; V-bench; V-air | Grok Build | R1, A1, C6 |
+| C9 | PR-23 (P10-9, JSF 176, LOC-28/29) | `radio_bus.hpp:15-18`, `pio_port.hpp:15-16`, `file_replay.hpp:11` | BLOCKED (open item for Nathan: "C9: virtual calls at the adapter edge" below). Function-pointer seam -> template policy. Old: `struct BusOps { void* ctx; Result<size_t> (*spi)(void*, ...); ... };`. New: `template <class Bus> Result<std::size_t> busSpi(Bus& bus, ...)` where `Bus` has `spi()`, `gpioWrite()`, `gpioRead()`. Do not add a virtual call until Nathan decides the open item | `starcom/include/starcom/adapters/radio_bus.hpp`, `pio_port.hpp`, `file_replay.hpp`, `starcom/adapters/rp2350/*`, `starcom/adapters/host/*`, callers | B, R | no | V-tidy; build of the two roles; V-unit; V-hook; V-bench; V-air (C9 changes the RP2350 radio adapter seam, which is a hardware interface) | Grok Build | R1, A1, C6; Nathan's decision on the C9 open item |
+| C10 | PR-27 (JSF 209, LOC-17) | Plain `unsigned` and `int`, including API `radio_bus.hpp:17-25` (`int line`) | `int line` -> `std::uint8_t line` (or the width that the pin numbers need); each plain `unsigned` -> `std::uint32_t`; each plain `int` -> `std::int32_t` | The files from the R1 `google-runtime-int` list and a grep for plain types | B, R | yes if `src/ccsds/` is in the list | `google-runtime-int` = 0; grep for plain types = 0; V-obj where the width does not change; V-hook; V-bench | Grok Build | R1, A1, C8 |
+| C11 | PR-18 (P10-7) | `Result` not `[[nodiscard]]`; `(void)` discards `mac.cpp:169,175,181,187`, `copp.cpp:370,394,423`; `cert-err33-c` `file_replay.cpp:76,91` | `Result` is an alias of `tl::expected`, so the attribute goes on each function: `Result<T> f(...)` -> `[[nodiscard]] Result<T> f(...)`. Each `(void)f(...)` -> `if (!f(...)) { <error path named in the design> }`. For each new error path, Duke cites the clause in 211.0-B-6 or 232.1 that sets it. If the book and the design name no path, keep the current behavior, add a comment that tells this, and put the site on the open list. Do not invent protocol behavior. The `file_replay.cpp` sites close after C6 removes stdio | Core headers that return `Result`, `mac.cpp`, `copp.cpp`, tests | B, R, T | yes | `bugprone-unused-return-value` and the compiler `-Wunused-result` = 0; 0 `(void)` discards at these sites; V-unit for each new error path; V-duke: one clause cite for each new path; V-hook; V-bench; V-air; V-air+ (uplink path only) | Grok Build | R1, A1, C6, T0 |
+| C12 | PR-19 part 1: suffixes (JSF 14) | 297 lowercase suffixes (PC 21.1.8) plus the header hits that G3 shows (R1 count); Rocket-Chip adapter 15 | `0x07u` -> `0x07U`; `1u` -> `1U`; `ul` -> `UL`. Only the case of the suffix changes | All files in the R1 list for `readability-uppercase-literal-suffix`, and `src/starcom_adapt/` | B, R, T, A | yes (constants keep their value) | `uppercase-literal-suffix` = 0; V-obj (must be the same); V-hook; V-bench | Grok Build | R1, A1 |
+| C13 | PR-19 part 2: magic numbers (JSF 151) | 115 sites (PC 21.1.8) plus the header hits (R1 count) | `if (len > 1115)` -> `constexpr std::size_t kMaxFrameOctets = 1115;  // <book, section>` and `if (len > kMaxFrameOctets)`. Each name has a source. On-air values keep the exact value | All files in the R1 list for `readability-magic-numbers` | B, R, T, A | yes (each on-air value) | `readability-magic-numbers` = 0; test pins each on-air value; V-obj; V-hook; V-bench | Grok Build | R1, A1, C12 |
+| C14 | PR-26 (JSF 133; D.8, JSF 130) | No file intro comment; comment density 3.2% (core), 0.0% (adapters) | Add a file intro comment to each file: purpose, owner of the state, and the book reference. Add comments only where the code needs a reason ("why", not "what": `CODING_STANDARDS.md:314,317-319`). The 15% to 25% band applies to `.cpp` files only; header files are excluded (`CODING_STANDARDS.md:299,309`). Do not add a comment only to reach the band. Also add the owner and single-caller comment at `copp.cpp:345` and `cop1.cpp:12` (PR-12a, not a FAIL) | All Starcom `.cpp` and `.hpp` files | B, R, T | yes (comments only) | density script result for each `.cpp` file (headers excluded), reported with the band; Goddard reads each new comment and removes filler; V-obj (must be the same); V-hook; V-bench | Grok Build | R1, A1 |
+| C15 | PR-29 (JSF 9, 13) | Non-ASCII in comments: 78 lines, 21 files | `—` -> `-`; `→` -> `->`; `≤` -> `<=`; `═` -> `=` | The 21 files | B, R, T | yes (comments only) | `rg -n "[^\x00-\x7F]"` in the 21 files = 0; V-obj; V-hook; V-bench | Hamilton (mechanical) | R1, A1, C14 |
+| C16 | PR-30 (JSF 26, 29; P10-8) | `version.hpp.in:14-15` function-like macros; `result.hpp:5` `#ifdef STARCOM_USE_STD_EXPECTED`; `byte_pump.cpp:262-269` `#ifdef ROCKETCHIP_JOB_STATION`, `#ifndef ROCKETCHIP_HOST_TEST` | `#define STARCOM_VERSION_STR(a, b, c) ...` -> CMake writes `inline constexpr const char* kVersionStr = "@STARCOM_VERSION_MAJOR@.@STARCOM_VERSION_MINOR@.@STARCOM_VERSION_PATCH@";`. `result.hpp`: keep one branch (the one that the build uses) and remove the `#ifdef`. `byte_pump.cpp`: `#ifdef` -> `if constexpr (kIsStation)` with `kIsStation` from a generated `constexpr` | `starcom/include/starcom/version.hpp.in`, `result.hpp`, `starcom/cmake/*`, `byte_pump.cpp` | B, R, A | yes (`byte_pump.cpp`; SCID 1 and 2) | grep for function-like macros = 0; version string the same in the two images; V-unit (station and vehicle SCIDs); V-hook; V-bench; V-air | Grok Build | R1, A1 |
+| C17 | PR-31 | Signed-bitwise 179, const-correctness 9 (now visible after G1; R1 gives the exact sites) | `x & 0x07` with `int x` -> `static_cast<std::uint32_t>(x) & 0x07U`, or make `x` unsigned at its declaration. A variable that does not change gets `const` | The files in the R1 list for `hicpp-signed-bitwise` and `misc-const-correctness` | B, R, T | yes | the two counts = 0; V-obj where possible; V-hook; V-bench; V-air | Grok Build | R1, A1 |
+| C18 | PR-32 part 1: JSF 192 | `cop1.cpp:294,526,684`; `mac.cpp:381,587,786,795,805,842`; `byte_pump.cpp:134` | First check for a comment that tells why there is no `else`. Then add a final `else { /* no action: <cause> */ }`, or change the chain to a `switch` with `default` | `cop1.cpp`, `mac.cpp`, `byte_pump.cpp` | B, R, T, A | yes | grep or review: each chain has a final `else`; V-obj where the `else` is empty; V-hook; V-bench; V-air; V-air+ (uplink path only) | Grok Build | R1, A1, T0 |
+| W1 | PR-24 (JSF 27, 35) | `#pragma once` in 23 of 23 Starcom headers | `#pragma once` -> `#ifndef STARCOM_CCSDS_COPP_H_` / `#define STARCOM_CCSDS_COPP_H_` / ... / `#endif  // STARCOM_CCSDS_COPP_H_`. The pattern is `STARCOM_<DIR>_<FILE>_H_`, so W3 does not change the guards | The 23 headers | B, R, T | no | grep `#pragma once` in `starcom/` = 0; a script checks that each guard name is unique; V-obj; V-hook; V-bench | Hamilton (mechanical) | R1, A1 |
+| W2 | PR-36 (JSF 60, 61) | K&R braces in all Starcom C++ files | HELD until the project brace check on the main `AGENT_WHITEBOARD.md` row is settled. `if (x) {` -> `if (x)` and `{` on the next line, in the same column as `if`. Only brace lines change | All Starcom `.cpp` and `.hpp` files | B, R, T, A (if `src/starcom_adapt/` is in scope) | yes (no value changes) | `git diff -w` shows only brace lines; V-obj (must be the same); V-hook; V-bench | Hamilton (tool-made, script-checked) | A1; the project brace check on the main `AGENT_WHITEBOARD.md` row |
+| W3 | PR-32 part 2: JSF 53 | 23 headers with `.hpp` | `copp.hpp` -> `copp.h` for each header. Change each `#include "starcom/.../x.hpp"` in `starcom/`, `src/starcom_adapt/` and the Rocket-Chip includes. `version.hpp.in` -> `version.h.in`, and the CMake rule | The 23 headers, all includers, `starcom/CMakeLists.txt`, `starcom/cmake/*` | B, R, T, A | yes (no value changes) | grep `\.hpp` in includes = 0; V-obj (must be the same); V-hook; V-bench | Hamilton (mechanical) | R1, A1, W1 |
+| D1 | PR-7, PR-8, PR-11, PR-22 | PR-7: `starcom/.clang-tidy:4,57-58,97-98,101,272` claims (L1-L5; the line numbers move after G1). PR-8: IVP23 zeros (L6, L7, L9, L10). PR-11: `starcom/docs/IVP.md:385` sizes. PR-22: `WORKING_HERE.md:72`, `IVP23_REPORT.md:21`, `CODING_STANDARDS.md:56,97`, `AUDIT_GUIDANCE.md:80` | PR-7: change each claim to what the tool does. PR-8: mark the IVP23 zeros as historical and point to R1. PR-11: `19544/19664/164` -> the sizes measured again after C4 (C4 makes `CoppEndpoint` 8 octets larger). PR-22: remove "existing project-wide exception", "live deviation" and "accepted deviation FP-1"; `102 rules` -> the correct count | `starcom/.clang-tidy`, `starcom/docs/audits/IVP23_REPORT.md`, `starcom/docs/IVP.md`, `starcom/docs/WORKING_HERE.md`, `standards/CODING_STANDARDS.md` (Hard-Protected: needs Nathan's permission for the file), `standards/AUDIT_GUIDANCE.md` | NB | no | `test_size.cpp` output matches the new `IVP.md:385`; Goddard reads each claim against the tool output; V-hook | Hamilton | G1, C4; Nathan's permission for `standards/CODING_STANDARDS.md` |
+| D2 | PR-9 | `starcom/docs/DESIGN.md:111` "(CI-guarded)" with no guard | Add `starcom/tests/check_core_includes.py`: fail if a file in `starcom/src/` or `starcom/include/` has `#include` of `hardware/` or `pico/`. Add a CTest entry in `starcom/tests/CMakeLists.txt` | `starcom/tests/check_core_includes.py`, `starcom/tests/CMakeLists.txt` | NB | no | The test passes; the test fails on a planted `#include "pico/stdlib.h"` in a temporary copy; V-hook | Grok Build | — |
+| D3 | PR-21 | Pre-D13 text in `byte_pump.cpp` and `src/starcom_adapt/README.md:20-21` | Change the text to the D13 design when the D13 work lands | `src/starcom_adapt/byte_pump.cpp`, `src/starcom_adapt/README.md` | B, R, A (`byte_pump.cpp`) | yes | V-obj (comments only); V-hook; V-bench | Hamilton | The D13 work |
+| R2 | PR-35 (JSF 6) | All FAILs in Section 1 | No new change. Run V-tidy and V-gcc again on the last commit. Confirm that each FAIL in Section 1 is gone, so no in-file deviation note and no register row is necessary. Record the final counts | `starcom/docs/audits/` | NB | no | Goddard gets the same counts | Hamilton | All batches except D3 |
+
+#### Dependency notes (checked by hand, 2026-10-30)
+
+The table order is the default commit order. "Depends on" names only a real need. If a batch is held, a later batch that does not depend on it can go first.
+
+- R1 is in each code batch because V-tidy compares the counts with R1. A1 is in each firmware batch (see the rules above). C6, T0, D2, G-batches and T1 change no firmware, so they do not need A1.
+- G3 needs G1: G3 changes the same file, and its text starts from the G1 form. G4 needs G1 and G3: the self-test expects their check list and header filter. R1 needs G1 and G3: the baseline uses that config. R1 does not need G4 or T1: the V-tidy loop does not use them.
+- A1 needs A0: the baseline uses the fixed soak script.
+- C2 needs C1: the two batches change the same expression at `ldpc.cpp:159`.
+- C4, C11 and C18 need T0: they change COP-P code that T0 tests (resend counter, `(void)` discards in `copp.cpp`, `else` chains in `cop1.cpp` and `mac.cpp`).
+- C8 and C9 need C6: C6 changes the loop and the stdio in `file_replay.cpp`, which C8 changes again, and C9 changes the seam in `file_replay.hpp` that `file_replay.cpp` uses. C11 needs C6: its `file_replay.cpp:76,91` sites close when C6 removes stdio.
+- C10 needs C8: C8 changes loops in `ldpc.cpp`, `pltu.cpp` and `byte_pump.cpp`, and C10 changes the plain `int` and `unsigned` types in the same files. C10 does not need C9, because C9 is held. If C9 lands after C10, C9 keeps the C10 type for `int line` (`radio_bus.hpp:17-25`).
+- C13 needs C12: C13 gives names to the same literals that C12 changes. C15 needs C14: the C15 check must include the new C14 comments.
+- W3 needs W1: W1 gives the guards their final `_H_` names. Then W3 is only a rename, and V-obj can show that.
+- D1 needs G1 (the `.clang-tidy` line numbers move) and C4 (the size of `CoppEndpoint` changes).
+- Links removed: G2 from G1; R1 from G4 and T1; C3 from C2; C4 from C3; C5 from C4; C7 from C6; C8 from C7; C9 from C8 (now C6); C10 from C9 (now C8); C11 from C10; C12 from C11; C14 from C13; C16 from C15; C17 from C16; C18 from C17; W1 from C18; W2 from W1; W3 from W2 (now W1); D1 from W3 (now G1, C4); T0 from R1. Each of these batches changes other files or other lines, and it does not use the result of the removed batch.
+
+#### G2 relabel: files that need Nathan's confirmation
+
+`docs/agents/PROTECTED_FILES.md:58-65` makes `docs/audits/*` Historical (frozen). The relabel (L2-P4, `AUDIT_GUIDANCE.md:94`) edits frozen files. Each file needs Nathan's confirmation before an edit. No file below was made in this cycle. The dates are from `git log --diff-filter=A`.
+
+| File | Lines that rest on a disabled check | Added | Last change | Status |
+|---|---|---|---|---|
+| `docs/audits/CLANG_TIDY_AUDIT_2026-02-20.md` | `:228` (`cppcoreguidelines-avoid-goto`, 0), `:234` (all `clang-analyzer-core.*`, 0) | 2026-02-20 (`7bbcb75d`) | 2026-02-20 | Needs Nathan's per-file confirmation |
+| `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` | `:88` (Tier 1.1 tool self-checks, PASS) | 2026-05-13 (`bb508cbd`) | 2026-05-24 | Needs Nathan's per-file confirmation |
+| `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` | `:42`, `:56`, `:79`, `:110`, `:341-342` (`avoid-goto`, `bugprone-assert-side-effect` as the gate) | 2026-06-17 (`5a6cf879`) | 2026-07-28 | Needs Nathan's per-file confirmation |
+| `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` | `:269` (assert side effect "gate-covered") | 2026-07-01 (`2eb74de8`) | 2026-07-31 | Needs Nathan's per-file confirmation |
+| `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE_ARCHIVE.md` | `:469`, `:1130` | 2026-07-01 (`2eb74de8`) | 2026-07-01 | Needs Nathan's per-file confirmation |
+| `docs/audits/l2p5_manual_walk/L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md` | `:2583` (assert side effect "gate-covered") | 2026-08-20 (`18b2d6b9`) | 2026-08-20 | Needs Nathan's per-file confirmation |
+
+This list comes from a search for the 10 check names and `clang-analyzer-core` in `docs/` and `standards/`. Lines that only name a check, with no PASS or zero claim, are not in the list. The relabel and the new RC findings are RC master audit work. They are not batches in this Starcom plan.
+
+#### C9: virtual calls at the adapter edge (open item for Nathan)
+
+- `starcom/docs/DESIGN.md:111` (design position): "Policy/template seams in core; virtual dispatch only at adapter edges."
+- `starcom/docs/ICD.md:318`: "No virtual `IRadio` in the core (P10-9)." This line ties the core ban to P10-9, but it says nothing about the adapter edge.
+- `standards/CODING_STANDARDS.md:56`: for function pointers, "P10-9 governs". The file has no line about virtual calls.
+- The FP-1 precedent (`standards/ACCEPTED_STANDARDS_DEVIATIONS.md:71`; `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md:785`; `docs/agents/LESSONS_LEARNED.md:1396-1423`) removed function pointers with template dispatch. It does not decide virtual calls.
+
+Result: the design permits a virtual call at the adapter edge. No standards record decides if a virtual call is a function pointer under P10-9. C9 is BLOCKED until Nathan decides: (a) a virtual call at the adapter edge is permitted under P10-9, with the reason recorded in `CODING_STANDARDS.md` (Hard-Protected); or (b) the adapter edge also uses templates, and `DESIGN.md:111` changes to agree.
+
+#### G1 proposed text (`starcom/.clang-tidy`, top of file to the end of `Checks:`)
+
+This text replaces lines 14 to 234 of the shipped file. Lines 1 to 13 (the file header) do not change. The 139 entries in `Checks:` are the same as the shipped file, in the same order. Only the 71 comment lines move. Full diff: `/workspace/fixplan/g1/G1.diff` on the box (246 lines).
+
+```yaml
+# Checks notes. These comments were inside the folded Checks block. YAML read
+# them as text and disabled the next check (STARCOM_AUDIT_2026-10-29.md PR-1).
+# They are kept here word for word, in the same order. Do not put a comment
+# inside the Checks block.
+# ═══════════════════════════════════════════════════════════════
+# BUGPRONE — Bug-prone code patterns
+# Maps to: JSF AV general safety, MISRA-adjacent, CERT
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: bugprone-easily-swappable-parameters — too noisy for embedded
+# SKIPPED: bugprone-exception-escape — exceptions disabled
+#   bugprone-reserved-identifier: enabled: no Pico SDK names in this tree
+# ═══════════════════════════════════════════════════════════════
+# CERT — SEI CERT Secure Coding Guidelines
+# Maps to: JSF AV safety rules, P10 defensive coding
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: cert-err58-cpp, cert-err60-cpp — exceptions disabled
+# ═══════════════════════════════════════════════════════════════
+# C++ CORE GUIDELINES
+# Maps to: JSF AV Rules 188-189 (goto), 206 (no heap), 209 (types)
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: cppcoreguidelines-avoid-c-arrays — frame / PLTU buffers are fixed arrays
+# SKIPPED: cppcoreguidelines-pro-bounds-* — codec octet walks (pointer+length), not Pico SDK
+#   cppcoreguidelines-pro-type-reinterpret-cast: enabled: core is not MMIO; HW casts belong in ports
+#   cppcoreguidelines-avoid-non-const-global-variables: enabled: core has no g_ process globals and no printf
+# SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner
+# ═══════════════════════════════════════════════════════════════
+# GOOGLE
+# Maps to: JSF AV Rule 209 (fixed-width types)
+# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# HICPP — High Integrity C++
+# Maps to: JSF AV safety, P10-1 (no goto), JSF 14 (literal suffixes)
+# ═══════════════════════════════════════════════════════════════
+#   hicpp-vararg: enabled: sans-I/O core has no BASEPRI asm and no printf
+# NOTE: hicpp-avoid-goto, hicpp-no-malloc etc. are aliases — already covered
+# ═══════════════════════════════════════════════════════════════
+# MISC — Miscellaneous quality checks
+# Maps to: P10-6 (scope), JSF AV general, LOC-3 (defensive coding)
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: misc-include-cleaner — noisy with generated + public headers; re-eval at extract
+# SKIPPED: misc-confusable-identifiers — slow, not safety-critical
+# ═══════════════════════════════════════════════════════════════
+# MODERNIZE — C++20 best practices
+# Maps to: JSF AV Rule 29-31 (constexpr over #define), C++ modernization
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: modernize-use-auto — explicit types preferred in embedded (audit A.4)
+# SKIPPED: modernize-use-trailing-return-type — not our style
+# SKIPPED: modernize-use-nodiscard — C++17 feature, evaluate later
+# SKIPPED: modernize-use-std-print — codecs do not print
+# ═══════════════════════════════════════════════════════════════
+# PERFORMANCE
+# Maps to: embedded real-time constraints
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: performance-avoid-endl — no iostream usage
+# SKIPPED: performance-inefficient-string-concatenation — no std::string
+# SKIPPED: performance-inefficient-vector-operation — no std::vector
+# ═══════════════════════════════════════════════════════════════
+# READABILITY
+# Maps to: JSF AV Rules 1 (size), 50-53 (naming), 59 (braces),
+#          151 (magic numbers), 152 (one var per decl)
+# ═══════════════════════════════════════════════════════════════
+# DISABLED: readability-math-missing-parentheses — stricter than JSF AV Rule 213,
+# which explicitly allows arithmetic precedence ("below arithmetic operators").
+# CERT SEI EXP00-C-EX1 confirms: algebraic order parens are redundant.
+# ArduPilot's AP_Math (our upstream reference) relies on * before + throughout.
+# SKIPPED: readability-identifier-length — single-char loop vars are fine
+# SKIPPED: readability-qualified-auto — we don't use auto
+# ═══════════════════════════════════════════════════════════════
+# CLANG STATIC ANALYZER
+# Maps to: P10-10 (static analysis), LOC-3 (defensive coding)
+# Deep flow analysis — catches null deref, div-by-zero, leaks
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: clang-analyzer-osx.* — macOS only
+# SKIPPED: clang-analyzer-unix.Malloc — no heap usage
+# SKIPPED: clang-analyzer-optin.mpi.* — no MPI
+
+Checks: >
+  -*,
+
+  bugprone-assert-side-effect,
+  bugprone-assignment-in-if-condition,
+  bugprone-bool-pointer-implicit-conversion,
+  bugprone-branch-clone,
+  bugprone-copy-constructor-init,
+  bugprone-dangling-handle,
+  bugprone-fold-init-type,
+  bugprone-forward-declaration-namespace,
+  bugprone-implicit-widening-of-multiplication-result,
+  bugprone-incorrect-roundings,
+  bugprone-infinite-loop,
+  bugprone-integer-division,
+  bugprone-macro-parentheses,
+  bugprone-macro-repeated-side-effects,
+  bugprone-misplaced-widening-cast,
+  bugprone-multi-level-implicit-pointer-conversion,
+  bugprone-multiple-statement-macro,
+  bugprone-narrowing-conversions,
+  bugprone-redundant-branch-condition,
+  bugprone-signed-char-misuse,
+  bugprone-sizeof-expression,
+  bugprone-string-constructor,
+  bugprone-suspicious-enum-usage,
+  bugprone-suspicious-include,
+  bugprone-suspicious-memset-usage,
+  bugprone-suspicious-missing-comma,
+  bugprone-suspicious-semicolon,
+  bugprone-switch-missing-default-case,
+  bugprone-too-small-loop-variable,
+  bugprone-undefined-memory-manipulation,
+  bugprone-undelegated-constructor,
+  bugprone-unhandled-self-assignment,
+  bugprone-unused-return-value,
+  bugprone-use-after-move,
+  bugprone-reserved-identifier,
+
+  cert-dcl50-cpp,
+  cert-dcl58-cpp,
+  cert-err33-c,
+  cert-err34-c,
+  cert-err52-cpp,
+  cert-flp30-c,
+  cert-mem57-cpp,
+  cert-msc30-c,
+  cert-msc32-c,
+  cert-msc50-cpp,
+  cert-msc51-cpp,
+  cert-oop57-cpp,
+  cert-oop58-cpp,
+  cert-str34-c,
+
+  cppcoreguidelines-avoid-goto,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-macro-to-enum,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-pro-type-reinterpret-cast,
+  cppcoreguidelines-pro-type-vararg,
+  cppcoreguidelines-avoid-non-const-global-variables,
+
+  google-build-explicit-make-pair,
+  google-build-namespaces,
+  google-build-using-namespace,
+  google-default-arguments,
+  google-explicit-constructor,
+  google-runtime-int,
+
+  hicpp-signed-bitwise,
+  hicpp-uppercase-literal-suffix,
+  hicpp-multiway-paths-covered,
+  hicpp-no-assembler,
+  hicpp-vararg,
+
+  misc-const-correctness,
+  misc-definitions-in-headers,
+  misc-misplaced-const,
+  misc-no-recursion,
+  misc-non-copyable-objects,
+  misc-redundant-expression,
+  misc-static-assert,
+  misc-unconventional-assign-operator,
+  misc-unused-parameters,
+  misc-unused-using-decls,
+  misc-use-internal-linkage,
+
+  modernize-deprecated-headers,
+  modernize-loop-convert,
+  modernize-macro-to-enum,
+  modernize-redundant-void-arg,
+  modernize-use-bool-literals,
+  modernize-use-default-member-init,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+
+  performance-enum-size,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-move-const-arg,
+  performance-move-constructor-init,
+  performance-no-automatic-move,
+  performance-no-int-to-ptr,
+  performance-trivially-destructible,
+  performance-type-promotion-in-math-fn,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+
+  readability-avoid-const-params-in-decls,
+  readability-avoid-nested-conditional-operator,
+  readability-braces-around-statements,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-duplicate-include,
+  readability-else-after-return,
+  readability-enum-initial-value,
+  readability-function-cognitive-complexity,
+  readability-function-size,
+  readability-identifier-naming,
+  readability-implicit-bool-conversion,
+  readability-inconsistent-declaration-parameter-name,
+  readability-isolate-declaration,
+  readability-magic-numbers,
+  readability-misleading-indentation,
+  readability-misplaced-array-index,
+  readability-named-parameter,
+  readability-non-const-parameter,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-redundant-preprocessor,
+  readability-simplify-boolean-expr,
+  readability-static-accessed-through-instance,
+  readability-uppercase-literal-suffix,
+
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-security.ArrayBound,
+  clang-analyzer-security.FloatLoopCounter,
+```
+
+#### G3 proposed text (`starcom/.clang-tidy`, replaces the shipped line 236 comment and line 237)
+
+```yaml
+# Only report warnings in our source files, not SDK/third-party headers.
+# Accept / and \ as path separators (clang-tidy on Windows shows both).
+# Repo source only: starcom/include, starcom/src, starcom/adapters, RC src/ and include/.
+# Vendored and third-party trees are excluded (tl::expected, pico-sdk, lib, EXTERNAL).
+HeaderFilterRegex: '.*[/\\](starcom[/\\](include|src|adapters)|src|include)[/\\].*'
+ExcludeHeaderFilterRegex: '.*[/\\](third_party|pico-sdk|lib|EXTERNAL)[/\\].*'
+```
+
+`ExcludeHeaderFilterRegex` is in clang-tidy 21.1.8. The `src|include` part also agrees with a `src/` or `include/` folder in a third-party tree. `ExcludeHeaderFilterRegex` removes those headers. The probe has a vendor header at `third_party/include/` to test that.
+
+#### G4 proposed probe (`starcom/tests/tidy_probe/`)
+
+The build does not use the probe. Each `EXPECT` tag names a check that must fire on that line. The self-test runs:
+
+`clang-tidy tidy_probe.cpp --config-file=starcom/.clang-tidy -- -std=c++20 -Istarcom/include -Ithird_party/include` (paths in the probe folder).
+
+`tidy_probe.cpp`:
+
+```cpp
+// tidy_probe.cpp: Tier 1.1 known-bad fixture for starcom/.clang-tidy.
+// Each marked line holds one planted defect. It is never built or linked.
+// starcom/scripts/tidy_selftest.sh runs clang-tidy on it and requires each
+// check named in an EXPECT tag to fire, and no hit in third_party/.
+#include <cassert>
+#include <stdint.h>  // EXPECT modernize-deprecated-headers
+#include <utility>
+
+#include "probe_hit.hpp"     // EXPECT readability-uppercase-literal-suffix (header hit, PR-1b)
+#include "probe_vendor.hpp"  // EXPECT-NOT probe_vendor.hpp (third_party/include: matches the include rule, so the exclude rule must drop it, G3)
+
+int _probe_reserved = 0;  // EXPECT bugprone-reserved-identifier
+
+enum class ProbeEnum : int { a, b };  // EXPECT performance-enum-size
+
+void probeConstParam(const int v);  // EXPECT readability-avoid-const-params-in-decls
+
+int probeVarargDef(int n, ...) { return n; }  // EXPECT cert-dcl50-cpp
+
+int probeGoto(int x) {
+  if (x > 0) {
+    goto done;  // EXPECT cppcoreguidelines-avoid-goto
+  }
+  x = 2;
+done:
+  return x;
+}
+
+int probeAnalyzerNull() {
+  int* p = nullptr;
+  return *p;  // EXPECT clang-analyzer-core.NullDereference
+}
+
+int probeAnalyzerDiv(int x) {
+  const int z = 0;
+  return x / z;  // EXPECT clang-analyzer-core.DivideZero
+}
+
+int probeMisc(int x, int* buf) {
+  int unchanged = x;  // EXPECT misc-const-correctness
+  assert(++x > 0);    // EXPECT bugprone-assert-side-effect
+  const int s = x & 3;  // EXPECT hicpp-signed-bitwise
+  auto* raw = reinterpret_cast<char*>(buf);  // EXPECT cppcoreguidelines-pro-type-reinterpret-cast
+  (void)raw;
+  const auto pr = std::make_pair<int, int>(1, 2);  // EXPECT google-build-explicit-make-pair
+  if (s > 1)
+    x = 1;
+    x = 2;  // EXPECT readability-misleading-indentation
+  return probeVarargDef(1, unchanged, pr.first);  // EXPECT cppcoreguidelines-pro-type-vararg
+}
+```
+
+`starcom/include/probe_hit.hpp` (in the probe folder, so the path has `starcom/include`):
+
+```cpp
+// probe_hit.hpp: header hit for HeaderFilterRegex (path has starcom/include).
+inline unsigned probeHeaderHit() { return 7u; }  // EXPECT readability-uppercase-literal-suffix
+```
+
+`third_party/include/probe_vendor.hpp` (in the probe folder):
+
+```cpp
+// probe_vendor.hpp: stands for a vendored header (tl::expected, pico-sdk).
+// It holds a defect on purpose. The filter must not report it.
+inline unsigned probeVendor() { return 9u; }
+```
+
+#### Results of the proposal check (PC, clang-tidy 21.1.8, 2026-10-29)
+
+The configs and the probe were in a temporary folder, not in the repo. No repo file changed.
+
+| Config | `--list-checks` | `clang-analyzer-core.*` listed | Probe: the 13 checks and the 2 analyzer defects | Probe header hit | Probe vendor hit | `copp.cpp` header hits | `third_party` hits |
+|---|--:|--:|---|---|--:|---|--:|
+| Shipped | 156 | 23 | Do not fire | — | — | 0 | 0 |
+| G1 | 169 | 23 | All fire | — | — | — | — |
+| G1 + G3 | 169 | 23 | All fire | Shows | 0 | `copp.hpp:24,27`, `uslp.hpp:12`, `v3.hpp:13` | 0 |
+
+The shipped config shows the 23 `clang-analyzer-core.*` checks, but the planted null dereference and divide by zero do not fire. With G1 they fire. This agrees with Tier 1 in Section 1.2.
+
+Commands (PowerShell, a temporary folder with the proposed files):
+
+```powershell
+$ct = 'C:\Program Files\LLVM\bin\clang-tidy.exe'
+$r = 'C:\Users\pow-w\Documents\rocket-chip'; $b = 'C:\Users\pow-w\Documents\rc-audit-logs\scbuild'
+foreach ($c in 'shipped','G1','G3') {
+  (& $ct --list-checks --config-file="g1\starcom.clang-tidy.$c" probe\tidy_probe.cpp -- -std=c++20 | Select-String '^\s+\S').Count }
+& $ct --config-file='g1\starcom.clang-tidy.G3' probe\tidy_probe.cpp -- -std=c++20 -Iprobe\starcom\include -Iprobe\third_party\include
+& $ct "$r\starcom\src\ccsds\copp.cpp" -p $b --config-file='g1\starcom.clang-tidy.G3' --quiet
+```
+
+#### PR coverage
+
+Each REMEDIATE item from Category 1 to Category 3 is in one batch: PR-1 (G1, G4), PR-1b (G3), PR-2 (G2, config part; the relabel waits for Nathan's per-file confirmation), PR-6 (T1), PR-7, PR-8, PR-11, PR-22 (D1), PR-9 (D2), PR-12b (C4), PR-13 (C3), PR-14/15/16 (C5), PR-18 (C11), PR-19 (C12, C13), PR-20 (C6), PR-21 (D3), PR-23 (C9, BLOCKED), PR-24 (W1), PR-25 (C8), PR-26 (C14), PR-27 (C10), PR-28 (C7), PR-29 (C15), PR-30 (C16), PR-31 (C17), PR-32 (C18, W3), PR-33 (C1), PR-34 (C2), PR-35 (R2), PR-36 (W2, held for the project brace check).
+
+Three items have more than one batch, on purpose:
+- PR-1 has the config change (G1) and the self-test (G4). The row tells the two.
+- PR-19 has 297 suffix sites and 115 magic-number sites. One commit is too large to examine.
+- PR-32 has two rules (JSF 192 and JSF 53). The JSF 53 rename has a large blast radius, so it is last.
+
+These items are not REMEDIATE, so they have no batch: PR-3 (NO ACTION), PR-5 (NO ACTION), PR-10 (DEFER), PR-12a (NO FINDING, C14 adds its comment), PR-17 (DEFER), PR-4 (an open item with no row). JSF 49 is an open item with no PR. A0 and A1 have no PR. They make the V-air check possible. T0 has no PR. It tests the COP-P resend on the host before C4.
+
 
 ---
 
