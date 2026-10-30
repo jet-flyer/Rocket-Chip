@@ -28,6 +28,26 @@ _ANSI_RE = re.compile(
     rb"\x1b\[[?0-9;]*[A-Za-z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]"
 )
 
+# Version banner only, e.g. "flight-e0a307e". A bare hex run is the tree id.
+VEH_GIT_RE = r"\bflight-([0-9a-f]{7,40})\b"
+
+# The station prints COP-P status in two forms:
+#   Menu/status, with a colon ("COP-P: lock", "COP-P: waiting peer PLCW"):
+#     src/cli/rc_os_commands.cpp and src/active_objects/ao_rcos.cpp:200.
+#   Dashboard, no colon ("COP-P lock", "COP-P waiting"):
+#     src/cli/rc_os_dashboard_format.h:469 and :478.
+# The dashboard shows lock only when the peer PLCW is set, the RF link is
+# live and the MAC is active. The menu shows lock whenever the PLCW is set.
+# So the progress line can say waiting while the final score says lock.
+# That is expected.
+COP_P_RE = r"COP-P:?\s+(lock|waiting(?: peer PLCW)?)"
+
+# CLI `t` LINK line. Pattern copied from scripts/baseline_lora.py:209-212.
+LINK_RE = re.compile(
+    r"\bLINK delivered=(\d+) missing=(\d+) crc_fail=(\d+) "
+    r"copp_rtx=(\d+) air_ms=(\d+) air_bytes=(\d+) copp_sync_loss=(\d+)"
+)
+
 
 def open_cdc(port: str) -> serial.Serial:
     """Open TinyUSB CDC without peek_banner / find_target_port.
@@ -129,6 +149,23 @@ def last_str(text: str, pattern: str) -> str | None:
     return hits[-1].group(1)
 
 
+def last_link(text: str) -> dict[str, int] | None:
+    """Last CLI `t` LINK line, or None when the log has none."""
+    hits = list(LINK_RE.finditer(text))
+    if not hits:
+        return None
+    match = hits[-1]
+    return {
+        "delivered": int(match.group(1)),
+        "missing": int(match.group(2)),
+        "crc_fail": int(match.group(3)),
+        "copp_rtx": int(match.group(4)),
+        "air_ms": int(match.group(5)),
+        "air_bytes": int(match.group(6)),
+        "copp_sync_loss": int(match.group(7)),
+    }
+
+
 def strip_ansi_text(text: str) -> str:
     blob = text.encode("utf-8", errors="replace")
     return _ANSI_RE.sub(b"", blob).decode("utf-8", errors="replace")
@@ -163,7 +200,7 @@ LAYOUT_BLURB = {
 
 
 def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
-          layout: str = "A") -> str:
+          layout: str = "A", uplink_disarm_sent: int = 0) -> str:
     lines = []
     def add(k: str, v: object) -> None:
         lines.append(f"{k}: {v}")
@@ -172,7 +209,7 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
     add("duration_s", f"{duration_s:.1f}")
     add("layout", LAYOUT_BLURB.get(layout, layout))
     add("operator_bar", "yellow (RSSI -80..-100; consistent with 2 dBm vs hist -40 @ +20)")
-    add("veh_git", last_str(veh, r"([0-9a-f]{7,})") or last_str(veh, r"flight-([0-9a-f]+)"))
+    add("veh_git", last_str(veh, VEH_GIT_RE))
     add("veh_air", last_str(veh, r"Air:\s+(\S+)"))
     add("stn_air", last_str(stn, r"Air:\s+(\S+)"))
     add("regversion_veh", last_str(veh, r"RegVersion=(0x[0-9a-fA-F]+)"))
@@ -184,10 +221,17 @@ def score(cell: str, veh: str, stn: str, duration_s: float, paper: dict,
     add("stn_crc", last_int(stn, r"(\d+)\s+CRC err") or last_int(stn, r"CRC errors:\s+(\d+)"))
     add("stn_rssi_dbm", last_int(stn, r"RSSI:\s+(-?\d+)\s*dBm"))
     add("stn_snr_db", last_int(stn, r"SNR:\s+(-?\d+)\s*dB"))
-    add("veh_copp", last_str(veh, r"COP-P:\s+(lock|waiting peer PLCW)"))
-    add("stn_copp", last_str(stn, r"COP-P\s+(lock|waiting peer PLCW)"))
+    add("veh_copp", last_str(veh, COP_P_RE))
+    add("stn_copp", last_str(stn, COP_P_RE))
+    for prefix, blob in (("veh", veh), ("stn", stn)):
+        row = last_link(blob)
+        add(f"{prefix}_link_delivered", None if row is None else row["delivered"])
+        add(f"{prefix}_link_crc_fail", None if row is None else row["crc_fail"])
+        add(f"{prefix}_copp_rtx", None if row is None else row["copp_rtx"])
+        add(f"{prefix}_copp_sync_loss", None if row is None else row["copp_sync_loss"])
     add("stn_rf_link", last_str(stn, r"(RF Link: [^\n]+)"))
     add("arm_sent", "ARM sent" in stn or "[CMD] ARM sent" in stn)
+    add("uplink_disarm_sent", uplink_disarm_sent)
     add("arm_refused", "[SC] LoRa command refused" in stn or "[SC] LoRa command refused" in veh)
     add("fd_arm", bool(re.search(r"\[fd\].*ARM|ARMED|arm_ok", veh, re.I)))
     add("waiting_packets", "Waiting for vehicle packets" in stn)
@@ -242,6 +286,12 @@ def main() -> int:
     ap.add_argument("--arm-at", type=float, default=90.0,
                     help="seconds; <0 skips ARM")
     ap.add_argument("--disarm-at", type=float, default=110.0)
+    ap.add_argument(
+        "--uplink-disarm-every",
+        type=float,
+        default=0.0,
+        help="seconds between station D (uplink DISARM); 0 = off; needs --arm-at -1",
+    )
     ap.add_argument("--stn-init", default="",
                     help="chars to send on station at t=2s (e.g. xr = menu then SET cycle)")
     ap.add_argument("--stn-init-gap", type=float, default=1.6,
@@ -255,6 +305,10 @@ def main() -> int:
     ap.add_argument("--layout", default="A", choices=sorted(LAYOUT_BLURB),
                     help="physical layout class for the score file")
     args = ap.parse_args()
+    # A repeated DISARM would clear the ARM window. Refuse before any port opens.
+    if args.uplink_disarm_every > 0 and args.arm_at >= 0:
+        print("uplink DISARM test needs --arm-at -1", file=sys.stderr)
+        return 1
 
     date = dt.date.today().isoformat()
     log_dir = os.path.join(os.path.dirname(__file__), "..", "logs", "soak")
@@ -310,6 +364,8 @@ def main() -> int:
     last_live = 0.0
     stn_init_sent = False
     veh_init_sent = False
+    uplink_disarm_sent = 0
+    next_uplink_disarm = 15.0
 
     try:
         while True:
@@ -334,7 +390,7 @@ def main() -> int:
                 snr = last_int(stxt, r"SNR:\s+(-?\d+)\s*dB")
                 rx = last_int(stxt, r"Pkts:\s+(\d+)") or last_int(stxt, r"RX:\s+(\d+)\s+pkts")
                 crc = last_int(stxt, r"(\d+)\s+CRC err")
-                copp = last_str(stxt, r"COP-P\s+(lock|waiting peer PLCW)")
+                copp = last_str(stxt, COP_P_RE)
                 log(f"  t={elapsed:.0f}s RSSI={rssi} SNR={snr} RX={rx} CRC={crc} COP-P={copp}")
                 last_live = elapsed
 
@@ -384,6 +440,27 @@ def main() -> int:
                     log(f"  t={elapsed:.0f}s station DISARM")
                 disarmed = True
 
+            # Dashboard only: t = 15 s until the end sequence. "D" is DISARM.
+            # Do not send x, X, or b here (menu, erase, or the wrong command).
+            if (
+                args.uplink_disarm_every > 0
+                and stn is not None
+                and not cfg2_sent
+                and 15.0 <= elapsed < args.duration - 8.0
+                and elapsed >= next_uplink_disarm
+            ):
+                stn.send(b"D")
+                uplink_disarm_sent += 1
+                log(
+                    f"  t={elapsed:.0f}s station D "
+                    f"(uplink DISARM {uplink_disarm_sent})"
+                )
+                step = args.uplink_disarm_every
+                next_uplink_disarm += step
+                if next_uplink_disarm <= elapsed:
+                    behind = int((elapsed - next_uplink_disarm) / step) + 1
+                    next_uplink_disarm += behind * step
+
             if not cfg2_sent and elapsed >= args.duration - 8.0:
                 try:
                     veh.send(b"t")
@@ -424,7 +501,10 @@ def main() -> int:
         f"STATION_CDC_UNAVAILABLE {stn_open_err}\n"
         "operator visual: RSSI bar YELLOW\n"
     )
-    summary = score(args.cell, vtxt, stxt, elapsed, paper, layout=args.layout)
+    summary = score(
+        args.cell, vtxt, stxt, elapsed, paper,
+        layout=args.layout, uplink_disarm_sent=uplink_disarm_sent,
+    )
     if stn_open_err:
         summary += f"stn_cdc: UNAVAILABLE ({stn_open_err})\n"
     with open(score_path, "w", encoding="utf-8") as fh:
