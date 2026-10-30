@@ -238,8 +238,13 @@ Checks: >
   clang-analyzer-security.ArrayBound,
   clang-analyzer-security.FloatLoopCounter,
 
-# Only report warnings in our source files, not SDK/third-party headers
-HeaderFilterRegex: '.*(src/ccsds/.+|include/starcom/.+)'
+# Only report warnings in our source files, not SDK/third-party headers.
+# Accept / and \ as path separators (clang-tidy on Windows shows both).
+# Repo source only: starcom/include, starcom/src, starcom/adapters, RC src/ and include/.
+# Vendored, third-party and build trees are excluded (tl::expected, pico-sdk, lib,
+# EXTERNAL, CMake _deps such as googletest, and build* folders).
+HeaderFilterRegex: '.*[/\\](starcom[/\\](include|src|adapters)|src|include)[/\\].*'
+ExcludeHeaderFilterRegex: '.*[/\\](third_party|pico-sdk|lib|EXTERNAL|_deps|build[^/\\]*)[/\\].*'
 
 CheckOptions:
 

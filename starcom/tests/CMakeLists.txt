@@ -35,3 +35,33 @@ if(NOT MSVC AND NOT STARCOM_SANITIZE)
 endif()
 
 add_test(NAME starcom.unit COMMAND starcom_tests)
+
+# Known-bad tidy probe. The sources are not a build target.
+find_program(STARCOM_CLANG_TIDY NAMES clang-tidy clang-tidy.exe
+  HINTS "C:/Program Files/LLVM/bin")
+set(_starcom_tidy_selftest OFF)
+if(STARCOM_CLANG_TIDY)
+  execute_process(
+    COMMAND "${STARCOM_CLANG_TIDY}" --version
+    RESULT_VARIABLE _starcom_tidy_rc
+    OUTPUT_VARIABLE _starcom_tidy_ver
+    ERROR_VARIABLE _starcom_tidy_ver_err
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(_starcom_tidy_ver_all "${_starcom_tidy_ver}${_starcom_tidy_ver_err}")
+  if(_starcom_tidy_rc EQUAL 0 AND _starcom_tidy_ver_all MATCHES "21\\.1\\.[0-9]+")
+    find_program(STARCOM_BASH NAMES bash
+      HINTS "C:/Program Files/Git/bin" "C:/Program Files/Git/usr/bin")
+    if(STARCOM_BASH)
+      set(_starcom_tidy_selftest ON)
+    endif()
+  endif()
+endif()
+if(_starcom_tidy_selftest)
+  add_test(NAME starcom.tidy_selftest
+    COMMAND "${STARCOM_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/tidy_selftest.sh")
+  set_property(TEST starcom.tidy_selftest PROPERTY ENVIRONMENT
+    "CLANG_TIDY=${STARCOM_CLANG_TIDY}")
+else()
+  message(STATUS "tidy_selftest skipped: no pinned clang-tidy 21.1.x")
+endif()

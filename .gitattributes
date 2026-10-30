@@ -5,3 +5,5 @@ test/data/reference/*.csv text eol=lf
 
 # Cygwin bash scripts (CRLF breaks `cd "$(dirname "$0")"` and `set -eu`)
 tools/spin/*.sh text eol=lf
+# Starcom shell scripts (CRLF makes `exit 0\r` fail with exit 2)
+starcom/scripts/*.sh text eol=lf

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Starcom host clang-tidy. Core first. Not the Rocket-Chip firmware gate.
 # Requires: cmake -S . -B build -G Ninja  (this directory is starcom/)
 set -eu
@@ -39,7 +39,11 @@ echo "starcom clang-tidy  scope=${SCOPE}  -p ${BUILD}  --config-file ${CONFIG}" 
 for f in "${FILES[@]}"; do
   echo "---- ${f} ----" | tee -a "${OUT}"
   # --config-file: parent Rocket-Chip .clang-tidy must not win while incubating.
-  if ! "${CT}" "${STARCOM}/${f}" -p "${BUILD}" --config-file="${CONFIG}" --quiet >>"${OUT}" 2>&1; then
+  # The MinGW database has the GCC-only -Wstack-usage=1024 (with -Werror).
+  # Clang does not know it. Keep that as a warning, not an error, so the
+  # exit code reports clang-tidy faults only.
+  if ! "${CT}" "${STARCOM}/${f}" -p "${BUILD}" --config-file="${CONFIG}" --quiet \
+      --extra-arg=-Wno-error=unknown-warning-option >>"${OUT}" 2>&1; then
     FAIL=1
   fi
 done
