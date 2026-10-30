@@ -393,30 +393,102 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
   }
 }
 
+// S61 and S62 share this miss. The Y!=3 notify is the only difference.
+void halfExpiredMiss(MacSession& m, MacNotify miss_notify) noexcept {
+  applyState(m, MacState::s51);
+  loadWait(m, m.mib.carrier_only_duration);
+  ++m.token_fail_n;
+  if (m.y == 3) {
+    m.y = 0;
+    m.pending_cv_valid = false;
+    notify(m, MacNotify::comm_change_revert);
+  } else {
+    notify(m, miss_notify);
+  }
+}
+
+void halfExpiredS50(MacSession& m) noexcept {
+  // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
+  if (m.mib.maximum_failed_token_passes != 0 &&
+      m.token_fail_n >= m.mib.maximum_failed_token_passes) {
+    m.transmit_on = false;
+    if (m.role == MacRole::caller) {
+      applyState(m, MacState::s80);
+      loadWait(m, m.mib.drop_carrier_duration);
+    } else {
+      applyState(m, MacState::s2);
+      m.need_plcw = true;
+      m.persistence = false;
+      m.token_fail_n = 0;
+    }
+    return;
+  }
+  // Table 6-10 E38 sets PERSISTENCE and does not reload Send_Duration.
+  // E39 still waits until NEED_PLCW is false. The PLCW is a MAC frame,
+  // so macFifoSource still offers it while persistence is set.
+  if (m.y == 0) {
+    m.persistence = true;
+  }
+}
+
+void halfExpiredS52(MacSession& m) noexcept {
+  applyState(m, MacState::s50);
+  loadWait(m, m.mib.send_duration);
+  if (m.y == 1 || m.y == 3) {  // E64
+    m.y = 2;
+    m.persistence = true;
+    notify(m, MacNotify::comm_change_apply_rx);
+  }
+  // Table 6-11 E65: NoFramesPending in S50 Y=2. Queue this contact
+  // rather than waiting out Send_Duration (E38 does not apply at Y=2).
+  if (m.y == 2) {
+    applyState(m, MacState::s56);
+    queueCommChangeSpdus(m);
+  }
+}
+
+void halfExpiredS58(MacSession& m) noexcept {
+  if (m.y == 2) {  // E67
+    m.y = 3;
+    applyState(m, MacState::s62);
+    loadWait(m, m.mib.receive_duration);
+  } else {  // E43
+    applyState(m, MacState::s62);
+    m.persistence = false;
+    m.modulation = false;
+    loadWait(m, m.mib.receive_duration);
+  }
+}
+
+void halfExpiredS60(MacSession& m) noexcept {
+  if (m.carrier_acquired) {  // E44
+    loadWait(m, m.mib.receive_duration);
+    notify(m, MacNotify::sender_overran);
+  } else {  // E48
+    applyState(m, MacState::s51);
+    loadWait(m, m.mib.carrier_only_duration);
+  }
+}
+
+void halfExpiredS61(MacSession& m) noexcept {
+  if (m.carrier_acquired) {  // E45
+    loadWait(m, m.mib.receive_duration);
+    notify(m, MacNotify::no_data_this_contact);
+  } else {  // E50. Annex C: one S62/S61 miss toward E83.
+    halfExpiredMiss(m, MacNotify::no_data_this_contact);
+  }
+}
+
+void halfExpiredS62(MacSession& m) noexcept {
+  if (!m.carrier_acquired) {  // E50
+    halfExpiredMiss(m, MacNotify::no_carrier_this_contact);
+  }
+}
+
 void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
   switch (m.state) {
     case MacState::s50:  // E38 211.0 table 6-10 (from S50, Y=0)
-      // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
-      if (m.mib.maximum_failed_token_passes != 0 &&
-          m.token_fail_n >= m.mib.maximum_failed_token_passes) {
-        m.transmit_on = false;
-        if (m.role == MacRole::caller) {
-          applyState(m, MacState::s80);
-          loadWait(m, m.mib.drop_carrier_duration);
-        } else {
-          applyState(m, MacState::s2);
-          m.need_plcw = true;
-          m.persistence = false;
-          m.token_fail_n = 0;
-        }
-        break;
-      }
-      // Table 6-10 E38 sets PERSISTENCE and does not reload Send_Duration.
-      // E39 still waits until NEED_PLCW is false. The PLCW is a MAC frame,
-      // so macFifoSource still offers it while persistence is set.
-      if (m.y == 0) {
-        m.persistence = true;
-      }
+      halfExpiredS50(m);
       break;
     case MacState::s51:  // E40
       applyState(m, MacState::s52);
@@ -424,74 +496,22 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
       loadWait(m, m.mib.acquisition_idle_duration);
       break;
     case MacState::s52:  // E41
-      applyState(m, MacState::s50);
-      loadWait(m, m.mib.send_duration);
-      if (m.y == 1 || m.y == 3) {  // E64
-        m.y = 2;
-        m.persistence = true;
-        notify(m, MacNotify::comm_change_apply_rx);
-      }
-      // Table 6-11 E65: NoFramesPending in S50 Y=2. Queue this contact
-      // rather than waiting out Send_Duration (E38 does not apply at Y=2).
-      if (m.y == 2) {
-        applyState(m, MacState::s56);
-        queueCommChangeSpdus(m);
-      }
+      halfExpiredS52(m);
       break;
     case MacState::s58:
-      if (m.y == 2) {  // E67
-        m.y = 3;
-        applyState(m, MacState::s62);
-        loadWait(m, m.mib.receive_duration);
-      } else {  // E43
-        applyState(m, MacState::s62);
-        m.persistence = false;
-        m.modulation = false;
-        loadWait(m, m.mib.receive_duration);
-      }
+      halfExpiredS58(m);
       break;
     case MacState::s55:  // E57
       enterS1(m, now, true);
       break;
     case MacState::s60:
-      if (m.carrier_acquired) {  // E44
-        loadWait(m, m.mib.receive_duration);
-        notify(m, MacNotify::sender_overran);
-      } else {  // E48
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-      }
+      halfExpiredS60(m);
       break;
     case MacState::s61:
-      if (m.carrier_acquired) {  // E45
-        loadWait(m, m.mib.receive_duration);
-        notify(m, MacNotify::no_data_this_contact);
-      } else {  // E50. Annex C: one S62/S61 miss toward E83.
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-        ++m.token_fail_n;
-        if (m.y == 3) {
-          m.y = 0;
-          m.pending_cv_valid = false;
-          notify(m, MacNotify::comm_change_revert);
-        } else {
-          notify(m, MacNotify::no_data_this_contact);
-        }
-      }
+      halfExpiredS61(m);
       break;
     case MacState::s62:
-      if (!m.carrier_acquired) {  // E50
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-        ++m.token_fail_n;
-        if (m.y == 3) {
-          m.y = 0;
-          m.pending_cv_valid = false;
-          notify(m, MacNotify::comm_change_revert);
-        } else {
-          notify(m, MacNotify::no_carrier_this_contact);
-        }
-      }
+      halfExpiredS62(m);
       break;
     default:
       break;
