@@ -84,6 +84,8 @@ Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` (line refs may be stale after 
 
 ### clang-tidy config defects (PR-2 / PR-1b) (2026-10-29)
 
+RC root `.clang-tidy` fixed in `f53e391c` (10 checks and `clang-analyzer-core` back on). Full config, 77 RC source files, clang-tidy 21.1.8: the restored checks show 778 warnings in 68 files (528 `misc-const-correctness`, 146 `hicpp-signed-bitwise`, 44 `modernize-deprecated-headers`, 32 `readability-avoid-const-params-in-decls`, 16 `clang-analyzer-core.FixedAddressDereference`, 9 `performance-enum-size`, 3 `cert-dcl50-cpp`). 9 of them are in pico-sdk headers (the analyzer ignores the header filter). The 3 `src/drivers/*_legacy.cpp` files do not compile (no `dps310.h`; duplicate definitions). The commit gate (`scripts/audit/full_tree_clang_tidy.sh`) uses its own 4-check list, so these checks are not gated. Fixes go to the RC master audit. Log: `Documents\rc-audit-logs\RC_FULLTREE_rootcfg_f53e391c_v21.1.8.txt` (PC, not in the repo).
+
 Both `.clang-tidy` files glue comments into `Checks:` (root: 10 checks off, Starcom: 13, plus 23 `clang-analyzer-core.*` silenced in both), and `HeaderFilterRegex` uses `/`, so Windows reports no header hits. Fix order: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2 "Code-fix plan" (Grok Build on the PC; firmware tree, bench at push). The root fix (G2) changes only `.clang-tidy`. New RC findings go to the RC master audit. The old RC PASS lines stay as written (Nathan, 2026-10-30); the Starcom audit records which rested on checks that were off.
 
 ### Two JSF rules broken with no stated reason: braces and names (Nathan, 2026-10-30)

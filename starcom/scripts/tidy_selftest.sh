@@ -148,6 +148,65 @@ else
   fail=$((fail + 1))
 fi
 
+# Rocket-Chip root .clang-tidy: it had the same comment fault. Check its
+# check count and the analyzer tags in tidy_probe.cpp. Skip when Starcom is
+# not inside the Rocket-Chip tree (no root config).
+ROOT_CONFIG="${ROOT_CONFIG:-${STARCOM}/../.clang-tidy}"
+ROOT_MIN="${ROOT_MIN:-163}"
+if [[ -f "${ROOT_CONFIG}" ]]; then
+  root_diag="$(
+    cd "${PROBE}"
+    "${CT}" tidy_probe.cpp --config-file="${ROOT_CONFIG}" --quiet -- \
+      -std=c++20 \
+      -I"${PROBE}/starcom/include" \
+      -I"${PROBE}/third_party/include" 2>&1 || true
+  )"
+  starcom_warns="${warns}"
+  warns=""
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%$'\r'}"
+    if [[ "${line}" =~ ^(.+):([0-9]+):[0-9]+:[[:space:]]+warning:.*\[([^]]+)\][[:space:]]*$ ]]; then
+      path="${BASH_REMATCH[1]//\\//}"
+      warns+="${path##*/}|${BASH_REMATCH[2]}|${BASH_REMATCH[3]}"$'\n'
+    fi
+  done <<< "${root_diag}"
+  while IFS= read -r tag; do
+    [[ -z "${tag}" ]] && continue
+    base="${tag%%|*}"
+    rest="${tag#*|}"
+    ln="${rest%%|*}"
+    check="${rest#*|}"
+    [[ "${base}" == "tidy_probe.cpp" && "${check}" == clang-analyzer-core.* ]] || continue
+    total=$((total + 1))
+    if check_fired "${base}" "${ln}" "${check}"; then
+      echo "PASS root ${base}:${ln} ${check}"
+      pass=$((pass + 1))
+    else
+      echo "FAIL root ${base}:${ln} ${check}"
+      fail=$((fail + 1))
+    fi
+  done <<< "${tags}"
+  warns="${starcom_warns}"
+  root_list="$("${CT}" --list-checks --config-file="${ROOT_CONFIG}" 2>&1 || true)"
+  rcount=0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%$'\r'}"
+    if [[ "${line}" =~ ^[[:space:]]+[^[:space:]] ]]; then
+      rcount=$((rcount + 1))
+    fi
+  done <<< "${root_list}"
+  total=$((total + 1))
+  if [[ "${rcount}" -ge "${ROOT_MIN}" ]]; then
+    echo "PASS root check-count ${rcount}"
+    pass=$((pass + 1))
+  else
+    echo "FAIL root check-count ${rcount} (need ${ROOT_MIN})"
+    fail=$((fail + 1))
+  fi
+else
+  echo "NOTE root config not found (${ROOT_CONFIG}); root checks skipped"
+fi
+
 if [[ "${fail}" -eq 0 ]]; then
   echo "tidy_selftest: ${pass}/${total} PASS"
   exit 0
