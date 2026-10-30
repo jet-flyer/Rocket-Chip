@@ -231,7 +231,7 @@ bool tickDec(Tick& t, Tick dt) noexcept {
     t = 0;
     return true;
   }
-  t = static_cast<Tick>(t - dt);
+  t = t - dt;
   return t == 0;
 }
 
@@ -1124,9 +1124,9 @@ Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  const unsigned type = ((w >> 15) & 1u) |
+                        (((w >> 14) & 1u) << 1) |
+                        (((w >> 13) & 1u) << 2);
   if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
@@ -1163,9 +1163,9 @@ Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noe
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  const unsigned type = ((w >> 15) & 1u) |
+                        (((w >> 14) & 1u) << 1) |
+                        (((w >> 13) & 1u) << 2);
   if (type != kSetControlDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
@@ -1209,9 +1209,9 @@ Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
+  const unsigned type = ((w >> 15) & 1u) |
+                        (((w >> 14) & 1u) << 1) |
+                        (((w >> 13) & 1u) << 2);
   if (type != kSetPlExtDirectiveType) {
     return tl::unexpected(Error::truncated);
   }

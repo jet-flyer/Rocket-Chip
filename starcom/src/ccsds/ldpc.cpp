@@ -156,7 +156,7 @@ void pnXor(std::span<std::byte> octets) noexcept {
     unsigned acc = 0;
     for (int b = 7; b >= 0; --b) {
       const unsigned out = r & 1u;
-      const unsigned fb = std::popcount(static_cast<unsigned>(r & 0x5Fu)) & 1u;
+      const unsigned fb = std::popcount(r & 0x5Fu) & 1u;
       r = static_cast<std::uint8_t>((r >> 1) | (fb << 7));
       acc |= out << b;
     }

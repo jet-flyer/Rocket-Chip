@@ -146,7 +146,7 @@ ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
     return tl::unexpected(ccsds::Error::truncated);
   }
   s.native = static_cast<std::uintptr_t>(sock);
-  return static_cast<std::uint16_t>(ntohs(bound.sin_port));
+  return ntohs(bound.sin_port);
 }
 
 void udpClose(UdpSocket& s) noexcept {

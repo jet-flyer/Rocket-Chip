@@ -92,6 +92,10 @@ Both `.clang-tidy` files glue comments into `Checks:` (root: 10 checks off, Star
 
 JSF 60/61 (braces on own lines) are mandatory "will" rules with no exception (JSF Rev C 4.2.1, AV Rule 5), but all code uses K&R, and `docs/audits/STANDARDS_AUDIT_2026-02-07.md:271-272` is a false PASS; the `standards/CODING_STANDARDS.md:63` camelBack override of JSF 45/51/52 gives no reason (`docs/audits/RULE_VERIFIABILITY_TRIAGE.md:466` says only "repo-owner authorized"); JPL C puts naming and formatting out of its scope and Power of 10 has no layout or naming rule (Goddard, checked against both texts), so JSF governs; MISRA not checked. After Starcom and `src/starcom_adapt/` change to JSF 60/61 (W2), Starcom and the rest of RC use different brace styles, and `src/starcom_adapt/` differs from the rest of `src/`, until the RC-wide change lands; this row tracks that known mismatch. `CODING_STANDARDS.md:56` ("accepted deviation FP-1"; FP-1 closed 2026-05-13) and `:97` ("`#pragma once` is a live deviation"; RC has none) are also out of date; note only for now, so `CODING_STANDARDS.md` needs a deeper review later. RC master audit item; Starcom W2 converts Starcom and `src/starcom_adapt/` now (Nathan, 2026-10-30) (`starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`, Section 2).
 
+### Starcom host tests: plain `cmake` picks Clang (2026-10-30)
+
+`cmake -S starcom -B <dir> -G Ninja` with no compiler named picks LLVM Clang on the PC. Its linker rejects the `-Wl,--wrap=malloc/calloc/realloc` flags (`starcom/tests/CMakeLists.txt:32-34`), so `starcom_tests` does not link. With `-DCMAKE_CXX_COMPILER` set to MinGW `g++` it builds and passes. Make the build pick MinGW, or skip the wrap flags when the compiler is Clang. Not changed in the redundant-cast fix.
+
 ### Pre-commit hook positive controls + gaps (TODO) (2026-10-21)
 
 Hook still works; no change now. Gaps found in a read-only inventory:
