@@ -20,8 +20,10 @@ using starcom::ccsds::coppInitUslp;
 using starcom::ccsds::CoppMib;
 using starcom::ccsds::coppPollEvent;
 using starcom::ccsds::coppReceiveBytes;
+using starcom::ccsds::coppReset;
 using starcom::ccsds::coppRetransmitCount;
 using starcom::ccsds::coppSubmitSdu;
+using starcom::ccsds::coppSyncLossCount;
 using starcom::ccsds::coppTakeSdu;
 using starcom::ccsds::coppTick;
 using starcom::ccsds::encodeSpacePacket;
@@ -387,7 +389,7 @@ void test_copp_lossy_loop() {
   CHECK(a.fop.v_s == static_cast<std::uint8_t>(kBase + kWarm));
   CHECK(b.farm.v_r == static_cast<std::uint8_t>(kBase + kWarm));
 
-  const std::uint32_t rtx_before = coppRetransmitCount();
+  const std::uint32_t rtx_before = coppRetransmitCount(a);
   for (int i = 0; i < kLoss; ++i) {
     submit(kWarm + i, static_cast<std::uint8_t>(0x40u + i));
   }
@@ -434,7 +436,7 @@ void test_copp_lossy_loop() {
   }
   CHECK(done);
 
-  const std::uint32_t rtx_delta = coppRetransmitCount() - rtx_before;
+  const std::uint32_t rtx_delta = coppRetransmitCount(a) - rtx_before;
   std::fprintf(stderr,
                "t0 lossy resend_pltu=%d counter_delta=%u dropped_fsn=%u "
                "resent_fsn=%u,%u v_s=%u n_r=%u v_r=%u\n",
@@ -461,6 +463,13 @@ void test_copp_lossy_loop() {
   CHECK(a.fop.nn_r == kSeqAfter);
   CHECK(b.farm.v_r == kSeqAfter);
   CHECK(a.fop.state == FopPState::s1_active);
+  CHECK(coppRetransmitCount(b) == 0u);
+  CHECK(coppRetransmitCount(a) == static_cast<std::uint32_t>(resend_n));
+  const std::uint32_t a_rtx = coppRetransmitCount(a);
+  const std::uint32_t a_sync = coppSyncLossCount(a);
+  coppReset(a);
+  CHECK(coppRetransmitCount(a) == a_rtx);
+  CHECK(coppSyncLossCount(a) == a_sync);
 }
 
 void test_heap() {

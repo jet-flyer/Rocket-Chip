@@ -109,17 +109,17 @@ TEST_F(LinkBaselineTest, SoakScaleLineFitsLogBuffer) {
 }
 
 TEST(CoppRetransmit, CountsResendAndSurvivesReset) {
-    const uint32_t before = coppRetransmitCount();
     CoppMib mib{};
     mib.transmission_window = 1;
     CoppEndpoint tx{};
     coppInit(tx, mib, Pcid{0}, Scid{1}, Scid{2}, PortId{1});
+    const uint32_t before = coppRetransmitCount(tx);
 
     std::array<std::byte, 128> wire{};
     const auto plcw = coppBytesToSend(tx, wire);
     ASSERT_TRUE(plcw.has_value());
     EXPECT_GT(*plcw, 0u);
-    EXPECT_EQ(coppRetransmitCount(), before);
+    EXPECT_EQ(coppRetransmitCount(tx), before);
 
     SpacePacketFields sp{};
     const std::array<std::byte, 1> user{std::byte{0x11}};
@@ -133,26 +133,26 @@ TEST(CoppRetransmit, CountsResendAndSurvivesReset) {
     const auto first = coppBytesToSend(tx, wire);
     ASSERT_TRUE(first.has_value());
     EXPECT_GT(*first, 0u);
-    EXPECT_EQ(coppRetransmitCount(), before);
+    EXPECT_EQ(coppRetransmitCount(tx), before);
 
     const auto again = coppBytesToSend(tx, wire);
     ASSERT_TRUE(again.has_value());
     EXPECT_GT(*again, 0u);
-    EXPECT_EQ(coppRetransmitCount(), before + 1u);
+    EXPECT_EQ(coppRetransmitCount(tx), before + 1u);
 
     coppReset(tx);
-    EXPECT_EQ(coppRetransmitCount(), before + 1u);
+    EXPECT_EQ(coppRetransmitCount(tx), before + 1u);
 }
 
 // 211.0-B-6 Annex D item 8. SE4 is one notification. A resend is not one.
 TEST(CoppSyncLoss, CountsTimerExpiryApartFromResend) {
-    const uint32_t loss_before = coppSyncLossCount();
-    const uint32_t rtx_before = coppRetransmitCount();
     CoppMib mib{};
     mib.transmission_window = 4;
     mib.synch_timeout = 5;
     CoppEndpoint tx{};
     coppInit(tx, mib, Pcid{0}, Scid{1}, Scid{2}, PortId{1});
+    const uint32_t loss_before = coppSyncLossCount(tx);
+    const uint32_t rtx_before = coppRetransmitCount(tx);
     EXPECT_EQ(fopPNeedFrame(tx.fop, false, true),
               starcom::ccsds::FopPSend::new_seq);
 
@@ -160,16 +160,16 @@ TEST(CoppSyncLoss, CountsTimerExpiryApartFromResend) {
     bad.report_value = 9;
     fopPOnPlcw(tx.fop, bad, true);
     coppTick(tx, 0);
-    EXPECT_EQ(coppSyncLossCount(), loss_before);
+    EXPECT_EQ(coppSyncLossCount(tx), loss_before);
     coppTick(tx, 4);
-    EXPECT_EQ(coppSyncLossCount(), loss_before);
+    EXPECT_EQ(coppSyncLossCount(tx), loss_before);
     coppTick(tx, 5);
-    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
-    EXPECT_EQ(coppRetransmitCount(), rtx_before);
+    EXPECT_EQ(coppSyncLossCount(tx), loss_before + 1u);
+    EXPECT_EQ(coppRetransmitCount(tx), rtx_before);
     coppTick(tx, 9);
-    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
+    EXPECT_EQ(coppSyncLossCount(tx), loss_before + 1u);
 
     coppReset(tx);
-    EXPECT_EQ(coppSyncLossCount(), loss_before + 1u);
-    EXPECT_EQ(coppRetransmitCount(), rtx_before);
+    EXPECT_EQ(coppSyncLossCount(tx), loss_before + 1u);
+    EXPECT_EQ(coppRetransmitCount(tx), rtx_before);
 }

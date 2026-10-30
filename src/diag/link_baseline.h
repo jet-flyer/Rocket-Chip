@@ -12,6 +12,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+namespace rc::starcom_adapt {
+struct BytePump;
+}
+
 // 14-bit mask. Same modulus as byte_pump.h kSpaceSeqMask.
 constexpr uint16_t kLinkSeqMask = 0x3FFFu;
 
@@ -47,6 +51,8 @@ void link_baseline_note_air(uint32_t add_us, uint32_t bytes);
 // copp_sync_loss is Annex D item 8 (SE4). It is not a resend.
 size_t link_baseline_format(char* buf, size_t n, uint32_t copp_rtx,
                             uint32_t copp_sync_loss);
+// Counts are p.copp. The no-arg form is this board's pump.
+void link_baseline_dump(rc::starcom_adapt::BytePump const& p);
 void link_baseline_dump(void);
 
 #endif  // ROCKETCHIP_DIAG_LINK_BASELINE_H

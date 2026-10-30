@@ -66,9 +66,6 @@ void clearSynch(FopP& f) noexcept {
   f.synch_deadline = 0;
 }
 
-// 211.0-B-6 Annex D item 8. Not cleared by coppReset.
-std::uint32_t g_coppSyncLossN = 0;
-
 }  // namespace
 
 void farmPInit(FarmP& f) noexcept {
@@ -196,26 +193,26 @@ void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept {
   }
 }
 
-void fopPTick(FopP& f, Tick now) noexcept {
+bool fopPTick(FopP& f, Tick now) noexcept {
   if (!f.synch_running || f.mib.synch_timeout == 0) {
-    return;
+    return false;
   }
   if (f.synch_deadline == 0) {
     f.synch_deadline = now + f.mib.synch_timeout;
-    return;
+    return false;
   }
   if (now < f.synch_deadline) {
-    return;
+    return false;
   }
   // SE4. 211.0-B-6 Annex D item 8: COP-P LOSS OF SYNCHRONIZATION.
   f.synch_expired_latched = true;
-  ++g_coppSyncLossN;
   clearSynch(f);
   if (f.state == FopPState::s1_active && f.mib.resync_local) {
     f.rr_r = false;
     f.resync = true;
     f.state = FopPState::s2_resync;
   }
+  return true;
 }
 
 namespace {
@@ -241,7 +238,12 @@ void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
 }
 
 void coppReset(CoppEndpoint& e) noexcept {
+  // coppInit clears the endpoint. Keep both counts (since boot).
+  const std::uint32_t retransmit_n = e.retransmit_n;
+  const std::uint32_t sync_loss_n = e.sync_loss_n;
   coppInit(e, e.fop.mib, e.pcid, e.local_scid, e.remote_scid, e.port_id);
+  e.retransmit_n = retransmit_n;
+  e.sync_loss_n = sync_loss_n;
 }
 
 void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
@@ -256,7 +258,11 @@ void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
   fopPInit(e.fop, mib);
 }
 
-void coppTick(CoppEndpoint& e, Tick now) noexcept { fopPTick(e.fop, now); }
+void coppTick(CoppEndpoint& e, Tick now) noexcept {
+  if (fopPTick(e.fop, now)) {
+    ++e.sync_loss_n;
+  }
+}
 
 CoppEvent coppPollEvent(CoppEndpoint& e) noexcept {
   if (e.fop.synch_expired_latched) {
@@ -343,8 +349,6 @@ namespace {
 // Pico Core 0 stack is 4 KiB. Do not put kTransferFrameMax (2048) on the
 // stack in coppBytesToSend / coppSendPlcw (AO tick).
 std::array<std::byte, kTransferFrameMax> g_tfScratch{};
-// Not inside FopP. coppReset memsets FopP and would wipe a field there.
-std::uint32_t g_coppRetransmitN = 0;
 
 void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {
   e.farm_accepted_latched = true;
@@ -532,12 +536,12 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
 
 }  // namespace
 
-std::uint32_t coppRetransmitCount() noexcept {
-  return g_coppRetransmitN;
+std::uint32_t coppRetransmitCount(CoppEndpoint const& e) noexcept {
+  return e.retransmit_n;
 }
 
-std::uint32_t coppSyncLossCount() noexcept {
-  return g_coppSyncLossN;
+std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept {
+  return e.sync_loss_n;
 }
 
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
@@ -567,7 +571,7 @@ Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
   }
   // 211.0 §7.2.3 SE1 resend. Count a frame that left the sender.
   if (kind == FopPSend::resend_seq && n.has_value() && *n > 0) {
-    ++g_coppRetransmitN;
+    ++e.retransmit_n;
   }
   return n;
 }

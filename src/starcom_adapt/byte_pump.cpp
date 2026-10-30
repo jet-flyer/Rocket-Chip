@@ -244,7 +244,13 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
   starcom::ccsds::CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 0;
+  // coppInit clears the endpoint. A radio setting change calls pump_init again
+  // (boot_starcom_session), so keep the link counts since boot, as before.
+  const std::uint32_t retransmit_n = p.copp.retransmit_n;
+  const std::uint32_t sync_loss_n = p.copp.sync_loss_n;
   starcom::ccsds::coppInit(p.copp, mib, kSoakPcid, local, remote, kSoakPort);
+  p.copp.retransmit_n = retransmit_n;
+  p.copp.sync_loss_n = sync_loss_n;
   starcom::ccsds::macInit(p.mac, flight_mac_mib(local),
                           starcom::ccsds::MacDuplex::half, &p.copp);
   const auto& hail = rc::kDefaultRocketRadioConfig;

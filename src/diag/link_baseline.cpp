@@ -8,6 +8,7 @@
 
 #include "rocketchip/rc_log.h"
 #include "starcom/ccsds/copp.hpp"
+#include "starcom_adapt/byte_pump.h"
 
 LinkBaselineCounters g_linkBaseline = {};
 
@@ -103,10 +104,10 @@ size_t link_baseline_format(char* buf, size_t n, uint32_t copp_rtx,
         static_cast<unsigned long>(copp_sync_loss));
 }
 
-void link_baseline_dump(void) {
+void link_baseline_dump(rc::starcom_adapt::BytePump const& p) {
     char line[160];
     (void)link_baseline_format(line, sizeof(line),
-                               starcom::ccsds::coppRetransmitCount(),
-                               starcom::ccsds::coppSyncLossCount());
+                               starcom::ccsds::coppRetransmitCount(p.copp),
+                               starcom::ccsds::coppSyncLossCount(p.copp));
     rc::rc_log("%s\n", line);
 }

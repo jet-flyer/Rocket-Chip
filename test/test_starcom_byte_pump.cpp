@@ -1496,3 +1496,16 @@ TEST(StarcomBytePump, IdleApidSecondaryHeaderFlagClear) {
     ASSERT_TRUE(kn.has_value());
     EXPECT_EQ(out[0], std::byte{0x08});
 }
+
+// A radio setting change calls pump_init again. The link counts since boot stay.
+TEST(StarcomBytePump, PumpInitKeepsLinkCounts) {
+    static BytePump pump{};
+    pump_init(pump, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    EXPECT_EQ(starcom::ccsds::coppRetransmitCount(pump.copp), 0u);
+    EXPECT_EQ(starcom::ccsds::coppSyncLossCount(pump.copp), 0u);
+    pump.copp.retransmit_n = 7u;
+    pump.copp.sync_loss_n = 3u;
+    pump_init(pump, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    EXPECT_EQ(starcom::ccsds::coppRetransmitCount(pump.copp), 7u);
+    EXPECT_EQ(starcom::ccsds::coppSyncLossCount(pump.copp), 3u);
+}

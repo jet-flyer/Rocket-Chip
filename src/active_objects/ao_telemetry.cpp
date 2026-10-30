@@ -1296,6 +1296,11 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &g_telemAo.rx_snapshot;
 }
 
+// `t` calls this. g_pump stays in this file. Counts are read from p.copp.
+void link_baseline_dump(void) {
+    link_baseline_dump(g_pump);
+}
+
 StarcomLinkStatus AO_Telemetry_get_starcom_link() {
     StarcomLinkStatus s{};
     s.on = true;

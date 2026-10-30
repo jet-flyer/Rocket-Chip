@@ -92,7 +92,7 @@ struct FopP {
 void fopPInit(FopP& f, CoppMib const& mib) noexcept;
 FopPSend fopPNeedFrame(FopP& f, bool exp_available, bool seq_available) noexcept;
 void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept;
-void fopPTick(FopP& f, Tick now) noexcept;
+bool fopPTick(FopP& f, Tick now) noexcept;
 void fopPReset(FopP& f) noexcept;  // SE7
 
 enum class CoppEvent : std::uint8_t {
@@ -130,6 +130,10 @@ struct CoppEndpoint {
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> rx_q{};
   std::array<std::size_t, kCoppSeqSlots> rx_len{};
   std::uint8_t rx_n = 0;
+  // Sequence-controlled resends since process start. coppReset does not clear it.
+  std::uint32_t retransmit_n = 0;
+  // 211.0-B-6 Annex D item 8. One count per SE4 notification. coppReset does not clear it.
+  std::uint32_t sync_loss_n = 0;
 };
 
 void coppInit(CoppEndpoint& e, CoppMib const& mib, Pcid pcid, Scid local,
@@ -142,10 +146,10 @@ void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexce
 Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) noexcept;
 // Sequence-controlled resends since process start. coppReset does not clear it.
 // LoRa and a later FSK bearer share this count.
-std::uint32_t coppRetransmitCount() noexcept;
+std::uint32_t coppRetransmitCount(CoppEndpoint const& e) noexcept;
 // 211.0-B-6 Annex D item 8. One count per SE4 notification.
 // coppReset does not clear it. Separate from coppRetransmitCount.
-std::uint32_t coppSyncLossCount() noexcept;
+std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept;
 Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
 // User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3
