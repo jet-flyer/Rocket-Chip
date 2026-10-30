@@ -96,6 +96,13 @@ JSF 60/61 (braces on own lines) are mandatory "will" rules with no exception (JS
 
 `cmake -S starcom -B <dir> -G Ninja` with no compiler named picks LLVM Clang on the PC. Its linker rejects the `-Wl,--wrap=malloc/calloc/realloc` flags (`starcom/tests/CMakeLists.txt:32-34`), so `starcom_tests` does not link. With `-DCMAKE_CXX_COMPILER` set to MinGW `g++` it builds and passes. Make the build pick MinGW, or skip the wrap flags when the compiler is Clang. Not changed in the redundant-cast fix.
 
+### Starcom coding tests and citations: notes from the sign-conversion fix (2026-10-30, Duke)
+
+- `starcom/src/ccsds/conv.cpp` and `starcom/tests/unit/test_coding.cpp` header comments cite `131.0-B-5 §3.3`. B-5 is superseded. The current issue is 131.0-B-6 (code in section 4.3), and 211.2-B-3 refers to 131.0-B-3. The values are the same in all three, so nothing on air changes. Fix with the comments group.
+- `test_conv_single_one` checks only the first output pair. The full 7-pair response would check both connection vectors (G1, inverted G2).
+- No test checks that the PN sequence starts again after 255 bits (211.2-B-3 clause 3.4.5.2.9).
+- Not a FAIL. Noted, not changed.
+
 ### Pre-commit hook positive controls + gaps (TODO) (2026-10-21)
 
 Hook still works; no change now. Gaps found in a read-only inventory:

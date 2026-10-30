@@ -13,8 +13,8 @@ constexpr unsigned kG2 = 0b1011011u;
 void encodeBit(ConvEnc& enc, unsigned in_bit, unsigned& c1, unsigned& c2) noexcept {
   // 7-bit register: bit6 = input, bits5..0 = delay line (newest..oldest).
   const unsigned v = ((in_bit & 1u) << 6) | (enc.mem & 0x3Fu);
-  c1 = std::popcount(v & kG1) & 1u;
-  c2 = (std::popcount(v & kG2) & 1u) ^ 1u;  // G2 symbol inversion
+  c1 = static_cast<unsigned>(std::popcount(v & kG1)) & 1u;
+  c2 = (static_cast<unsigned>(std::popcount(v & kG2)) & 1u) ^ 1u;  // G2 symbol inversion
   enc.mem = static_cast<std::uint8_t>(v >> 1);
 }
 

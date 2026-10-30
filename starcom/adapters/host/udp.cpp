@@ -70,7 +70,7 @@ bool makeAddr(char const* host, std::uint16_t port,
 bool setNonblock(Native s) noexcept {
 #if defined(_WIN32)
   u_long one = 1;
-  return ioctlsocket(s, FIONBIO, &one) == 0;
+  return ioctlsocket(s, static_cast<std::int32_t>(FIONBIO), &one) == 0;
 #else
   const int flags = fcntl(s, F_GETFL, 0);
   if (flags < 0) {
