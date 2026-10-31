@@ -302,6 +302,8 @@ bool fop1ResumeAd(Fop1& f) noexcept {
     dest = Fop1State::s3_retransmit_wait;
   } else if (f.ss == 4U) {
     dest = Fop1State::s4_init_no_bc;
+  } else {
+    /* no action: Suspend_State is not 2, 3, or 4, so resume stays in S1 */
   }
   f.ss = 0;
   startT1(f);  // 5.2.17 Resume
@@ -532,6 +534,8 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
         ss = 2;
       } else if (f.state == Fop1State::s3_retransmit_wait) {
         ss = 3;
+      } else {
+        /* no action: state is not S2 or S3, so the suspend substate stays 1 */
       }
       fopSuspend(f, ss);  // E18
       return;
@@ -691,6 +695,8 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   } else if (ad) {
     const std::uint8_t ns = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFU);
     d = farm1OnAd(e.farm, ns, e.rx_n < kCop1SeqSlots);
+  } else {
+    /* no action: bypass 0 with control 1 is reserved (232.0 Table 4-1), so the frame is discarded */
   }
   if (d != Farm1Disposition::accepted) {
     return;

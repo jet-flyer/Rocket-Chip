@@ -156,6 +156,8 @@ void on_comm_change_spdu(BytePump& p, starcom::ccsds::Tick now,
     if (st == starcom::ccsds::MacState::s62) {
       p.peer_comm_change = true;
     }
+  } else {
+    /* no action: MAC state is not S2, S50, S51, S52, S60, S61, or S62 */
   }
 }
 
@@ -217,6 +219,8 @@ bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
           starcom::ccsds::macOnRnmd(p.mac, now);
         }
       }
+    } else {
+      /* no action: directive type is not SET PL, SET TX, SET RX, or SET CONTROL */
     }
   }
   return consumed;

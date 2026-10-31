@@ -76,6 +76,8 @@ template <class Sink>
       replayCompactFill(scratch, fill, hunt.consumed);
     } else if (eof || !replayRefill(scratch, fill, in, eof)) {
       more = false;
+    } else {
+      /* no action: replayRefill read more octets, so the next pass hunts again */
     }
   }
   in.close();

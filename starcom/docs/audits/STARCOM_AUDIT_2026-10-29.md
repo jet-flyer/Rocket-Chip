@@ -981,6 +981,10 @@ These items were found during the fix work. They are not regressions from this p
 - **`rc_os_update()` is 75 lines.** The JSF 1 limit is 60. It was over the limit before U1, and U1 added 6 lines. This is Rocket-Chip code, so it waits for the dedicated Rocket-Chip pass.
 - **Relay build not built for U1.** The relay job also sets `job::kRadioModeRx` (`include/rocketchip/job_relay.h:15`), so it uses the U1 key path. This is from the code only; the relay image was not built.
 - **Flight clang-tidy `cassert` error.** On the flight compile database, `pico/assert.h` cannot find `cassert`. The error was there before U1 and does not change.
+- **Second ACK after a dashboard command (Buzz, 2026-10-31).** On the board check of the U1 fix, the station printed `[CMD] ACK'd (seq=1)` and then `[CMD] ack ignore seq=1 ... pend=0`. A second ACK arrived after the command had cleared. It did no harm, but the vehicle may send a duplicate reply.
+- **clang-tidy does not fully check `crc32.cpp` (Goddard, 2026-10-31).** Each tidy run reports an error on `starcom/src/ccsds/crc32.cpp` for the unknown flag `-Wstack-usage=1024`. The error was there before this plan, so tidy may never have fully checked that file.
+- **SET V(R) dropped in two cases (Duke, 2026-10-31; from the code only, no test, no board check).** `dispatch_p_frame_spdu` drops a SET V(R) directive and still returns `consumed` when the directive comes after a MAC directive in the same SPDU (211.0-B-6 permits several directives in one SPDU), and when it arrives in S2. SET V(R) is mandatory (211.0-B-6 DLL-146, M). A SET V(R) sent alone reaches `farmPSetVr` correctly.
+- **Full-duplex remote COMM_CHANGE (Duke, 2026-10-31).** A full-duplex remote COMM_CHANGE (E13) would go to the empty final `else` in `on_comm_change_spdu`. This cannot occur today, because `byte_pump` runs only half duplex.
 - **`docs/DESIGN.md` "What applies here" wording.** The note says that Starcom claims the published books. It should also say that the lunar drafts guided the FSK design as draft references. Change it with the FSK pivot work.
 
 ### Brace and naming rules

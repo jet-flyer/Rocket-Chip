@@ -411,6 +411,8 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
         applyState(m, MacState::s41);
         loadWait(m, m.mib.carrier_only_duration);
         notify(m, MacNotify::comm_change_ok);
+      } else {
+        /* no action: Y is not 3 and not 5, so wait expiry in S48 does nothing */
       }
       break;
     default:
@@ -631,6 +633,8 @@ void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept {
       m.modulation = true;
     } else if (m.duplex == MacDuplex::simplex_receive) {
       applyState(m, MacState::s72);  // E72
+    } else {
+      /* no action: duplex is full or half, so active mode does not enter S71 or S72 */
     }
   }
 }
@@ -831,6 +835,8 @@ void macLocalNoMoreData(MacSession& m, Tick now) noexcept {
     } else if (m.x == 4) {  // E24
       m.x = kMacXNoMoreData;
       m.mac_frame_pending = true;
+    } else {
+      /* no action: X is not 0 and not 4, so local no-more-data in full-duplex S40 does nothing */
     }
     return;
   }
@@ -839,6 +845,8 @@ void macLocalNoMoreData(MacSession& m, Tick now) noexcept {
       m.x = 1;
     } else if (m.x == 3) {  // E52
       m.x = 4;
+    } else {
+      /* no action: X is not 0 and not 3, so local no-more-data in half duplex does nothing */
     }
   }
 }
@@ -849,6 +857,8 @@ void macOnRnmd(MacSession& m, Tick now) noexcept {
       m.x = 4;
     } else if (m.x == 2) {  // E23
       m.x = kMacXNoMoreData;
+    } else {
+      /* no action: X is not 0 and not 2, so remote no-more-data in full-duplex S40 does nothing */
     }
     return;
   }
@@ -886,6 +896,8 @@ void macLocalCommChange(MacSession& m, Tick now) noexcept {
       notify(m, MacNotify::comm_change_apply_rx);
     } else if (m.y == 0) {  // E62
       m.y = 1;
+    } else {
+      /* no action: state is not S50 and Y is not 0, so a local COMM_CHANGE in half duplex does nothing */
     }
   }
 }
