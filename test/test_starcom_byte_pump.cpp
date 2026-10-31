@@ -18,6 +18,13 @@
 
 #include <algorithm>
 #include <array>
+
+static_assert(rc::starcom_adapt::kMacIdleTickMs == 10U);
+static_assert(rc::starcom_adapt::kHailWaitSlackMs == 20U);
+static_assert(rc::starcom_adapt::kDropCarrierMs == 20U);
+static_assert(rc::starcom_adapt::kReportPltuBytes == 14U);
+static_assert(rc::kCmdSduP2Offset == 12U);
+static_assert(rc::kCmdSduP4Offset == 20U);
 #include <cstring>
 
 using rc::starcom_adapt::BytePump;

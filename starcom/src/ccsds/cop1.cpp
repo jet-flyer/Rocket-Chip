@@ -112,8 +112,8 @@ void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept {
   if (f.mib.w < 2U) {
     f.mib.w = 2;
   }
-  if (f.mib.w > 254U) {
-    f.mib.w = 254;
+  if (f.mib.w > kFarm1WindowMax) {
+    f.mib.w = static_cast<std::uint8_t>(kFarm1WindowMax);
   }
   if ((f.mib.w % 2U) != 0) {
     --f.mib.w;
@@ -200,7 +200,7 @@ void farm1BufferRelease(Farm1& f) noexcept {
 Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
   Clcw32 w{};
   w.cop_in_effect = 0b01;
-  w.vcid = static_cast<std::uint8_t>(vcid & 0x3FU);
+  w.vcid = static_cast<std::uint8_t>(vcid & kClcwVcidMask);
   w.lockout = f.lockout_flag;
   w.wait = f.wait_flag;
   w.retransmit = f.retransmit_flag;

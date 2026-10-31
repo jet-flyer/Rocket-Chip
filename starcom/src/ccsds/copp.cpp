@@ -82,7 +82,7 @@ FarmPDisposition farmPOnFrame(FarmP& f, bool valid, bool expedited,
   }
   if (expedited) {
     f.expedited_frame_counter =
-        static_cast<std::uint8_t>((f.expedited_frame_counter + 1U) & 0x07U);
+        static_cast<std::uint8_t>((f.expedited_frame_counter + 1U) & kPlcwExpeditedMask);
     return FarmPDisposition::accepted;  // RE3
   }
   if (seqEq(n_s, f.v_r)) {
@@ -118,8 +118,8 @@ void fopPInit(FopP& f, CoppMib const& mib) noexcept {
   CoppMib keep = mib;
   std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = keep;
-  if (f.mib.transmission_window > 127U) {
-    f.mib.transmission_window = 127;
+  if (f.mib.transmission_window > kFopPSentCap) {
+    f.mib.transmission_window = static_cast<std::uint8_t>(kFopPSentCap);
   }
   if (f.mib.transmission_window == 0U) {
     f.mib.transmission_window = 1;

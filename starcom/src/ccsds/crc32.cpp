@@ -1,5 +1,7 @@
 #include "starcom/ccsds/crc.hpp"
 
+#include "starcom/ccsds/types.hpp"
+
 namespace starcom::ccsds {
 namespace {
 
@@ -14,7 +16,7 @@ std::uint32_t crc32(std::span<const std::byte> frame) noexcept {
   std::uint32_t crc = 0;
   for (std::byte octet : frame) {
     const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
-    for (std::int32_t i = 7; i >= 0; --i) {
+    for (std::int32_t i = static_cast<std::int32_t>(kOctetMsb); i >= 0; --i) {
       const std::uint32_t bit = (value >> i) & 1U;
       const std::uint32_t msb = (crc >> 31) & 1U;
       crc <<= 1;
@@ -29,10 +31,10 @@ std::uint32_t crc32(std::span<const std::byte> frame) noexcept {
 std::uint16_t crc16Fecf(std::span<const std::byte> covered) noexcept {
   // 732.1 Annex B: G(X) = X^16 + X^12 + X^5 + 1; L(X) presets all-ones.
   constexpr std::uint16_t kPoly16 = 0x1021U;
-  std::uint16_t crc = 0xFFFFU;
+  std::uint16_t crc = kCrc16Init;
   for (std::byte octet : covered) {
     const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
-    for (std::int32_t i = 7; i >= 0; --i) {
+    for (std::int32_t i = static_cast<std::int32_t>(kOctetMsb); i >= 0; --i) {
       const std::uint32_t bit = (value >> i) & 1U;
       const std::uint32_t msb = (crc >> 15) & 1U;
       crc = static_cast<std::uint16_t>(crc << 1);

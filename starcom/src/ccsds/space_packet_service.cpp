@@ -9,11 +9,11 @@ namespace {
 constexpr std::uint16_t kSeqMask = 0x3FFFU;
 
 constexpr std::size_t apidIndex(Apid apid) noexcept {
-  return static_cast<std::size_t>(static_cast<std::uint16_t>(apid) & 0x7FFU);
+  return static_cast<std::size_t>(static_cast<std::uint16_t>(apid) & kSpApidMask);
 }
 
 constexpr std::uint16_t apidValue(Apid apid) noexcept {
-  return static_cast<std::uint16_t>(static_cast<std::uint16_t>(apid) & 0x7FFU);
+  return static_cast<std::uint16_t>(static_cast<std::uint16_t>(apid) & kSpApidMask);
 }
 
 std::size_t delimitedSize(SpacePacketView const& view) noexcept {

@@ -489,6 +489,7 @@ int run_radio_bus_tests();
 int run_pio_port_tests();
 int run_phy_tests();
 int run_coding_tests();
+int run_constant_tests();
 
 int main() {
   test_crc_empty_and_zeros();
@@ -531,6 +532,7 @@ int main() {
   g_fails += run_pio_port_tests();
   g_fails += run_phy_tests();
   g_fails += run_coding_tests();
+  g_fails += run_constant_tests();
 
   if (g_fails != 0) {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);

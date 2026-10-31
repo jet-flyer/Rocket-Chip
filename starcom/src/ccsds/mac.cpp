@@ -45,34 +45,34 @@ struct StateFx {
 };
 
 constexpr StateFx kStateFx[] = {
-    {MacState::s1, MacMode::inactive, false, 0},
-    {MacState::s2, MacMode::connecting_l, false, 0},
-    {MacState::s80, MacMode::active, false, 0},
-    {MacState::s31, MacMode::connecting_t, true, 1},
-    {MacState::s11, MacMode::connecting_t, true, 1},
-    {MacState::s32, MacMode::connecting_t, true, 2},
-    {MacState::s12, MacMode::connecting_t, true, 2},
-    {MacState::s33, MacMode::connecting_t, true, 3},
-    {MacState::s13, MacMode::connecting_t, true, 3},
-    {MacState::s34, MacMode::connecting_t, true, 4},
-    {MacState::s14, MacMode::connecting_t, true, 4},
-    {MacState::s35, MacMode::connecting_t, false, 5},
-    {MacState::s36, MacMode::connecting_t, false, 5},
-    {MacState::s41, MacMode::active, true, 1},
-    {MacState::s51, MacMode::active, true, 1},
-    {MacState::s42, MacMode::active, true, 2},
-    {MacState::s52, MacMode::active, true, 2},
-    {MacState::s40, MacMode::active, true, 0},
-    {MacState::s50, MacMode::active, true, 0},
-    {MacState::s48, MacMode::active, true, 6},
-    {MacState::s56, MacMode::active, true, 6},
-    {MacState::s45, MacMode::active, true, 4},
-    {MacState::s58, MacMode::active, true, 4},
-    {MacState::s54, MacMode::active, true, 3},
-    {MacState::s55, MacMode::active, true, 7},
-    {MacState::s60, MacMode::active, false, 0},
-    {MacState::s61, MacMode::active, false, 1},
-    {MacState::s62, MacMode::active, false, 2},
+    {MacState::s1, MacMode::inactive, false, kMacSs0},
+    {MacState::s2, MacMode::connecting_l, false, kMacSs0},
+    {MacState::s80, MacMode::active, false, kMacSs0},
+    {MacState::s31, MacMode::connecting_t, true, kMacSs1},
+    {MacState::s11, MacMode::connecting_t, true, kMacSs1},
+    {MacState::s32, MacMode::connecting_t, true, kMacSs2},
+    {MacState::s12, MacMode::connecting_t, true, kMacSs2},
+    {MacState::s33, MacMode::connecting_t, true, kMacSs3},
+    {MacState::s13, MacMode::connecting_t, true, kMacSs3},
+    {MacState::s34, MacMode::connecting_t, true, kMacSs4},
+    {MacState::s14, MacMode::connecting_t, true, kMacSs4},
+    {MacState::s35, MacMode::connecting_t, false, kMacSs5},
+    {MacState::s36, MacMode::connecting_t, false, kMacSs5},
+    {MacState::s41, MacMode::active, true, kMacSs1},
+    {MacState::s51, MacMode::active, true, kMacSs1},
+    {MacState::s42, MacMode::active, true, kMacSs2},
+    {MacState::s52, MacMode::active, true, kMacSs2},
+    {MacState::s40, MacMode::active, true, kMacSs0},
+    {MacState::s50, MacMode::active, true, kMacSs0},
+    {MacState::s48, MacMode::active, true, kMacSs6},
+    {MacState::s56, MacMode::active, true, kMacSs6},
+    {MacState::s45, MacMode::active, true, kMacSs4},
+    {MacState::s58, MacMode::active, true, kMacSs4},
+    {MacState::s54, MacMode::active, true, kMacSs3},
+    {MacState::s55, MacMode::active, true, kMacSs7},
+    {MacState::s60, MacMode::active, false, kMacSs0},
+    {MacState::s61, MacMode::active, false, kMacSs1},
+    {MacState::s62, MacMode::active, false, kMacSs2},
 };
 
 void applyState(MacSession& m, MacState s) noexcept {
@@ -119,9 +119,9 @@ void queueSetVr(MacSession& m) noexcept {
 }
 
 std::uint8_t rev8(std::uint8_t x) noexcept {
-  x = static_cast<std::uint8_t>(((x & 0xF0U) >> 4) | ((x & 0x0FU) << 4));
-  x = static_cast<std::uint8_t>(((x & 0xCCU) >> 2) | ((x & 0x33U) << 2));
-  x = static_cast<std::uint8_t>(((x & 0xAAU) >> 1) | ((x & 0x55U) << 1));
+  x = static_cast<std::uint8_t>(((x & kRev8NibbleHi) >> 4) | ((x & kRev8NibbleLo) << 4));
+  x = static_cast<std::uint8_t>(((x & kRev8PairHi) >> 2) | ((x & kRev8PairLo) << 2));
+  x = static_cast<std::uint8_t>(((x & kRev8BitHi) >> 1) | ((x & kRev8BitLo) << 1));
   return x;
 }
 
@@ -398,7 +398,7 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
     case MacState::s48:
       if (m.y == 3) {  // E18
         m.y = 1;
-      } else if (m.y == 5) {  // E20
+      } else if (m.y == kMacYActOnRccd) {  // E20
         m.y = 0;
         m.persistence = false;
         m.need_plcw = true;
@@ -761,7 +761,7 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
     return;
   }
   if (m.state == MacState::s48 && m.y == 4) {  // E19
-    m.y = 5;
+    m.y = kMacYActOnRccd;
     loadWait(m, m.mib.tail_idle_duration);
   }
 }
@@ -769,7 +769,7 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
 void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
   (void)now;
   m.no_frames_pending = true;
-  if (m.state == MacState::s40 && m.x == 5) {  // E25
+  if (m.state == MacState::s40 && m.x == kMacXNoMoreData) {  // E25
     applyState(m, MacState::s45);
     loadWait(m, m.mib.tail_idle_duration);
     return;
@@ -805,12 +805,12 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
     return;
   }
   if (m.state == MacState::s50 && m.x == 4) {  // E55
-    m.x = 5;
+    m.x = kMacXNoMoreData;
     applyState(m, MacState::s54);
     queueControl(m, false, true);
     return;
   }
-  if (m.state == MacState::s54 && m.x == 5) {  // E56
+  if (m.state == MacState::s54 && m.x == kMacXNoMoreData) {  // E56
     m.x = 0;
     applyState(m, MacState::s55);
     loadWait(m, m.mib.tail_idle_duration);
@@ -824,7 +824,7 @@ void macLocalNoMoreData(MacSession& m, Tick now) noexcept {
       m.x = 2;
       m.mac_frame_pending = true;
     } else if (m.x == 4) {  // E24
-      m.x = 5;
+      m.x = kMacXNoMoreData;
       m.mac_frame_pending = true;
     }
     return;
@@ -843,7 +843,7 @@ void macOnRnmd(MacSession& m, Tick now) noexcept {
     if (m.x == 0) {  // E22
       m.x = 4;
     } else if (m.x == 2) {  // E23
-      m.x = 5;
+      m.x = kMacXNoMoreData;
     }
     return;
   }
@@ -1017,15 +1017,15 @@ MacPhy macPhy(MacSession const& m) noexcept {
 
 MacFifoSource macFifoSource(MacSession const& m) noexcept {
   if (!m.transmit_on || !m.modulation) {
-    if (m.ss == 1 && m.transmit_on) {
+    if (m.ss == kMacSs1 && m.transmit_on) {
       return MacFifoSource::carrier_only;
     }
     return MacFifoSource::none;
   }
-  if (m.ss == 2 || m.ss == 4 || m.ss == 7) {
+  if (m.ss == kMacSs2 || m.ss == kMacSs4 || m.ss == kMacSs7) {
     return MacFifoSource::idle;
   }
-  if (m.ss == 0 || m.ss == 3 || m.ss == 6) {
+  if (m.ss == kMacSs0 || m.ss == kMacSs3 || m.ss == kMacSs6) {
     if (m.mac_frame_pending) {
       return MacFifoSource::spdu;
     }
@@ -1044,7 +1044,7 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept {
     }
     return MacFifoSource::idle;
   }
-  if (m.ss == 1) {
+  if (m.ss == kMacSs1) {
     return MacFifoSource::carrier_only;
   }
   return MacFifoSource::none;
@@ -1068,7 +1068,7 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept {
     return tl::unexpected(Error::truncated);
   }
   const auto b1 = static_cast<std::uint8_t>(octets[1]);
-  if ((b1 & 0x07U) != kSetVrDirectiveType || (b1 & 0xF8U) != 0) {
+  if ((b1 & kSpduTypeMask) != kSetVrDirectiveType || (b1 & kSetVrSpareMask) != 0) {
     return tl::unexpected(Error::truncated);
   }
   return static_cast<std::uint8_t>(octets[0]);
@@ -1138,19 +1138,19 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
   if (octets.size() < 2) {
     return 0xFF;
   }
-  return static_cast<std::uint8_t>(std::to_integer<std::uint32_t>(octets[1]) & 0x07U);
+  return static_cast<std::uint8_t>(std::to_integer<std::uint32_t>(octets[1]) & kSpduTypeMask);
 }
 
 [[nodiscard]] Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
                                   bool transmitter) noexcept {
   std::uint16_t book = 0;
-  book |= static_cast<std::uint16_t>(p.mode & 0x07U);
-  book |= static_cast<std::uint16_t>(p.data_rate & 0x0FU) << 3;
-  book |= static_cast<std::uint16_t>(p.modulation & 0x01U) << 7;
+  book |= static_cast<std::uint16_t>(p.mode & kPhyModeMask);
+  book |= static_cast<std::uint16_t>(p.data_rate & kPhyRateMask) << 3;
+  book |= static_cast<std::uint16_t>(p.modulation & 0x01U) << kPhyModBit;
   book |= static_cast<std::uint16_t>(p.encoding & 0x03U) << 8;
-  book |= static_cast<std::uint16_t>(p.frequency & 0x07U) << 10;
+  book |= static_cast<std::uint16_t>(p.frequency & kPhyFreqMask) << kPhyFreqShift;
   if (!transmitter) {
-    book |= static_cast<std::uint16_t>(1U << 14);  // type 010, LSB at bit 15
+    book |= static_cast<std::uint16_t>(1U << kDirTypeMid);  // type 010, LSB at bit 15
   }
   return writeBook16(out, book);
 }
@@ -1162,9 +1162,9 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> 15) & 1U) |
-                        (((w >> 14) & 1U) << 1) |
-                        (((w >> 13) & 1U) << 2);
+  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
+                        (((w >> kDirTypeMid) & 1U) << 1) |
+                        (((w >> kDirTypeMsb) & 1U) << 2);
   if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
@@ -1172,26 +1172,26 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     *transmitter_out = (type == kSetTxDirectiveType);
   }
   MacPhyParams p{};
-  p.mode = static_cast<std::uint8_t>(w & 0x07U);
-  p.data_rate = static_cast<std::uint8_t>((w >> 3) & 0x0FU);
-  p.modulation = static_cast<std::uint8_t>((w >> 7) & 0x01U);
+  p.mode = static_cast<std::uint8_t>(w & kPhyModeMask);
+  p.data_rate = static_cast<std::uint8_t>((w >> 3) & kPhyRateMask);
+  p.modulation = static_cast<std::uint8_t>((w >> kPhyModBit) & 0x01U);
   p.encoding = static_cast<std::uint8_t>((w >> 8) & 0x03U);
-  p.frequency = static_cast<std::uint8_t>((w >> 10) & 0x07U);
+  p.frequency = static_cast<std::uint8_t>((w >> kPhyFreqShift) & kPhyFreqMask);
   return p;
 }
 
 [[nodiscard]] Result<std::size_t> encodeSetControl(std::span<std::byte> out,
                                       MacControlParams const& p) noexcept {
   std::uint16_t book = 0;
-  book |= static_cast<std::uint16_t>(p.time_sample & 0x3FU);
-  book |= static_cast<std::uint16_t>(p.duplex & 0x07U) << 6;
+  book |= static_cast<std::uint16_t>(p.time_sample & kCtrlTimeMask);
+  book |= static_cast<std::uint16_t>(p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
   if (p.rnmd) {
-    book |= static_cast<std::uint16_t>(1U << 11);
+    book |= static_cast<std::uint16_t>(1U << kCtrlRnmdBit);
   }
   if (p.pass) {
-    book |= static_cast<std::uint16_t>(1U << 12);
+    book |= static_cast<std::uint16_t>(1U << kCtrlPassBit);
   }
-  book |= static_cast<std::uint16_t>(1U << 15);  // type 001
+  book |= static_cast<std::uint16_t>(1U << kDirTypeLsb);  // type 001
   return writeBook16(out, book);
 }
 
@@ -1201,17 +1201,17 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> 15) & 1U) |
-                        (((w >> 14) & 1U) << 1) |
-                        (((w >> 13) & 1U) << 2);
+  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
+                        (((w >> kDirTypeMid) & 1U) << 1) |
+                        (((w >> kDirTypeMsb) & 1U) << 2);
   if (type != kSetControlDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
   MacControlParams p{};
-  p.time_sample = static_cast<std::uint8_t>(w & 0x3FU);
-  p.duplex = static_cast<std::uint8_t>((w >> 6) & 0x07U);
-  p.rnmd = ((w >> 11) & 1U) != 0;
-  p.pass = ((w >> 12) & 1U) != 0;
+  p.time_sample = static_cast<std::uint8_t>(w & kCtrlTimeMask);
+  p.duplex = static_cast<std::uint8_t>((w >> kCtrlDuplexShift) & kCtrlDuplexMask);
+  p.rnmd = ((w >> kCtrlRnmdBit) & 1U) != 0;
+  p.pass = ((w >> kCtrlPassBit) & 1U) != 0;
   return p;
 }
 
@@ -1227,17 +1227,17 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     book |= static_cast<std::uint16_t>(1U << 2);
   }
   book |= static_cast<std::uint16_t>(p.carrier_mod & 0x03U) << 3;
-  book |= static_cast<std::uint16_t>(p.data_mod & 0x03U) << 5;
-  book |= static_cast<std::uint16_t>(p.mode_select & 0x03U) << 7;
-  book |= static_cast<std::uint16_t>(p.scrambler & 0x03U) << 9;
+  book |= static_cast<std::uint16_t>(p.data_mod & 0x03U) << kPlExtDataShift;
+  book |= static_cast<std::uint16_t>(p.mode_select & 0x03U) << kPlExtModeShift;
+  book |= static_cast<std::uint16_t>(p.scrambler & 0x03U) << kPlExtScramShift;
   if (p.diff_mark) {
-    book |= static_cast<std::uint16_t>(1U << 11);
+    book |= static_cast<std::uint16_t>(1U << kPlExtDiffBit);
   }
   if (p.rs_code) {
-    book |= static_cast<std::uint16_t>(1U << 12);
+    book |= static_cast<std::uint16_t>(1U << kPlExtRsBit);
   }
-  book |= static_cast<std::uint16_t>(1U << 13);  // type 110: bit13=1, bit14=1, bit15=0
-  book |= static_cast<std::uint16_t>(1U << 14);
+  book |= static_cast<std::uint16_t>(1U << kDirTypeMsb);  // type 110: bit13=1, bit14=1, bit15=0
+  book |= static_cast<std::uint16_t>(1U << kDirTypeMid);
   return writeBook16(out, book);
 }
 
@@ -1247,9 +1247,9 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> 15) & 1U) |
-                        (((w >> 14) & 1U) << 1) |
-                        (((w >> 13) & 1U) << 2);
+  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
+                        (((w >> kDirTypeMid) & 1U) << 1) |
+                        (((w >> kDirTypeMsb) & 1U) << 2);
   if (type != kSetPlExtDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
@@ -1258,11 +1258,11 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
   p.freq_table = ((w >> 1) & 1U) != 0;
   p.rate_table = ((w >> 2) & 1U) != 0;
   p.carrier_mod = static_cast<std::uint8_t>((w >> 3) & 0x03U);
-  p.data_mod = static_cast<std::uint8_t>((w >> 5) & 0x03U);
-  p.mode_select = static_cast<std::uint8_t>((w >> 7) & 0x03U);
-  p.scrambler = static_cast<std::uint8_t>((w >> 9) & 0x03U);
-  p.diff_mark = ((w >> 11) & 1U) != 0;
-  p.rs_code = ((w >> 12) & 1U) != 0;
+  p.data_mod = static_cast<std::uint8_t>((w >> kPlExtDataShift) & 0x03U);
+  p.mode_select = static_cast<std::uint8_t>((w >> kPlExtModeShift) & 0x03U);
+  p.scrambler = static_cast<std::uint8_t>((w >> kPlExtScramShift) & 0x03U);
+  p.diff_mark = ((w >> kPlExtDiffBit) & 1U) != 0;
+  p.rs_code = ((w >> kPlExtRsBit) & 1U) != 0;
   return p;
 }
 

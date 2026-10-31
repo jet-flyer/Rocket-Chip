@@ -13,6 +13,9 @@ namespace starcom::ccsds {
 inline constexpr std::size_t kPltuAsmSize = 3;
 inline constexpr std::size_t kPltuCrcSize = 4;
 
+// CCSDS 211.2-B-3 3.2.5.1 and C1. The CRC-32 is 32 bits. The first bit is the MSB.
+inline constexpr std::uint32_t kBe32HiShift = 24U;
+
 // 211.2 §3.2.3. Not covered by the CRC.
 inline constexpr std::array<std::byte, kPltuAsmSize> kPltuAsm{
     std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20}};

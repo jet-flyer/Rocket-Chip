@@ -238,6 +238,60 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept;  // table 6-14
 
 // Annex B1.5 SET V(R): type 011, spare 0, SEQ_CTRL_FSN.
 inline constexpr std::uint8_t kSetVrDirectiveType = 0x03;
+
+// source not found. The swap masks are not printed in CCSDS 211.0-B-6.
+// B1.2.1 says bit 15 is the least significant bit of a Type-1 directive.
+inline constexpr std::uint32_t kRev8NibbleHi = 0xF0U;
+inline constexpr std::uint32_t kRev8NibbleLo = 0x0FU;
+inline constexpr std::uint32_t kRev8PairHi = 0xCCU;
+inline constexpr std::uint32_t kRev8PairLo = 0x33U;
+inline constexpr std::uint32_t kRev8BitHi = 0xAAU;
+inline constexpr std::uint32_t kRev8BitLo = 0x55U;
+
+// CCSDS 211.0-B-6 6.2.2.4 and table 6-14.
+inline constexpr std::uint8_t kMacSs0 = 0;
+inline constexpr std::uint8_t kMacSs1 = 1;
+inline constexpr std::uint8_t kMacSs2 = 2;
+inline constexpr std::uint8_t kMacSs3 = 3;
+inline constexpr std::uint8_t kMacSs4 = 4;
+inline constexpr std::uint8_t kMacSs5 = 5;
+inline constexpr std::uint8_t kMacSs6 = 6;
+inline constexpr std::uint8_t kMacSs7 = 7;
+
+// CCSDS 211.0-B-6 6.2.3.1. X=5: both sides have no more data to send.
+inline constexpr std::uint8_t kMacXNoMoreData = 5;
+// CCSDS 211.0-B-6 6.2.3.2. Y=5: act upon the received remote COMM_CHANGE.
+inline constexpr std::uint8_t kMacYActOnRccd = 5;
+
+// CCSDS 211.0-B-6 B1.5.2. Directive Type is 3 bits. B1.5.3 spare bits are zero.
+inline constexpr std::uint32_t kSpduTypeMask = 0x07U;
+inline constexpr std::uint32_t kSetVrSpareMask = 0xF8U;
+
+// CCSDS 211.0-B-6 figure B-1. Directive Type occupies bits 13, 14, and 15.
+inline constexpr std::uint32_t kDirTypeLsb = 15U;
+inline constexpr std::uint32_t kDirTypeMid = 14U;
+inline constexpr std::uint32_t kDirTypeMsb = 13U;
+
+// CCSDS 211.0-B-6 figure B-1 and B1.2. SET TRANSMITTER / SET RECEIVER.
+inline constexpr std::uint32_t kPhyModeMask = 0x07U;
+inline constexpr std::uint32_t kPhyRateMask = 0x0FU;
+inline constexpr std::uint32_t kPhyModBit = 7U;
+inline constexpr std::uint32_t kPhyFreqMask = 0x07U;
+inline constexpr std::uint32_t kPhyFreqShift = 10U;
+
+// CCSDS 211.0-B-6 figure B-1. SET CONTROL PARAMETERS.
+inline constexpr std::uint32_t kCtrlTimeMask = 0x3FU;
+inline constexpr std::uint32_t kCtrlDuplexMask = 0x07U;
+inline constexpr std::uint32_t kCtrlDuplexShift = 6U;
+inline constexpr std::uint32_t kCtrlRnmdBit = 11U;
+inline constexpr std::uint32_t kCtrlPassBit = 12U;
+
+// CCSDS 211.0-B-6 figure B-1. SET PL EXTENSIONS.
+inline constexpr std::uint32_t kPlExtDataShift = 5U;
+inline constexpr std::uint32_t kPlExtModeShift = 7U;
+inline constexpr std::uint32_t kPlExtScramShift = 9U;
+inline constexpr std::uint32_t kPlExtDiffBit = 11U;
+inline constexpr std::uint32_t kPlExtRsBit = 12U;
 [[nodiscard]] Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid pcid) noexcept;
 [[nodiscard]] Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;

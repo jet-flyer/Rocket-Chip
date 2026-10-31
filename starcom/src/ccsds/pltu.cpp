@@ -9,14 +9,14 @@ namespace starcom::ccsds {
 namespace {
 
 std::uint32_t loadBe32(std::span<const std::byte, kPltuCrcSize> bytes) noexcept {
-  return (std::to_integer<std::uint32_t>(bytes[0]) << 24) |
+  return (std::to_integer<std::uint32_t>(bytes[0]) << kBe32HiShift) |
          (std::to_integer<std::uint32_t>(bytes[1]) << 16) |
          (std::to_integer<std::uint32_t>(bytes[2]) << 8) |
          (std::to_integer<std::uint32_t>(bytes[3]));
 }
 
 void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
-  dest[0] = std::byte((value >> 24) & 0xFFU);
+  dest[0] = std::byte((value >> kBe32HiShift) & 0xFFU);
   dest[1] = std::byte((value >> 16) & 0xFFU);
   dest[2] = std::byte((value >> 8) & 0xFFU);
   dest[3] = std::byte(value & 0xFFU);
@@ -39,7 +39,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
 [[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
                                    std::size_t uslp_truncated_len) noexcept {
   const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4;
-  if (tfvn4 != 0b1100U) {
+  if (tfvn4 != kTfvnUslp) {
     return tl::unexpected(Error::tfvn_unknown);
   }
   if (rest.size() < 4) {
@@ -49,12 +49,12 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
     if (uslp_truncated_len == 0) {
       return tl::unexpected(Error::uslp_truncated);
     }
-    if (uslp_truncated_len < 6U || uslp_truncated_len > 32U) {
+    if (uslp_truncated_len < kUslpTruncatedMin || uslp_truncated_len > kUslpTruncatedMax) {
       return tl::unexpected(Error::uslp_length_oob);
     }
     return uslp_truncated_len;
   }
-  if (rest.size() < 6) {
+  if (rest.size() < kUslpLengthHeaderOctets) {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(rest[4]) << 8) |

@@ -10,6 +10,11 @@ namespace starcom::ccsds {
 
 inline constexpr std::size_t kClcwSize = 4;
 
+// CCSDS 232.0-B-4 4.2.1.4. Status Field is bits 3-5.
+inline constexpr std::uint32_t kClcwStatusMask = 0x07U;
+// CCSDS 232.0-B-4 4.2.1.6. Virtual Channel Identifier is bits 8-13.
+inline constexpr std::uint32_t kClcwVcidMask = 0x3FU;
+
 // COP-1 CLCW. VCID here is the COP-1 virtual channel, not USLP MapId.
 struct Clcw32 {
   std::uint8_t status = 0;           // 3-bit, mission

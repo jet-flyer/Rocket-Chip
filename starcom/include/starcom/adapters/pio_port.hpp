@@ -1,5 +1,6 @@
 #pragma once
 
+#include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
 
 #include <cstddef>
@@ -22,7 +23,7 @@ template <class Pio>
   }
   for (std::byte b : octets) {
     const auto v = static_cast<std::uint32_t>(b);
-    for (std::int32_t i = 7; i >= 0; --i) {
+    for (std::int32_t i = static_cast<std::int32_t>(ccsds::kOctetMsb); i >= 0; --i) {
       pio.putBit(((v >> i) & 1U) != 0);
     }
   }

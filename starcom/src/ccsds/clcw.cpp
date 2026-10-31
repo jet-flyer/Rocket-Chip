@@ -10,9 +10,9 @@ namespace starcom::ccsds {
   const std::uint32_t b1 = std::to_integer<std::uint32_t>(octets[1]);
   const std::uint32_t b2 = std::to_integer<std::uint32_t>(octets[2]);
   Clcw32 w{};
-  w.status = static_cast<std::uint8_t>((b0 >> 2) & 0x07U);
+  w.status = static_cast<std::uint8_t>((b0 >> 2) & kClcwStatusMask);
   w.cop_in_effect = static_cast<std::uint8_t>(b0 & 0x03U);
-  w.vcid = static_cast<std::uint8_t>((b1 >> 2) & 0x3FU);
+  w.vcid = static_cast<std::uint8_t>((b1 >> 2) & kClcwVcidMask);
   w.no_rf_available = (b2 & 0x80U) != 0;
   w.no_bit_lock = (b2 & 0x40U) != 0;
   w.lockout = (b2 & 0x20U) != 0;
@@ -28,9 +28,9 @@ namespace starcom::ccsds {
   if (out.size() < kClcwSize) {
     return tl::unexpected(Error::buffer_too_small);
   }
-  const std::uint32_t status = static_cast<std::uint32_t>(fields.status) & 0x07U;
+  const std::uint32_t status = static_cast<std::uint32_t>(fields.status) & kClcwStatusMask;
   const std::uint32_t cop = static_cast<std::uint32_t>(fields.cop_in_effect) & 0x03U;
-  const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & 0x3FU;
+  const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & kClcwVcidMask;
   const std::uint32_t farm = static_cast<std::uint32_t>(fields.farm_b_counter) & 0x03U;
   // Control Word Type 0, CLCW version 00 (232.0 Fig 4-6).
   out[0] = std::byte((status << 2) | cop);

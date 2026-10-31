@@ -24,6 +24,25 @@ inline constexpr std::uint8_t kUslpOidVcid = 63;
 inline constexpr std::uint8_t kUslpUpidSpacePacket = 0;  // SANA 0b00000
 inline constexpr std::uint8_t kUslpConstructionNoSeg = 0b111;
 
+// CCSDS 732.1-B-3 4.1.2.2.3. SCID is bits 4-19.
+inline constexpr std::uint32_t kUslpScidNibbleMask = 0x0FU;
+inline constexpr std::uint32_t kUslpScidHiShift = 12U;
+// CCSDS 732.1-B-3 4.1.2.4.1. VCID is bits 21-26.
+inline constexpr std::uint32_t kUslpVcidPartMask = 0x07U;
+inline constexpr std::uint32_t kUslpVcidLoShift = 5U;
+// CCSDS 732.1-B-3 4.1.2.5.1. MAP ID is bits 27-30.
+inline constexpr std::uint32_t kUslpMapMask = 0x0FU;
+// CCSDS 732.1-B-3 4.1.4.2.3.1. UPID is bits 3-7 of the TFDF header.
+inline constexpr std::uint32_t kUslpUpidMask = 0x1FU;
+// CCSDS 732.1-B-3 4.1.4.2.1.2. TFDZ Construction Rules are 3 bits.
+inline constexpr std::uint32_t kUslpRuleShift = 5U;
+inline constexpr std::uint32_t kUslpRuleMask = 0x07U;
+// CCSDS 732.1-B-3 4.1.2.1.2. VCF Count Length is 3 bits. VCF Count is 0 to 56 bits.
+inline constexpr std::uint32_t kUslpVcfLenMask = 0x07U;
+inline constexpr std::uint8_t kUslpVcfLenMax = 7U;
+// CCSDS 732.1-B-3 4.1.2.7.1. Frame Length is bits 32-47.
+inline constexpr std::size_t kUslpLengthHeaderOctets = 6;
+
 // Caller-owned. 0 length = absent / not supplied. No Starcom default milliseconds
 // or invented insert depth (732.1 §5 / table 5-1).
 struct UslpMib {

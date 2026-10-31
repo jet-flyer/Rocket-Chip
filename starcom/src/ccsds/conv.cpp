@@ -1,5 +1,7 @@
 #include "starcom/ccsds/conv.hpp"
 
+#include "starcom/ccsds/types.hpp"
+
 #include <array>
 #include <bit>
 
@@ -32,7 +34,7 @@ void encodeBit(ConvEnc& enc, std::uint32_t in_bit, std::uint32_t& c1, std::uint3
     std::uint32_t acc = 0;
     std::uint32_t nbits = 0;
     const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
-    for (std::int32_t i = 7; i >= 0; --i) {
+    for (std::int32_t i = static_cast<std::int32_t>(kOctetMsb); i >= 0; --i) {
       std::uint32_t c1 = 0;
       std::uint32_t c2 = 0;
       encodeBit(enc, (value >> i) & 1U, c1, c2);

@@ -1,5 +1,7 @@
 #include "starcom/ccsds/ldpc.hpp"
 
+#include "starcom/ccsds/types.hpp"
+
 #include <bit>
 #include <cstdint>
 
@@ -124,12 +126,12 @@ constexpr std::size_t kCircOctets = 16;
 constexpr std::size_t kBlocks = 8;
 
 std::uint32_t bitAt(std::uint8_t const* oct, std::size_t i) noexcept {
-  return (static_cast<std::uint32_t>(oct[i / 8]) >> (7U - (i % 8U))) & 1U;
+  return (static_cast<std::uint32_t>(oct[i / 8]) >> (kOctetMsb - (i % 8U))) & 1U;
 }
 
 void xorBit(std::uint8_t* oct, std::size_t i) noexcept {
   oct[i / 8] = static_cast<std::uint8_t>(
-      oct[i / 8] ^ static_cast<std::uint8_t>(1U << (7U - (i % 8U))));
+      oct[i / 8] ^ static_cast<std::uint8_t>(1U << (kOctetMsb - (i % 8U))));
 }
 
 // Right-circulant C[row,col] = r[(col-row) mod 128].
@@ -148,15 +150,19 @@ void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noex
 
 // 211.2 §3.4.5: h(x)=x^8+x^6+x^4+x^3+x^2+x+1, init all-ones, period 255.
 // Fibonacci LFSR: output r[0], taps 0,1,2,3,4,6 (mask 0x5F).
+// 211.2 A3.4.5: h(x) has degree 8, so the PN register has 8 stages. The
+// feedback bit goes into the top stage, bit 7.
+constexpr std::uint32_t kPnRegMsb = 7U;
+
 void pnXor(std::span<std::byte> octets) noexcept {
   std::uint8_t r = 0xFF;
   for (std::byte& o : octets) {
     std::uint32_t v = std::to_integer<std::uint32_t>(o);
     std::uint32_t acc = 0;
-    for (std::int32_t b = 7; b >= 0; --b) {
+    for (std::int32_t b = static_cast<std::int32_t>(kOctetMsb); b >= 0; --b) {
       const std::uint32_t out = r & 1U;
       const std::uint32_t fb = static_cast<std::uint32_t>(std::popcount(r & 0x5FU)) & 1U;
-      r = static_cast<std::uint8_t>((r >> 1) | (fb << 7));
+      r = static_cast<std::uint8_t>((r >> 1) | (fb << kPnRegMsb));
       acc |= out << b;
     }
     o = std::byte{static_cast<std::uint8_t>(v ^ acc)};

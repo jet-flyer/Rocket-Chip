@@ -30,6 +30,20 @@ namespace rc::starcom_adapt {
 
 // SX1276 FIFO is 255 octets. Consumer MTU, not a Starcom book cap.
 inline constexpr std::size_t kAirMtu = 255;
+// Carrier_Only_Duration, Acquisition_Idle_Duration and Tail_Idle_Duration:
+// parameters per CCSDS 211.0-B-6 6.2.4.3, 6.2.4.4 and 6.2.4.5. The value is
+// a project choice.
+inline constexpr starcom::ccsds::Tick kMacIdleTickMs = 10;
+// Slack added to Hail_Wait_Duration: parameter per CCSDS 211.0-B-6 6.2.4.11.
+// The value is a project choice.
+inline constexpr starcom::ccsds::Tick kHailWaitSlackMs = 20;
+// Drop_Carrier_Duration: CCSDS 211.0-B-6 names it only in the S80 Reconnect
+// row of Table 6-3. The book has no 6.2.4 entry for it. The value is a project
+// choice.
+inline constexpr starcom::ccsds::Tick kDropCarrierMs = 20;
+// ASM 3 + Version-3 header 5 + 2-octet SPDU + CRC-32 4.
+// CCSDS 211.2-B-3 3.2.3 and 3.2.5, and 211.0-B-6 3.2.1.
+inline constexpr std::uint8_t kReportPltuBytes = 14;
 inline constexpr starcom::ccsds::Apid kNavApid{0x001};
 // RC kApidCmdAck (include/rocketchip/telemetry_encoder.h). TC=command, TM=ACK.
 inline constexpr starcom::ccsds::Apid kCmdApid{0x003};

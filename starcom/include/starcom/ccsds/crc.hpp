@@ -13,6 +13,8 @@ std::uint32_t crc32(std::span<const std::byte> frame) noexcept;
 
 // 732.1-B-3 Annex B (USLP FECF). Covers the Transfer Frame except the 2-octet
 // FECF. G(X) = X^16 + X^12 + X^5 + 1; shift register init all-ones.
+// CCSDS 732.1-B-3 B1.1.3. L(X) presets the CRC-16 register to all ones.
+inline constexpr std::uint16_t kCrc16Init = 0xFFFFU;
 std::uint16_t crc16Fecf(std::span<const std::byte> covered) noexcept;
 
 }  // namespace starcom::ccsds

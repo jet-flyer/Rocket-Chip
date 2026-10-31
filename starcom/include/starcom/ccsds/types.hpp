@@ -16,6 +16,12 @@ enum class MapId : std::uint8_t {};     // 4-bit
 
 inline constexpr Apid kIdleApid{0x7FF};
 
+// CCSDS 211.2-B-3 1.6.3. An octet is 8 bits. The first transmitted bit is the MSB.
+inline constexpr std::uint32_t kOctetMsb = 7U;
+
+// CCSDS 211.0-B-6 7.1. B < A when (A - B) is between 1 and 127.
+inline constexpr std::uint32_t kSeqHalfRange = 127U;
+
 inline constexpr std::size_t kTransferFrameMin = 5;     // 211.0 §3.2.2.10 empty V-3
 inline constexpr std::size_t kTransferFrameMax = 2048;  // 11-bit length; C = 2047
 

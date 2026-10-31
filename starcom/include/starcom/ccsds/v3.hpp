@@ -12,6 +12,15 @@ namespace starcom::ccsds {
 inline constexpr std::size_t kV3HeaderSize = 5;
 inline constexpr std::uint32_t kTfvnV3 = 0b10U;
 
+// CCSDS 211.0-B-6 3.2.2.2.1. Transfer Frame Version Number is bits 0-1.
+inline constexpr std::uint32_t kV3TfvnShift = 6U;
+// CCSDS 211.0-B-6 3.2.2.7.1. PCID is bit 16.
+inline constexpr std::uint32_t kV3PcidShift = 7U;
+// CCSDS 211.0-B-6 3.2.2.8.1. Port ID is bits 17-19.
+inline constexpr std::uint32_t kV3PortMask = 0x07U;
+// CCSDS 211.0-B-6 3.2.2.10.1. Frame Length is bits 21-31.
+inline constexpr std::uint32_t kV3LengthHighMask = 0x07U;
+
 // 211.0-B-6 Table 3-1 / 3.2.3. Data field 0..2043 octets (3.2.3 c).
 inline constexpr std::uint8_t kDfcPackets = 0;       // 3.2.3.2
 inline constexpr std::uint8_t kDfcSegment = 1;       // 3.2.3.3 (not this increment)

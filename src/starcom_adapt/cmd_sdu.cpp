@@ -17,9 +17,9 @@ uint8_t pack_cmd_sdu_user(uint8_t* out, uint8_t out_len,
     out[3] = 0;
     memcpy(out + 4, &f.p[0], sizeof(f.p[0]));
     memcpy(out + 8, &f.p[1], sizeof(f.p[1]));
-    memcpy(out + 12, &f.p[2], sizeof(f.p[2]));
+    memcpy(out + kCmdSduP2Offset, &f.p[2], sizeof(f.p[2]));
     memcpy(out + 16, &f.p[3], sizeof(f.p[3]));
-    memcpy(out + 20, &f.p[4], sizeof(f.p[4]));
+    memcpy(out + kCmdSduP4Offset, &f.p[4], sizeof(f.p[4]));
     return kCmdSduUserBytes;
 }
 
@@ -32,9 +32,9 @@ bool unpack_cmd_sdu_user(const uint8_t* in, uint8_t in_len, CmdSduFields& f) {
     f.seq = in[2];
     memcpy(&f.p[0], in + 4, sizeof(f.p[0]));
     memcpy(&f.p[1], in + 8, sizeof(f.p[1]));
-    memcpy(&f.p[2], in + 12, sizeof(f.p[2]));
+    memcpy(&f.p[2], in + kCmdSduP2Offset, sizeof(f.p[2]));
     memcpy(&f.p[3], in + 16, sizeof(f.p[3]));
-    memcpy(&f.p[4], in + 20, sizeof(f.p[4]));
+    memcpy(&f.p[4], in + kCmdSduP4Offset, sizeof(f.p[4]));
     return true;
 }
 

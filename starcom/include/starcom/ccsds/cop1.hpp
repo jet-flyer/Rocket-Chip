@@ -18,10 +18,15 @@ inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexc
 }
 inline constexpr bool cop1SeqLt(std::uint8_t b, std::uint8_t a) noexcept {
   const std::uint8_t d = cop1SeqDelta(a, b);
-  return d >= 1U && d <= 127U;
+  return d >= 1U && d <= kSeqHalfRange;
 }
 
 using Tick = std::uint32_t;
+
+// CCSDS 232.1-B-2 6.1.8.2 as changed by Corrigendum 1: FARM_Sliding_Window_Width
+// W is an even number from 2 to 254. This limit applies only when COP-1 runs as
+// 6.1.8.3.1 describes.
+inline constexpr std::uint32_t kFarm1WindowMax = 254U;
 
 // 232.1 §6.1.8.3.1: 2 ≤ W ≤ 254, even; PW = NW = W/2. Default is the legal minimum.
 struct Farm1Mib {

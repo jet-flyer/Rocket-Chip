@@ -24,9 +24,9 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
       (hz == 0U) ? 200U : static_cast<starcom::ccsds::Tick>(1000U / hz);
   // SX1276 §4.1.1.6 SF7 / 250 kHz: Tsym = 512 us; 8-symbol preamble
   // 12.25 Tsym = 6.272 ms. 10 ms is ceil-to-tick.
-  m.carrier_only_duration = 10;
-  m.acquisition_idle_duration = 10;
-  m.tail_idle_duration = 10;
+  m.carrier_only_duration = kMacIdleTickMs;
+  m.acquisition_idle_duration = kMacIdleTickMs;
+  m.tail_idle_duration = kMacIdleTickMs;
   const starcom::ccsds::Tick turn_ms =
       m.carrier_only_duration + m.acquisition_idle_duration +
       m.tail_idle_duration;
@@ -39,13 +39,13 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
   // PLCW (Fig 3-5) and the E39 SET CONTROL token are each a 2-octet
   // P-frame. Both leave after Send_Duration (table 6-10 E38 then E39).
   constexpr unsigned kReportOctets = 2U;
-  constexpr uint8_t kReportPltuBytes = static_cast<uint8_t>(
+  constexpr uint8_t kReportPltuSum = static_cast<uint8_t>(
       starcom::ccsds::kPltuAsmSize + starcom::ccsds::kV3HeaderSize +
       kReportOctets + starcom::ccsds::kPltuCrcSize);
-  static_assert(kReportPltuBytes == 14U, "report PLTU layout drifted");
+  static_assert(kReportPltuSum == kReportPltuBytes, "report PLTU layout drifted");
   const uint32_t report_us = rc::radio_config_nav_airtime_us(
       rc::kDefaultRocketRadioConfig.spreading_factor,
-      rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuBytes);
+      rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuSum);
   const starcom::ccsds::Tick report_ms =
       static_cast<starcom::ccsds::Tick>((report_us + 999U) / 1000U);
   // 211.0 6.2.4.18: listen through S51–S58, not Send_Duration alone.
@@ -65,9 +65,9 @@ starcom::ccsds::MacMib flight_mac_mib(starcom::ccsds::Scid local) noexcept {
     m.send_duration = veh_send;
     m.receive_duration = stn_send + contact_tail;
   }
-  m.hail_wait_duration = nav_ms + 20U;
+  m.hail_wait_duration = nav_ms + kHailWaitSlackMs;
   m.hail_lifetime = 0;  // 211.0 6.2.4.14.2: 0 = no abort
-  m.drop_carrier_duration = 20;
+  m.drop_carrier_duration = kDropCarrierMs;
   m.maximum_failed_token_passes = 4;  // 211.0 table 6-12 E83; 0 = unlimited
   // One vehicle data-services contact, including the frames after E38.
   m.carrier_loss_timer_duration = veh_send + contact_tail;

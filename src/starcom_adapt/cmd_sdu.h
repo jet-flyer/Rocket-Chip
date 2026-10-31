@@ -15,6 +15,9 @@ namespace rc {
 // cmd_id u16, seq u8, pad u8, p1..p5 float. MAVLink COMMAND_LONG fields
 // already used on LoRa; same numbers, not a new air dialect.
 constexpr uint8_t kCmdSduUserBytes = 24;
+// source not found. Not in a CCSDS book or starcom/docs/DESIGN.md.
+constexpr uint8_t kCmdSduP2Offset = 12;
+constexpr uint8_t kCmdSduP4Offset = 20;
 constexpr uint8_t kAckSduUserBytes = ccsds::kCmdAckPayloadLen;  // 10
 
 struct CmdSduFields {
