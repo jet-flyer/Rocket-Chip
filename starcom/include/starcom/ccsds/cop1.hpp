@@ -3,7 +3,8 @@
 // The caller owns Cop1Endpoint.
 // Book: CCSDS 232.1-B-2 sections 5 (FOP-1) and 6 (FARM-1).
 
-#pragma once
+#ifndef STARCOM_CCSDS_COP1_H_
+#define STARCOM_CCSDS_COP1_H_
 
 #include "starcom/ccsds/clcw.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -206,3 +207,5 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
 Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_COP1_H_

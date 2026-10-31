@@ -2,7 +2,8 @@
 // The count lives in heap_trap.cpp.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_TESTS_UNIT_HEAP_TRAP_H_
+#define STARCOM_TESTS_UNIT_HEAP_TRAP_H_
 
 namespace starcom::test {
 
@@ -12,3 +13,5 @@ void heapTrapReset() noexcept;
 int heapTrapCount() noexcept;
 
 }  // namespace starcom::test
+
+#endif  // STARCOM_TESTS_UNIT_HEAP_TRAP_H_

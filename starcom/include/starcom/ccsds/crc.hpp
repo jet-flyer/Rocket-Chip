@@ -2,7 +2,8 @@
 // No state.
 // Book: CRC-32 is CCSDS 211.2-B-3 Annex C. CRC-16 is CCSDS 732.1-B-3 Annex B.
 
-#pragma once
+#ifndef STARCOM_CCSDS_CRC_H_
+#define STARCOM_CCSDS_CRC_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -22,3 +23,5 @@ inline constexpr std::uint16_t kCrc16Init = 0xFFFFU;
 std::uint16_t crc16Fecf(std::span<const std::byte> covered) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_CRC_H_

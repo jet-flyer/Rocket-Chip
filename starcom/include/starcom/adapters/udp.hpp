@@ -4,7 +4,8 @@
 // The Winsock count lives in udp.cpp.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_UDP_H_
+#define STARCOM_ADAPTERS_UDP_H_
 
 #include "starcom/result.hpp"
 
@@ -29,3 +30,5 @@ void udpClose(UdpSocket& s) noexcept;
                                     std::span<std::byte> out) noexcept;
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_UDP_H_

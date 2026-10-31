@@ -3,7 +3,8 @@
 // The caller owns the bus and the line ids.
 // Book: none. CCSDS 211.1-B-4 is not claimed.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_RADIO_BUS_H_
+#define STARCOM_ADAPTERS_RADIO_BUS_H_
 
 #include "starcom/adapters/radio_port.hpp"
 #include "starcom/result.hpp"
@@ -90,3 +91,5 @@ template <class Bus>
 }
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_RADIO_BUS_H_

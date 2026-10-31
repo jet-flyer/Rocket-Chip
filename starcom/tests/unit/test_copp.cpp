@@ -432,7 +432,7 @@ void test_copp_lossy_loop() {
     } else if (n.has_value() && *n > 0) {
       coppReceiveBytes(b, std::span<const std::byte>(wire.data(), *n));
     } else {
-      /* no action: A has no octets to send on this step */
+      /* no action: A sent nothing on this step (no octets, or an error the CHECK above reports) */
     }
     drain();
     if (got == kWarm + kLoss && new_seen == kLoss && a.fop.sent_n == 0 &&

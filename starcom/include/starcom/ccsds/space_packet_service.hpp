@@ -3,7 +3,8 @@
 // The caller owns SpacePacketService.
 // Book: CCSDS 133.0-B-2 sections 3.3, 3.4, 4.2, and 4.3.
 
-#pragma once
+#ifndef STARCOM_CCSDS_SPACE_PACKET_SERVICE_H_
+#define STARCOM_CCSDS_SPACE_PACKET_SERVICE_H_
 
 #include "starcom/ccsds/space_packet.hpp"
 
@@ -107,3 +108,5 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
                                         std::span<const std::byte> packet) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_SPACE_PACKET_SERVICE_H_

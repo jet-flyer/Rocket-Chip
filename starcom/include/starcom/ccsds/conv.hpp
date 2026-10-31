@@ -3,7 +3,8 @@
 // The caller owns ConvEnc.
 // Book: CCSDS 131.0-B-6 section 4.3. CCSDS 211.2-B-3 section 3.4.3 selects it.
 
-#pragma once
+#ifndef STARCOM_CCSDS_CONV_H_
+#define STARCOM_CCSDS_CONV_H_
 
 #include "starcom/result.hpp"
 
@@ -36,3 +37,5 @@ struct ConvEnc {
                                      ConvEnc& enc) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_CONV_H_

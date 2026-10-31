@@ -2,7 +2,8 @@
 // No state.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_ERROR_H_
+#define STARCOM_ERROR_H_
 
 #include <cstdint>
 #include <type_traits>
@@ -29,3 +30,5 @@ static_assert(std::is_trivially_copyable_v<Error>);
 static_assert(sizeof(Error) == 1);
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_ERROR_H_

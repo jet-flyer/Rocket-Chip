@@ -2,7 +2,8 @@
 // No state.
 // Book: CCSDS 211.0-B-6 section 3.2.4.3.2 (Type F1 SPDU: PLCW) and 3.2.4.3.2.1.1.
 
-#pragma once
+#ifndef STARCOM_CCSDS_PLCW_H_
+#define STARCOM_CCSDS_PLCW_H_
 
 #include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
@@ -30,3 +31,5 @@ struct Plcw16 {
                                 Plcw16 const& fields) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_PLCW_H_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef STARCOM_VERSION_H_
+#define STARCOM_VERSION_H_
 
 // GENERATED. Do not edit. Template: include/starcom/version.hpp.in
 // Product numbers: STARCOM_VERSION. Git identity: the build. VERSIONING.md.
@@ -24,3 +25,5 @@ inline constexpr char const* kGitHash       = "@STARCOM_GIT_HASH@";
 inline constexpr char const* kBuildIdentity = "@STARCOM_BUILD_IDENTITY@";
 
 }  // namespace starcom
+
+#endif  // STARCOM_VERSION_H_

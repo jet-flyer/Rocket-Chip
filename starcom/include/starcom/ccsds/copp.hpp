@@ -3,7 +3,8 @@
 // The caller owns CoppEndpoint.
 // Book: CCSDS 211.0-B-6 section 7.
 
-#pragma once
+#ifndef STARCOM_CCSDS_COPP_H_
+#define STARCOM_CCSDS_COPP_H_
 
 #include "starcom/ccsds/plcw.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -167,3 +168,5 @@ std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept;
 CoppEvent coppPollEvent(CoppEndpoint& e) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_COPP_H_

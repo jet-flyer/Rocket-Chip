@@ -3,7 +3,8 @@
 // The caller owns the path and the scratch.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_FILE_REPLAY_H_
+#define STARCOM_ADAPTERS_FILE_REPLAY_H_
 
 #include "starcom/adapters/loopback.hpp"
 #include "starcom/ccsds/pltu.hpp"
@@ -85,3 +86,5 @@ template <class Sink>
 }
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_FILE_REPLAY_H_

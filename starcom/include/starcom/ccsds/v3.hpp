@@ -3,7 +3,8 @@
 // The caller owns the field values.
 // Book: CCSDS 211.0-B-6 section 3.2.
 
-#pragma once
+#ifndef STARCOM_CCSDS_V3_H_
+#define STARCOM_CCSDS_V3_H_
 
 #include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
@@ -68,3 +69,5 @@ inline constexpr bool v3IsUserDefined(V3Fields const& f) noexcept {
                                           std::span<const std::byte> data) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_V3_H_

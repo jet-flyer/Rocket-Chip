@@ -2,7 +2,8 @@
 // No state.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_RESULT_H_
+#define STARCOM_RESULT_H_
 
 #include "starcom/error.hpp"
 #include <tl/expected.hpp>
@@ -12,3 +13,5 @@ namespace starcom::ccsds {
 template <typename T>
 using Result = tl::expected<T, Error>;
 }
+
+#endif  // STARCOM_RESULT_H_

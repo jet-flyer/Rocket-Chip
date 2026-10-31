@@ -2,7 +2,8 @@
 // No state.
 // Book: CCSDS 232.0-B-4 section 4.2.1.
 
-#pragma once
+#ifndef STARCOM_CCSDS_CLCW_H_
+#define STARCOM_CCSDS_CLCW_H_
 
 #include "starcom/result.hpp"
 
@@ -38,3 +39,5 @@ struct Clcw32 {
                                 Clcw32 const& fields) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_CLCW_H_

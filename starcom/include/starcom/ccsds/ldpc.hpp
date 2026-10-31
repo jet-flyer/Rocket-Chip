@@ -2,7 +2,8 @@
 // No state.
 // Book: CCSDS 131.0-B-6 section 8.4. CCSDS 211.2-B-3 sections 3.4.4 and 3.4.5.
 
-#pragma once
+#ifndef STARCOM_CCSDS_LDPC_H_
+#define STARCOM_CCSDS_LDPC_H_
 
 #include "starcom/result.hpp"
 
@@ -40,3 +41,5 @@ inline constexpr std::array<std::byte, kLdpcCsmOctets> kLdpcCsm{
                                        std::span<const std::byte> bitstream) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_LDPC_H_

@@ -2,7 +2,8 @@
 // No state.
 // Book: CCSDS 211.2-B-3 section 1.6.3 and CCSDS 211.0-B-6 section 7.1.
 
-#pragma once
+#ifndef STARCOM_CCSDS_TYPES_H_
+#define STARCOM_CCSDS_TYPES_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -30,3 +31,5 @@ inline constexpr std::size_t kTransferFrameMin = 5;     // 211.0 section 3.2.2.1
 inline constexpr std::size_t kTransferFrameMax = 2048;  // 11-bit length; C = 2047
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_TYPES_H_

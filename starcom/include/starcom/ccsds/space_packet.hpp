@@ -3,7 +3,8 @@
 // The caller owns the field values.
 // Book: CCSDS 133.0-B-2 sections 4.1.3.2.1, 4.1.3.3.4.1, 4.1.3.4.2.1, and 4.1.3.4.1.2.
 
-#pragma once
+#ifndef STARCOM_CCSDS_SPACE_PACKET_H_
+#define STARCOM_CCSDS_SPACE_PACKET_H_
 
 #include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
@@ -47,3 +48,5 @@ struct SpacePacketView {
                                         std::span<const std::byte> data) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_SPACE_PACKET_H_

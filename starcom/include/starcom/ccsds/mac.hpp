@@ -3,7 +3,8 @@
 // The caller owns MacSession.
 // Book: CCSDS 211.0-B-6 section 4.2 (MAC sublayer) and section 6 (state tables).
 
-#pragma once
+#ifndef STARCOM_CCSDS_MAC_H_
+#define STARCOM_CCSDS_MAC_H_
 
 #include "starcom/ccsds/copp.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -315,3 +316,5 @@ void macDriveSetVr(MacSession& m, Tick now) noexcept;  // 7.2.3.2
 void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_MAC_H_

@@ -3,7 +3,8 @@
 // The caller owns PhyDecl.
 // Book: none. CCSDS 211.1-B-4 is not claimed.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_PHY_H_
+#define STARCOM_ADAPTERS_PHY_H_
 
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/result.hpp"
@@ -36,3 +37,5 @@ inline constexpr bool phyUncodedOk(PhyDecl d) noexcept {
     PhyDecl decl, std::span<const std::byte> octets) noexcept;
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_PHY_H_

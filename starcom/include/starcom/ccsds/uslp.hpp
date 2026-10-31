@@ -3,7 +3,8 @@
 // The caller owns the field values.
 // Book: CCSDS 732.1-B-3 section 4.1.
 
-#pragma once
+#ifndef STARCOM_CCSDS_USLP_H_
+#define STARCOM_CCSDS_USLP_H_
 
 #include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
@@ -92,3 +93,5 @@ struct UslpView {
                                 std::span<const std::byte> insert = {}) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_USLP_H_

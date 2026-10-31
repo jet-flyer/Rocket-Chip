@@ -3,7 +3,8 @@
 // The caller owns RadioPort.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_RADIO_PORT_H_
+#define STARCOM_ADAPTERS_RADIO_PORT_H_
 
 #include "starcom/adapters/loopback.hpp"
 
@@ -37,3 +38,5 @@ struct RadioPort {
 }
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_RADIO_PORT_H_

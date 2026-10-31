@@ -3,7 +3,8 @@
 // The caller owns the buffers.
 // Book: CCSDS 211.2-B-3 figure 3-1, section 3.2.5.1, section 3.6, and Annex C.
 
-#pragma once
+#ifndef STARCOM_CCSDS_PLTU_H_
+#define STARCOM_CCSDS_PLTU_H_
 
 #include "starcom/ccsds/crc.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -75,3 +76,5 @@ struct PltuRepeatQ {
 [[nodiscard]] Result<std::size_t> dequeuePltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept;
 
 }  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_PLTU_H_

@@ -3,7 +3,8 @@
 // The caller owns FrameSlot.
 // Book: none.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_LOOPBACK_H_
+#define STARCOM_ADAPTERS_LOOPBACK_H_
 
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/types.hpp"
@@ -36,3 +37,5 @@ struct HostLoopback {
 };
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_LOOPBACK_H_

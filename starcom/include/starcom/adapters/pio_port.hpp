@@ -3,7 +3,8 @@
 // The caller owns the Pio object, which drives the bit clock.
 // Book: none. CCSDS 211.1-B-4 is not claimed.
 
-#pragma once
+#ifndef STARCOM_ADAPTERS_PIO_PORT_H_
+#define STARCOM_ADAPTERS_PIO_PORT_H_
 
 #include "starcom/ccsds/types.hpp"
 #include "starcom/result.hpp"
@@ -55,3 +56,5 @@ template <class Pio>
 }
 
 }  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_PIO_PORT_H_
