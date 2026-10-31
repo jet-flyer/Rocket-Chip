@@ -135,13 +135,12 @@ void xorBit(std::uint8_t* oct, std::size_t i) noexcept {
 // Right-circulant C[row,col] = r[(col-row) mod 128].
 void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noexcept {
   for (std::size_t i = 0; i < kCirc; ++i) {
-    if (bitAt(u, i) == 0u) {
-      continue;
-    }
-    for (std::size_t j = 0; j < kCirc; ++j) {
-      const std::size_t src = (j - i) & (kCirc - 1u);
-      if (bitAt(r, src) != 0u) {
-        xorBit(p, j);
+    if (bitAt(u, i) != 0u) {
+      for (std::size_t j = 0; j < kCirc; ++j) {
+        const std::size_t src = (j - i) & (kCirc - 1u);
+        if (bitAt(r, src) != 0u) {
+          xorBit(p, j);
+        }
       }
     }
   }

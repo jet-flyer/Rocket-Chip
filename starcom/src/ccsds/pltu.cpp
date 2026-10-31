@@ -158,31 +158,28 @@ PltuHunt huntPltu(std::span<const std::byte> octets,
                    std::size_t uslp_truncated_len) noexcept {
   std::size_t i = 0;
   while (i + kPltuAsmSize <= octets.size()) {
-    if (!std::equal(kPltuAsm.begin(), kPltuAsm.end(),
-                    octets.begin() + static_cast<std::ptrdiff_t>(i))) {
-      ++i;
-      continue;
-    }
-    const auto cand = octets.subspan(i);
-    const auto view = decodePltu(cand, uslp_truncated_len);
-    if (view) {
-      const std::size_t n =
-          kPltuAsmSize + view->frame.size() + kPltuCrcSize;
-      return PltuHunt{i + n, *view};
-    }
-    const Error e = view.error();
-    if (e == Error::truncated) {
-      return PltuHunt{i, tl::unexpected(e)};
-    }
-    if (e == Error::bad_crc) {
-      const auto need = encodedPltuSize(cand, uslp_truncated_len);
-      if (need) {
-        return PltuHunt{i + *need, tl::unexpected(e)};
+    if (std::equal(kPltuAsm.begin(), kPltuAsm.end(),
+                   octets.begin() + static_cast<std::ptrdiff_t>(i))) {
+      const auto cand = octets.subspan(i);
+      const auto view = decodePltu(cand, uslp_truncated_len);
+      if (view) {
+        const std::size_t n =
+            kPltuAsmSize + view->frame.size() + kPltuCrcSize;
+        return PltuHunt{i + n, *view};
       }
-      ++i;
-      continue;
+      const Error e = view.error();
+      if (e == Error::truncated) {
+        return PltuHunt{i, tl::unexpected(e)};
+      }
+      if (e == Error::bad_crc) {
+        const auto need = encodedPltuSize(cand, uslp_truncated_len);
+        if (need) {
+          return PltuHunt{i + *need, tl::unexpected(e)};
+        }
+      }
+      // 211.2 §3.6.4 c: unrecognized version keeps searching. A bad CRC
+      // with no encoded length steps one octet too.
     }
-    // 211.2 §3.6.4 c: unrecognized version — keep searching for the next ASM.
     ++i;
   }
   const std::size_t keep = asmPrefixKeep(octets);

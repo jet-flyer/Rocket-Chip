@@ -764,11 +764,16 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
   if (kind == Fop1Send::resend_ad) {
     const auto ns = e.fop.last_send_ns;
     tfdz = {};
-    for (std::uint8_t i = 0; i < e.fop.sent_n; ++i) {
+    bool found = false;
+    std::uint8_t i = 0;
+    while (i < e.fop.sent_n && !found) {
       if (e.fop.sent[i] == ns) {
         tfdz = std::span<const std::byte>(e.fop.sent_payload[i].data(),
                                           e.fop.sent_payload_len[i]);
-        break;
+        found = true;
+      }
+      if (!found) {
+        ++i;
       }
     }
     hdr.vcf_count = ns;

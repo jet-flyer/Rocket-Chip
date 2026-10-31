@@ -537,6 +537,66 @@ TEST(StarcomBytePump, HailSetTxFirstStillE30) {
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
 }
 
+// dispatch_p_frame_spdu: a chunk whose type is not SET PL / TX / RX /
+// CONTROL is skipped. The next chunk still runs. A short buffer ends
+// the loop with nothing consumed.
+TEST(StarcomBytePump, DispatchSkipsUnknownChunk) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    const auto state_before = vehicle.mac.state;
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    const std::array<std::byte, 1> one{std::byte{0x00}};
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.local_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    auto vn = starcom::ccsds::encodeV3(frame, hdr, one);
+    ASSERT_TRUE(vn.has_value());
+    std::array<std::byte, 255> wire{};
+    auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_NE(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_EQ(vehicle.mac.state, state_before);
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    const std::array<std::byte, 2> unknown{std::byte{0x00}, std::byte{0x07}};
+    vn = starcom::ccsds::encodeV3(frame, hdr, unknown);
+    ASSERT_TRUE(vn.has_value());
+    pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_NE(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_EQ(vehicle.mac.state, state_before);
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    starcom::ccsds::MacPhyParams phy{};
+    phy.encoding = starcom::ccsds::kPhyEncodingBypass;
+    phy.modulation = 1;
+    std::array<std::byte, 4> spdu{};
+    spdu[0] = std::byte{0x00};
+    spdu[1] = std::byte{0x07};
+    ASSERT_TRUE(starcom::ccsds::encodeSetPhy(
+                    std::span<std::byte>(spdu.data() + 2, 2), phy, true)
+                    .has_value());
+    vn = starcom::ccsds::encodeV3(frame, hdr, spdu);
+    ASSERT_TRUE(vn.has_value());
+    pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
+}
+
 TEST(StarcomBytePump, HailCatalogIsNotE69) {
     static BytePump vehicle{};
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});

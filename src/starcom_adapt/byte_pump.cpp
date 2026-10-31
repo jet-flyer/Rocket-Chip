@@ -190,37 +190,30 @@ bool dispatch_p_frame_spdu(BytePump& p, std::span<const std::byte> data,
     const auto type = starcom::ccsds::spduDirectiveType(chunk);
     if (type == starcom::ccsds::kSetPlExtDirectiveType) {
       const auto pl = starcom::ccsds::decodeSetPlExt(chunk);
-      if (!pl) {
-        continue;
+      if (pl) {
+        consumed = true;
+        on_comm_change_spdu(p, now, true, &*pl);
       }
-      consumed = true;
-      on_comm_change_spdu(p, now, true, &*pl);
-      continue;
-    }
-    if (type == starcom::ccsds::kSetTxDirectiveType ||
-        type == starcom::ccsds::kSetRxDirectiveType) {
+    } else if (type == starcom::ccsds::kSetTxDirectiveType ||
+               type == starcom::ccsds::kSetRxDirectiveType) {
       bool is_tx = false;
-      if (!starcom::ccsds::decodeSetPhy(chunk, &is_tx)) {
-        continue;
+      if (starcom::ccsds::decodeSetPhy(chunk, &is_tx)) {
+        consumed = true;
+        on_comm_change_spdu(p, now, false, nullptr);
       }
-      consumed = true;
-      on_comm_change_spdu(p, now, false, nullptr);
-      continue;
-    }
-    if (type == starcom::ccsds::kSetControlDirectiveType) {
+    } else if (type == starcom::ccsds::kSetControlDirectiveType) {
       const auto ctl = starcom::ccsds::decodeSetControl(chunk);
-      if (!ctl) {
-        continue;
-      }
-      consumed = true;
-      if (ctl->pass) {
-        // Table 6-10 E47 before E49. Other directives still see S62.
-        starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
-        starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
-        starcom::ccsds::macOnToken(p.mac, now);
-      }
-      if (ctl->rnmd) {
-        starcom::ccsds::macOnRnmd(p.mac, now);
+      if (ctl) {
+        consumed = true;
+        if (ctl->pass) {
+          // Table 6-10 E47 before E49. Other directives still see S62.
+          starcom::ccsds::macSetCarrierAcquired(p.mac, true, now);
+          starcom::ccsds::macSetSymbolInlock(p.mac, true, now);
+          starcom::ccsds::macOnToken(p.mac, now);
+        }
+        if (ctl->rnmd) {
+          starcom::ccsds::macOnRnmd(p.mac, now);
+        }
       }
     }
   }

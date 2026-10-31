@@ -84,14 +84,10 @@ ccsds::Result<std::size_t> replayPltuFile(char const* path,
         return tl::unexpected(one.error());
       }
       ++delivered;
-      continue;
-    }
-    if (hunt.pltu.error() == ccsds::Error::bad_crc ||
-        (hunt.consumed > 0 && hunt.consumed <= b.fill)) {
+    } else if (hunt.pltu.error() == ccsds::Error::bad_crc ||
+               (hunt.consumed > 0 && hunt.consumed <= b.fill)) {
       compactFill(b, hunt.consumed);
-      continue;
-    }
-    if (eof || !replayRefill(b, in, eof)) {
+    } else if (eof || !replayRefill(b, in, eof)) {
       more = false;
     }
   }

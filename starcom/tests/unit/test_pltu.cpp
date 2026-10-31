@@ -213,6 +213,31 @@ void test_hunt_partial_asm_kept() {
   CHECK(h.consumed == 1u);
 }
 
+void test_hunt_unknown_tfvn_steps_one() {
+  // 211.2 §3.6.4 c: TFVN is not V-3 and not USLP. Hunt steps one octet.
+  ByteBuf good{};
+  const auto n = encodePltu(good, asSpan(kV3HeaderOnly));
+  CHECK(n.has_value());
+  std::array<std::byte, 48> stream{};
+  stream[0] = kPltuAsm[0];
+  stream[1] = kPltuAsm[1];
+  stream[2] = kPltuAsm[2];
+  stream[3] = std::byte{0x00};
+  std::copy(good.begin(), good.begin() + static_cast<std::ptrdiff_t>(*n),
+            stream.begin() + 4);
+  const auto h =
+      huntPltu(std::span<const std::byte>(stream.data(), 4u + *n));
+  CHECK(h.pltu.has_value());
+  CHECK(h.consumed == 4u + *n);
+
+  const std::array<std::byte, 4> only{kPltuAsm[0], kPltuAsm[1], kPltuAsm[2],
+                                      std::byte{0x00}};
+  const auto end = huntPltu(asSpan(only));
+  CHECK(!end.pltu.has_value());
+  CHECK(end.pltu.error() == Error::truncated);
+  CHECK(end.consumed == only.size());
+}
+
 void test_hunt_bad_crc_consumes_unit() {
   ByteBuf bad{};
   ByteBuf good{};
@@ -475,6 +500,7 @@ int main() {
   test_hunt_split_across_calls();
   test_hunt_idle_then_pltu();
   test_hunt_partial_asm_kept();
+  test_hunt_unknown_tfvn_steps_one();
   test_hunt_bad_crc_consumes_unit();
   test_buffered_repeat_fifo_dedup_full();
   test_decode_ignores_trailing();

@@ -3,7 +3,9 @@
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/cop1.hpp"
+#include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/space_packet.hpp"
+#include "starcom/ccsds/uslp.hpp"
 
 #include <algorithm>
 #include <array>
@@ -27,6 +29,8 @@ using starcom::ccsds::cop1PollEvent;
 using starcom::ccsds::cop1ReceiveBytes;
 using starcom::ccsds::cop1SubmitSdu;
 using starcom::ccsds::cop1TakeSdu;
+using starcom::ccsds::decodePltu;
+using starcom::ccsds::decodeUslp;
 using starcom::ccsds::encodeSpacePacket;
 using starcom::ccsds::Farm1;
 using starcom::ccsds::Farm1Disposition;
@@ -330,6 +334,75 @@ void test_fop_1_setup_and_llif() {
   CHECK(f.alert_latched);
 }
 
+bool resentTfdzIs(std::span<const std::byte> pltu,
+                  std::span<const std::byte> packet) {
+  const auto view = decodePltu(pltu);
+  if (!view) {
+    return false;
+  }
+  const auto u = decodeUslp(view->frame);
+  if (!u || u->tfdz.size() != packet.size()) {
+    return false;
+  }
+  return std::equal(packet.begin(), packet.end(), u->tfdz.begin());
+}
+
+void test_resend_ad_match_then_skip() {
+  // First resend matches sent[0] and leaves the loop. Second resend
+  // skips sent[0] and matches sent[1]. Each TFDZ is that slot's packet.
+  Cop1Mib mib{};
+  mib.k = 4;
+  mib.transmission_limit = 4;
+  mib.farm.w = 8;
+  Cop1Endpoint tx{};
+  cop1Init(tx, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+  CHECK(cop1InitiateAd(tx));
+
+  SpacePacketFields sp{};
+  const std::array<std::byte, 1> user_a{std::byte{0xA1}};
+  const std::array<std::byte, 1> user_b{std::byte{0xB2}};
+  std::array<std::byte, 16> pkt_a{};
+  std::array<std::byte, 16> pkt_b{};
+  const auto na = encodeSpacePacket(pkt_a, sp, user_a);
+  const auto nb = encodeSpacePacket(pkt_b, sp, user_b);
+  CHECK(na.has_value());
+  CHECK(nb.has_value());
+  CHECK(cop1SubmitSdu(tx, std::span<const std::byte>(pkt_a.data(), *na), false)
+            .has_value());
+  std::array<std::byte, 256> wire{};
+  const auto n0 = cop1BytesToSend(tx, wire);
+  CHECK(n0.has_value());
+  CHECK(*n0 > 0);
+  CHECK(cop1SubmitSdu(tx, std::span<const std::byte>(pkt_b.data(), *nb), false)
+            .has_value());
+  const auto n1 = cop1BytesToSend(tx, wire);
+  CHECK(n1.has_value());
+  CHECK(*n1 > 0);
+  CHECK(tx.fop.sent_n == 2);
+  CHECK(tx.fop.sent[0] == 0);
+  CHECK(tx.fop.sent[1] == 1);
+
+  Clcw32 nak{};
+  nak.cop_in_effect = 0b01;
+  nak.retransmit = true;
+  nak.report_value = 0;
+  fop1OnClcw(tx.fop, nak, true);
+  CHECK(tx.fop.state == Fop1State::s2_retransmit);
+
+  const auto r0 = cop1BytesToSend(tx, wire);
+  CHECK(r0.has_value());
+  CHECK(*r0 > 0);
+  CHECK(resentTfdzIs(std::span<const std::byte>(wire.data(), *r0),
+                     std::span<const std::byte>(pkt_a.data(), *na)));
+
+  const auto r1 = cop1BytesToSend(tx, wire);
+  CHECK(r1.has_value());
+  CHECK(*r1 > 0);
+  CHECK(resentTfdzIs(std::span<const std::byte>(wire.data(), *r1),
+                     std::span<const std::byte>(pkt_b.data(), *nb)));
+  CHECK(tx.fop.sent_n == 2);
+}
+
 void test_heap() {
   Cop1Mib mib{};
   Farm1 farm{};
@@ -364,6 +437,7 @@ int run_cop1_tests() {
   test_host_loop();
   test_fop_1_suspend_resume();
   test_fop_1_setup_and_llif();
+  test_resend_ad_match_then_skip();
   test_heap();
   return g_fails;
 }
