@@ -434,6 +434,8 @@ void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexce
   coppReceiveV3(e, *pltu);
 }
 
+namespace {
+
 Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
                                      bool p_frame, bool expedited, std::uint8_t fsn,
                                      std::span<const std::byte> payload) noexcept {
@@ -454,8 +456,6 @@ Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
   }
   return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
 }
-
-namespace {
 
 Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noexcept {
   std::array<std::byte, kPlcwSize> raw{};

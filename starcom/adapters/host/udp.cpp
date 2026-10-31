@@ -46,9 +46,11 @@ void wsaRelease() noexcept {
 
 using Native = SOCKET;
 constexpr Native kInvalid = INVALID_SOCKET;
+using AddrLen = int;
 #else
 using Native = int;
 constexpr Native kInvalid = -1;
+using AddrLen = socklen_t;
 #endif
 
 Native asNative(std::uintptr_t n) noexcept {
@@ -67,24 +69,141 @@ bool makeAddr(char const* host, std::uint16_t port,
   return inet_pton(AF_INET, host, &addr.sin_addr) == 1;
 }
 
-bool setNonblock(Native s) noexcept {
+// bind, sendto, and getsockname take sockaddr*.
+sockaddr* asSockaddr(sockaddr_storage& storage) noexcept {
+  return reinterpret_cast<sockaddr*>(&storage);
+}
+
+void storeAddr(sockaddr_in const& addr, sockaddr_storage& storage) noexcept {
+  std::memset(&storage, 0, sizeof(storage));
+  std::memcpy(&storage, &addr, sizeof(addr));
+}
+
 #if defined(_WIN32)
+bool setNonblock(Native s) noexcept {
   u_long one = 1;
   return ioctlsocket(s, static_cast<std::int32_t>(FIONBIO), &one) == 0;
+}
+
+char const* asOsChar(std::span<const std::byte> octets) noexcept {
+  return reinterpret_cast<char const*>(octets.data());  // Winsock takes char const*
+}
+
+char* asOsChar(std::span<std::byte> octets) noexcept {
+  return reinterpret_cast<char*>(octets.data());  // Winsock takes char*
+}
 #else
-  const int flags = fcntl(s, F_GETFL, 0);
+bool setNonBlocking(int fd) noexcept {
+  const int flags = fcntl(fd, F_GETFL, 0);
   if (flags < 0) {
     return false;
   }
-  return fcntl(s, F_SETFL, flags | O_NONBLOCK) == 0;
-#endif
+  return fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
 }
+
+bool setNonblock(Native s) noexcept {
+  return setNonBlocking(s);
+}
+#endif
 
 void closeNative(Native s) noexcept {
 #if defined(_WIN32)
   closesocket(s);
 #else
   ::close(s);
+#endif
+}
+
+bool netAcquire() noexcept {
+#if defined(_WIN32)
+  return wsaAcquire();
+#else
+  return true;
+#endif
+}
+
+void netRelease() noexcept {
+#if defined(_WIN32)
+  wsaRelease();
+#endif
+}
+
+bool osBind(Native sock, sockaddr_in const& addr) noexcept {
+  sockaddr_storage storage{};
+  storeAddr(addr, storage);
+  const AddrLen len = static_cast<AddrLen>(sizeof(addr));
+  return ::bind(sock, asSockaddr(storage), len) == 0;
+}
+
+bool osGetSockName(Native sock, sockaddr_in& bound) noexcept {
+  sockaddr_storage storage{};
+  AddrLen len = static_cast<AddrLen>(sizeof(bound));
+  if (::getsockname(sock, asSockaddr(storage), &len) != 0) {
+    return false;
+  }
+  std::memcpy(&bound, &storage, sizeof(bound));
+  return true;
+}
+
+ccsds::Result<std::size_t> osSendTo(Native sock,
+                                     std::span<const std::byte> octets,
+                                     sockaddr_in const& addr) noexcept {
+  sockaddr_storage storage{};
+  storeAddr(addr, storage);
+  const AddrLen len = static_cast<AddrLen>(sizeof(addr));
+#if defined(_WIN32)
+  const int n =
+      ::sendto(sock, asOsChar(octets), static_cast<int>(octets.size()), 0,
+               asSockaddr(storage), len);
+  if (n == SOCKET_ERROR) {
+    const int os_err = WSAGetLastError();
+    if (os_err == WSAEWOULDBLOCK) {
+      return std::size_t{0};
+    }
+    return tl::unexpected(ccsds::Error::truncated);
+  }
+  return static_cast<std::size_t>(n);
+#else
+  const ssize_t n = ::sendto(sock, octets.data(), octets.size(), 0,
+                              asSockaddr(storage), len);
+  if (n < 0) {
+    const int os_err = errno;
+    if (os_err == EAGAIN || os_err == EWOULDBLOCK) {
+      return std::size_t{0};
+    }
+    return tl::unexpected(ccsds::Error::truncated);
+  }
+  return static_cast<std::size_t>(n);
+#endif
+}
+
+ccsds::Result<std::size_t> osRecv(Native sock,
+                                   std::span<std::byte> out) noexcept {
+#if defined(_WIN32)
+  const int n = ::recvfrom(sock, asOsChar(out), static_cast<int>(out.size()),
+                           0, nullptr, nullptr);
+  if (n == SOCKET_ERROR) {
+    const int os_err = WSAGetLastError();
+    if (os_err == WSAEWOULDBLOCK) {
+      return std::size_t{0};
+    }
+    if (os_err == WSAEMSGSIZE) {
+      return tl::unexpected(ccsds::Error::buffer_too_small);
+    }
+    return tl::unexpected(ccsds::Error::truncated);
+  }
+  return static_cast<std::size_t>(n);
+#else
+  const ssize_t n =
+      ::recvfrom(sock, out.data(), out.size(), 0, nullptr, nullptr);
+  if (n < 0) {
+    const int os_err = errno;
+    if (os_err == EAGAIN || os_err == EWOULDBLOCK) {
+      return std::size_t{0};
+    }
+    return tl::unexpected(ccsds::Error::truncated);
+  }
+  return static_cast<std::size_t>(n);
 #endif
 }
 
@@ -98,51 +217,34 @@ ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
   if (s.native != 0) {
     udpClose(s);
   }
-#if defined(_WIN32)
-  if (!wsaAcquire()) {
+  if (!netAcquire()) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-#endif
   Native sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (sock == kInvalid) {
-#if defined(_WIN32)
-    wsaRelease();
-#endif
+    netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   if (!setNonblock(sock)) {
     closeNative(sock);
-#if defined(_WIN32)
-    wsaRelease();
-#endif
+    netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in addr{};
   if (!makeAddr(host, port, addr)) {
     closeNative(sock);
-#if defined(_WIN32)
-    wsaRelease();
-#endif
+    netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+  if (!osBind(sock, addr)) {
     closeNative(sock);
-#if defined(_WIN32)
-    wsaRelease();
-#endif
+    netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in bound{};
-#if defined(_WIN32)
-  int alen = static_cast<int>(sizeof(bound));
-#else
-  socklen_t alen = sizeof(bound);
-#endif
-  if (::getsockname(sock, reinterpret_cast<sockaddr*>(&bound), &alen) != 0) {
+  if (!osGetSockName(sock, bound)) {
     closeNative(sock);
-#if defined(_WIN32)
-    wsaRelease();
-#endif
+    netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   s.native = static_cast<std::uintptr_t>(sock);
@@ -155,9 +257,7 @@ void udpClose(UdpSocket& s) noexcept {
   }
   closeNative(asNative(s.native));
   s.native = 0;
-#if defined(_WIN32)
-  wsaRelease();
-#endif
+  netRelease();
 }
 
 ccsds::Result<std::size_t> udpSendTo(UdpSocket& s,
@@ -171,31 +271,7 @@ ccsds::Result<std::size_t> udpSendTo(UdpSocket& s,
   if (!makeAddr(host, port, addr)) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-#if defined(_WIN32)
-  const int n =
-      ::sendto(asNative(s.native),
-               reinterpret_cast<const char*>(octets.data()),
-               static_cast<int>(octets.size()), 0,
-               reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-  if (n == SOCKET_ERROR) {
-    if (WSAGetLastError() == WSAEWOULDBLOCK) {
-      return std::size_t{0};
-    }
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  return static_cast<std::size_t>(n);
-#else
-  const ssize_t n =
-      ::sendto(asNative(s.native), octets.data(), octets.size(), 0,
-               reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-  if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return std::size_t{0};
-    }
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  return static_cast<std::size_t>(n);
-#endif
+  return osSendTo(asNative(s.native), octets, addr);
 }
 
 ccsds::Result<std::size_t> udpRecv(UdpSocket& s,
@@ -206,32 +282,7 @@ ccsds::Result<std::size_t> udpRecv(UdpSocket& s,
   if (out.empty()) {
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
-#if defined(_WIN32)
-  const int n = ::recvfrom(asNative(s.native),
-                           reinterpret_cast<char*>(out.data()),
-                           static_cast<int>(out.size()), 0, nullptr, nullptr);
-  if (n == SOCKET_ERROR) {
-    const int err = WSAGetLastError();
-    if (err == WSAEWOULDBLOCK) {
-      return std::size_t{0};
-    }
-    if (err == WSAEMSGSIZE) {
-      return tl::unexpected(ccsds::Error::buffer_too_small);
-    }
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  return static_cast<std::size_t>(n);
-#else
-  const ssize_t n = ::recvfrom(asNative(s.native), out.data(), out.size(), 0,
-                               nullptr, nullptr);
-  if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return std::size_t{0};
-    }
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  return static_cast<std::size_t>(n);
-#endif
+  return osRecv(asNative(s.native), out);
 }
 
 }  // namespace starcom::adapters

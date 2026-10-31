@@ -974,8 +974,6 @@ MacPhy macPhy(MacSession const& m) noexcept {
   p.modulation = m.modulation && m.transmit_on;
   switch (m.state) {
     case MacState::s1:
-      p.receive = false;
-      break;
     case MacState::s11:
     case MacState::s12:
     case MacState::s13:

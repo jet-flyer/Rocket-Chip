@@ -2,8 +2,8 @@
 
 #include "starcom/ccsds/pltu.hpp"
 
-#include <cstdio>
 #include <cstring>
+#include <fstream>
 
 namespace starcom::adapters {
 namespace {
@@ -16,7 +16,9 @@ struct ReplayBuf {
 void compactFill(ReplayBuf& b, std::size_t consumed) noexcept {
   const std::size_t keep = b.fill - consumed;
   if (keep > 0) {
-    std::memmove(b.scratch.data(), b.scratch.data() + consumed, keep);
+    const auto src = b.scratch.subspan(consumed, keep);
+    const auto dst = b.scratch.first(keep);
+    std::memmove(dst.data(), src.data(), keep);
   }
   b.fill = keep;
 }
@@ -26,7 +28,7 @@ ccsds::Result<std::size_t> replayDeliver(ReplayBuf& b, ccsds::PltuHunt const& hu
   const std::size_t n =
       ccsds::kPltuAsmSize + hunt.pltu->frame.size() + ccsds::kPltuCrcSize;
   const std::size_t start = hunt.consumed - n;
-  const auto env = std::span<const std::byte>(b.scratch.data() + start, n);
+  const auto env = std::span<const std::byte>{b.scratch.subspan(start, n)};
   const auto sr = sink(ctx, env);
   if (!sr) {
     return tl::unexpected(sr.error());
@@ -35,12 +37,16 @@ ccsds::Result<std::size_t> replayDeliver(ReplayBuf& b, ccsds::PltuHunt const& hu
   return std::size_t{1};
 }
 
-bool replayRefill(ReplayBuf& b, std::FILE* f, bool& eof) noexcept {
+bool replayRefill(ReplayBuf& b, std::ifstream& in, bool& eof) noexcept {
   const std::size_t room = b.scratch.size() - b.fill;
   if (room == 0) {
     return false;
   }
-  const std::size_t nread = std::fread(b.scratch.data() + b.fill, 1, room, f);
+  const auto dest = b.scratch.subspan(b.fill, room);
+  // basic_istream::read takes char*.
+  char* const raw = reinterpret_cast<char*>(dest.data());  // istream::read takes char*
+  in.read(raw, static_cast<std::streamsize>(room));
+  const auto nread = static_cast<std::size_t>(in.gcount());
   if (nread == 0) {
     eof = true;
     return true;
@@ -60,20 +66,21 @@ ccsds::Result<std::size_t> replayPltuFile(char const* path,
   if (path == nullptr || path[0] == '\0' || sink == nullptr) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  std::FILE* f = std::fopen(path, "rb");
-  if (f == nullptr) {
+  std::ifstream in(path, std::ios::in | std::ios::binary);
+  if (!in.is_open()) {
     return tl::unexpected(ccsds::Error::truncated);
   }
   ReplayBuf b{scratch, 0};
   std::size_t delivered = 0;
   bool eof = false;
-  for (;;) {
-    const auto hunt =
-        ccsds::huntPltu(std::span<const std::byte>(b.scratch.data(), b.fill));
+  bool more = true;
+  while (more) {
+    const auto hunt = ccsds::huntPltu(
+        std::span<const std::byte>{b.scratch.first(b.fill)});
     if (hunt.pltu.has_value()) {
       const auto one = replayDeliver(b, hunt, sink, ctx);
       if (!one) {
-        std::fclose(f);
+        in.close();
         return tl::unexpected(one.error());
       }
       ++delivered;
@@ -84,11 +91,11 @@ ccsds::Result<std::size_t> replayPltuFile(char const* path,
       compactFill(b, hunt.consumed);
       continue;
     }
-    if (eof || !replayRefill(b, f, eof)) {
-      break;
+    if (eof || !replayRefill(b, in, eof)) {
+      more = false;
     }
   }
-  std::fclose(f);
+  in.close();
   return delivered;
 }
 

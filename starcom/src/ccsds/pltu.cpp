@@ -189,6 +189,8 @@ PltuHunt huntPltu(std::span<const std::byte> octets,
   return PltuHunt{octets.size() - keep, tl::unexpected(Error::truncated)};
 }
 
+namespace {
+
 std::uint64_t repeatSeq(PltuView const& view) noexcept {
   const auto v3 = decodeV3(view.frame);
   if (v3) {
@@ -200,6 +202,8 @@ std::uint64_t repeatSeq(PltuView const& view) noexcept {
   }
   return 0;
 }
+
+}  // namespace
 
 Result<std::size_t> enqueuePltu(PltuRepeatQ& q, std::span<const std::byte> octets,
                                  bool dedup) noexcept {

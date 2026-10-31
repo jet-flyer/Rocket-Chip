@@ -100,6 +100,11 @@ starcom::ccsds::Result<std::size_t> coppSink(
   return pltu.size();
 }
 
+starcom::ccsds::Result<std::size_t> failSink(void*,
+                                              std::span<const std::byte>) {
+  return tl::unexpected(Error::bad_crc);
+}
+
 bool writeTwoPltus(char const* path, std::span<const std::byte> a,
                      std::span<const std::byte> b) {
   std::FILE* f = std::fopen(path, "wb");
@@ -238,6 +243,48 @@ void test_replay_errors() {
             .error() == Error::buffer_too_small);
 }
 
+void test_replay_split_short_read() {
+  std::array<std::byte, 64> pltu{};
+  const std::array<std::byte, 1> opaque{std::byte{0x42}};
+  std::size_t n = 0;
+  CHECK(makeUserPltu(pltu, 0, asSpan(opaque), n));
+  CHECK(n > starcom::ccsds::kPltuAsmSize + 2);
+
+  constexpr std::size_t kPrefix =
+      kAdapterFrameMax - (starcom::ccsds::kPltuAsmSize + 2);
+  std::array<std::byte, kPrefix> prefix{};
+  const char* path = "starcom_ivp15_split.bin";
+  CHECK(writeTwoPltus(path, asSpan(prefix),
+                        std::span<const std::byte>(pltu.data(), n)));
+
+  std::array<std::byte, kAdapterFrameMax> scratch{};
+  Collected col{};
+  const auto got = replayPltuFile(path, scratch, collectSink, &col);
+  CHECK(got.has_value());
+  CHECK(*got == 1u);
+  CHECK(col.n == 1u);
+  CHECK(col.lens[0] == n);
+  CHECK(std::equal(pltu.begin(), pltu.begin() + static_cast<std::ptrdiff_t>(n),
+                   col.units[0].begin()));
+  std::remove(path);
+}
+
+void test_replay_sink_error() {
+  std::array<std::byte, 64> a{};
+  const std::array<std::byte, 1> opaque{std::byte{0x11}};
+  std::size_t na = 0;
+  CHECK(makeUserPltu(a, 0, asSpan(opaque), na));
+  const char* path = "starcom_ivp15_sink_err.bin";
+  CHECK(writeTwoPltus(path, std::span<const std::byte>(a.data(), na),
+                        std::span<const std::byte>()));
+
+  std::array<std::byte, kAdapterFrameMax> scratch{};
+  const auto got = replayPltuFile(path, scratch, failSink, nullptr);
+  CHECK(!got.has_value());
+  CHECK(got.error() == Error::bad_crc);
+  std::remove(path);
+}
+
 void test_udp_loopback_pltu() {
   std::array<std::byte, 64> pltu{};
   const std::array<std::byte, 1> opaque{std::byte{0x42}};
@@ -277,6 +324,64 @@ void test_udp_loopback_pltu() {
   udpClose(rx);
 }
 
+void test_udp_would_block_and_errors() {
+  UdpSocket closed{};
+  std::array<std::byte, 8> buf{};
+  const std::array<std::byte, 1> one{std::byte{0x01}};
+  const auto unbound_send = udpSendTo(closed, asSpan(one), "127.0.0.1", 9);
+  CHECK(!unbound_send.has_value());
+  CHECK(unbound_send.error() == Error::truncated);
+  const auto unbound_recv = udpRecv(closed, buf);
+  CHECK(!unbound_recv.has_value());
+  CHECK(unbound_recv.error() == Error::truncated);
+
+  UdpSocket bad{};
+  const auto empty_host = udpBind(bad, "", 0);
+  CHECK(!empty_host.has_value());
+  CHECK(empty_host.error() == Error::truncated);
+  const auto null_host = udpBind(bad, nullptr, 0);
+  CHECK(!null_host.has_value());
+  CHECK(null_host.error() == Error::truncated);
+  const auto bad_host = udpBind(bad, "not-an-ip", 0);
+  CHECK(!bad_host.has_value());
+  CHECK(bad_host.error() == Error::truncated);
+
+  UdpSocket rx{};
+  const auto rp = udpBind(rx, "127.0.0.1", 0);
+  CHECK(rp.has_value());
+  const auto idle = udpRecv(rx, buf);
+  CHECK(idle.has_value());
+  CHECK(*idle == 0u);
+  const auto empty_out = udpRecv(rx, std::span<std::byte>{});
+  CHECK(!empty_out.has_value());
+  CHECK(empty_out.error() == Error::buffer_too_small);
+
+  UdpSocket tx{};
+  const auto tp = udpBind(tx, "127.0.0.1", 0);
+  CHECK(tp.has_value());
+  static std::array<std::byte, 65536> big{};
+  const auto too_big = udpSendTo(tx, asSpan(big), "127.0.0.1", *rp);
+  CHECK(!too_big.has_value());
+  CHECK(too_big.error() == Error::truncated);
+
+  UdpSocket clash{};
+  const auto second = udpBind(clash, "127.0.0.1", *rp);
+  CHECK(!second.has_value());
+  CHECK(second.error() == Error::truncated);
+
+  const auto bad_dest = udpSendTo(tx, asSpan(one), "not-an-ip", *rp);
+  CHECK(!bad_dest.has_value());
+  CHECK(bad_dest.error() == Error::truncated);
+  const auto no_host = udpSendTo(tx, asSpan(one), "", *rp);
+  CHECK(!no_host.has_value());
+  CHECK(no_host.error() == Error::truncated);
+
+  udpClose(tx);
+  udpClose(rx);
+  udpClose(clash);
+  udpClose(bad);
+}
+
 }  // namespace
 
 int run_host_io_tests() {
@@ -284,6 +389,9 @@ int run_host_io_tests() {
   test_replay_into_repeat_pltu();
   test_replay_into_copp();
   test_replay_errors();
+  test_replay_split_short_read();
+  test_replay_sink_error();
   test_udp_loopback_pltu();
+  test_udp_would_block_and_errors();
   return g_fails;
 }
