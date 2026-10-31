@@ -3,7 +3,7 @@
 | File | Job |
 |------|-----|
 | `CompilerWarnings.cmake` | C++20; core `-fno-exceptions -fno-rtti`; test flags |
-| `starcom_version.cmake` | `STARCOM_VERSION` + git → `generated/starcom/version.hpp` |
+| `starcom_version.cmake` | `STARCOM_VERSION` + git → `generated/starcom/version.h` |
 
 `-DSTARCOM_SANITIZE=ON` applies ASan+UBSan (see `TESTING.md`).
 

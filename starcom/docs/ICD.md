@@ -21,7 +21,7 @@ A host test of codecs calls the functions below with canned octets.
 - Caller owns state (`CoppEndpoint` for increment 2). Codecs are stateless functions.
 - Value-or-error: `starcom::ccsds::Result<T>` is `tl::expected<T, Error>` by default. Compile knob `STARCOM_USE_STD_EXPECTED` later. No exceptions across the core API. `Error` is a closed `enum class : std::uint8_t`, trivially copyable.
 - C++20. `std::span` is the buffer type. Do not vendor a span backport.
-- Identity: `#include "starcom/version.hpp"` (generated). Product numbers live in `STARCOM_VERSION` only (`VERSIONING.md`).
+- Identity: `#include "starcom/version.h"` (generated). Product numbers live in `STARCOM_VERSION` only (`VERSIONING.md`).
 - Time: `starcom::ccsds::Tick` (`std::uint32_t`). Caller passes `now`; MIB intervals are in the same unit. No library default milliseconds.
 - Strong IDs for V-3: `Scid` (10-bit), `Pcid` (1-bit), `PortId` (3-bit). USLP: `UslpScid` (16-bit), `Vcid` (6-bit), `MapId` (4-bit). Do not alias them.
 
@@ -108,7 +108,7 @@ Result<std::size_t> encodeV3UserDefined(std::span<std::byte> out,
                                           std::span<const std::byte> data) noexcept;
 ```
 
-Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Data field 0..`kV3DataMax` octets (3.2.3 c). Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.hpp`). Field map: SAD (working copy of 211.0 Fig 3-3). `encodeV3` on a P-frame forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). `encodeV3UserDefined` is the User Defined Data service (3.2.3.5 / 2.2.2.3): U-frame, DFC `11`, opaque octets, empty data field valid, no reassembly. Callers branch on `dfc_id` / `v3IsUserDefined` — DFC `11` is not a Space Packet. Raw `encodeV3` still packs reserved DFC `10` if the caller sets it; there is no reserved service. DFC `01` segmentation is not this increment. Not Odyssey Annex F4.
+Transfer Frame only (no ASM/CRC). TFVN `10`. Frame Length C = (header + data) − 1. Data field 0..`kV3DataMax` octets (3.2.3 c). Strong IDs: `Scid`, `Pcid`, `PortId` (`ccsds/types.h`). Field map: SAD (working copy of 211.0 Fig 3-3). `encodeV3` on a P-frame forces DFC `00` and Port ID `0` (3.2.2.5.2 / 3.2.2.8.2). `encodeV3UserDefined` is the User Defined Data service (3.2.3.5 / 2.2.2.3): U-frame, DFC `11`, opaque octets, empty data field valid, no reassembly. Callers branch on `dfc_id` / `v3IsUserDefined` — DFC `11` is not a Space Packet. Raw `encodeV3` still packs reserved DFC `10` if the caller sets it; there is no reserved service. DFC `01` segmentation is not this increment. Not Odyssey Annex F4.
 
 ### Space Packet
 

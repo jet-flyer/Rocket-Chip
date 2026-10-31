@@ -52,11 +52,11 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Version-3 `decodeV3` / `encodeV3`.
 - Space Packet `decodeSpacePacket` / `encodeSpacePacket`; IVP `v3-one-sp-n` is 18+N.
 - `Plcw16` / `Clcw32` pack/unpack.
-- FOP-P / FARM-P (`copp.hpp` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `coppTakeSdu` (7.3.3). SET V(R) persistent/MAC is increment 13.
-- USLP Version-4 (`uslp.hpp` / `uslp.cpp`): non-truncated primary header + TFDF; truncated (annex D), Insert Zone, FECF Annex B via caller `UslpMib`.
-- COP-1 (`cop1.hpp` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + S4/S5 BC-init (E24/E25/E27) + E29 terminate; USLP+OCF host loop.
+- FOP-P / FARM-P (`copp.h` / `copp.cpp`): RE0–RE6, SE0–SE4/SE7, canned PLTU→PLCW host loop, `coppTakeSdu` (7.3.3). SET V(R) persistent/MAC is increment 13.
+- USLP Version-4 (`uslp.h` / `uslp.cpp`): non-truncated primary header + TFDF; truncated (annex D), Insert Zone, FECF Annex B via caller `UslpMib`.
+- COP-1 (`cop1.h` / `cop1.cpp`): FARM-1 E1–E11; FOP-1 E23 + S4/S5 BC-init (E24/E25/E27) + E29 terminate; USLP+OCF host loop.
 - Host loopback + `RadioPort` mailbox (`adapters/host/`, `include/starcom/adapters/`). UDP/file is increment 15; generic SPI/GPIO bus is 16.
-- Versioning: `STARCOM_VERSION` + generated `starcom/version.hpp` (same scheme as RC's 2026-08-26 `RC_VERSION` close — Starcom file is `STARCOM_VERSION`). Product `0.12.0-dev` after increment 12. No tag this sitting.
+- Versioning: `STARCOM_VERSION` + generated `starcom/version.h` (same scheme as RC's 2026-08-26 `RC_VERSION` close — Starcom file is `STARCOM_VERSION`). Product `0.12.0-dev` after increment 12. No tag this sitting.
 - Increment 6: codec prefix smoke (`test_fuzz.cpp`); `-DSTARCOM_SANITIZE=ON` (not exercised here — no libasan). Close is 24.
 - Consumer map: `docs/integration/CONSUMERS.md`. Bent-pipe `repeatPltu` (increment 7).
 - Increment 8: `huntPltu` (211.2 §3.6 exact-ASM search, caller leftover, no library buffer).
@@ -65,7 +65,7 @@ Transcribed from `docs/research/library_craft_claude.md` §7, then numbered as t
 - Increment 11: `coppInitUslp` — COP-P on Version-4 VC/MAP; PLCW still SPDU. V-3 path unchanged.
 - Increment 12: caller-owned `PltuRepeatQ` / `enqueuePltu` / `dequeuePltu`. No invented depth.
 - IVP sequence through increment 25 (rest of the stack). No temporary retry layer in the library. RC LoRa air is COP-P (increment 22); `telemetry_encoder` is USB/host only.
-- Increment 13: full §6 MAC (`mac.hpp` / `mac.cpp`). SET V(R) persistent. Simplex S71/S72.
+- Increment 13: full §6 MAC (`mac.h` / `mac.cpp`). SET V(R) persistent. Simplex S71/S72.
 - Increment 14: V-3 DFC `11` user-defined (`encodeV3UserDefined`, `coppSubmitUserDefined`). Opaque octets, no reassembly. Not Annex F4.
 - Increment 15: host file replay + UDP (`replayPltuFile`, `udp_*`). Sockets only in `adapters/host`. No Starcom service port.
 - Increment 16: generic SPI/GPIO `BusOps` + `radio_bus_shift_*` (`adapters/rp2350/`). Host fake bus. No Pico SDK, no RFM types, not 211.1.

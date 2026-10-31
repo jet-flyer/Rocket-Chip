@@ -242,7 +242,7 @@ Paths from repo root. One-line why; do not treat this hub as a copy of those doc
 - `starcom/docs/integration/CONSUMERS.md` - increment 18 FPGA later
 - `starcom/README.md` - ports attach later PIO / FPGA
 - `starcom/adapters/rp2350/README.md` - PIO-shaped PLTU bit pipe; FPGA bitstreams stay out
-- `starcom/include/starcom/README.md` - `pio_port.hpp` (MSB first; not 211.1)
+- `starcom/include/starcom/README.md` - `pio_port.h` (MSB first; not 211.1)
 - `starcom/AGENT_WHITEBOARD.md` - Forgix-first / decode-port hold
 - `starcom/CHANGELOG.md` - PICS + FSK path; T8 not on the base board
 - `starcom/docs/comparison.md` - ComBlock / Pluto as true-PHY paths (not T8)

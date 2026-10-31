@@ -17,7 +17,7 @@ Link `Starcom::starcom` (and optionally `Starcom::adapters_host` / `Starcom::ada
 | COP-1 | Anyone who owns a loop | `cop1_*` on USLP+CLCW-in-OCF in a PLTU (S4/S5, Resume, setup, null-LLIF Ready) | TC 232.0 frames |
 | Host loopback / UDP / file / SPI-GPIO / PIO / PHY tiers | Tests, desktop sims | Mailboxes, `udp_*`, `BusOps`, `pio_shift_*`, `PhyDecl` | — |
 | PLTU repeater | Anyone with bytes in/out | `repeatPltu`; buffered `enqueuePltu` / `dequeuePltu` (caller-owned slots) | — |
-| Version | Anyone | `#include "starcom/version.hpp"` | Annotated tag (25) |
+| Version | Anyone | `#include "starcom/version.h"` | Annotated tag (25) |
 
 **Rocket-Chip specifically:** host and Pico always `addSubdirectory(starcom)` and link `Starcom::starcom`. COP-P air via `byte_pump`. SX1276 stays in RC. No RC types in `include/starcom`.
 

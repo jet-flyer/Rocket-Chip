@@ -30,7 +30,7 @@ Starcom runs the consumer project's master audit tiers where they fit a sans-I/O
 | 2.5 / 2.5a deviations | Applies | Owner 2026-09-02: zero Starcom rows in the consumer's accepted-deviations register (`IVP23_REPORT.md`). |
 | 2.6 prior-cycle delta | Applies | Prior cycle: IVP 23 (`IVP23_TIDY_RUN.md`, 2026-08-31, 328 diagnostics, core only, pre-camelBack). |
 | 3.1–3.4, 3.8 coding catalogs | Applies | JSF AV / Power of 10 / JPL / house rules as they reach the core and adapters. |
-| 3.5–3.7 (agent behavior, dev code, version strings) | Mostly N/A (inference) | No dev-tier code or serial banner in the core. Check `include/starcom/version.hpp.in` for version-string drift. |
+| 3.5–3.7 (agent behavior, dev code, version strings) | Mostly N/A (inference) | No dev-tier code or serial banner in the core. Check `include/starcom/version.h.in` for version-string drift. |
 | 3.9 CCSDS conformance | Applies | Below. |
 | 4.x runtime / fault injection, 5.x bench / pre-flight | N/A for the core (inference) | Board behavior is the consumer's audit. |
 | 6–7 drift, disposition | Applies | Reports and raw logs go in this folder. |
