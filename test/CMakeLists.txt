@@ -166,6 +166,7 @@ add_executable(test_starcom_byte_pump
 )
 target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
 target_include_directories(test_starcom_byte_pump PRIVATE
+    ${RC_VERSION_GENERATED_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
 )

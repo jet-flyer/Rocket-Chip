@@ -558,3 +558,17 @@ configure_file(
 )
 
 message(STATUS "RocketChip ${RC_VERSION_STRING}  git ${RC_GIT_HASH}  identity ${RC_BUILD_IDENTITY}  fwtree ${RC_FIRMWARE_TREE_ID}  build ${RC_BUILD_NUMBER}")
+
+# Host test builds and firmware builds are separate CMake runs.
+# BUILD_TESTS selects the host run. The generated bool replaces
+# ROCKETCHIP_HOST_TEST in pump_init_for_this_job.
+if(BUILD_TESTS)
+    set(RC_HOST_TEST "true")
+else()
+    set(RC_HOST_TEST "false")
+endif()
+configure_file(
+    "${CMAKE_SOURCE_DIR}/include/rocketchip/host_build.h.in"
+    "${RC_VERSION_GENERATED_DIR}/rocketchip/host_build.h"
+    @ONLY
+)

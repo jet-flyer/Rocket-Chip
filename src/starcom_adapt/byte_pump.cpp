@@ -7,6 +7,8 @@
 #include "starcom_adapt/cmd_sdu.h"
 #include "flight_director/mission_profile_data.h"
 #include "rocketchip/radio_config_table.h"
+#include "rocketchip/job.h"
+#include "rocketchip/host_build.h"
 #include "starcom/error.hpp"
 
 #include <tl/expected.hpp>
@@ -258,14 +260,18 @@ void pump_init(BytePump& p, starcom::ccsds::Scid local,
 }
 
 void pump_init_for_this_job(BytePump& p) noexcept {
-#ifdef ROCKETCHIP_JOB_STATION
-  pump_init(p, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
-#else
-  pump_init(p, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
-#endif
-#ifndef ROCKETCHIP_HOST_TEST
-  p.defer_spdu_fifo_empty = true;
-#endif
+  // Station local SCID is 2. Vehicle and relay local SCID is 1.
+  // job::kRole is the compile-time role from job.h.
+  if constexpr (job::kRole == job::DeviceRole::kStation) {
+    pump_init(p, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+  } else {
+    pump_init(p, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+  }
+  // Firmware waits for PHY TxDone before the FIFO-empty event.
+  // The host test build clears the FIFO at post.
+  if constexpr (!rc::kHostTest) {
+    p.defer_spdu_fifo_empty = true;
+  }
 }
 
 starcom::ccsds::Result<std::size_t> pump_encode_pltu(

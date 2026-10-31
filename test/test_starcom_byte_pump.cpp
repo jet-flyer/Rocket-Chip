@@ -8,6 +8,8 @@
 #include "starcom_adapt/cmd_sdu.h"
 #include "starcom_adapt/nav_sdu.h"
 #include "rocketchip/radio_config_table.h"
+#include "rocketchip/job.h"
+#include "rocketchip/host_build.h"
 #include "flight_director/mission_profile_data.h"
 #include "starcom/ccsds/pltu.hpp"
 #include "starcom/ccsds/v3.hpp"
@@ -33,6 +35,7 @@ using rc::starcom_adapt::pump_bytes_to_send;
 using rc::starcom_adapt::pump_encode_nav;
 using rc::starcom_adapt::pump_encode_pltu;
 using rc::starcom_adapt::pump_init;
+using rc::starcom_adapt::pump_init_for_this_job;
 using rc::starcom_adapt::pump_receive_bytes;
 using rc::starcom_adapt::pump_repeat_pltu;
 using rc::starcom_adapt::pump_submit_sdu;
@@ -1599,4 +1602,17 @@ TEST(StarcomBytePump, PumpInitKeepsLinkCounts) {
     pump_init(pump, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     EXPECT_EQ(starcom::ccsds::coppRetransmitCount(pump.copp), 7u);
     EXPECT_EQ(starcom::ccsds::coppSyncLossCount(pump.copp), 3u);
+}
+
+// Host build is the vehicle role. Local SCID 1, remote SCID 2.
+// The host build does not defer the empty FIFO.
+static_assert(rc::kHostTest);
+static_assert(job::kRole == job::DeviceRole::kVehicle);
+
+TEST(StarcomBytePump, InitForThisJobHostBuild) {
+    static BytePump pump{};
+    pump_init_for_this_job(pump);
+    EXPECT_EQ(pump.local_scid, starcom::ccsds::Scid{1});
+    EXPECT_EQ(pump.remote_scid, starcom::ccsds::Scid{2});
+    EXPECT_FALSE(pump.defer_spdu_fifo_empty);
 }

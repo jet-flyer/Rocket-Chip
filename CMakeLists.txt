@@ -130,6 +130,7 @@ if(BUILD_TESTS)
         src/starcom_adapt/byte_pump.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
+        ${RC_VERSION_GENERATED_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
