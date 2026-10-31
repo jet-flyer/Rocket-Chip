@@ -276,7 +276,7 @@ CoppEvent coppPollEvent(CoppEndpoint& e) noexcept {
   return CoppEvent::none;
 }
 
-Result<std::size_t> coppTakeSdu(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppTakeSdu(CoppEndpoint& e,
                                   std::span<std::byte> out) noexcept {
   if (e.rx_n == 0) {
     return std::size_t{0};
@@ -297,7 +297,7 @@ Result<std::size_t> coppTakeSdu(CoppEndpoint& e,
 
 namespace {
 
-Result<std::size_t> coppHoldSubmit(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppHoldSubmit(CoppEndpoint& e,
                                     std::span<const std::byte> octets,
                                     bool expedited, bool user_defined) noexcept {
   if ((!user_defined && octets.empty()) || octets.size() > kCoppHold) {
@@ -329,13 +329,13 @@ Result<std::size_t> coppHoldSubmit(CoppEndpoint& e,
 
 }  // namespace
 
-Result<std::size_t> coppSubmitSdu(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppSubmitSdu(CoppEndpoint& e,
                                     std::span<const std::byte> packet,
                                     bool expedited) noexcept {
   return coppHoldSubmit(e, packet, expedited, false);
 }
 
-Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
                                             std::span<const std::byte> octets,
                                             bool expedited) noexcept {
   if (octets.size() > kV3DataMax) {
@@ -371,7 +371,10 @@ bool dest_is_local(CoppEndpoint const& e, bool destination,
 void coppReceiveUslp(CoppEndpoint& e, PltuView const& pltu) noexcept {
   const auto u = decodeUslp(pltu.frame);
   if (!u) {
-    (void)farmPOnFrame(e.farm, false, false, 0);
+    if (farmPOnFrame(e.farm, false, false, 0) != FarmPDisposition::accepted) {
+      /* 211.0-B-6 7.3.1 RE1 discards an invalid frame. No FARM variable
+         changes. This function returns and does not pass the frame on. */
+    }
     return;
   }
   if (u->fields.protocol_control) {
@@ -395,7 +398,10 @@ void coppReceiveUslp(CoppEndpoint& e, PltuView const& pltu) noexcept {
 void coppReceiveV3(CoppEndpoint& e, PltuView const& pltu) noexcept {
   const auto v3 = decodeV3(pltu.frame);
   if (!v3) {
-    (void)farmPOnFrame(e.farm, false, false, 0);
+    if (farmPOnFrame(e.farm, false, false, 0) != FarmPDisposition::accepted) {
+      /* 211.0-B-6 7.3.1 RE1 discards an invalid frame. No FARM variable
+         changes. This function returns and does not pass the frame on. */
+    }
     return;
   }
   if (!dest_is_local(e, v3->fields.destination,
@@ -424,7 +430,10 @@ void coppReceiveV3(CoppEndpoint& e, PltuView const& pltu) noexcept {
 void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept {
   const auto pltu = decodePltu(octets);
   if (!pltu) {
-    (void)farmPOnFrame(e.farm, false, false, 0);
+    if (farmPOnFrame(e.farm, false, false, 0) != FarmPDisposition::accepted) {
+      /* 211.0-B-6 7.3.1 RE1 discards an invalid frame. No FARM variable
+         changes. This function returns and does not pass the frame on. */
+    }
     return;
   }
   if (e.uslp) {
@@ -436,7 +445,7 @@ void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexce
 
 namespace {
 
-Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
                                      bool p_frame, bool expedited, std::uint8_t fsn,
                                      std::span<const std::byte> payload) noexcept {
   UslpFields hdr{};
@@ -457,7 +466,7 @@ Result<std::size_t> coppEncodeUslp(CoppEndpoint& e, std::span<std::byte> out,
   return encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
 }
 
-Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noexcept {
+[[nodiscard]] Result<std::size_t> coppSendPlcw(CoppEndpoint& e, std::span<std::byte> out) noexcept {
   std::array<std::byte, kPlcwSize> raw{};
   const auto n = encodePlcw(raw, farmPReport(e.farm, e.pcid));
   if (!n) {
@@ -544,7 +553,7 @@ std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept {
   return e.sync_loss_n;
 }
 
-Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
                                        std::span<std::byte> out) noexcept {
   // 211.0 table 6-14: NEED_PLCW before any SDU. §7.2.3 SE1 fills the SDU slot.
   if (e.farm.need_plcw) {

@@ -4,7 +4,7 @@
 
 namespace starcom::ccsds {
 
-Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept {
+[[nodiscard]] Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept {
   if (packet.size() < kSpacePacketMinSize) {
     return tl::unexpected(Error::sp_too_short);
   }
@@ -34,7 +34,7 @@ Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noe
   return view;
 }
 
-Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
                                         SpacePacketFields const& fields,
                                         std::span<const std::byte> data) noexcept {
   if (data.size() < 1 || data.size() > kSpacePacketDataMax) {

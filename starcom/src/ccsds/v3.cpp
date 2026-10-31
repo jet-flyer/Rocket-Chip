@@ -4,7 +4,7 @@
 
 namespace starcom::ccsds {
 
-Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept {
+[[nodiscard]] Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept {
   if (frame.size() < kV3HeaderSize) {
     return tl::unexpected(Error::truncated);
   }
@@ -38,7 +38,7 @@ Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept {
   return view;
 }
 
-Result<std::size_t> encodeV3(std::span<std::byte> out, V3Fields const& fields,
+[[nodiscard]] Result<std::size_t> encodeV3(std::span<std::byte> out, V3Fields const& fields,
                               std::span<const std::byte> data) noexcept {
   const std::size_t frame_len = kV3HeaderSize + data.size();
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
@@ -72,7 +72,7 @@ Result<std::size_t> encodeV3(std::span<std::byte> out, V3Fields const& fields,
   return frame_len;
 }
 
-Result<std::size_t> encodeV3UserDefined(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodeV3UserDefined(std::span<std::byte> out,
                                           V3Fields const& fields,
                                           std::span<const std::byte> data) noexcept {
   if (data.size() > kV3DataMax) {

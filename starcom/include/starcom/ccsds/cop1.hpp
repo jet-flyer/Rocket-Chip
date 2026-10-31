@@ -189,10 +189,10 @@ void cop1BdAccept(Cop1Endpoint& e) noexcept;
 void cop1BdReject(Cop1Endpoint& e) noexcept;
 void cop1Tick(Cop1Endpoint& e, Tick now) noexcept;
 void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept;
-Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
-Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
+[[nodiscard]] Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
+[[nodiscard]] Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
-Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
+[[nodiscard]] Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept;
 Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept;
 
 }  // namespace starcom::ccsds

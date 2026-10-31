@@ -229,7 +229,7 @@ void macOnNoFramesPending(MacSession& m, Tick now) noexcept;
 void macSetSduPending(MacSession& m, bool pending) noexcept;
 void macLoadHailCommValue(MacSession& m, MacCommValue const& cv) noexcept;
 void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept;
-Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept;
+[[nodiscard]] Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept;
 
 void macTick(MacSession& m, Tick now) noexcept;
 MacNotify macPollNotify(MacSession& m) noexcept;
@@ -238,18 +238,18 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept;  // table 6-14
 
 // Annex B1.5 SET V(R): type 011, spare 0, SEQ_CTRL_FSN.
 inline constexpr std::uint8_t kSetVrDirectiveType = 0x03;
-Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
+[[nodiscard]] Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid pcid) noexcept;
-Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;
-Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
+[[nodiscard]] Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets, Pcid* pcid_out) noexcept;
+[[nodiscard]] Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
                                   bool transmitter) noexcept;
-Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
+[[nodiscard]] Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
                                    bool* transmitter_out) noexcept;
-Result<std::size_t> encodeSetControl(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodeSetControl(std::span<std::byte> out,
                                       MacControlParams const& p) noexcept;
-Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept;
-Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept;
-Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept;
+[[nodiscard]] Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept;
+[[nodiscard]] Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept;
+[[nodiscard]] Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept;
 std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept;
 void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept;
 void macDriveSetVr(MacSession& m, Tick now) noexcept;  // 7.2.3.2

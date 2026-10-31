@@ -143,22 +143,22 @@ void coppInitUslp(CoppEndpoint& e, CoppMib const& mib, UslpScid local,
                     UslpScid remote, Vcid vcid, MapId map) noexcept;
 void coppTick(CoppEndpoint& e, Tick now) noexcept;
 void coppReceiveBytes(CoppEndpoint& e, std::span<const std::byte> octets) noexcept;
-Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) noexcept;
+[[nodiscard]] Result<std::size_t> coppBytesToSend(CoppEndpoint& e, std::span<std::byte> out) noexcept;
 // Sequence-controlled resends since process start. coppReset does not clear it.
 // LoRa and a later FSK bearer share this count.
 std::uint32_t coppRetransmitCount(CoppEndpoint const& e) noexcept;
 // 211.0-B-6 Annex D item 8. One count per SE4 notification.
 // coppReset does not clear it. Separate from coppRetransmitCount.
 std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept;
-Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
+[[nodiscard]] Result<std::size_t> coppSubmitSdu(CoppEndpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept;
 // User Defined Data (211.0 3.2.3.5 / 2.2.2.3): opaque octets, DFC 11 on V-3
 // U-frames. Same hold/slots as coppSubmitSdu. Empty data field is valid.
 // Caller chops at kV3DataMax; library does not reassemble.
-Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
+[[nodiscard]] Result<std::size_t> coppSubmitUserDefined(CoppEndpoint& e,
                                             std::span<const std::byte> octets,
                                             bool expedited) noexcept;
-Result<std::size_t> coppTakeSdu(CoppEndpoint& e, std::span<std::byte> out) noexcept;
+[[nodiscard]] Result<std::size_t> coppTakeSdu(CoppEndpoint& e, std::span<std::byte> out) noexcept;
 CoppEvent coppPollEvent(CoppEndpoint& e) noexcept;
 
 }  // namespace starcom::ccsds

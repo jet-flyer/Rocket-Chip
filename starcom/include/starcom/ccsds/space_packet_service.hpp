@@ -66,39 +66,39 @@ struct SpacePacketService {
 void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noexcept;
 
 // 3.3.3.2 PACKET.request. Transfers the user's packet unchanged.
-Result<std::size_t> packetRequest(SpacePacketService& svc,
+[[nodiscard]] Result<std::size_t> packetRequest(SpacePacketService& svc,
                                   std::span<std::byte> out,
                                   std::span<const std::byte> packet,
                                   Apid apid) noexcept;
 
 // 3.3.3.3 PACKET.indication.
-Result<PacketIndication> packetIndication(SpacePacketService const& svc,
+[[nodiscard]] Result<PacketIndication> packetIndication(SpacePacketService const& svc,
                                           std::span<const std::byte> packet) noexcept;
 
 // 3.4.3.2 OCTET_STRING.request. One call creates one Space Packet.
-Result<std::size_t> octetStringRequest(SpacePacketService& svc,
+[[nodiscard]] Result<std::size_t> octetStringRequest(SpacePacketService& svc,
                                        std::span<std::byte> out,
                                        OctetStringRequest const& request) noexcept;
 
 // 3.4.3.3 OCTET_STRING.indication.
-Result<OctetStringIndication> octetStringIndication(
+[[nodiscard]] Result<OctetStringIndication> octetStringIndication(
     SpacePacketService& svc, std::span<const std::byte> packet) noexcept;
 
 // 4.2.2 Packet Assembly.
-Result<std::size_t> packetAssembly(SpacePacketService& svc,
+[[nodiscard]] Result<std::size_t> packetAssembly(SpacePacketService& svc,
                                    std::span<std::byte> out,
                                    OctetStringRequest const& request) noexcept;
 
 // 4.2.3 Packet Transfer. Hands one packet to the caller buffer.
-Result<std::size_t> packetTransfer(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> packetTransfer(std::span<std::byte> out,
                                    std::span<const std::byte> packet) noexcept;
 
 // 4.3.2 Packet Extraction.
-Result<OctetStringIndication> packetExtraction(
+[[nodiscard]] Result<OctetStringIndication> packetExtraction(
     SpacePacketService& svc, std::span<const std::byte> packet) noexcept;
 
 // 4.3.3 Packet Reception.
-Result<PacketReception> packetReception(SpacePacketService& svc,
+[[nodiscard]] Result<PacketReception> packetReception(SpacePacketService& svc,
                                         std::span<const std::byte> packet) noexcept;
 
 }  // namespace starcom::ccsds

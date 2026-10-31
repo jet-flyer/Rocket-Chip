@@ -26,8 +26,8 @@ struct SpacePacketView {
   std::span<const std::byte> data;  // Packet Data Field
 };
 
-Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept;
-Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
+[[nodiscard]] Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept;
+[[nodiscard]] Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
                                         SpacePacketFields const& fields,
                                         std::span<const std::byte> data) noexcept;
 

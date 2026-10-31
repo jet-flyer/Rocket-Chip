@@ -125,7 +125,7 @@ std::uint8_t rev8(std::uint8_t x) noexcept {
   return x;
 }
 
-Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept {
+[[nodiscard]] Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept {
   if (out.size() < 2) {
     return tl::unexpected(Error::buffer_too_small);
   }
@@ -134,7 +134,7 @@ Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) no
   return std::size_t{2};
 }
 
-Result<std::uint16_t> readBook16(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<std::uint16_t> readBook16(std::span<const std::byte> octets) noexcept {
   if (octets.size() < 2) {
     return tl::unexpected(Error::truncated);
   }
@@ -166,25 +166,45 @@ void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept {
   if (cv.has_pl_tx) {
     const auto n = encodeSetPlExt(buf, cv.pl_tx);
     if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n))) {
+        /* No action. queueFromCv starts at length 0. Each directive is
+           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+           B1.1.2 names concatenation. It does not name a local-buffer
+           failure. */
+      }
     }
   }
   {
     const auto n = encodeSetPhy(buf, cv.tx, true);
     if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n))) {
+        /* No action. queueFromCv starts at length 0. Each directive is
+           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+           B1.1.2 names concatenation. It does not name a local-buffer
+           failure. */
+      }
     }
   }
   if (cv.has_pl_rx) {
     const auto n = encodeSetPlExt(buf, cv.pl_rx);
     if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n))) {
+        /* No action. queueFromCv starts at length 0. Each directive is
+           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+           B1.1.2 names concatenation. It does not name a local-buffer
+           failure. */
+      }
     }
   }
   {
     const auto n = encodeSetPhy(buf, cv.rx, false);
     if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
+      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n))) {
+        /* No action. queueFromCv starts at length 0. Each directive is
+           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+           B1.1.2 names concatenation. It does not name a local-buffer
+           failure. */
+      }
     }
   }
   m.mac_frame_pending = m.mac_queue_len > 0;
@@ -1030,7 +1050,7 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept {
   return MacFifoSource::none;
 }
 
-Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
+[[nodiscard]] Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid /*pcid*/) noexcept {
   // B1.5: 16 bits. Bit 0–7 SEQ_CTRL_FSN, 8–12 spare 0, 13–15 type 011.
   // PCID is associated with the FOP-P on the MAC that queues this (7.2.3.2.2 b).
@@ -1042,7 +1062,7 @@ Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_
   return std::size_t{2};
 }
 
-Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets,
+[[nodiscard]] Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets,
                                    Pcid* /*pcid_out*/) noexcept {
   if (octets.size() < 2) {
     return tl::unexpected(Error::truncated);
@@ -1101,7 +1121,7 @@ void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept {
   m.pending_cv_valid = true;
 }
 
-Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept {
+[[nodiscard]] Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept {
   if (m.mac_queue_len == 0) {
     return std::size_t{0};
   }
@@ -1121,7 +1141,7 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
   return static_cast<std::uint8_t>(std::to_integer<std::uint32_t>(octets[1]) & 0x07u);
 }
 
-Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
+[[nodiscard]] Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
                                   bool transmitter) noexcept {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.mode & 0x07u);
@@ -1135,7 +1155,7 @@ Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p
   return writeBook16(out, book);
 }
 
-Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
+[[nodiscard]] Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
                                    bool* transmitter_out) noexcept {
   const auto book = readBook16(octets);
   if (!book) {
@@ -1160,7 +1180,7 @@ Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
   return p;
 }
 
-Result<std::size_t> encodeSetControl(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodeSetControl(std::span<std::byte> out,
                                       MacControlParams const& p) noexcept {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.time_sample & 0x3Fu);
@@ -1175,7 +1195,7 @@ Result<std::size_t> encodeSetControl(std::span<std::byte> out,
   return writeBook16(out, book);
 }
 
-Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept {
   const auto book = readBook16(octets);
   if (!book) {
     return tl::unexpected(book.error());
@@ -1195,7 +1215,7 @@ Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noe
   return p;
 }
 
-Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept {
+[[nodiscard]] Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept {
   std::uint16_t book = 0;
   if (p.direction) {
     book |= 1u;
@@ -1221,7 +1241,7 @@ Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) 
   return writeBook16(out, book);
 }
 
-Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
   const auto book = readBook16(octets);
   if (!book) {
     return tl::unexpected(book.error());

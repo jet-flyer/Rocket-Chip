@@ -20,7 +20,7 @@ void encodeBit(ConvEnc& enc, std::uint32_t in_bit, std::uint32_t& c1, std::uint3
 
 }  // namespace
 
-Result<std::size_t> convEncode(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in,
                                 ConvEnc& enc) noexcept {
   const std::size_t need = in.size() * 2u;
@@ -48,13 +48,13 @@ Result<std::size_t> convEncode(std::span<std::byte> out,
   return need;
 }
 
-Result<std::size_t> convEncode(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> convEncode(std::span<std::byte> out,
                                 std::span<const std::byte> in) noexcept {
   ConvEnc enc{};
   return convEncode(out, in, enc);
 }
 
-Result<std::size_t> convEncodeStep(std::span<std::byte> out, std::byte in,
+[[nodiscard]] Result<std::size_t> convEncodeStep(std::span<std::byte> out, std::byte in,
                                      ConvEnc& enc) noexcept {
   std::array<std::byte, 1> one{in};
   return convEncode(out, one, enc);

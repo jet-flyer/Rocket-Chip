@@ -64,7 +64,7 @@ void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
   out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1) | (truncated ? 0x01u : 0u));
 }
 
-Result<UslpView> decodeUslpTruncated(std::span<const std::byte> frame,
+[[nodiscard]] Result<UslpView> decodeUslpTruncated(std::span<const std::byte> frame,
                                     UslpMib const& mib) noexcept {
   if (mib.truncated_frame_length == 0) {
     return tl::unexpected(Error::uslp_truncated);
@@ -123,7 +123,7 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   return crc16Fecf(covered) == got;
 }
 
-Result<std::size_t> uslpFrameLen(std::span<const std::byte> frame) noexcept {
+[[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> frame) noexcept {
   if (frame.size() < 6) {
     return tl::unexpected(Error::truncated);
   }
@@ -139,7 +139,7 @@ Result<std::size_t> uslpFrameLen(std::span<const std::byte> frame) noexcept {
   return frame_len;
 }
 
-Result<UslpView> decodeUslpNonTruncated(std::span<const std::byte> frame,
+[[nodiscard]] Result<UslpView> decodeUslpNonTruncated(std::span<const std::byte> frame,
                                        UslpMib const& mib) noexcept {
   const auto flen = uslpFrameLen(frame);
   if (!flen) {
@@ -185,7 +185,7 @@ Result<UslpView> decodeUslpNonTruncated(std::span<const std::byte> frame,
   return view;
 }
 
-Result<std::size_t> encodeUslpTruncated(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodeUslpTruncated(std::span<std::byte> out,
                                        UslpFields const& fields,
                                        std::span<const std::byte> tfdz,
                                        UslpMib const& mib) noexcept {
@@ -268,7 +268,7 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
 
 }  // namespace
 
-Result<UslpView> decodeUslp(std::span<const std::byte> frame,
+[[nodiscard]] Result<UslpView> decodeUslp(std::span<const std::byte> frame,
                              UslpMib const& mib) noexcept {
   if (frame.size() < 4) {
     return tl::unexpected(Error::truncated);
@@ -283,7 +283,7 @@ Result<UslpView> decodeUslp(std::span<const std::byte> frame,
   return decodeUslpNonTruncated(frame, mib);
 }
 
-Result<std::size_t> encodeUslp(std::span<std::byte> out, UslpFields const& fields,
+[[nodiscard]] Result<std::size_t> encodeUslp(std::span<std::byte> out, UslpFields const& fields,
                                 std::span<const std::byte> tfdz,
                                 std::span<const std::byte> ocf,
                                 UslpMib const& mib,

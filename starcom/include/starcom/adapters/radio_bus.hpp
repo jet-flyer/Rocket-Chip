@@ -16,7 +16,7 @@ namespace starcom::adapters {
 // gpioRead(line) -> bool. The bus object holds the call state.
 
 template <class Bus>
-ccsds::Result<std::size_t> busSpi(Bus& bus, std::span<const std::byte> tx,
+[[nodiscard]] ccsds::Result<std::size_t> busSpi(Bus& bus, std::span<const std::byte> tx,
                                    std::span<std::byte> rx) noexcept {
   if (tx.empty() && rx.empty()) {
     return tl::unexpected(ccsds::Error::truncated);
@@ -25,21 +25,21 @@ ccsds::Result<std::size_t> busSpi(Bus& bus, std::span<const std::byte> tx,
 }
 
 template <class Bus>
-ccsds::Result<std::size_t> busGpioWrite(Bus& bus, std::uint8_t line,
+[[nodiscard]] ccsds::Result<std::size_t> busGpioWrite(Bus& bus, std::uint8_t line,
                                           bool level) noexcept {
   bus.gpioWrite(line, level);
   return std::size_t{1};
 }
 
 template <class Bus>
-ccsds::Result<bool> busGpioRead(Bus& bus, std::uint8_t line) noexcept {
+[[nodiscard]] ccsds::Result<bool> busGpioRead(Bus& bus, std::uint8_t line) noexcept {
   return bus.gpioRead(line);
 }
 
 // Byte pump: RadioPort TX slot onto SPI, SPI into RadioPort RX.
 // scratch is caller-owned. shift_rx `n` is the caller-owned read length.
 template <class Bus>
-ccsds::Result<std::size_t> radioBusShiftTx(RadioPort& port, Bus& bus,
+[[nodiscard]] ccsds::Result<std::size_t> radioBusShiftTx(RadioPort& port, Bus& bus,
                                               std::span<std::byte> scratch) noexcept {
   if (scratch.size() < kAdapterFrameMax) {
     return tl::unexpected(ccsds::Error::buffer_too_small);
@@ -60,7 +60,7 @@ ccsds::Result<std::size_t> radioBusShiftTx(RadioPort& port, Bus& bus,
 }
 
 template <class Bus>
-ccsds::Result<std::size_t> radioBusShiftRx(RadioPort& port, Bus& bus,
+[[nodiscard]] ccsds::Result<std::size_t> radioBusShiftRx(RadioPort& port, Bus& bus,
                                               std::span<std::byte> scratch,
                                               std::size_t n) noexcept {
   if (n == 0) {

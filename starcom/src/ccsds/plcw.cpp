@@ -2,7 +2,7 @@
 
 namespace starcom::ccsds {
 
-Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept {
   if (octets.size() < kPlcwSize) {
     return tl::unexpected(Error::truncated);
   }
@@ -15,7 +15,7 @@ Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept {
   return w;
 }
 
-Result<std::size_t> encodePlcw(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodePlcw(std::span<std::byte> out,
                                 Plcw16 const& fields) noexcept {
   if (out.size() < kPlcwSize) {
     return tl::unexpected(Error::buffer_too_small);

@@ -22,7 +22,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   dest[3] = std::byte(value & 0xFFu);
 }
 
-Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
+[[nodiscard]] Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
   if (rest.size() < 4) {
     return tl::unexpected(Error::truncated);
   }
@@ -36,7 +36,7 @@ Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
   return frame_len;
 }
 
-Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
+[[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
                                    std::size_t uslp_truncated_len) noexcept {
   const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4;
   if (tfvn4 != 0b1100u) {
@@ -67,7 +67,7 @@ Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
 }
 
 // Octets of a complete PLTU starting at ASM, or why the size cannot be known.
-Result<std::size_t> encodedPltuSize(std::span<const std::byte> octets,
+[[nodiscard]] Result<std::size_t> encodedPltuSize(std::span<const std::byte> octets,
                                       std::size_t uslp_truncated_len) noexcept {
   if (octets.size() < kPltuAsmSize) {
     return tl::unexpected(Error::truncated);
@@ -108,7 +108,7 @@ std::size_t asmPrefixKeep(std::span<const std::byte> octets) noexcept {
 
 }  // namespace
 
-Result<PltuView> decodePltu(std::span<const std::byte> octets,
+[[nodiscard]] Result<PltuView> decodePltu(std::span<const std::byte> octets,
                              std::size_t uslp_truncated_len) noexcept {
   const auto need = encodedPltuSize(octets, uslp_truncated_len);
   if (!need) {
@@ -123,7 +123,7 @@ Result<PltuView> decodePltu(std::span<const std::byte> octets,
   return PltuView{frame};
 }
 
-Result<std::size_t> encodePltu(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> encodePltu(std::span<std::byte> out,
                                 std::span<const std::byte> frame) noexcept {
   if (frame.size() < kTransferFrameMin || frame.size() > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
@@ -138,7 +138,7 @@ Result<std::size_t> encodePltu(std::span<std::byte> out,
   return need;
 }
 
-Result<std::size_t> repeatPltu(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> repeatPltu(std::span<std::byte> out,
                                 std::span<const std::byte> octets) noexcept {
   const auto pltu = decodePltu(octets);
   if (!pltu) {
@@ -202,7 +202,7 @@ std::uint64_t repeatSeq(PltuView const& view) noexcept {
 
 }  // namespace
 
-Result<std::size_t> enqueuePltu(PltuRepeatQ& q, std::span<const std::byte> octets,
+[[nodiscard]] Result<std::size_t> enqueuePltu(PltuRepeatQ& q, std::span<const std::byte> octets,
                                  bool dedup) noexcept {
   if (q.slots.empty()) {
     return tl::unexpected(Error::buffer_too_small);
@@ -238,7 +238,7 @@ Result<std::size_t> enqueuePltu(PltuRepeatQ& q, std::span<const std::byte> octet
   return n;
 }
 
-Result<std::size_t> dequeuePltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept {
+[[nodiscard]] Result<std::size_t> dequeuePltu(PltuRepeatQ& q, std::span<std::byte> out) noexcept {
   if (q.count == 0) {
     return std::size_t{0};
   }

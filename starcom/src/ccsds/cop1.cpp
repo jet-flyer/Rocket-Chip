@@ -608,7 +608,7 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
   return Cop1Event::none;
 }
 
-Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
+[[nodiscard]] Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
                                     bool expedited) noexcept {
   if (packet.empty() || packet.size() > kCop1Hold) {
     return tl::unexpected(Error::truncated);
@@ -631,7 +631,7 @@ Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> pa
   return packet.size();
 }
 
-Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept {
+[[nodiscard]] Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept {
   if (e.rx_n == 0) {
     return std::size_t{0};
   }
@@ -784,7 +784,7 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
 
 }  // namespace
 
-Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e,
+[[nodiscard]] Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e,
                                        std::span<std::byte> out) noexcept {
   const Fop1Send kind = fop1NeedFrame(e.fop, e.bd_full, e.ad_n != 0);
   if (kind == Fop1Send::none && !e.farm.need_clcw) {

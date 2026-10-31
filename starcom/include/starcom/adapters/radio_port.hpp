@@ -11,22 +11,22 @@ struct RadioPort {
   FrameSlot rx{};
 };
 
-inline ccsds::Result<std::size_t> radioBeginTx(
+[[nodiscard]] inline ccsds::Result<std::size_t> radioBeginTx(
     RadioPort& p, std::span<const std::byte> frame) noexcept {
   return slotWrite(p.tx, frame);
 }
 
-inline ccsds::Result<std::size_t> radioTakeTx(RadioPort& p,
+[[nodiscard]] inline ccsds::Result<std::size_t> radioTakeTx(RadioPort& p,
                                                 std::span<std::byte> out) noexcept {
   return slotRead(p.tx, out);
 }
 
-inline ccsds::Result<std::size_t> radioOfferRx(
+[[nodiscard]] inline ccsds::Result<std::size_t> radioOfferRx(
     RadioPort& p, std::span<const std::byte> frame) noexcept {
   return slotWrite(p.rx, frame);
 }
 
-inline ccsds::Result<std::size_t> radioPollRx(RadioPort& p,
+[[nodiscard]] inline ccsds::Result<std::size_t> radioPollRx(RadioPort& p,
                                                 std::span<std::byte> out) noexcept {
   return slotRead(p.rx, out);
 }

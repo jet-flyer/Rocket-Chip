@@ -165,7 +165,7 @@ void pnXor(std::span<std::byte> octets) noexcept {
 
 }  // namespace
 
-Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept {
+[[nodiscard]] Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept {
   if (codeword.size() != kLdpcCodewordOctets) {
     return tl::unexpected(Error::truncated);
   }
@@ -173,7 +173,7 @@ Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept {
   return kLdpcCodewordOctets;
 }
 
-Result<std::size_t> ldpcEncodeBlock(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> ldpcEncodeBlock(std::span<std::byte> out,
                                       std::span<const std::byte> message) noexcept {
   if (message.size() != kLdpcMessageOctets) {
     return tl::unexpected(Error::truncated);
@@ -200,7 +200,7 @@ Result<std::size_t> ldpcEncodeBlock(std::span<std::byte> out,
   return kLdpcCodewordOctets;
 }
 
-Result<std::size_t> ldpcEncodeStream(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> ldpcEncodeStream(std::span<std::byte> out,
                                        std::span<const std::byte> bitstream) noexcept {
   if (bitstream.size() % kLdpcMessageOctets != 0) {
     return tl::unexpected(Error::truncated);

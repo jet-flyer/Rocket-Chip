@@ -21,7 +21,7 @@ bool replayRefill(std::span<std::byte> scratch, std::size_t& fill,
                   std::ifstream& in, bool& eof) noexcept;
 
 template <class Sink>
-ccsds::Result<std::size_t> replayDeliver(std::span<std::byte> scratch,
+[[nodiscard]] ccsds::Result<std::size_t> replayDeliver(std::span<std::byte> scratch,
                                          std::size_t& fill,
                                          ccsds::PltuHunt const& hunt,
                                          Sink& sink) noexcept {
@@ -39,7 +39,7 @@ ccsds::Result<std::size_t> replayDeliver(std::span<std::byte> scratch,
 
 // Caller owns path and scratch. scratch.size() must be >= kAdapterFrameMax.
 template <class Sink>
-ccsds::Result<std::size_t> replayPltuFile(char const* path,
+[[nodiscard]] ccsds::Result<std::size_t> replayPltuFile(char const* path,
                                             std::span<std::byte> scratch,
                                             Sink& sink) noexcept {
   if (scratch.size() < kAdapterFrameMax) {

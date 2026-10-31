@@ -15,7 +15,7 @@ namespace starcom::adapters {
 // putBit(bool) -> void, getBit() -> bool. The pio object holds the call state.
 
 template <class Pio>
-ccsds::Result<std::size_t> pioShiftOut(Pio& pio,
+[[nodiscard]] ccsds::Result<std::size_t> pioShiftOut(Pio& pio,
                                          std::span<const std::byte> octets) noexcept {
   if (octets.empty()) {
     return std::size_t{0};
@@ -30,7 +30,7 @@ ccsds::Result<std::size_t> pioShiftOut(Pio& pio,
 }
 
 template <class Pio>
-ccsds::Result<std::size_t> pioShiftIn(Pio& pio, std::span<std::byte> out,
+[[nodiscard]] ccsds::Result<std::size_t> pioShiftIn(Pio& pio, std::span<std::byte> out,
                                         std::size_t n_octets) noexcept {
   if (n_octets == 0) {
     return std::size_t{0};

@@ -25,9 +25,9 @@ inline constexpr bool phyUncodedOk(PhyDecl d) noexcept {
 }
 
 // Uncoded PLTU path. Same 0+1 octets. `compliant` is not offered here.
-ccsds::Result<std::size_t> phyUncodedEncode(PhyDecl decl, std::span<std::byte> out,
+[[nodiscard]] ccsds::Result<std::size_t> phyUncodedEncode(PhyDecl decl, std::span<std::byte> out,
                                               std::span<const std::byte> frame) noexcept;
-ccsds::Result<ccsds::PltuView> phyUncodedDecode(
+[[nodiscard]] ccsds::Result<ccsds::PltuView> phyUncodedDecode(
     PhyDecl decl, std::span<const std::byte> octets) noexcept;
 
 }  // namespace starcom::adapters

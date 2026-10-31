@@ -58,10 +58,10 @@ struct UslpView {
 
 // Transfer Frame only (no ASM, no PLTU CRC-32). MIB: truncated length, insert
 // zone, FECF presence (732.1 §5). Default mib = non-truncated, no insert, no FECF.
-Result<UslpView> decodeUslp(std::span<const std::byte> frame,
+[[nodiscard]] Result<UslpView> decodeUslp(std::span<const std::byte> frame,
                              UslpMib const& mib = {}) noexcept;
 
-Result<std::size_t> encodeUslp(std::span<std::byte> out, UslpFields const& fields,
+[[nodiscard]] Result<std::size_t> encodeUslp(std::span<std::byte> out, UslpFields const& fields,
                                 std::span<const std::byte> tfdz,
                                 std::span<const std::byte> ocf = {},
                                 UslpMib const& mib = {},

@@ -29,7 +29,7 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
   svc.receive_service[apidIndex(apid)] = type;
 }
 
-Result<std::size_t> packetTransfer(std::span<std::byte> out,
+[[nodiscard]] Result<std::size_t> packetTransfer(std::span<std::byte> out,
                                    std::span<const std::byte> packet) noexcept {
   // 133.0-B-2 4.2.3.1: the caller buffer is the handoff. 4.2.3.3 examines the
   // APID in the packet. 3.3.1 copies the octets with no further formatting.
@@ -49,7 +49,7 @@ Result<std::size_t> packetTransfer(std::span<std::byte> out,
   return n;
 }
 
-Result<std::size_t> packetRequest(SpacePacketService&,
+[[nodiscard]] Result<std::size_t> packetRequest(SpacePacketService&,
                                   std::span<std::byte> out,
                                   std::span<const std::byte> packet,
                                   Apid) noexcept {
@@ -64,7 +64,7 @@ Result<std::size_t> packetRequest(SpacePacketService&,
   return packetTransfer(out, packet);
 }
 
-Result<std::size_t> packetAssembly(SpacePacketService& svc,
+[[nodiscard]] Result<std::size_t> packetAssembly(SpacePacketService& svc,
                                    std::span<std::byte> out,
                                    OctetStringRequest const& request) noexcept {
   // 4.2.2.2: build one Space Packet by generating the Packet Primary Header.
@@ -93,7 +93,7 @@ Result<std::size_t> packetAssembly(SpacePacketService& svc,
   return n;
 }
 
-Result<std::size_t> octetStringRequest(SpacePacketService& svc,
+[[nodiscard]] Result<std::size_t> octetStringRequest(SpacePacketService& svc,
                                        std::span<std::byte> out,
                                        OctetStringRequest const& request) noexcept {
   // 3.4.3.2.4: receipt causes the provider to transfer the Octet String.
@@ -101,7 +101,7 @@ Result<std::size_t> octetStringRequest(SpacePacketService& svc,
   return packetAssembly(svc, out, request);
 }
 
-Result<OctetStringIndication> packetExtraction(
+[[nodiscard]] Result<OctetStringIndication> packetExtraction(
     SpacePacketService& svc, std::span<const std::byte> packet) noexcept {
   // 4.3.2.2: extract the Octet String by removing the Packet Primary Header.
   // A packet the codec rejects is not an Octet String.
@@ -125,7 +125,7 @@ Result<OctetStringIndication> packetExtraction(
   return indication;
 }
 
-Result<PacketIndication> packetIndication(SpacePacketService const& svc,
+[[nodiscard]] Result<PacketIndication> packetIndication(SpacePacketService const& svc,
                                           std::span<const std::byte> packet) noexcept {
   // 3.3.3.3: deliver the Space Packet to the user identified with the APID.
   // 4.3.3.3: Packet Service delivery is the packet intact.
@@ -144,7 +144,7 @@ Result<PacketIndication> packetIndication(SpacePacketService const& svc,
   return indication;
 }
 
-Result<OctetStringIndication> octetStringIndication(
+[[nodiscard]] Result<OctetStringIndication> octetStringIndication(
     SpacePacketService& svc, std::span<const std::byte> packet) noexcept {
   // 3.4.3.3: deliver the Octet String to the user identified with the APID.
   // 4.3.3.3: Octet String delivery goes through Packet Extraction.
@@ -158,7 +158,7 @@ Result<OctetStringIndication> octetStringIndication(
   return packetExtraction(svc, packet);
 }
 
-Result<PacketReception> packetReception(SpacePacketService& svc,
+[[nodiscard]] Result<PacketReception> packetReception(SpacePacketService& svc,
                                         std::span<const std::byte> packet) noexcept {
   // 4.3.3.1 / 4.3.3.2: receive from the caller and demultiplex on the packet APID.
   // 4.3.3.3: Packet Service delivers the packet intact; Octet String Service
