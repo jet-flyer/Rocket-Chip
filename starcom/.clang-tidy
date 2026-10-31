@@ -1,7 +1,8 @@
 # Starcom clang-tidy - host core (starcom::ccsds)
 #
 # Lives in this tree. Do not call Rocket-Chip scripts/audit/full_tree_clang_tidy.sh.
-# Checks copied from the RC house list (P10 / JPL LOC-1-4 / JSF / CERT / C++ CG).
+# Checks start from the RC house list (P10 / JPL LOC-1-4 / JSF / CERT / C++ CG).
+# Every check in the Checks block is enabled (clang-tidy --list-checks).
 # Compile database is starcom/build (host), not the Pico firmware build.
 #
 # Usage:
@@ -21,7 +22,7 @@
 # ═══════════════════════════════════════════════════════════════
 # SKIPPED: bugprone-easily-swappable-parameters — too noisy for embedded
 # SKIPPED: bugprone-exception-escape — exceptions disabled
-#   bugprone-reserved-identifier: enabled: no Pico SDK names in this tree
+#   bugprone-reserved-identifier: enabled. It reports 0 hits on core and host adapters.
 # ═══════════════════════════════════════════════════════════════
 # CERT — SEI CERT Secure Coding Guidelines
 # Maps to: JSF AV safety rules, P10 defensive coding
@@ -33,8 +34,8 @@
 # ═══════════════════════════════════════════════════════════════
 # SKIPPED: cppcoreguidelines-avoid-c-arrays — frame / PLTU buffers are fixed arrays
 # SKIPPED: cppcoreguidelines-pro-bounds-* — codec octet walks (pointer+length), not Pico SDK
-#   cppcoreguidelines-pro-type-reinterpret-cast: enabled: core is not MMIO; HW casts belong in ports
-#   cppcoreguidelines-avoid-non-const-global-variables: enabled: core has no g_ process globals and no printf
+#   cppcoreguidelines-pro-type-reinterpret-cast: enabled. 0 hits in core. It reports the casts in the host adapters (file_replay.cpp, udp.cpp).
+#   cppcoreguidelines-avoid-non-const-global-variables: enabled. It reports the g_ scratch buffers in core (copp.cpp, cop1.cpp) and g_wsa in udp.cpp.
 # SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner
 # ═══════════════════════════════════════════════════════════════
 # GOOGLE
@@ -44,7 +45,7 @@
 # HICPP — High Integrity C++
 # Maps to: JSF AV safety, P10-1 (no goto), JSF 14 (literal suffixes)
 # ═══════════════════════════════════════════════════════════════
-#   hicpp-vararg: enabled: sans-I/O core has no BASEPRI asm and no printf
+#   hicpp-vararg: enabled. It reports 0 hits on core and host adapters.
 # NOTE: hicpp-avoid-goto, hicpp-no-malloc etc. are aliases — already covered
 # ═══════════════════════════════════════════════════════════════
 # MISC — Miscellaneous quality checks
@@ -279,7 +280,8 @@ CheckOptions:
   # ═══════════════════════════════════════════════════════════════
   # UNCHECKED RETURN VALUES (P10-7 / JPL-14 / JSF-115) — L2-P5 canary closure
   # ═══════════════════════════════════════════════════════════════
-  # Codec Result/expected APIs should be [[nodiscard]] at the type. This list is
+  # Codec functions that return Result have [[nodiscard]] on each declaration.
+  # The Result type (tl::expected) does not have [[nodiscard]]. This list is
   # for C-style int-returning helpers we cannot annotate. Empty until one exists.
   - key: bugprone-unused-return-value.CheckedFunctions
     value: ''

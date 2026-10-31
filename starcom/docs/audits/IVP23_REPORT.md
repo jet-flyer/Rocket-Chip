@@ -5,6 +5,7 @@
 **Tree:** `C:\Users\pow-w\Documents\starcom_dev` on `grok/sc-dev`.
 **Do not** merge until the remainder pass. Do not `--fix`. Do not `--no-verify`.
 **First run (historical):** [`IVP23_TIDY_RUN.md`](IVP23_TIDY_RUN.md) + raw log `CLANG_TIDY_2026-08-31_core.txt` (taken on `docs/starcom-sad-draft` @ `68b0daf`, pre-camelBack). Re-run on this tree before treating those counts as current.
+**Superseded:** the counts in this report are superseded by [`CLANG_TIDY_R1_2026-10-30.md`](CLANG_TIDY_R1_2026-10-30.md) (STARCOM_AUDIT_2026-10-29 PR-8 and PR-22).
 
 clang-tidy for the standalone library lives **in** `starcom/` (extract-ready).
 

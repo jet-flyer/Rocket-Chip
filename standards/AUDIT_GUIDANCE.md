@@ -77,7 +77,7 @@ Mechanical catalog work. The big static pass against published rule sets the pro
 3.1 **Section A — JSF AV C++ Standards (221 rules).** Per-rule applicability + PASS/PARTIAL/FAIL + file citations. A.1 acknowledges absent .c files. A.2 documents SDK-boundary bypasses. A.3 is the bulk of the work.
 3.2 **Section B — Power of 10 (Holzmann/JPL 2006).** Per-rule applicability. 10 rules.
 3.3 **Section C — JPL Institutional Coding Standard.**
-    - LOC-1 through LOC-4 (102 rules — JPL-original tiers): per-rule walk.
+    - LOC-1 through LOC-4 (31 rules — JPL-original tiers): per-rule walk.
     - **LOC-5 and LOC-6: DEFERRED-WITH-RATIONALE.** These are the MISRA-C absorption tiers (LOC-5 = MISRA "shall" rules not in LOC-1..4; LOC-6 = MISRA "should" rules). Rule text is MIRA Ltd. copyrighted, not in public JPL PDF. Project policy 2026-05-13: defer until a formally-certified-code variant is in scope. See `standards/CODING_STANDARDS.md` Foundation section for the chain-of-custody (MISRA-C → JPL C LOC-5/6 → JSF → P10 distill). Re-evaluated at Tier 2.5a each cycle.
 3.4 **Section D — Project-Specific Rules.** RP2350 platform constraints, multicore rules, debug output, prior-art-research, safety-and-regulatory, git-workflow, session-management, **comment-density measurement (target band 15-25% per `CODING_STANDARDS.md`)**.
 3.5 **Section E — Agent Behavioral Guidelines.** Walk `standards/AK_GUIDELINES.md` per-rule. Deliverable: do recent commits demonstrate compliance?
