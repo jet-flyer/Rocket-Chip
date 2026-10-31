@@ -469,6 +469,14 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/test_firmware_tree.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    # Starcom core does not include Pico SDK or RP2350 hardware headers
+    # (PR-9). The nested Starcom build has its tests off, so the RC host
+    # ctest (pre-commit hook) runs the same check here.
+    add_test(
+        NAME scripts_starcom_core_includes
+        COMMAND ${Python3_EXECUTABLE} starcom/tests/check_core_includes.py starcom
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     # L2-P3 citation inventory — informational. Produces a deduplicated
     # population of citations across standards/*.md for audit cycles per
     # standards/AUDIT_GUIDANCE.md Tier 3.8 (L2-P2 exhaustive + L2-P4 scope).
