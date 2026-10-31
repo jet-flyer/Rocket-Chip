@@ -71,13 +71,13 @@ Result<std::size_t> packetAssembly(SpacePacketService& svc,
   // 3.4.3.2.1.2: one request creates one packet. 3.2.3.3: the Octet String is
   // the Packet Data Field of that packet.
   const std::size_t idx = apidIndex(request.apid);
-  const unsigned apid = apidValue(request.apid);
+  const std::uint32_t apid = apidValue(request.apid);
   SpacePacketFields fields{};
   fields.telecommand = request.telecommand;  // 4.1.3.3.2
   // 3.4.2.3.3 / 4.2.2.4: the user's Secondary Header Indicator sets the flag.
   // 4.1.3.3.3.4: an Idle Packet's flag is 0.
   fields.secondary_header =
-      request.secondary_header && apid != static_cast<unsigned>(kIdleApid);
+      request.secondary_header && apid != static_cast<std::uint32_t>(kIdleApid);
   fields.apid = Apid{static_cast<std::uint16_t>(apid)};
   // 133.0-B-2 4.1.3.4.2.3: Octet String service is unsegmented. These are not
   // the Proximity-1 segment flags in 211.0-B-6 Table 3-4.

@@ -8,13 +8,13 @@ Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept {
   if (frame.size() < kV3HeaderSize) {
     return tl::unexpected(Error::truncated);
   }
-  const unsigned b0 = std::to_integer<unsigned>(frame[0]);
+  const std::uint32_t b0 = std::to_integer<std::uint32_t>(frame[0]);
   if ((b0 >> 6) != kTfvnV3) {
     return tl::unexpected(Error::tfvn_unknown);
   }
-  const unsigned length_c =
-      ((std::to_integer<unsigned>(frame[2]) & 0x07u) << 8) |
-      std::to_integer<unsigned>(frame[3]);
+  const std::uint32_t length_c =
+      ((std::to_integer<std::uint32_t>(frame[2]) & 0x07u) << 8) |
+      std::to_integer<std::uint32_t>(frame[3]);
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
@@ -27,9 +27,9 @@ Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept {
   view.fields.qos_expedited = (b0 & 0x20u) != 0;
   view.fields.p_frame = (b0 & 0x10u) != 0;
   view.fields.dfc_id = static_cast<std::uint8_t>((b0 >> 2) & 0x03u);
-  const unsigned scid = ((b0 & 0x03u) << 8) | std::to_integer<unsigned>(frame[1]);
+  const std::uint32_t scid = ((b0 & 0x03u) << 8) | std::to_integer<std::uint32_t>(frame[1]);
   view.fields.scid = Scid{static_cast<std::uint16_t>(scid)};
-  const unsigned b2 = std::to_integer<unsigned>(frame[2]);
+  const std::uint32_t b2 = std::to_integer<std::uint32_t>(frame[2]);
   view.fields.pcid = Pcid{static_cast<std::uint8_t>((b2 >> 7) & 0x01u)};
   view.fields.port_id = PortId{static_cast<std::uint8_t>((b2 >> 4) & 0x07u)};
   view.fields.destination = (b2 & 0x08u) != 0;
@@ -47,11 +47,11 @@ Result<std::size_t> encodeV3(std::span<std::byte> out, V3Fields const& fields,
   if (out.size() < frame_len) {
     return tl::unexpected(Error::buffer_too_small);
   }
-  const unsigned scid = static_cast<unsigned>(fields.scid) & 0x3FFu;
-  const unsigned c = static_cast<unsigned>(frame_len - 1u);
-  unsigned dfc = static_cast<unsigned>(fields.dfc_id) & 0x03u;
-  const unsigned pcid = static_cast<unsigned>(fields.pcid) & 0x01u;
-  unsigned port = static_cast<unsigned>(fields.port_id) & 0x07u;
+  const std::uint32_t scid = static_cast<std::uint32_t>(fields.scid) & 0x3FFu;
+  const std::uint32_t c = static_cast<std::uint32_t>(frame_len - 1u);
+  std::uint32_t dfc = static_cast<std::uint32_t>(fields.dfc_id) & 0x03u;
+  const std::uint32_t pcid = static_cast<std::uint32_t>(fields.pcid) & 0x01u;
+  std::uint32_t port = static_cast<std::uint32_t>(fields.port_id) & 0x07u;
   if (fields.p_frame) {
     dfc = kDfcPackets;  // 3.2.2.5.2
     port = 0u;          // 3.2.2.8.2

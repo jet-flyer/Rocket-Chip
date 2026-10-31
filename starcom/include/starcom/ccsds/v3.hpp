@@ -10,7 +10,7 @@
 namespace starcom::ccsds {
 
 inline constexpr std::size_t kV3HeaderSize = 5;
-inline constexpr unsigned kTfvnV3 = 0b10u;
+inline constexpr std::uint32_t kTfvnV3 = 0b10u;
 
 // 211.0-B-6 Table 3-1 / 3.2.3. Data field 0..2043 octets (3.2.3 c).
 inline constexpr std::uint8_t kDfcPackets = 0;       // 3.2.3.2

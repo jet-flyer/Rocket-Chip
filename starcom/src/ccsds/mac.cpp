@@ -1118,7 +1118,7 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
   if (octets.size() < 2) {
     return 0xFF;
   }
-  return static_cast<std::uint8_t>(std::to_integer<unsigned>(octets[1]) & 0x07u);
+  return static_cast<std::uint8_t>(std::to_integer<std::uint32_t>(octets[1]) & 0x07u);
 }
 
 Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
@@ -1142,7 +1142,7 @@ Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = ((w >> 15) & 1u) |
+  const std::uint32_t type = ((w >> 15) & 1u) |
                         (((w >> 14) & 1u) << 1) |
                         (((w >> 13) & 1u) << 2);
   if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
@@ -1181,7 +1181,7 @@ Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noe
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = ((w >> 15) & 1u) |
+  const std::uint32_t type = ((w >> 15) & 1u) |
                         (((w >> 14) & 1u) << 1) |
                         (((w >> 13) & 1u) << 2);
   if (type != kSetControlDirectiveType) {
@@ -1227,7 +1227,7 @@ Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = ((w >> 15) & 1u) |
+  const std::uint32_t type = ((w >> 15) & 1u) |
                         (((w >> 14) & 1u) << 1) |
                         (((w >> 13) & 1u) << 2);
   if (type != kSetPlExtDirectiveType) {

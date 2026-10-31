@@ -26,9 +26,9 @@ Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
   if (rest.size() < 4) {
     return tl::unexpected(Error::truncated);
   }
-  const unsigned length_c =
-      ((std::to_integer<unsigned>(rest[2]) & 0x07u) << 8) |
-      std::to_integer<unsigned>(rest[3]);
+  const std::uint32_t length_c =
+      ((std::to_integer<std::uint32_t>(rest[2]) & 0x07u) << 8) |
+      std::to_integer<std::uint32_t>(rest[3]);
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
@@ -38,14 +38,14 @@ Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
 
 Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
                                    std::size_t uslp_truncated_len) noexcept {
-  const unsigned tfvn4 = std::to_integer<unsigned>(rest[0]) >> 4;
+  const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4;
   if (tfvn4 != 0b1100u) {
     return tl::unexpected(Error::tfvn_unknown);
   }
   if (rest.size() < 4) {
     return tl::unexpected(Error::truncated);
   }
-  if ((std::to_integer<unsigned>(rest[3]) & 0x01u) != 0) {
+  if ((std::to_integer<std::uint32_t>(rest[3]) & 0x01u) != 0) {
     if (uslp_truncated_len == 0) {
       return tl::unexpected(Error::uslp_truncated);
     }
@@ -57,8 +57,8 @@ Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
   if (rest.size() < 6) {
     return tl::unexpected(Error::truncated);
   }
-  const unsigned length_c = (std::to_integer<unsigned>(rest[4]) << 8) |
-                            std::to_integer<unsigned>(rest[5]);
+  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(rest[4]) << 8) |
+                            std::to_integer<std::uint32_t>(rest[5]);
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
@@ -79,7 +79,7 @@ Result<std::size_t> encodedPltuSize(std::span<const std::byte> octets,
   if (rest.empty()) {
     return tl::unexpected(Error::truncated);
   }
-  const unsigned tfvn2 = std::to_integer<unsigned>(rest[0]) >> 6;
+  const std::uint32_t tfvn2 = std::to_integer<std::uint32_t>(rest[0]) >> 6;
   const auto frame_len = (tfvn2 == 0b10u) ? v3FrameLen(rest)
                        : (tfvn2 == 0b11u) ? uslpFrameLen(rest, uslp_truncated_len)
                        : Result<std::size_t>{tl::unexpect, Error::tfvn_unknown};

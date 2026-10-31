@@ -3,6 +3,7 @@
 #include "starcom/result.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 
 namespace starcom::adapters {
@@ -20,8 +21,8 @@ ccsds::Result<std::size_t> pioShiftOut(Pio& pio,
     return std::size_t{0};
   }
   for (std::byte b : octets) {
-    const auto v = static_cast<unsigned>(b);
-    for (int i = 7; i >= 0; --i) {
+    const auto v = static_cast<std::uint32_t>(b);
+    for (std::int32_t i = 7; i >= 0; --i) {
       pio.putBit(((v >> i) & 1u) != 0);
     }
   }
@@ -38,8 +39,8 @@ ccsds::Result<std::size_t> pioShiftIn(Pio& pio, std::span<std::byte> out,
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
   for (std::size_t i = 0; i < n_octets; ++i) {
-    unsigned v = 0;
-    for (int b = 0; b < 8; ++b) {
+    std::uint32_t v = 0;
+    for (std::int32_t b = 0; b < 8; ++b) {
       v = (v << 1) | (pio.getBit() ? 1u : 0u);
     }
     out[i] = static_cast<std::byte>(v);

@@ -6,9 +6,9 @@ Result<Clcw32> decodeClcw(std::span<const std::byte> octets) noexcept {
   if (octets.size() < kClcwSize) {
     return tl::unexpected(Error::truncated);
   }
-  const unsigned b0 = std::to_integer<unsigned>(octets[0]);
-  const unsigned b1 = std::to_integer<unsigned>(octets[1]);
-  const unsigned b2 = std::to_integer<unsigned>(octets[2]);
+  const std::uint32_t b0 = std::to_integer<std::uint32_t>(octets[0]);
+  const std::uint32_t b1 = std::to_integer<std::uint32_t>(octets[1]);
+  const std::uint32_t b2 = std::to_integer<std::uint32_t>(octets[2]);
   Clcw32 w{};
   w.status = static_cast<std::uint8_t>((b0 >> 2) & 0x07u);
   w.cop_in_effect = static_cast<std::uint8_t>(b0 & 0x03u);
@@ -28,10 +28,10 @@ Result<std::size_t> encodeClcw(std::span<std::byte> out,
   if (out.size() < kClcwSize) {
     return tl::unexpected(Error::buffer_too_small);
   }
-  const unsigned status = static_cast<unsigned>(fields.status) & 0x07u;
-  const unsigned cop = static_cast<unsigned>(fields.cop_in_effect) & 0x03u;
-  const unsigned vcid = static_cast<unsigned>(fields.vcid) & 0x3Fu;
-  const unsigned farm = static_cast<unsigned>(fields.farm_b_counter) & 0x03u;
+  const std::uint32_t status = static_cast<std::uint32_t>(fields.status) & 0x07u;
+  const std::uint32_t cop = static_cast<std::uint32_t>(fields.cop_in_effect) & 0x03u;
+  const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & 0x3Fu;
+  const std::uint32_t farm = static_cast<std::uint32_t>(fields.farm_b_counter) & 0x03u;
   // Control Word Type 0, CLCW version 00 (232.0 Fig 4-6).
   out[0] = std::byte((status << 2) | cop);
   out[1] = std::byte(vcid << 2);  // spare bits 14–15 = 00

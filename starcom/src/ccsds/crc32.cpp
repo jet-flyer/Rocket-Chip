@@ -13,10 +13,10 @@ std::uint32_t crc32(std::span<const std::byte> frame) noexcept {
   // Shift register preset all-zero (Annex C note, unlike CCSDS CRC-16).
   std::uint32_t crc = 0;
   for (std::byte octet : frame) {
-    const unsigned value = std::to_integer<unsigned>(octet);
-    for (int i = 7; i >= 0; --i) {
-      const unsigned bit = (value >> i) & 1u;
-      const unsigned msb = (crc >> 31) & 1u;
+    const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
+    for (std::int32_t i = 7; i >= 0; --i) {
+      const std::uint32_t bit = (value >> i) & 1u;
+      const std::uint32_t msb = (crc >> 31) & 1u;
       crc <<= 1;
       if ((msb ^ bit) != 0u) {
         crc ^= kPoly;
@@ -31,10 +31,10 @@ std::uint16_t crc16Fecf(std::span<const std::byte> covered) noexcept {
   constexpr std::uint16_t kPoly16 = 0x1021u;
   std::uint16_t crc = 0xFFFFu;
   for (std::byte octet : covered) {
-    const unsigned value = std::to_integer<unsigned>(octet);
-    for (int i = 7; i >= 0; --i) {
-      const unsigned bit = (value >> i) & 1u;
-      const unsigned msb = (crc >> 15) & 1u;
+    const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
+    for (std::int32_t i = 7; i >= 0; --i) {
+      const std::uint32_t bit = (value >> i) & 1u;
+      const std::uint32_t msb = (crc >> 15) & 1u;
       crc = static_cast<std::uint16_t>(crc << 1);
       if ((msb ^ bit) != 0u) {
         crc = static_cast<std::uint16_t>(crc ^ kPoly16);

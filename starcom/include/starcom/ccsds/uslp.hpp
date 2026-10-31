@@ -9,7 +9,7 @@
 
 namespace starcom::ccsds {
 
-inline constexpr unsigned kTfvnUslp = 0b1100u;
+inline constexpr std::uint32_t kTfvnUslp = 0b1100u;
 inline constexpr std::size_t kUslpPrimaryHeaderMin = 7;   // VCF Count Length 0
 inline constexpr std::size_t kUslpPrimaryHeaderMax = 14;  // + 7-octet VCF Count
 inline constexpr std::size_t kUslpTruncatedHeaderSize = 4;  // 732.1 annex D

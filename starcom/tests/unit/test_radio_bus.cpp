@@ -92,7 +92,7 @@ starcom::ccsds::Result<std::size_t> makePltu(std::span<std::byte> out) {
 
 void test_gpio_and_pump() {
   FakeBus bus{};
-  constexpr int kCs = 0;  // caller-owned line id, not a Starcom pin
+  constexpr std::uint8_t kCs = 0;  // caller-owned line id, not a Starcom pin
 
   CHECK(busGpioWrite(bus, kCs, true).has_value());
   CHECK(busGpioRead(bus, kCs).value() == true);

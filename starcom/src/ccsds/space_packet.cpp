@@ -8,12 +8,12 @@ Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noe
   if (packet.size() < kSpacePacketMinSize) {
     return tl::unexpected(Error::sp_too_short);
   }
-  const unsigned b0 = std::to_integer<unsigned>(packet[0]);
+  const std::uint32_t b0 = std::to_integer<std::uint32_t>(packet[0]);
   if ((b0 >> 5) != 0u) {
     return tl::unexpected(Error::sp_pvn);
   }
-  const unsigned length_c = (std::to_integer<unsigned>(packet[4]) << 8) |
-                            std::to_integer<unsigned>(packet[5]);
+  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(packet[4]) << 8) |
+                            std::to_integer<std::uint32_t>(packet[5]);
   const std::size_t data_len = static_cast<std::size_t>(length_c) + 1u;
   const std::size_t need = kSpacePacketHeaderSize + data_len;
   if (packet.size() < need) {
@@ -23,13 +23,13 @@ Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noe
   SpacePacketView view{};
   view.fields.telecommand = (b0 & 0x10u) != 0;
   view.fields.secondary_header = (b0 & 0x08u) != 0;
-  const unsigned apid =
-      ((b0 & 0x07u) << 8) | std::to_integer<unsigned>(packet[1]);
+  const std::uint32_t apid =
+      ((b0 & 0x07u) << 8) | std::to_integer<std::uint32_t>(packet[1]);
   view.fields.apid = Apid{static_cast<std::uint16_t>(apid)};
-  const unsigned b2 = std::to_integer<unsigned>(packet[2]);
+  const std::uint32_t b2 = std::to_integer<std::uint32_t>(packet[2]);
   view.fields.seq_flags = static_cast<std::uint8_t>((b2 >> 6) & 0x03u);
   view.fields.seq_count = static_cast<std::uint16_t>(
-      ((b2 & 0x3Fu) << 8) | std::to_integer<unsigned>(packet[3]));
+      ((b2 & 0x3Fu) << 8) | std::to_integer<std::uint32_t>(packet[3]));
   view.data = packet.subspan(kSpacePacketHeaderSize, data_len);
   return view;
 }
@@ -44,13 +44,13 @@ Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
   if (out.size() < need) {
     return tl::unexpected(Error::buffer_too_small);
   }
-  const unsigned apid = static_cast<unsigned>(fields.apid) & 0x7FFu;
-  const unsigned seq = static_cast<unsigned>(fields.seq_count) & 0x3FFFu;
-  const unsigned flags = static_cast<unsigned>(fields.seq_flags) & 0x03u;
-  const unsigned c = static_cast<unsigned>(data.size() - 1u);
+  const std::uint32_t apid = static_cast<std::uint32_t>(fields.apid) & 0x7FFu;
+  const std::uint32_t seq = static_cast<std::uint32_t>(fields.seq_count) & 0x3FFFu;
+  const std::uint32_t flags = static_cast<std::uint32_t>(fields.seq_flags) & 0x03u;
+  const std::uint32_t c = static_cast<std::uint32_t>(data.size() - 1u);
   // 133.0-B-2 §4.1.3.3.3.4: Idle Packet secondary header flag is 0.
   const bool secondary =
-      fields.secondary_header && apid != static_cast<unsigned>(kIdleApid);
+      fields.secondary_header && apid != static_cast<std::uint32_t>(kIdleApid);
 
   out[0] = std::byte((fields.telecommand ? 0x10u : 0u) |
                      (secondary ? 0x08u : 0u) |

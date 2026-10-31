@@ -4,6 +4,7 @@
 #include "starcom/result.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 
 namespace starcom::adapters {
@@ -24,14 +25,14 @@ ccsds::Result<std::size_t> busSpi(Bus& bus, std::span<const std::byte> tx,
 }
 
 template <class Bus>
-ccsds::Result<std::size_t> busGpioWrite(Bus& bus, int line,
+ccsds::Result<std::size_t> busGpioWrite(Bus& bus, std::uint8_t line,
                                           bool level) noexcept {
   bus.gpioWrite(line, level);
   return std::size_t{1};
 }
 
 template <class Bus>
-ccsds::Result<bool> busGpioRead(Bus& bus, int line) noexcept {
+ccsds::Result<bool> busGpioRead(Bus& bus, std::uint8_t line) noexcept {
   return bus.gpioRead(line);
 }
 
