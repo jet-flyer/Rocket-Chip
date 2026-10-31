@@ -3,7 +3,7 @@
 // This file owns the check-fail count.
 // Book: none.
 
-// IVP increment 0+1 — PLTU / CRC (docs/TESTING.md, docs/IVP.md named vectors)
+// IVP increment 0+1 - PLTU / CRC (docs/TESTING.md, docs/IVP.md named vectors)
 // Accept: v3-header-only
 // Reject: bad-asm, truncated, bad-crc, tfvn-unknown, v3-length-oob
 // Analysis: asm-in-crc (not an Error)
@@ -195,7 +195,7 @@ void test_hunt_split_across_calls() {
 }
 
 void test_hunt_idle_then_pltu() {
-  // 211.2 §3.3.2.2 idle PN. Receive discards it until the next ASM.
+  // 211.2 section 3.3.2.2 idle PN. Receive discards it until the next ASM.
   ByteBuf src{};
   const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -219,7 +219,7 @@ void test_hunt_partial_asm_kept() {
 }
 
 void test_hunt_unknown_tfvn_steps_one() {
-  // 211.2 §3.6.4 c: TFVN is not V-3 and not USLP. Hunt steps one octet.
+  // 211.2 section 3.6.4 c: TFVN is not V-3 and not USLP. Hunt steps one octet.
   ByteBuf good{};
   const auto n = encodePltu(good, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -373,7 +373,7 @@ void test_reject_tfvn_unknown() {
   CHECK(!r.has_value());
   CHECK(r.error() == Error::tfvn_unknown);
 
-  frame[0] = std::byte{0xD0};  // 1101 — not V-3, not USLP 1100
+  frame[0] = std::byte{0xD0};  // 1101 - not V-3, not USLP 1100
   const auto n2 = encodePltu(buf, asSpan(frame));
   CHECK(n2.has_value());
   const auto r2 = decodePltu(std::span<const std::byte>(buf.data(), *n2));
@@ -383,7 +383,7 @@ void test_reject_tfvn_unknown() {
 
 void test_reject_v3_length_oob() {
   // IVP v3-length-oob
-  // C = 3 → 4-octet frame, below V-3 min. Length is readable at ASM+4 octets.
+  // C = 3 -> 4-octet frame, below V-3 min. Length is readable at ASM+4 octets.
   std::array<std::byte, 7> too_small{
       std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20},
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x03}};
@@ -415,7 +415,7 @@ void test_encode_buffer_too_small() {
 void test_encode_max_frame() {
   std::vector<std::byte> frame(kTransferFrameMax, std::byte{0x00});
   frame[0] = std::byte{0x80};
-  // C = 2047 → 0x07FF in bits 21–31. Octet 2 low 3 bits = 0x07, octet 3 = 0xFF.
+  // C = 2047 -> 0x07FF in bits 21-31. Octet 2 low 3 bits = 0x07, octet 3 = 0xFF.
   frame[2] = std::byte{0x07};
   frame[3] = std::byte{0xFF};
   std::vector<std::byte> out(kPltuAsmSize + kTransferFrameMax + kPltuCrcSize);

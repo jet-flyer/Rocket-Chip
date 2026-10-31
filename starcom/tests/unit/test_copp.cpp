@@ -3,8 +3,8 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 2 — COP-P (211.0 §7 tables). docs/TESTING.md
-// FARM-P RE0–RE6; FOP-P SE0–SE4, SE7; canned PLTU → PLCW; host loop.
+// IVP increment 2 - COP-P (211.0 section 7 tables). docs/TESTING.md
+// FARM-P RE0-RE6; FOP-P SE0-SE4, SE7; canned PLTU -> PLCW; host loop.
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/copp.hpp"
@@ -130,7 +130,7 @@ void test_fop_p_send_and_ack() {
   CHECK(f.last_send_fsn == 0);
   CHECK(f.ve_s == 1);
 
-  // SE1 progressive retransmission: window full or no new SEQ → resend from NN(R).
+  // SE1 progressive retransmission: window full or no new SEQ -> resend from NN(R).
   FopP g{};
   CoppMib w1{};
   w1.transmission_window = 1;

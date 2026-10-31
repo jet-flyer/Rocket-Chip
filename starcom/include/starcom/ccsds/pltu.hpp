@@ -21,7 +21,7 @@ inline constexpr std::size_t kPltuCrcSize = 4;
 // CCSDS 211.2-B-3 3.2.5.1 and C1. The CRC-32 is 32 bits. The first bit is the MSB.
 inline constexpr std::uint32_t kBe32HiShift = 24U;
 
-// 211.2 §3.2.3. Not covered by the CRC.
+// 211.2 section 3.2.3. Not covered by the CRC.
 inline constexpr std::array<std::byte, kPltuAsmSize> kPltuAsm{
     std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20}};
 
@@ -29,7 +29,7 @@ struct PltuView {
   std::span<const std::byte> frame;  // Transfer Frame, no ASM, no CRC
 };
 
-// Complete candidate starting at ASM. Locates CRC-32 via 211.2 §3.6.4:
+// Complete candidate starting at ASM. Locates CRC-32 via 211.2 section 3.6.4:
 // V-3 11-bit Frame Length, or non-truncated USLP 16-bit Frame Length.
 // Truncated USLP (flag = 1) is Error::uslp_truncated (MIB length, IVP 9).
 // uslp_truncated_len: 732.1 D1.3.2 Truncated Transfer Frame Length (MIB).
@@ -46,7 +46,7 @@ struct PltuView {
 [[nodiscard]] Result<std::size_t> repeatPltu(std::span<std::byte> out,
                                 std::span<const std::byte> octets) noexcept;
 
-// 211.2 §3.6: search span for exact ASM. One PLTU per call. leftover is the
+// 211.2 section 3.6: search span for exact ASM. One PLTU per call. leftover is the
 // caller's span (no library buffer). Handshake: ICD.
 struct PltuHunt {
   std::size_t consumed;
@@ -56,7 +56,7 @@ struct PltuHunt {
 PltuHunt huntPltu(std::span<const std::byte> octets,
                    std::size_t uslp_truncated_len = 0) noexcept;
 
-// IVP 12: caller-owned store-and-forward. slots.size() is the depth — not a
+// IVP 12: caller-owned store-and-forward. slots.size() is the depth - not a
 // Starcom constant. seq is V-3 FSN or USLP VC Frame Count.
 struct PltuRepeatSlot {
   std::span<std::byte> buf;

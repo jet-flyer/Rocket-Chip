@@ -288,7 +288,7 @@ void fop1TerminateAd(Fop1& f) noexcept {
   if (f.state == Fop1State::s6_initial) {
     return;  // E29 S6: Confirm, remain (incl. suspended)
   }
-  fopAlert(f);  // E29 S1–S5 Alert [term] → S6
+  fopAlert(f);  // E29 S1-S5 Alert [term] -> S6
 }
 
 bool fop1ResumeAd(Fop1& f) noexcept {
@@ -319,7 +319,7 @@ bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
 }
 
 void fop1SetK(Fop1& f, std::uint8_t k) noexcept {
-  f.mib.k = (k == 0U) ? 1U : k;  // E36; 232.1 §5.1.12 1 ≤ K < 256
+  f.mib.k = (k == 0U) ? 1U : k;  // E36; 232.1 section 5.1.12 1 <= K < 256
 }
 
 void fop1SetT1Initial(Fop1& f, Tick t1) noexcept { f.mib.t1_initial = t1; }
@@ -545,7 +545,7 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
 void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
                Vcid vcid, MapId map) noexcept {
   static_assert(std::is_trivially_copyable_v<Cop1Endpoint>);
-  // Same as coppInit: Fop1 sent copies are kFop1SentCap × kCop1Hold. Do not
+  // Same as coppInit: Fop1 sent copies are kFop1SentCap x kCop1Hold. Do not
   // `e = Cop1Endpoint{}` on a 4 KiB MCU stack.
   std::memset(static_cast<void*>(&e), 0, sizeof(e));
   e.local_scid = local;

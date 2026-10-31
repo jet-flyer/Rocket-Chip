@@ -182,7 +182,7 @@ PltuHunt huntPltu(std::span<const std::byte> octets,
           return PltuHunt{i + *need, tl::unexpected(e)};
         }
       }
-      // 211.2 §3.6.4 c: unrecognized version keeps searching. A bad CRC
+      // 211.2 section 3.6.4 c: unrecognized version keeps searching. A bad CRC
       // with no encoded length steps one octet too.
     }
     ++i;

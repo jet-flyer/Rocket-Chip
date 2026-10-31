@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 16 — generic SPI/GPIO radio port against a host fake bus.
+// IVP increment 16 - generic SPI/GPIO radio port against a host fake bus.
 // No Pico SDK, no SX1276 / RFM types, no 211.1 claim.
 
 #include "starcom/adapters/radio_bus.hpp"

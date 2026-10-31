@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 3 + 9 — USLP Version-4 (732.1 §4.1 / annex D / annex B).
+// IVP increment 3 + 9 - USLP Version-4 (732.1 section 4.1 / annex D / annex B).
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/clcw.hpp"
@@ -214,7 +214,7 @@ void test_reject_truncated_header() {
 void test_reject_short_and_length() {
   CHECK(decodeUslp({}).error() == Error::truncated);
   auto short_c = kUslpMin;
-  short_c[5] = std::byte{0x06};  // C = 6 → 7-octet frame, below min 8
+  short_c[5] = std::byte{0x06};  // C = 6 -> 7-octet frame, below min 8
   CHECK(decodeUslp(asSpan(short_c)).error() == Error::uslp_length_oob);
 
   std::array<std::byte, 4> tiny{};

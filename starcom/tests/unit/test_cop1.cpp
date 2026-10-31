@@ -3,8 +3,8 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 4 + 10 — COP-1 (232.1 Tables 6-1 / 5-1). docs/TESTING.md
-// FARM-1 E1–E11; FOP-1 E23 + S4/S5 + E29; Resume E30–E34; E35–E39; LLIF E41–E46.
+// IVP increment 4 + 10 - COP-1 (232.1 Tables 6-1 / 5-1). docs/TESTING.md
+// FARM-1 E1-E11; FOP-1 E23 + S4/S5 + E29; Resume E30-E34; E35-E39; LLIF E41-E46.
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/cop1.hpp"

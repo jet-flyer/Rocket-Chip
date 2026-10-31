@@ -39,7 +39,7 @@ namespace starcom::ccsds {
   const std::uint32_t farm = static_cast<std::uint32_t>(fields.farm_b_counter) & 0x03U;
   // Control Word Type 0, CLCW version 00 (232.0 Fig 4-6).
   out[0] = std::byte((status << 2) | cop);
-  out[1] = std::byte(vcid << 2);  // spare bits 14–15 = 00
+  out[1] = std::byte(vcid << 2);  // spare bits 14-15 = 00
   out[2] = std::byte((fields.no_rf_available ? 0x80U : 0U) |
                      (fields.no_bit_lock ? 0x40U : 0U) |
                      (fields.lockout ? 0x20U : 0U) | (fields.wait ? 0x10U : 0U) |

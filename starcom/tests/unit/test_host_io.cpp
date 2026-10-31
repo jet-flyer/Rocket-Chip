@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 15 — host file replay and UDP. Core stays sans-I/O.
+// IVP increment 15 - host file replay and UDP. Core stays sans-I/O.
 
 #include "starcom/adapters/file_replay.hpp"
 #include "starcom/adapters/loopback.hpp"

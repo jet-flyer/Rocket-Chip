@@ -315,7 +315,7 @@ bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept {
     m.transmit_on = false;
     return true;
   }
-  // 211.0 table 6-12 E85 is the *responder's* carrier-loss, S60→S2.
+  // 211.0 table 6-12 E85 is the *responder's* carrier-loss, S60->S2.
   // Caller in S60 must not become connecting-L (both listen, no hail).
   if (m.duplex == MacDuplex::half && m.state == MacState::s60 &&
       m.role == MacRole::responder) {  // E85
@@ -433,7 +433,7 @@ void halfExpiredMiss(MacSession& m, MacNotify miss_notify) noexcept {
 }
 
 void halfExpiredS50(MacSession& m) noexcept {
-  // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
+  // E83 is the caller's reconnect hail. Responder listens (E82/E85 -> S2).
   if (m.mib.maximum_failed_token_passes != 0 &&
       m.token_fail_n >= m.mib.maximum_failed_token_passes) {
     m.transmit_on = false;
@@ -639,7 +639,7 @@ void macOnHailReceived(MacSession& m, Tick now) noexcept {
   (void)now;
   // 211.0 table 6-12 E85/E82: responder returns to S2 on peer loss, then
   // E30 (table 6-10) accepts hail. Station reboot re-hails with the same
-  // catalog while the vehicle is still S50–S62; that is a new hail, not
+  // catalog while the vehicle is still S50-S62; that is a new hail, not
   // E69 COMM_CHANGE (same SET TX/RX as the first hail).
   if (m.duplex == MacDuplex::half && m.role == MacRole::responder &&
       m.mode == MacMode::active && m.state != MacState::s2) {
@@ -703,7 +703,7 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     return;
   }
   if ((m.state == MacState::s61 || m.state == MacState::s62) &&
-      m.y == 3) {  // E68 — S62 is the receive wait after E67
+      m.y == 3) {  // E68 - S62 is the receive wait after E67
     m.y = 0;
     m.persistence = false;
     applyState(m, MacState::s60);
@@ -1057,7 +1057,7 @@ MacFifoSource macFifoSource(MacSession const& m) noexcept {
 
 [[nodiscard]] Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
                                   Pcid /*pcid*/) noexcept {
-  // B1.5: 16 bits. Bit 0–7 SEQ_CTRL_FSN, 8–12 spare 0, 13–15 type 011.
+  // B1.5: 16 bits. Bit 0-7 SEQ_CTRL_FSN, 8-12 spare 0, 13-15 type 011.
   // PCID is associated with the FOP-P on the MAC that queues this (7.2.3.2.2 b).
   if (out.size() < 2) {
     return tl::unexpected(Error::buffer_too_small);

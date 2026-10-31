@@ -53,7 +53,7 @@ inline constexpr bool v3IsUserDefined(V3Fields const& f) noexcept {
   return !f.p_frame && f.dfc_id == kDfcUserDefined;
 }
 
-// Transfer Frame only (no ASM, no CRC). Length field is bits 21–31.
+// Transfer Frame only (no ASM, no CRC). Length field is bits 21-31.
 [[nodiscard]] Result<V3View> decodeV3(std::span<const std::byte> frame) noexcept;
 
 // Writes 5-octet header + data. C = (5 + data.size()) - 1.

@@ -16,7 +16,7 @@ constexpr std::uint32_t kPoly = 0x00A00805U;
 }  // namespace
 
 std::uint32_t crc32(std::span<const std::byte> frame) noexcept {
-  // R(X) = X^32 · M(X) mod G(X). First transferred bit is M0, then R0 (MSB).
+  // R(X) = X^32 * M(X) mod G(X). First transferred bit is M0, then R0 (MSB).
   // Shift register preset all-zero (Annex C note, unlike CCSDS CRC-16).
   std::uint32_t crc = 0;
   for (std::byte octet : frame) {

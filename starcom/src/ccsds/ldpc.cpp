@@ -37,7 +37,7 @@ namespace {
 // piK(i) = (M/4)*((theta_k + j) mod 4) + ((phiK(j,M) + i) mod (M/4)),
 // j = floor(4*i/M). Typesetting is (phi+i) mod M/4.
 // G = [I_MK | W], W = (P^{-1} Q)^T, last M columns punctured. W is a matrix
-// of circulants (131.0 §7.4.3); AR4JA pi sections make the period M/4 = 128
+// of circulants (131.0 section 7.4.3); AR4JA pi sections make the period M/4 = 128
 // (not 512). First-rows below were generated from that H and checked H*[u|uW]==0.
 
 // W first-rows: 8x8 right-circulants of size 128 (M/4).
@@ -152,7 +152,7 @@ void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noex
   }
 }
 
-// 211.2 §3.4.5: h(x)=x^8+x^6+x^4+x^3+x^2+x+1, init all-ones, period 255.
+// 211.2 section 3.4.5: h(x)=x^8+x^6+x^4+x^3+x^2+x+1, init all-ones, period 255.
 // Fibonacci LFSR: output r[0], taps 0,1,2,3,4,6 (mask 0x5F).
 // 211.2 A3.4.5: h(x) has degree 8, so the PN register has 8 stages. The
 // feedback bit goes into the top stage, bit 7.

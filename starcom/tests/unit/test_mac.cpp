@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 13 — Prox-1 211.0 §6 MAC / DUPLEX + SET V(R) persistent.
+// IVP increment 13 - Prox-1 211.0 section 6 MAC / DUPLEX + SET V(R) persistent.
 
 #include "heap_trap.hpp"
 #include "starcom/ccsds/mac.hpp"
@@ -394,7 +394,7 @@ void test_half_e48_e49_carrier() {
 }
 
 void test_half_e42_tail_e50_counts_miss() {
-  // 211.0 table 6-10 E42 is the tail only. Annex C counts S62→E50.
+  // 211.0 table 6-10 E42 is the tail only. Annex C counts S62->E50.
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -465,7 +465,7 @@ void test_half_e83_responder_listens() {
 
 void test_half_rehail_while_active() {
   // Station reboot hails again while the responder is still S50.
-  // 211.0 E85/E82 → S2, then E30 → S51 (not ignore / E69).
+  // 211.0 E85/E82 -> S2, then E30 -> S51 (not ignore / E69).
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);

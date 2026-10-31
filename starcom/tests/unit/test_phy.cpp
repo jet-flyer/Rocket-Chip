@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 18 — PHY adapter tiers. Uncoded host path = 0+1 PLTU.
+// IVP increment 18 - PHY adapter tiers. Uncoded host path = 0+1 PLTU.
 // Not 211.1 compliant. No FPGA bitstream.
 
 #include "starcom/adapters/phy.hpp"

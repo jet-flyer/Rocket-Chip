@@ -16,7 +16,7 @@
 
 namespace starcom::ccsds {
 
-// 211.0-B-6 §6 MAC. Sans-I/O. Caller owns now, COP-P, and PHY bits.
+// 211.0-B-6 section 6 MAC. Sans-I/O. Caller owns now, COP-P, and PHY bits.
 // DUPLEX / MODE / TRANSMIT / SS are the book variables (6.2.2).
 // Timers are Annex C names in Tick; 0 = inactive / never expire (6.3.1, 6.2.4.19.2).
 
@@ -122,26 +122,26 @@ struct MacPhy {
 };
 
 // Annex B Type-1 SPDUs, 16 bits. Octet packing matches encodeSetVr:
-// octet[0] = book bits 0–7 (0x01 = bit 0); octet[1] bit 0 = book bit 15.
+// octet[0] = book bits 0-7 (0x01 = bit 0); octet[1] bit 0 = book bit 15.
 inline constexpr std::uint8_t kSetTxDirectiveType = 0x00;
 inline constexpr std::uint8_t kSetControlDirectiveType = 0x01;
 inline constexpr std::uint8_t kSetRxDirectiveType = 0x02;
 inline constexpr std::uint8_t kSetPlExtDirectiveType = 0x06;
 inline constexpr std::uint8_t kPhyEncodingBypass = 0x02;  // Annex B '10'
 inline constexpr std::uint8_t kPhyModeProximity1 = 0x01;
-inline constexpr std::size_t kMacQueueCap = 16;  // 4× 16-bit hail SPDUs
+inline constexpr std::size_t kMacQueueCap = 16;  // 4x 16-bit hail SPDUs
 
 struct MacPhyParams {
-  std::uint8_t mode = kPhyModeProximity1;  // bits 0–2; 001 = Prox-1
-  std::uint8_t data_rate = 0;              // bits 3–6; 211.1 kb/s table, not LoRa
+  std::uint8_t mode = kPhyModeProximity1;  // bits 0-2; 001 = Prox-1
+  std::uint8_t data_rate = 0;              // bits 3-6; 211.1 kb/s table, not LoRa
   std::uint8_t modulation = 1;             // bit 7; 1 = non-coherent PSK
-  std::uint8_t encoding = kPhyEncodingBypass;  // bits 8–9
-  std::uint8_t frequency = 0;              // bits 10–12; 211.1 Ch0–7, not enacted
+  std::uint8_t encoding = kPhyEncodingBypass;  // bits 8-9
+  std::uint8_t frequency = 0;              // bits 10-12; 211.1 Ch0-7, not enacted
 };
 
 struct MacControlParams {
-  std::uint8_t time_sample = 0;  // bits 0–5
-  std::uint8_t duplex = 0;       // bits 6–8; 0 = no change, 2 = half
+  std::uint8_t time_sample = 0;  // bits 0-5
+  std::uint8_t duplex = 0;       // bits 6-8; 0 = no change, 2 = half
   bool rnmd = false;             // bit 11
   bool pass = false;             // bit 12 Token = Transmit
 };
@@ -150,10 +150,10 @@ struct MacPlExt {
   bool direction = false;        // bit 0
   bool freq_table = false;       // bit 1
   bool rate_table = false;       // bit 2
-  std::uint8_t carrier_mod = 0;  // bits 3–4
-  std::uint8_t data_mod = 0;     // bits 5–6
-  std::uint8_t mode_select = 0;  // bits 7–8
-  std::uint8_t scrambler = 0;    // bits 9–10
+  std::uint8_t carrier_mod = 0;  // bits 3-4
+  std::uint8_t data_mod = 0;     // bits 5-6
+  std::uint8_t mode_select = 0;  // bits 7-8
+  std::uint8_t scrambler = 0;    // bits 9-10
   bool diff_mark = false;        // bit 11
   bool rs_code = false;          // bit 12
 };
@@ -211,13 +211,13 @@ struct MacSession {
 void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
               CoppEndpoint* copp = nullptr) noexcept;
 
-// 6.3.3.1.2 — SET MODE inactive + COP-P SE0/RE0
+// 6.3.3.1.2 - SET MODE inactive + COP-P SE0/RE0
 void macSetInitializeMode(MacSession& m, Tick now) noexcept;
 
 // 6.3.3.1.1
 void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept;
 
-// 6.3.3.1.6 — local; S1 only (session changes use SET CONTROL PARAMETERS)
+// 6.3.3.1.6 - local; S1 only (session changes use SET CONTROL PARAMETERS)
 void macSetDuplex(MacSession& m, MacDuplex duplex) noexcept;
 
 void macSetCarrierAcquired(MacSession& m, bool acquired, Tick now) noexcept;

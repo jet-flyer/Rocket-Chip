@@ -3,8 +3,8 @@
 // This file owns the check-fail count, the two endpoints and their ready flag.
 // Book: none.
 
-// IVP increment 6 — short codec smoke (garbage prefixes).
-// IVP increment 24 — longer than 0..PLTU-min: book-max envelope, golden
+// IVP increment 6 - short codec smoke (garbage prefixes).
+// IVP increment 24 - longer than 0..PLTU-min: book-max envelope, golden
 // mutate, hunt, COP receive. Fills are TFVN/ASM-relevant, not a random dump.
 // Must not crash or allocate. docs/TESTING.md
 

@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 0+1 — PLCW / CLCW pack (docs/TESTING.md, docs/IVP.md)
+// IVP increment 0+1 - PLCW / CLCW pack (docs/TESTING.md, docs/IVP.md)
 // Accept: plcw-zero-report, clcw-cop1
 // Reject: truncated, buffer_too_small
 

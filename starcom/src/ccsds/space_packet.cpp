@@ -54,7 +54,7 @@ namespace starcom::ccsds {
   const std::uint32_t seq = static_cast<std::uint32_t>(fields.seq_count) & 0x3FFFU;
   const std::uint32_t flags = static_cast<std::uint32_t>(fields.seq_flags) & 0x03U;
   const std::uint32_t c = static_cast<std::uint32_t>(data.size() - 1U);
-  // 133.0-B-2 §4.1.3.3.3.4: Idle Packet secondary header flag is 0.
+  // 133.0-B-2 section 4.1.3.3.3.4: Idle Packet secondary header flag is 0.
   const bool secondary =
       fields.secondary_header && apid != static_cast<std::uint32_t>(kIdleApid);
 

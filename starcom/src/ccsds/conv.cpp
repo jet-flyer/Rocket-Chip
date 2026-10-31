@@ -13,7 +13,7 @@
 namespace starcom::ccsds {
 namespace {
 
-// 131.0-B-5 §3.3: G1 = 171 octal = 0b1111001, G2 = 133 octal = 0b1011011.
+// 131.0-B-5 section 3.3: G1 = 171 octal = 0b1111001, G2 = 133 octal = 0b1011011.
 constexpr std::uint32_t kG1 = 0b1111001U;
 constexpr std::uint32_t kG2 = 0b1011011U;
 

@@ -224,7 +224,7 @@ namespace {
 void coppClear(CoppEndpoint& e) noexcept {
   static_assert(std::is_trivially_copyable_v<CoppEndpoint>);
   // In-place zero. `e = CoppEndpoint{}` still exceeds Pico Core 0's 4 KiB
-  // (FopP sent copies are kFopPSentCap × kCoppHold).
+  // (FopP sent copies are kFopPSentCap x kCoppHold).
   std::memset(static_cast<void*>(&e), 0, sizeof(e));
 }
 
@@ -562,7 +562,7 @@ std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept {
 
 [[nodiscard]] Result<std::size_t> coppBytesToSend(CoppEndpoint& e,
                                        std::span<std::byte> out) noexcept {
-  // 211.0 table 6-14: NEED_PLCW before any SDU. §7.2.3 SE1 fills the SDU slot.
+  // 211.0 table 6-14: NEED_PLCW before any SDU. section 7.2.3 SE1 fills the SDU slot.
   if (e.farm.need_plcw) {
     return coppSendPlcw(e, out);
   }
@@ -585,7 +585,7 @@ std::uint32_t coppSyncLossCount(CoppEndpoint const& e) noexcept {
     }
     n = encodePltu(out, std::span<const std::byte>(g_tfScratch.data(), *vn));
   }
-  // 211.0 §7.2.3 SE1 resend. Count a frame that left the sender.
+  // 211.0 section 7.2.3 SE1 resend. Count a frame that left the sender.
   if (kind == FopPSend::resend_seq && n.has_value() && *n > 0) {
     ++e.retransmit_n;
   }

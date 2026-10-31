@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 14 — V-3 DFC 11 User Defined Data + simplex without hailing.
+// IVP increment 14 - V-3 DFC 11 User Defined Data + simplex without hailing.
 // 211.0-B-6 Table 3-1, 3.2.3.5, 2.2.2.3; simplex 211.0 section 6.
 
 #include "heap_trap.hpp"

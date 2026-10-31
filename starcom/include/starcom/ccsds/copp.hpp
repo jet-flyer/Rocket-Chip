@@ -20,7 +20,7 @@ namespace starcom::ccsds {
 // Caller clock. Intervals are in the same unit as `now` (211.0 Annex C names, not defaults).
 using Tick = std::uint32_t;
 
-// 211.0 §7.1 modulo-256 compare: B < A iff (A-B) is 1..127.
+// 211.0 section 7.1 modulo-256 compare: B < A iff (A-B) is 1..127.
 inline constexpr std::uint8_t seqDelta(std::uint8_t a, std::uint8_t b) noexcept {
   return static_cast<std::uint8_t>(a - b);
 }
@@ -33,7 +33,7 @@ inline constexpr bool seqEq(std::uint8_t b, std::uint8_t a) noexcept {
 }
 
 struct CoppMib {
-  std::uint8_t transmission_window = 1;  // 1..127 (211.0 §7.2.3.3 note 4)
+  std::uint8_t transmission_window = 1;  // 1..127 (211.0 section 7.2.3.3 note 4)
   Tick synch_timeout = 0;                // 0 = SYNCH_TIMER never expires
   bool resync_local = true;
 };
@@ -65,7 +65,7 @@ enum class FopPSend : std::uint8_t {
   resend_seq,
 };
 
-inline constexpr std::size_t kFopPSentCap = 127;  // 211.0 §7.2.3.3 window ≤127
+inline constexpr std::size_t kFopPSentCap = 127;  // 211.0 section 7.2.3.3 window <=127
 inline constexpr std::size_t kCoppHold = 64;      // host-loop cap, not MIB
 inline constexpr std::size_t kCoppSeqSlots = 4;   // host-loop cap, not MIB
 
@@ -131,7 +131,7 @@ struct CoppEndpoint {
   bool exp_full = false;
   bool exp_user_defined = false;
   // Wait + sent copies still exceed a 4 KiB Pico stack. coppInit memsets
-  // in place — do not `e = CoppEndpoint{}`.
+  // in place - do not `e = CoppEndpoint{}`.
   std::array<std::array<std::byte, kCoppHold>, kCoppSeqSlots> rx_q{};
   std::array<std::size_t, kCoppSeqSlots> rx_len{};
   std::uint8_t rx_n = 0;

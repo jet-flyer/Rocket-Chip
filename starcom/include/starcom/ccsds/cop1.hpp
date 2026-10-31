@@ -17,7 +17,7 @@
 
 namespace starcom::ccsds {
 
-// 232.1 §5.2.1 / §6.2 note: 8-bit FSN, same modulo-256 compare as 211.0 §7.1.
+// 232.1 section 5.2.1 / section 6.2 note: 8-bit FSN, same modulo-256 compare as 211.0 section 7.1.
 inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexcept {
   return static_cast<std::uint8_t>(a - b);
 }
@@ -33,7 +33,7 @@ using Tick = std::uint32_t;
 // 6.1.8.3.1 describes.
 inline constexpr std::uint32_t kFarm1WindowMax = 254U;
 
-// 232.1 §6.1.8.3.1: 2 ≤ W ≤ 254, even; PW = NW = W/2. Default is the legal minimum.
+// 232.1 section 6.1.8.3.1: 2 <= W <= 254, even; PW = NW = W/2. Default is the legal minimum.
 struct Farm1Mib {
   std::uint8_t w = 2;
 };
@@ -82,7 +82,7 @@ enum class Fop1Send : std::uint8_t {
 
 enum class Fop1Bc : std::uint8_t { none = 0, unlock, set_vr };
 
-// 232.1 §5.1.12 K ≤ 255. T1_Initial 0 = timer never expires (caller unit).
+// 232.1 section 5.1.12 K <= 255. T1_Initial 0 = timer never expires (caller unit).
 struct Cop1Mib {
   std::uint8_t k = 1;
   Tick t1_initial = 0;
@@ -91,7 +91,7 @@ struct Cop1Mib {
   Farm1Mib farm{};
 };
 
-inline constexpr std::size_t kFop1SentCap = 255;  // 232.1 §5.1.12 K < 256
+inline constexpr std::size_t kFop1SentCap = 255;  // 232.1 section 5.1.12 K < 256
 inline constexpr std::size_t kCop1Hold = 64;      // host-loop cap, not MIB
 inline constexpr std::size_t kCop1SeqSlots = 4;   // host-loop cap, not MIB
 
@@ -114,7 +114,7 @@ struct Fop1 {
   Fop1Bc pending_bc = Fop1Bc::none;
   std::uint8_t set_vr_value = 0;
   bool bc_to_send = false;
-  std::uint8_t ss = 0;  // 232.1 §5.1.11 Suspend_State; 0 = not suspended
+  std::uint8_t ss = 0;  // 232.1 section 5.1.11 Suspend_State; 0 = not suspended
   bool suspend_latched = false;
   bool ad_out_ready = true;  // null LLIF default Ready
   bool bc_out_ready = true;
@@ -123,11 +123,11 @@ struct Fop1 {
 
 void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept;
 bool fop1InitiateAd(Fop1& f) noexcept;               // E23 without CLCW check
-bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept;  // E24 → S4
-bool fop1InitiateAdUnlock(Fop1& f) noexcept;           // E25 → S5
-bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 → S5
+bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept;  // E24 -> S4
+bool fop1InitiateAdUnlock(Fop1& f) noexcept;           // E25 -> S5
+bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept;  // E27 -> S5
 void fop1TerminateAd(Fop1& f) noexcept;                 // E29
-bool fop1ResumeAd(Fop1& f) noexcept;                    // E30–E34
+bool fop1ResumeAd(Fop1& f) noexcept;                    // E30-E34
 bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept;  // E35
 void fop1SetK(Fop1& f, std::uint8_t k) noexcept;        // E36
 void fop1SetT1Initial(Fop1& f, Tick t1) noexcept;       // E37
@@ -143,7 +143,7 @@ Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept;
 void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept;
 void fop1Tick(Fop1& f, Tick now) noexcept;
 
-// 232.0 §4.1.3.3
+// 232.0 section 4.1.3.3
 inline constexpr std::byte kCop1Unlock{0x00};
 inline constexpr std::byte kCop1SetVr0{0x82};
 inline constexpr std::byte kCop1SetVr1{0x00};
@@ -172,7 +172,7 @@ struct Cop1Endpoint {
   std::size_t bd_len = 0;
   bool bd_full = false;
   // Sent copies on Fop1 still exceed a 4 KiB Pico stack. cop1Init memsets
-  // in place — do not `e = Cop1Endpoint{}`.
+  // in place - do not `e = Cop1Endpoint{}`.
   std::array<std::array<std::byte, kCop1Hold>, kCop1SeqSlots> rx_q{};
   std::array<std::size_t, kCop1SeqSlots> rx_len{};
   std::uint8_t rx_n = 0;

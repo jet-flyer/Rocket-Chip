@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 0+1 — Version-3 (docs/TESTING.md, docs/IVP.md)
+// IVP increment 0+1 - Version-3 (docs/TESTING.md, docs/IVP.md)
 // Accept: v3-header-only field unpack; round-trip; PLTU composition
 // Reject: truncated, tfvn-unknown, v3-length-oob, buffer_too_small
 

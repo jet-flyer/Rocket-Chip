@@ -3,7 +3,7 @@
 // No protocol state.
 // Book: none.
 
-// IVP increment 0+1 — Space Packet (docs/TESTING.md, docs/IVP.md)
+// IVP increment 0+1 - Space Packet (docs/TESTING.md, docs/IVP.md)
 // Accept: sp-idle; v3-one-sp-n (PLTU 18+N)
 // Reject: sp-too-short, sp-pvn, buffer_too_small
 
@@ -75,7 +75,7 @@ void test_sp_idle() {
   CHECK(v->fields.seq_flags == 0b11);
   CHECK(v->data.size() == 1u);
 
-  // 133.0-B-2 §4.1.3.3.3.4: a set flag is still forced off for APID 0x7FF.
+  // 133.0-B-2 section 4.1.3.3.3.4: a set flag is still forced off for APID 0x7FF.
   f.secondary_header = true;
   const auto forced = encodeSpacePacket(out, f, asSpan(data));
   CHECK(forced.has_value());
