@@ -5,7 +5,7 @@
 #ifndef STARCOM_RESULT_H_
 #define STARCOM_RESULT_H_
 
-#include "starcom/error.hpp"
+#include "starcom/error.h"
 #include <tl/expected.hpp>
 
 // The library build uses tl::expected.

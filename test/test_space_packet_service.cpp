@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/space_packet_service.hpp"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/space_packet_service.h"
 
 #include <algorithm>
 #include <array>

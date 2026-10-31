@@ -76,7 +76,7 @@ collect_expects() {
 }
 
 collect_expects "${PROBE}/tidy_probe.cpp"
-collect_expects "${PROBE}/starcom/include/probe_hit.hpp"
+collect_expects "${PROBE}/starcom/include/probe_hit.h"
 
 if [[ -z "${tags}" ]]; then
   echo "tidy_selftest: no EXPECT tags"

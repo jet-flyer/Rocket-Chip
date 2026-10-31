@@ -7,9 +7,9 @@
 // Accept: plcw-zero-report, clcw-cop1
 // Reject: truncated, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/plcw.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/plcw.h"
 
 #include <array>
 #include <cstddef>

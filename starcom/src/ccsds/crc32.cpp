@@ -3,9 +3,9 @@
 // No state.
 // Book: CRC-32 is CCSDS 211.2-B-3 Annex C. CRC-16 is CCSDS 732.1-B-3 Annex B.
 
-#include "starcom/ccsds/crc.hpp"
+#include "starcom/ccsds/crc.h"
 
-#include "starcom/ccsds/types.hpp"
+#include "starcom/ccsds/types.h"
 
 namespace starcom::ccsds
 {

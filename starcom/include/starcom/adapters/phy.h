@@ -6,8 +6,8 @@
 #ifndef STARCOM_ADAPTERS_PHY_H_
 #define STARCOM_ADAPTERS_PHY_H_
 
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/result.h"
 
 #include <cstdint>
 #include <span>

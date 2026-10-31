@@ -5,12 +5,12 @@
 
 // IVP increment 3 + 9 - USLP Version-4 (732.1 section 4.1 / annex D / annex B).
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/crc.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/uslp.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/crc.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/uslp.h"
 
 #include <algorithm>
 #include <array>

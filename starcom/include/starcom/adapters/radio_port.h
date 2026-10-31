@@ -6,7 +6,7 @@
 #ifndef STARCOM_ADAPTERS_RADIO_PORT_H_
 #define STARCOM_ADAPTERS_RADIO_PORT_H_
 
-#include "starcom/adapters/loopback.hpp"
+#include "starcom/adapters/loopback.h"
 
 namespace starcom::adapters
 {

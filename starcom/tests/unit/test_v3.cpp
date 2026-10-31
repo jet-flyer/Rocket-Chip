@@ -7,9 +7,9 @@
 // Accept: v3-header-only field unpack; round-trip; PLTU composition
 // Reject: truncated, tfvn-unknown, v3-length-oob, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>

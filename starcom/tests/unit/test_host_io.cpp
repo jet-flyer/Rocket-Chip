@@ -5,12 +5,12 @@
 
 // IVP increment 15 - host file replay and UDP. Core stays sans-I/O.
 
-#include "starcom/adapters/file_replay.hpp"
-#include "starcom/adapters/loopback.hpp"
-#include "starcom/adapters/udp.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "starcom/adapters/file_replay.h"
+#include "starcom/adapters/loopback.h"
+#include "starcom/adapters/udp.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>

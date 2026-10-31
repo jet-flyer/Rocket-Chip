@@ -3,10 +3,10 @@
 // The caller owns the buffers.
 // Book: CCSDS 211.2-B-3 figure 3-1, section 3.2.5.1, section 3.6, and Annex C.
 
-#include "starcom/ccsds/pltu.hpp"
+#include "starcom/ccsds/pltu.h"
 
-#include "starcom/ccsds/uslp.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "starcom/ccsds/uslp.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 

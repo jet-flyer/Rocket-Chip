@@ -5,7 +5,7 @@
 #ifndef STARCOM_CCSDS_CLCW_H_
 #define STARCOM_CCSDS_CLCW_H_
 
-#include "starcom/result.hpp"
+#include "starcom/result.h"
 
 #include <cstddef>
 #include <cstdint>

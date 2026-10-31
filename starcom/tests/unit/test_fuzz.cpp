@@ -8,15 +8,15 @@
 // mutate, hunt, COP receive. Fills are TFVN/ASM-relevant, not a random dump.
 // Must not crash or allocate. docs/TESTING.md
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/cop1.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/plcw.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/uslp.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/cop1.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/plcw.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/uslp.h"
+#include "starcom/ccsds/v3.h"
 
 #include <array>
 #include <cstddef>
@@ -71,7 +71,7 @@ constexpr std::size_t kPltuMinEnvelope =
     kPltuAsmSize + kV3HeaderSize + kPltuCrcSize;  // 12; 211.2 Fig 3-1 + V-3 min
 
 // ASM + 11-bit max transfer frame + CRC-32. 211.2 envelope around
-// kTransferFrameMax (types.hpp: 11-bit length, C = 2047).
+// kTransferFrameMax (types.h: 11-bit length, C = 2047).
 constexpr std::size_t kPltuMaxEnvelope =
     kPltuAsmSize + kTransferFrameMax + kPltuCrcSize;
 

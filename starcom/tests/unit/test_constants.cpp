@@ -2,17 +2,17 @@
 // No state.
 // Book: none.
 
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/cop1.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/crc.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/plcw.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/types.hpp"
-#include "starcom/ccsds/uslp.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/cop1.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/crc.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/plcw.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/ccsds/uslp.h"
+#include "starcom/ccsds/v3.h"
 
 namespace starcom::ccsds
 {

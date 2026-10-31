@@ -6,12 +6,12 @@
 // IVP increment 14 - V-3 DFC 11 User Defined Data + simplex without hailing.
 // 211.0-B-6 Table 3-1, 3.2.3.5, 2.2.2.3; simplex 211.0 section 6.
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>

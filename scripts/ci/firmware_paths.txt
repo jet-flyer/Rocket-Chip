@@ -128,4 +128,4 @@ starcom/adapters/rp2350/
 
 [isolate:turnaround]
 starcom/src/ccsds/mac.cpp
-starcom/include/starcom/ccsds/mac.hpp
+starcom/include/starcom/ccsds/mac.h

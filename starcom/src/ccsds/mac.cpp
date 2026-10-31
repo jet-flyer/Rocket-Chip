@@ -3,7 +3,7 @@
 // The caller owns MacSession.
 // Book: CCSDS 211.0-B-6 section 4.2 (MAC sublayer) and section 6 (state tables).
 
-#include "starcom/ccsds/mac.hpp"
+#include "starcom/ccsds/mac.h"
 
 namespace starcom::ccsds
 {

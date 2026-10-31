@@ -11,12 +11,12 @@
 #include "rocketchip/job.h"
 #include "rocketchip/host_build.h"
 #include "flight_director/mission_profile_data.h"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/plcw.hpp"
-#include "starcom/version.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/plcw.h"
+#include "starcom/version.h"
 
 #include <algorithm>
 #include <array>

@@ -3,7 +3,7 @@
 // The caller owns the buffers.
 // Book: none. CCSDS 211.1-B-4 is not claimed.
 
-#include "starcom/adapters/phy.hpp"
+#include "starcom/adapters/phy.h"
 
 namespace starcom::adapters
 {

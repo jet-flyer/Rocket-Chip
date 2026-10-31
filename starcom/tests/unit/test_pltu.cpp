@@ -11,8 +11,8 @@
 // D-5: positive control + codecs allocate nothing
 // Later sittings: v3-one-sp-n, sp-idle, plcw-zero-report, clcw-cop1
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/pltu.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/pltu.h"
 
 #include <algorithm>
 #include <array>

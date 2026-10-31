@@ -7,10 +7,10 @@
 // of the types that blew Pico Core 0 (4 KiB, PICO_STACK_SIZE=0x1000).
 // Numbers are printed so the increment record is measured, not invented.
 
-#include "starcom/ccsds/cop1.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/ldpc.hpp"
-#include "starcom/ccsds/types.hpp"
+#include "starcom/ccsds/cop1.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/ldpc.h"
+#include "starcom/ccsds/types.h"
 
 #include <array>
 #include <cstddef>

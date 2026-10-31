@@ -2,7 +2,7 @@
 // No state.
 // Book: none.
 
-// probe_hit.hpp: header hit for HeaderFilterRegex (path has starcom/include).
+// probe_hit.h: header hit for HeaderFilterRegex (path has starcom/include).
 inline unsigned probeHeaderHit()
 {
   return 7u;  // EXPECT readability-uppercase-literal-suffix

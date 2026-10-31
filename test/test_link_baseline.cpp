@@ -5,8 +5,8 @@
 #include <gtest/gtest.h>
 
 #include "diag/link_baseline.h"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/space_packet.hpp"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/space_packet.h"
 
 #include <array>
 #include <cstring>

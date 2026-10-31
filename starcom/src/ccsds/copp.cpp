@@ -2,12 +2,12 @@
 // The caller owns CoppEndpoint.
 // Book: CCSDS 211.0-B-6 section 7.
 
-#include "starcom/ccsds/copp.hpp"
+#include "starcom/ccsds/copp.h"
 
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/uslp.hpp"
-#include "starcom/ccsds/v3.hpp"
-#include "starcom/ccsds/mac.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/uslp.h"
+#include "starcom/ccsds/v3.h"
+#include "starcom/ccsds/mac.h"
 
 #include <algorithm>
 #include <cstring>

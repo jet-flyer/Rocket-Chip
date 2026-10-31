@@ -4,7 +4,7 @@
 // The caller owns the buffers.
 // Book: CCSDS 211.0-B-6 section 3.2.
 
-#include "starcom/ccsds/v3.hpp"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 

@@ -6,8 +6,8 @@
 // IVP increment 17 - PIO-shaped PLTU symbol pipe on a host fake PIO.
 // Same 0+1 v3-header-only octets. Not 211.1 residual-carrier PM.
 
-#include "starcom/adapters/pio_port.hpp"
-#include "starcom/ccsds/pltu.hpp"
+#include "starcom/adapters/pio_port.h"
+#include "starcom/ccsds/pltu.h"
 
 #include <algorithm>
 #include <array>

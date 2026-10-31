@@ -6,7 +6,7 @@
 #ifndef STARCOM_CCSDS_SPACE_PACKET_SERVICE_H_
 #define STARCOM_CCSDS_SPACE_PACKET_SERVICE_H_
 
-#include "starcom/ccsds/space_packet.hpp"
+#include "starcom/ccsds/space_packet.h"
 
 #include <array>
 #include <cstddef>

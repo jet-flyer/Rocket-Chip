@@ -3,7 +3,7 @@
 // The caller owns the scratch and the file stream.
 // Book: none.
 
-#include "starcom/adapters/file_replay.hpp"
+#include "starcom/adapters/file_replay.h"
 
 #include <cstring>
 

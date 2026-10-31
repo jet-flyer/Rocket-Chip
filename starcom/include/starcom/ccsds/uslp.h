@@ -6,8 +6,8 @@
 #ifndef STARCOM_CCSDS_USLP_H_
 #define STARCOM_CCSDS_USLP_H_
 
-#include "starcom/ccsds/types.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/types.h"
+#include "starcom/result.h"
 
 #include <cstddef>
 #include <cstdint>

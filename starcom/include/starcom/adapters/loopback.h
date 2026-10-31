@@ -6,9 +6,9 @@
 #ifndef STARCOM_ADAPTERS_LOOPBACK_H_
 #define STARCOM_ADAPTERS_LOOPBACK_H_
 
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/types.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/result.h"
 
 #include <array>
 #include <cstddef>

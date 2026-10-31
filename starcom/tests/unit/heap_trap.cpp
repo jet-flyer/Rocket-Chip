@@ -3,7 +3,7 @@
 // This file owns the arm flag and the count.
 // Book: none.
 
-#include "heap_trap.hpp"
+#include "heap_trap.h"
 
 #include <atomic>
 #include <cstdlib>

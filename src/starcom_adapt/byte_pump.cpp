@@ -9,7 +9,7 @@
 #include "rocketchip/radio_config_table.h"
 #include "rocketchip/job.h"
 #include "rocketchip/host_build.h"
-#include "starcom/error.hpp"
+#include "starcom/error.h"
 
 #include <tl/expected.hpp>
 

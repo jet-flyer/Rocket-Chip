@@ -4,9 +4,9 @@
 // The caller owns the buffers.
 // Book: CCSDS 732.1-B-3 section 4.1.
 
-#include "starcom/ccsds/uslp.hpp"
+#include "starcom/ccsds/uslp.h"
 
-#include "starcom/ccsds/crc.hpp"
+#include "starcom/ccsds/crc.h"
 
 #include <algorithm>
 

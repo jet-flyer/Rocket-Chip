@@ -3,9 +3,9 @@
 // No protocol state.
 // Book: none.
 
-// Generated starcom/version.hpp matches STARCOM_VERSION; git identity is live.
+// Generated starcom/version.h matches STARCOM_VERSION; git identity is live.
 
-#include "starcom/version.hpp"
+#include "starcom/version.h"
 
 #include <cstdint>
 #include <cstdio>

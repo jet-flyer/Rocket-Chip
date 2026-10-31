@@ -6,10 +6,10 @@
 #ifndef STARCOM_CCSDS_COP1_H_
 #define STARCOM_CCSDS_COP1_H_
 
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/types.hpp"
-#include "starcom/ccsds/uslp.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/ccsds/uslp.h"
+#include "starcom/result.h"
 
 #include <array>
 #include <cstddef>

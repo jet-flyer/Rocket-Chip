@@ -3,7 +3,7 @@
 // No state.
 // Book: CCSDS 232.0-B-4 section 4.2.1.
 
-#include "starcom/ccsds/clcw.hpp"
+#include "starcom/ccsds/clcw.h"
 
 namespace starcom::ccsds
 {

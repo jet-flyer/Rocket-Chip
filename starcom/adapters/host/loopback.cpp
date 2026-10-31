@@ -3,7 +3,7 @@
 // The caller owns FrameSlot.
 // Book: none.
 
-#include "starcom/adapters/loopback.hpp"
+#include "starcom/adapters/loopback.h"
 
 #include <algorithm>
 

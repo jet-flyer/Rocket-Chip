@@ -6,9 +6,9 @@
 // IVP increment 16 - generic SPI/GPIO radio port against a host fake bus.
 // No Pico SDK, no SX1276 / RFM types, no 211.1 claim.
 
-#include "starcom/adapters/radio_bus.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "starcom/adapters/radio_bus.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>

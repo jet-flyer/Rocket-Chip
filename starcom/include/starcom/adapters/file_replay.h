@@ -6,9 +6,9 @@
 #ifndef STARCOM_ADAPTERS_FILE_REPLAY_H_
 #define STARCOM_ADAPTERS_FILE_REPLAY_H_
 
-#include "starcom/adapters/loopback.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/result.hpp"
+#include "starcom/adapters/loopback.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/result.h"
 
 #include <cstddef>
 #include <fstream>

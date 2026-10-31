@@ -6,7 +6,7 @@
 #ifndef STARCOM_CCSDS_CONV_H_
 #define STARCOM_CCSDS_CONV_H_
 
-#include "starcom/result.hpp"
+#include "starcom/result.h"
 
 #include <cstddef>
 #include <cstdint>

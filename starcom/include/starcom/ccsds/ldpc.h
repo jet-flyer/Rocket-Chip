@@ -5,7 +5,7 @@
 #ifndef STARCOM_CCSDS_LDPC_H_
 #define STARCOM_CCSDS_LDPC_H_
 
-#include "starcom/result.hpp"
+#include "starcom/result.h"
 
 #include <array>
 #include <cstddef>

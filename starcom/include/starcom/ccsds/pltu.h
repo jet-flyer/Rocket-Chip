@@ -6,9 +6,9 @@
 #ifndef STARCOM_CCSDS_PLTU_H_
 #define STARCOM_CCSDS_PLTU_H_
 
-#include "starcom/ccsds/crc.hpp"
-#include "starcom/ccsds/types.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/crc.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/result.h"
 
 #include <array>
 #include <cstddef>

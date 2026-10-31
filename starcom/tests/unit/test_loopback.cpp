@@ -5,11 +5,11 @@
 
 // IVP increment 5 - host loopback, then generic radio port. Core stays sans-I/O.
 
-#include "heap_trap.hpp"
-#include "starcom/adapters/loopback.hpp"
-#include "starcom/adapters/radio_port.hpp"
-#include "starcom/ccsds/cop1.hpp"
-#include "starcom/ccsds/space_packet.hpp"
+#include "heap_trap.h"
+#include "starcom/adapters/loopback.h"
+#include "starcom/adapters/radio_port.h"
+#include "starcom/ccsds/cop1.h"
+#include "starcom/ccsds/space_packet.h"
 
 #include <array>
 #include <cstddef>

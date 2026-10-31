@@ -10,13 +10,13 @@
 #define ROCKETCHIP_STARCOM_BYTE_PUMP_H
 
 
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/types.hpp"
-#include "starcom/ccsds/v3.hpp"
-#include "starcom/result.hpp"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/ccsds/v3.h"
+#include "starcom/result.h"
 #include "rocketchip/telemetry_state.h"
 #include "rocketchip/telemetry_encoder.h"
 #include "starcom_adapt/cmd_sdu.h"

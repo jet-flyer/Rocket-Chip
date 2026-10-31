@@ -5,8 +5,8 @@
 
 // IVP increment 13 - Prox-1 211.0 section 6 MAC / DUPLEX + SET V(R) persistent.
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/mac.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/mac.h"
 
 #include <array>
 #include <cstdio>

@@ -7,7 +7,7 @@
 #include "diag/link_baseline.h"
 
 #include "rocketchip/rc_log.h"
-#include "starcom/ccsds/copp.hpp"
+#include "starcom/ccsds/copp.h"
 #include "starcom_adapt/byte_pump.h"
 
 LinkBaselineCounters g_linkBaseline = {};

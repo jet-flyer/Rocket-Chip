@@ -2,9 +2,9 @@
 // The caller owns Cop1Endpoint.
 // Book: CCSDS 232.1-B-2 sections 5 (FOP-1) and 6 (FARM-1).
 
-#include "starcom/ccsds/cop1.hpp"
+#include "starcom/ccsds/cop1.h"
 
-#include "starcom/ccsds/pltu.hpp"
+#include "starcom/ccsds/pltu.h"
 
 #include <algorithm>
 #include <cstring>

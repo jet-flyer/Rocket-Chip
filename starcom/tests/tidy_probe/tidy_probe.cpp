@@ -11,7 +11,7 @@
 #include <stdint.h>  // EXPECT modernize-deprecated-headers
 #include <utility>
 
-#include "probe_hit.hpp"     // header hit (PR-1b) is the tag in probe_hit.hpp
+#include "probe_hit.h"       // header hit (PR-1b) is the tag in probe_hit.h
 #include "probe_vendor.hpp"  // EXPECT-NOT probe_vendor.hpp (third_party/include: matches the include rule, so the exclude rule must drop it, G3)
 
 int _probe_reserved = 0;  // EXPECT bugprone-reserved-identifier

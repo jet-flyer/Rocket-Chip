@@ -7,10 +7,10 @@
 // Accept: sp-idle; v3-one-sp-n (PLTU 18+N)
 // Reject: sp-too-short, sp-pvn, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>

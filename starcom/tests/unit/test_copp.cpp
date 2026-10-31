@@ -6,9 +6,9 @@
 // IVP increment 2 - COP-P (211.0 section 7 tables). docs/TESTING.md
 // FARM-P RE0-RE6; FOP-P SE0-SE4, SE7; canned PLTU -> PLCW; host loop.
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/space_packet.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/space_packet.h"
 
 #include <algorithm>
 #include <array>

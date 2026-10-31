@@ -6,8 +6,8 @@
 #ifndef STARCOM_ADAPTERS_RADIO_BUS_H_
 #define STARCOM_ADAPTERS_RADIO_BUS_H_
 
-#include "starcom/adapters/radio_port.hpp"
-#include "starcom/result.hpp"
+#include "starcom/adapters/radio_port.h"
+#include "starcom/result.h"
 
 #include <cstddef>
 #include <cstdint>
