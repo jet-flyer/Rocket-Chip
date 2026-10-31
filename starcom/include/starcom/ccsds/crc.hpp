@@ -1,3 +1,7 @@
+// CRC-32 for a Proximity-1 transfer frame and CRC-16 for a USLP frame.
+// No state.
+// Book: CRC-32 is CCSDS 211.2-B-3 Annex C. CRC-16 is CCSDS 732.1-B-3 Annex B.
+
 #pragma once
 
 #include <cstddef>

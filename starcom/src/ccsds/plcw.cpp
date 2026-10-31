@@ -1,3 +1,8 @@
+// Packs a PLCW.
+// Unpacks a PLCW.
+// No state.
+// Book: CCSDS 211.0-B-6 section 3.2.4.3.2 (Type F1 SPDU: PLCW) and 3.2.4.3.2.1.1.
+
 #include "starcom/ccsds/plcw.hpp"
 
 namespace starcom::ccsds {

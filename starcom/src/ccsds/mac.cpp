@@ -1,3 +1,8 @@
+// Proximity-1 session control and its directive SPDUs.
+// No state.
+// The caller owns MacSession.
+// Book: CCSDS 211.0-B-6 section 4.2 (MAC sublayer) and section 6 (state tables).
+
 #include "starcom/ccsds/mac.hpp"
 
 namespace starcom::ccsds {

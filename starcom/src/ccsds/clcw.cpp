@@ -1,3 +1,8 @@
+// Packs a CLCW.
+// Unpacks a CLCW.
+// No state.
+// Book: CCSDS 232.0-B-4 section 4.2.1.
+
 #include "starcom/ccsds/clcw.hpp"
 
 namespace starcom::ccsds {

@@ -1,3 +1,8 @@
+// Slides a host file buffer forward and reads the next bytes.
+// No state.
+// The caller owns the scratch and the file stream.
+// Book: none.
+
 #include "starcom/adapters/file_replay.hpp"
 
 #include <cstring>

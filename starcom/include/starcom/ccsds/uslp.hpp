@@ -1,3 +1,8 @@
+// USLP transfer-frame fields.
+// No state.
+// The caller owns the field values.
+// Book: CCSDS 732.1-B-3 section 4.1.
+
 #pragma once
 
 #include "starcom/ccsds/types.hpp"

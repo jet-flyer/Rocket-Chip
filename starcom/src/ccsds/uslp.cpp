@@ -1,3 +1,9 @@
+// Packs a USLP transfer frame.
+// Unpacks a USLP transfer frame.
+// No state.
+// The caller owns the buffers.
+// Book: CCSDS 732.1-B-3 section 4.1.
+
 #include "starcom/ccsds/uslp.hpp"
 
 #include "starcom/ccsds/crc.hpp"
@@ -7,6 +13,10 @@
 namespace starcom::ccsds {
 namespace {
 
+// Rules 0, 1 and 2 (binary 000 to 010) carry a 16-bit pointer: a First Header
+// Pointer for 000, a Last Valid Octet Pointer for 001 and 010. The TFDF header
+// is then 3 octets. Other rules use a 1-octet header (732.1-B-3 4.1.4.2.1.2,
+// 4.1.4.2.4).
 bool constructionHasPointer(std::uint8_t rule) noexcept {
   return rule <= 0b010U;
 }
@@ -130,6 +140,7 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(frame[4]) << 8) |
                             std::to_integer<std::uint32_t>(frame[5]);
+  // The stored length is the frame length minus 1.
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kUslpFrameMin || frame_len > kUslpFrameMax) {
     return tl::unexpected(Error::uslp_length_oob);
@@ -232,6 +243,7 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
                    UslpLayout const& lay, std::span<const std::byte> tfdz,
                    std::span<const std::byte> ocf,
                    std::span<const std::byte> insert) noexcept {
+  // The stored length is the frame length minus 1.
   const std::uint32_t c = static_cast<std::uint32_t>(lay.frame_len - 1U);
   writeUslpIds(out, fields, false);
   out[4] = std::byte((c >> 8) & 0xFFU);

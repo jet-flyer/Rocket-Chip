@@ -12,6 +12,17 @@ Worktree: `C:\Users\pow-w\Documents\starcom_dev` (`grok/sc-dev`).
 
 ---
 
+## Master PICS document (OPEN, start after the audit fixes) (2026-10-31)
+
+Nathan asked for one master PICS (Protocol Implementation Conformance Statement) document for the repo. Start it only after the Starcom coding-standards fixes in `docs/audits/STARCOM_AUDIT_2026-10-29.md` are finished.
+
+- Make one section for each book Starcom claims. The known ones are 211.0-B-6, 211.1-B-4 and 211.2-B-3 (each has its checklist in Annex A). Move the existing 133.0-B-2 draft checklist from `docs/CONFORMANCE.md` into the new document.
+- Each row records which option was built. It points to the decision that picked it (the FSK pivot plan or `docs/CONFORMANCE.md`) and to the code or test that shows it.
+- Tag rows that rely on lunar draft text (the 2026 Pink Books or Red draft 235.1-R-1) as [draft]. Starcom conforms only to published Blue Books. The drafts guided the FSK design and are cited as draft references, not requirements.
+- Before the work starts, Duke checks whether 732.1 (USLP), 232.1 (COP-1), 131.0 and 355.0 have their own PICS annexes.
+
+---
+
 ## Pseudo-simplex main mode / Ingenuity link (LOOK) (2026-10-05)
 
 Same row as the root `AGENT_WHITEBOARD.md`. Owner will look up the Ingenuity–Perseverance radio protocol as a fixed-pair example: one-way in flight, two-way on the ground. It is modified IEEE 802.15.4, not Proximity-1. Passive rocket mode is 211.0 simplex. Pseudo-simplex may be the main mode. The IRIG 106 mention is the operating pattern, not a waveform change. Do not adopt the radio. Do not write `docs/DESIGN.md` from this row. Not this sitting.

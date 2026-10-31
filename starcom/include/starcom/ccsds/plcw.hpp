@@ -1,3 +1,7 @@
+// PLCW fields and the pack and unpack calls.
+// No state.
+// Book: CCSDS 211.0-B-6 section 3.2.4.3.2 (Type F1 SPDU: PLCW) and 3.2.4.3.2.1.1.
+
 #pragma once
 
 #include "starcom/ccsds/types.hpp"

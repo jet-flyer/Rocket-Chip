@@ -1,3 +1,7 @@
+// COP-1 send and receive for one virtual channel.
+// The caller owns Cop1Endpoint.
+// Book: CCSDS 232.1-B-2 sections 5 (FOP-1) and 6 (FARM-1).
+
 #include "starcom/ccsds/cop1.hpp"
 
 #include "starcom/ccsds/pltu.hpp"
@@ -9,6 +13,9 @@
 namespace starcom::ccsds {
 namespace {
 
+// This file owns g_cop1TfScratch.
+// cop1BytesToSend is the only caller.
+// The buffer stays off the stack. Pico Core 0 stack is 4 KiB.
 std::array<std::byte, kTransferFrameMax> g_cop1TfScratch{};
 
 std::uint8_t farmPw(Farm1 const& f) noexcept {

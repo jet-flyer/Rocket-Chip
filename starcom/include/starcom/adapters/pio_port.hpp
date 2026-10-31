@@ -1,3 +1,8 @@
+// Shifts PLTU octets out as bits and back in.
+// No state.
+// The caller owns the Pio object, which drives the bit clock.
+// Book: none. CCSDS 211.1-B-4 is not claimed.
+
 #pragma once
 
 #include "starcom/ccsds/types.hpp"

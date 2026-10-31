@@ -1,3 +1,8 @@
+// Version-3 transfer-frame fields.
+// No state.
+// The caller owns the field values.
+// Book: CCSDS 211.0-B-6 section 3.2.
+
 #pragma once
 
 #include "starcom/ccsds/types.hpp"

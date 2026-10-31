@@ -1,3 +1,9 @@
+// Declares the host UDP socket calls.
+// No state.
+// The caller owns UdpSocket.
+// The Winsock count lives in udp.cpp.
+// Book: none.
+
 #pragma once
 
 #include "starcom/result.hpp"

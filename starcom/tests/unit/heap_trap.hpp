@@ -1,3 +1,7 @@
+// Declares the heap-call trap for host tests.
+// The count lives in heap_trap.cpp.
+// Book: none.
+
 #pragma once
 
 namespace starcom::test {

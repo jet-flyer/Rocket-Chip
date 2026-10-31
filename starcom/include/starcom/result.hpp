@@ -1,3 +1,7 @@
+// Result is expected<T, Error>.
+// No state.
+// Book: none.
+
 #pragma once
 
 #include "starcom/error.hpp"

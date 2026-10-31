@@ -1,3 +1,8 @@
+// SPI and GPIO calls, and moving RadioPort frames over a caller-supplied bus.
+// No state.
+// The caller owns the bus and the line ids.
+// Book: none. CCSDS 211.1-B-4 is not claimed.
+
 #pragma once
 
 #include "starcom/adapters/radio_port.hpp"

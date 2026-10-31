@@ -1,3 +1,7 @@
+// LDPC (2048, 1024) encoder: one block, or a stream with a sync marker before each block.
+// No state.
+// Book: CCSDS 131.0-B-6 section 8.4. CCSDS 211.2-B-3 sections 3.4.4 and 3.4.5.
+
 #pragma once
 
 #include "starcom/result.hpp"

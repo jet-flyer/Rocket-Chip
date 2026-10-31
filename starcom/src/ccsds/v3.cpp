@@ -1,3 +1,9 @@
+// Packs a Version-3 transfer frame.
+// Unpacks a Version-3 transfer frame.
+// No state.
+// The caller owns the buffers.
+// Book: CCSDS 211.0-B-6 section 3.2.
+
 #include "starcom/ccsds/v3.hpp"
 
 #include <algorithm>
@@ -15,6 +21,7 @@ namespace starcom::ccsds {
   const std::uint32_t length_c =
       ((std::to_integer<std::uint32_t>(frame[2]) & kV3LengthHighMask) << 8) |
       std::to_integer<std::uint32_t>(frame[3]);
+  // The stored length is the frame length minus 1.
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
@@ -48,6 +55,7 @@ namespace starcom::ccsds {
     return tl::unexpected(Error::buffer_too_small);
   }
   const std::uint32_t scid = static_cast<std::uint32_t>(fields.scid) & 0x3FFU;
+  // The stored length is the frame length minus 1.
   const std::uint32_t c = static_cast<std::uint32_t>(frame_len - 1U);
   std::uint32_t dfc = static_cast<std::uint32_t>(fields.dfc_id) & 0x03U;
   const std::uint32_t pcid = static_cast<std::uint32_t>(fields.pcid) & 0x01U;

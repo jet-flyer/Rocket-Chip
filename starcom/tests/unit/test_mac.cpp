@@ -1,3 +1,8 @@
+// Host checks for Proximity-1 session control.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 13 — Prox-1 211.0 §6 MAC / DUPLEX + SET V(R) persistent.
 
 #include "heap_trap.hpp"

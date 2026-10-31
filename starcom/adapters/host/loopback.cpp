@@ -1,3 +1,8 @@
+// Copies one frame into a caller slot and copies it back out.
+// No state.
+// The caller owns FrameSlot.
+// Book: none.
+
 #include "starcom/adapters/loopback.hpp"
 
 #include <algorithm>

@@ -1,3 +1,8 @@
+// Host checks that the generated version text matches the version file.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // Generated starcom/version.hpp matches STARCOM_VERSION; git identity is live.
 
 #include "starcom/version.hpp"

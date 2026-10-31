@@ -1,3 +1,7 @@
+// CLCW fields and the pack and unpack calls. COP-1 sends it in the USLP OCF.
+// No state.
+// Book: CCSDS 232.0-B-4 section 4.2.1.
+
 #pragma once
 
 #include "starcom/result.hpp"

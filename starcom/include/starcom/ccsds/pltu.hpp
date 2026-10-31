@@ -1,3 +1,8 @@
+// PLTU view, encode, decode, hunt, and repeat calls.
+// No state.
+// The caller owns the buffers.
+// Book: CCSDS 211.2-B-3 figure 3-1, section 3.2.5.1, section 3.6, and Annex C.
+
 #pragma once
 
 #include "starcom/ccsds/crc.hpp"

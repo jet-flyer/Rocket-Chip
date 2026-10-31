@@ -1,3 +1,9 @@
+// Packs a Space Packet.
+// Unpacks a Space Packet.
+// No state.
+// The caller owns the buffers.
+// Book: CCSDS 133.0-B-2 section 4.1.3.3.3.4 and the field sections in space_packet.hpp.
+
 #include "starcom/ccsds/space_packet.hpp"
 
 #include <algorithm>

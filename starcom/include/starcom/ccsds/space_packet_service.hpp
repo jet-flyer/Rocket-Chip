@@ -1,3 +1,8 @@
+// Packet service and Octet String service for one APID table.
+// No state.
+// The caller owns SpacePacketService.
+// Book: CCSDS 133.0-B-2 sections 3.3, 3.4, 4.2, and 4.3.
+
 #pragma once
 
 #include "starcom/ccsds/space_packet.hpp"

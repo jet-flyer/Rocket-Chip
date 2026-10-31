@@ -1,3 +1,8 @@
+// Host checks for the frame slot.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 5 — host loopback, then generic radio port. Core stays sans-I/O.
 
 #include "heap_trap.hpp"

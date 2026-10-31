@@ -1,3 +1,8 @@
+// Checks the PHY tier, then encodes or decodes one uncoded PLTU.
+// No state.
+// The caller owns the buffers.
+// Book: none. CCSDS 211.1-B-4 is not claimed.
+
 #include "starcom/adapters/phy.hpp"
 
 namespace starcom::adapters {

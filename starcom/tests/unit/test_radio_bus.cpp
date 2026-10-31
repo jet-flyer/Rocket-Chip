@@ -1,3 +1,8 @@
+// Host checks for the SPI and GPIO templates.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 16 — generic SPI/GPIO radio port against a host fake bus.
 // No Pico SDK, no SX1276 / RFM types, no 211.1 claim.
 

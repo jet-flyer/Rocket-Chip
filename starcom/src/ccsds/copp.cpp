@@ -1,3 +1,7 @@
+// COP-P send and receive for one Proximity-1 link.
+// The caller owns CoppEndpoint.
+// Book: CCSDS 211.0-B-6 section 7.
+
 #include "starcom/ccsds/copp.hpp"
 
 #include "starcom/ccsds/pltu.hpp"
@@ -348,6 +352,9 @@ namespace {
 
 // Pico Core 0 stack is 4 KiB. Do not put kTransferFrameMax (2048) on the
 // stack in coppBytesToSend / coppSendPlcw (AO tick).
+// This file owns g_tfScratch.
+// Only coppBytesToSend uses it, directly or through coppSendPlcw and
+// coppEncodeUslp, which nothing else calls.
 std::array<std::byte, kTransferFrameMax> g_tfScratch{};
 
 void coppPushRx(CoppEndpoint& e, std::span<const std::byte> data) noexcept {

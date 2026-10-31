@@ -1,3 +1,8 @@
+// Host checks for the PLTU.
+// This file also runs the other host checks.
+// This file owns the check-fail count.
+// Book: none.
+
 // IVP increment 0+1 — PLTU / CRC (docs/TESTING.md, docs/IVP.md named vectors)
 // Accept: v3-header-only
 // Reject: bad-asm, truncated, bad-crc, tfvn-unknown, v3-length-oob

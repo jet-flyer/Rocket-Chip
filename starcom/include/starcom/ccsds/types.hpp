@@ -1,3 +1,7 @@
+// Shared ID types, octet bit order, frame size limits and the COP sequence half-range.
+// No state.
+// Book: CCSDS 211.2-B-3 section 1.6.3 and CCSDS 211.0-B-6 section 7.1.
+
 #pragma once
 
 #include <cstddef>

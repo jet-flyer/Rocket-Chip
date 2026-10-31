@@ -1,3 +1,8 @@
+// COP-P types and calls for one Proximity-1 link.
+// No state.
+// The caller owns CoppEndpoint.
+// Book: CCSDS 211.0-B-6 section 7.
+
 #pragma once
 
 #include "starcom/ccsds/plcw.hpp"

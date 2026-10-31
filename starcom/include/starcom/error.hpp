@@ -1,3 +1,7 @@
+// Closed set of codec error names.
+// No state.
+// Book: none.
+
 #pragma once
 
 #include <cstdint>

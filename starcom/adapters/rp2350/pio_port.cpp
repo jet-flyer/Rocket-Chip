@@ -1,4 +1,6 @@
-#include "starcom/adapters/pio_port.hpp"
+// Empty. pioShiftOut and pioShiftIn are templates in pio_port.hpp.
+// No PIO hardware code.
+// No state.
+// Book: none. CCSDS 211.1-B-4 is not claimed.
 
-// pioShiftOut and pioShiftIn are templates in the header.
-// This folder has no PIO hardware code.
+#include "starcom/adapters/pio_port.hpp"

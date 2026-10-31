@@ -1,3 +1,8 @@
+// Checks and prints the size of the large COP and frame types.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 24 — size report (D-3/D-5 library-craft). Host sizeof
 // of the types that blew Pico Core 0 (4 KiB, PICO_STACK_SIZE=0x1000).
 // Numbers are printed so the increment record is measured, not invented.

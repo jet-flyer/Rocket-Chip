@@ -1,3 +1,8 @@
+// Host checks for Version-3 user-defined data.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 14 — V-3 DFC 11 User Defined Data + simplex without hailing.
 // 211.0-B-6 Table 3-1, 3.2.3.5, 2.2.2.3; simplex 211.0 section 6.
 

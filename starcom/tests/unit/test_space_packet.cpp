@@ -1,3 +1,8 @@
+// Host checks for the Space Packet codec.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 0+1 — Space Packet (docs/TESTING.md, docs/IVP.md)
 // Accept: sp-idle; v3-one-sp-n (PLTU 18+N)
 // Reject: sp-too-short, sp-pvn, buffer_too_small

@@ -1,3 +1,8 @@
+// COP-1 types and calls for one virtual channel.
+// No state.
+// The caller owns Cop1Endpoint.
+// Book: CCSDS 232.1-B-2 sections 5 (FOP-1) and 6 (FARM-1).
+
 #pragma once
 
 #include "starcom/ccsds/clcw.hpp"

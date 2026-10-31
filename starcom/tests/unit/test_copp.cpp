@@ -1,3 +1,8 @@
+// Host checks for COP-P.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 2 — COP-P (211.0 §7 tables). docs/TESTING.md
 // FARM-P RE0–RE6; FOP-P SE0–SE4, SE7; canned PLTU → PLCW; host loop.
 

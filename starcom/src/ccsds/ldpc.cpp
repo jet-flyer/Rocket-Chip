@@ -1,3 +1,7 @@
+// Encodes (2048, 1024) LDPC blocks and applies the Proximity-1 randomizer.
+// No state.
+// Book: CCSDS 131.0-B-6 section 8.4. CCSDS 211.2-B-3 sections 3.4.4 and 3.4.5.
+
 #include "starcom/ccsds/ldpc.hpp"
 
 #include "starcom/ccsds/types.hpp"

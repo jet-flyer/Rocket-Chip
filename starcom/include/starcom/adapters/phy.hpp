@@ -1,3 +1,8 @@
+// Names the PHY tiers for an uncoded PLTU path.
+// No state.
+// The caller owns PhyDecl.
+// Book: none. CCSDS 211.1-B-4 is not claimed.
+
 #pragma once
 
 #include "starcom/ccsds/pltu.hpp"

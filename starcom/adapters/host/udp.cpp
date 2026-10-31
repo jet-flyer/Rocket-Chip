@@ -1,3 +1,8 @@
+// Sends and receives datagrams on a host UDP socket.
+// This file owns the Winsock start count on Windows.
+// The caller owns UdpSocket.
+// Book: none.
+
 #include "starcom/adapters/udp.hpp"
 
 #include <cstring>
@@ -21,6 +26,7 @@ namespace starcom::adapters {
 namespace {
 
 #if defined(_WIN32)
+// Windows starts the socket library on the first open and stops it on the last close.
 int g_wsa = 0;
 
 bool wsaAcquire() noexcept {

@@ -1,3 +1,8 @@
+// Host checks for the PHY tier gate.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 18 — PHY adapter tiers. Uncoded host path = 0+1 PLTU.
 // Not 211.1 compliant. No FPGA bitstream.
 

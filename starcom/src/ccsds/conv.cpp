@@ -1,3 +1,8 @@
+// Encodes the rate 1/2, constraint-length 7 convolutional code.
+// No state.
+// The caller owns ConvEnc.
+// Book: CCSDS 131.0-B-6 section 4.3. CCSDS 211.2-B-3 section 3.4.3 selects it.
+
 #include "starcom/ccsds/conv.hpp"
 
 #include "starcom/ccsds/types.hpp"

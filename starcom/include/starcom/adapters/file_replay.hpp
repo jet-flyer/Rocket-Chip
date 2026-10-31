@@ -1,3 +1,8 @@
+// Replays PLTU bytes from a host file into a caller sink.
+// No state.
+// The caller owns the path and the scratch.
+// Book: none.
+
 #pragma once
 
 #include "starcom/adapters/loopback.hpp"

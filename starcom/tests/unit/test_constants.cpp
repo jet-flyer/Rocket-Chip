@@ -1,3 +1,7 @@
+// Compile-time checks that named constants keep their values.
+// No state.
+// Book: none.
+
 #include "starcom/ccsds/clcw.hpp"
 #include "starcom/ccsds/cop1.hpp"
 #include "starcom/ccsds/copp.hpp"

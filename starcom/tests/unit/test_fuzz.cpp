@@ -1,3 +1,8 @@
+// Feeds fixed fill patterns and mutated copies of a known-good PLTU into the
+// decoders and the COP endpoints. Checks that nothing allocates.
+// This file owns the check-fail count, the two endpoints and their ready flag.
+// Book: none.
+
 // IVP increment 6 — short codec smoke (garbage prefixes).
 // IVP increment 24 — longer than 0..PLTU-min: book-max envelope, golden
 // mutate, hunt, COP receive. Fills are TFVN/ASM-relevant, not a random dump.

@@ -1,3 +1,8 @@
+// One transmit slot and one receive slot for a radio mailbox.
+// No state.
+// The caller owns RadioPort.
+// Book: none.
+
 #pragma once
 
 #include "starcom/adapters/loopback.hpp"

@@ -1,3 +1,8 @@
+// Known-bad clang-tidy fixture.
+// It is not linked.
+// This file owns the planted probe values.
+// Book: none.
+
 // tidy_probe.cpp: Tier 1.1 known-bad fixture for starcom/.clang-tidy.
 // Each marked line holds one planted defect. It is never built or linked.
 // starcom/scripts/tidy_selftest.sh runs clang-tidy on it and requires each

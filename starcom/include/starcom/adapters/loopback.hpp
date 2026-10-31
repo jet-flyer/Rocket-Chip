@@ -1,3 +1,8 @@
+// One frame slot and its read and write calls. HostLoopback pairs two slots.
+// No state.
+// The caller owns FrameSlot.
+// Book: none.
+
 #pragma once
 
 #include "starcom/ccsds/pltu.hpp"

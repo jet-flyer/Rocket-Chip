@@ -1,3 +1,8 @@
+// Host checks for the USLP transfer frame.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 3 + 9 — USLP Version-4 (732.1 §4.1 / annex D / annex B).
 
 #include "heap_trap.hpp"

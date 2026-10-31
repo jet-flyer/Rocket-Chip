@@ -1,3 +1,8 @@
+// Replaces global new and delete. Counts allocations while armed (and malloc,
+// calloc and realloc with STARCOM_HEAP_WRAP).
+// This file owns the arm flag and the count.
+// Book: none.
+
 #include "heap_trap.hpp"
 
 #include <atomic>

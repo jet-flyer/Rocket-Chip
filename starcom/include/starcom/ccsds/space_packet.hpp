@@ -1,3 +1,8 @@
+// Space Packet primary-header fields.
+// No state.
+// The caller owns the field values.
+// Book: CCSDS 133.0-B-2 sections 4.1.3.2.1, 4.1.3.3.4.1, 4.1.3.4.2.1, and 4.1.3.4.1.2.
+
 #pragma once
 
 #include "starcom/ccsds/types.hpp"

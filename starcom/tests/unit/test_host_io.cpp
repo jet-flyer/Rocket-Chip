@@ -1,3 +1,8 @@
+// Host checks for file replay and UDP.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 15 — host file replay and UDP. Core stays sans-I/O.
 
 #include "starcom/adapters/file_replay.hpp"

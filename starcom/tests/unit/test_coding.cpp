@@ -1,3 +1,8 @@
+// Host checks for the convolutional encoder and the LDPC encoder.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
 // IVP increment 19 — Prox-1 convolutional and LDPC encode.
 // 211.2 §3.4.3/3.4.4/3.4.5 → 131.0-B-5 §3.3 / §7.4. Encode only.
 
