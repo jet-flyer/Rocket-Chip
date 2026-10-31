@@ -364,14 +364,10 @@ starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
   return n;
 }
 
-// COMMAND_LONG is id + seq + 5 floats (JPL-25 ParameterThreshold is 6).
-// NOLINTNEXTLINE(readability-function-size)
 starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
-    BytePump& p, std::span<std::byte> out, uint16_t cmd_id, uint8_t seq,
-    float p1, float p2, float p3, float p4, float p5) noexcept {
+    BytePump& p, std::span<std::byte> out, const CmdSduFields& f) noexcept {
   uint8_t user[kCmdSduUserBytes] = {};
-  if (pack_cmd_sdu_user(user, sizeof(user), cmd_id, seq, p1, p2, p3, p4, p5) !=
-      kCmdSduUserBytes) {
+  if (pack_cmd_sdu_user(user, sizeof(user), f) != kCmdSduUserBytes) {
     return starcom::ccsds::Result<std::size_t>{
         tl::unexpect, starcom::ccsds::Error::buffer_too_small};
   }

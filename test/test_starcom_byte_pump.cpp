@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "starcom_adapt/byte_pump.h"
+#include "starcom_adapt/cmd_sdu.h"
 #include "starcom_adapt/nav_sdu.h"
 #include "rocketchip/radio_config_table.h"
 #include "flight_director/mission_profile_data.h"
@@ -49,6 +50,29 @@ using rc::starcom_adapt::pump_note_rx_seq;
 using rc::starcom_adapt::pump_pack_nav_packet;
 using rc::starcom_adapt::pump_pack_cmd_packet;
 using rc::starcom_adapt::pump_pack_ack_packet;
+
+TEST(StarcomBytePump, PinsKnownCommandPacketBytes) {
+    // Same user fields as CmdSdu.PinsKnownCommandBytes, first seq count 0.
+    constexpr uint8_t kPinned[6u + rc::kCmdSduUserBytes] = {
+        0x10, 0x03, 0xC0, 0x00, 0x00, 0x17,
+        0x90, 0x01, 0x07, 0x00,
+        0x00, 0x00, 0x80, 0x3F,
+        0x00, 0x00, 0x00, 0x40,
+        0x00, 0x00, 0x40, 0x40,
+        0x00, 0x00, 0x90, 0xC0,
+        0x00, 0x24, 0x74, 0x49,
+    };
+    static BytePump station{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    std::array<std::byte, 64> pkt{};
+    const rc::CmdSduFields fields{400, 7, {1.0F, 2.0F, 3.0F, -4.5F, 1.0e6F}};
+    const auto n = pump_pack_cmd_packet(station, pkt, fields);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_EQ(*n, sizeof(kPinned));
+    for (std::size_t i = 0; i < sizeof(kPinned); ++i) {
+        EXPECT_EQ(pkt[i], std::byte{kPinned[i]}) << i;
+    }
+}
 
 TEST(StarcomBytePump, NoRadioIncludesInPumpHeader) {
     // Compile-time: this TU includes the pump and never the radio.
@@ -176,7 +200,7 @@ TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_cmd_packet(station, pkt, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto pn = pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(pkt.data(), *pn), false)
@@ -238,7 +262,7 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s_plcw));
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -260,7 +284,7 @@ TEST(StarcomBytePump, PlcwThenSeqInOneContact) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -559,7 +583,7 @@ TEST(StarcomBytePump, ConnectingTDoesNotLeakSeq) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_start_session(station, true, 0);
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -878,7 +902,7 @@ TEST(StarcomBytePump, TokenPassThenStationSeqAd) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     bool cmd_queued = false;
     bool saw_token = false;
@@ -1157,7 +1181,7 @@ TEST(StarcomBytePump, FarmSeqCmdAfterLockViaHandleAir) {
     EXPECT_EQ(vehicle.copp.farm.v_r, 0u);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -1196,7 +1220,7 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     pump_start_session(vehicle, false, 0);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 0, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 0, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     rc::ccsds::CommandAckPayload ack{};
     ack.cmd_id = 400;
@@ -1401,7 +1425,7 @@ TEST(StarcomBytePump, SpaceSeqNavCmdAckIndependent) {
     EXPECT_EQ(decoded_seq(pkt), 1u);
 
     ASSERT_TRUE(
-        pump_pack_cmd_packet(station, pkt, 400, 1, 0, 0, 0, 0, 0).has_value());
+        pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 1, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}}).has_value());
     EXPECT_EQ(decoded_seq(pkt), 0u);
     const auto cmd = starcom::ccsds::decodeSpacePacket(pkt);
     ASSERT_TRUE(cmd.has_value());
@@ -1409,7 +1433,7 @@ TEST(StarcomBytePump, SpaceSeqNavCmdAckIndependent) {
     EXPECT_EQ(cmd->fields.apid, kCmdApid);
 
     ASSERT_TRUE(
-        pump_pack_cmd_packet(station, pkt, 400, 2, 0, 0, 0, 0, 0).has_value());
+        pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 2, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}}).has_value());
     EXPECT_EQ(decoded_seq(pkt), 1u);
     ASSERT_TRUE(pump_pack_ack_packet(vehicle, pkt, ack).has_value());
     EXPECT_EQ(decoded_seq(pkt), 2u);
@@ -1450,7 +1474,7 @@ TEST(StarcomBytePump, SpaceSeqRxLostOnGap) {
     std::uint16_t cmd_seq[4] = {};
     for (int i = 0; i < 4; ++i) {
         const auto n =
-            pump_pack_cmd_packet(station, pkt, 400, 0, 0, 0, 0, 0, 0);
+            pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 0, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
         ASSERT_TRUE(n.has_value());
         cmd_seq[i] = decoded_seq(std::span<const std::byte>(pkt.data(), *n));
     }

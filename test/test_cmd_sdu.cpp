@@ -5,20 +5,36 @@
 #include <gtest/gtest.h>
 #include "starcom_adapt/cmd_sdu.h"
 
+TEST(CmdSdu, PinsKnownCommandBytes) {
+    // cmd_id 400, seq 7, p = 1.0, 2.0, 3.0, -4.5, 1e6. Little-endian floats.
+    constexpr uint8_t kPinned[rc::kCmdSduUserBytes] = {
+        0x90, 0x01, 0x07, 0x00,
+        0x00, 0x00, 0x80, 0x3F,
+        0x00, 0x00, 0x00, 0x40,
+        0x00, 0x00, 0x40, 0x40,
+        0x00, 0x00, 0x90, 0xC0,
+        0x00, 0x24, 0x74, 0x49,
+    };
+    uint8_t buf[rc::kCmdSduUserBytes] = {};
+    const rc::CmdSduFields fields{400, 7, {1.0F, 2.0F, 3.0F, -4.5F, 1.0e6F}};
+    ASSERT_EQ(rc::pack_cmd_sdu_user(buf, sizeof(buf), fields),
+              rc::kCmdSduUserBytes);
+    for (uint8_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
+        EXPECT_EQ(buf[i], kPinned[i]) << "index " << static_cast<unsigned>(i);
+    }
+}
+
 TEST(CmdSdu, PackUnpackCommand) {
     uint8_t buf[rc::kCmdSduUserBytes] = {};
-    ASSERT_EQ(rc::pack_cmd_sdu_user(buf, sizeof(buf), 400, 7, 1.0F, 2.0F, 3.0F,
-                                    4.0F, 5.0F),
+    const rc::CmdSduFields fields{400, 7, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F}};
+    ASSERT_EQ(rc::pack_cmd_sdu_user(buf, sizeof(buf), fields),
               rc::kCmdSduUserBytes);
-    uint16_t cmd_id = 0;
-    uint8_t seq = 0;
-    float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
-    ASSERT_TRUE(rc::unpack_cmd_sdu_user(buf, sizeof(buf), &cmd_id, &seq, &p1,
-                                        &p2, &p3, &p4, &p5));
-    EXPECT_EQ(cmd_id, 400);
-    EXPECT_EQ(seq, 7);
-    EXPECT_FLOAT_EQ(p1, 1.0F);
-    EXPECT_FLOAT_EQ(p5, 5.0F);
+    rc::CmdSduFields out{};
+    ASSERT_TRUE(rc::unpack_cmd_sdu_user(buf, sizeof(buf), out));
+    EXPECT_EQ(out.cmd_id, 400);
+    EXPECT_EQ(out.seq, 7);
+    EXPECT_FLOAT_EQ(out.p[0], 1.0F);
+    EXPECT_FLOAT_EQ(out.p[4], 5.0F);
 }
 
 TEST(CmdSdu, PackUnpackAck) {
@@ -39,6 +55,6 @@ TEST(CmdSdu, PackUnpackAck) {
 
 TEST(CmdSdu, RejectsShortBuffer) {
     uint8_t tiny[4] = {};
-    EXPECT_EQ(rc::pack_cmd_sdu_user(tiny, sizeof(tiny), 400, 0, 0, 0, 0, 0, 0),
-              0);
+    const rc::CmdSduFields fields{400, 0, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}};
+    EXPECT_EQ(rc::pack_cmd_sdu_user(tiny, sizeof(tiny), fields), 0);
 }

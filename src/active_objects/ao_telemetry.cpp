@@ -985,9 +985,7 @@ static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data,
 }
 
 static bool starcom_handle_cmd_sdu(TelemAo* me, std::span<const std::byte> data) {
-    uint16_t cmd_id = 0;
-    uint8_t seq = 0;
-    float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
+    rc::CmdSduFields fields{};
     uint8_t user[rc::kCmdSduUserBytes];
     if (data.size() != rc::kCmdSduUserBytes) {
         return false;
@@ -995,20 +993,20 @@ static bool starcom_handle_cmd_sdu(TelemAo* me, std::span<const std::byte> data)
     for (std::size_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
         user[i] = static_cast<uint8_t>(data[i]);
     }
-    if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, &cmd_id, &seq,
-                                 &p1, &p2, &p3, &p4, &p5)) {
+    if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, fields)) {
         return false;
     }
     mavlink_command_long_t cmd{};
-    cmd.command = cmd_id;
-    cmd.confirmation = seq;
-    cmd.param1 = p1;
-    cmd.param2 = p2;
-    cmd.param3 = p3;
-    cmd.param4 = p4;
-    cmd.param5 = p5;
+    cmd.command = fields.cmd_id;
+    cmd.confirmation = fields.seq;
+    cmd.param1 = fields.p[0];
+    cmd.param2 = fields.p[1];
+    cmd.param3 = fields.p[2];
+    cmd.param4 = fields.p[3];
+    cmd.param5 = fields.p[4];
     rc::rc_log("[SC] cmd SDU id=%u seq=%u\n",
-               static_cast<unsigned>(cmd_id), static_cast<unsigned>(seq));
+               static_cast<unsigned>(fields.cmd_id),
+               static_cast<unsigned>(fields.seq));
     const uint8_t ack_result = dispatch_command(me, cmd);
     stage_cmd_ack(cmd, ack_result);
     send_pending_ack_if_any();
@@ -1404,8 +1402,8 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     const MavCmdParams params{p1, p2, p3, p4, p5};
     populate_pending(command, seq, params);
     std::byte pkt[6u + rc::kCmdSduUserBytes];
-    const auto n = rc::starcom_adapt::pump_pack_cmd_packet(
-        g_pump, pkt, command, seq, p1, p2, p3, p4, p5);
+    const rc::CmdSduFields fields{command, seq, {p1, p2, p3, p4, p5}};
+    const auto n = rc::starcom_adapt::pump_pack_cmd_packet(g_pump, pkt, fields);
     if (n.has_value() && *n > 0) {
         const auto sub = rc::starcom_adapt::pump_submit_sdu(
             g_pump, std::span<const std::byte>(pkt, *n), false);

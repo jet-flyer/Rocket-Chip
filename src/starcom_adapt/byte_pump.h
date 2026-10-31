@@ -19,6 +19,7 @@
 #include "starcom/result.hpp"
 #include "rocketchip/telemetry_state.h"
 #include "rocketchip/telemetry_encoder.h"
+#include "starcom_adapt/cmd_sdu.h"
 
 #include <array>
 #include <cstddef>
@@ -82,8 +83,7 @@ starcom::ccsds::Result<std::size_t> pump_encode_nav(
 starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
     BytePump& p, std::span<std::byte> out, const TelemetryState& telem) noexcept;
 starcom::ccsds::Result<std::size_t> pump_pack_cmd_packet(
-    BytePump& p, std::span<std::byte> out, uint16_t cmd_id, uint8_t seq,
-    float p1, float p2, float p3, float p4, float p5) noexcept;
+    BytePump& p, std::span<std::byte> out, const CmdSduFields& f) noexcept;
 starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
     BytePump& p, std::span<std::byte> out,
     const ccsds::CommandAckPayload& ack) noexcept;
