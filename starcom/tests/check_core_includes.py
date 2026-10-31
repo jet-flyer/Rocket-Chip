@@ -24,7 +24,7 @@ def _is_listed(path: Path) -> bool:
 def _scan_file(path: Path, root: Path) -> list[str]:
     hits: list[str] = []
     rel = path.relative_to(root).as_posix()
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
     for number, line in enumerate(text.splitlines(), start=1):
         if _INCLUDE_RE.match(line):
             hits.append(f"{rel}:{number}")
@@ -45,6 +45,7 @@ def main(argv: list[str]) -> int:
     if root is None:
         return 1
     missing = False
+    scanned = 0
     hits: list[str] = []
     for folder in ("src", "include"):
         base = root / folder
@@ -54,8 +55,12 @@ def main(argv: list[str]) -> int:
             continue
         for path in sorted(base.rglob("*")):
             if path.is_file() and _is_listed(path):
+                scanned += 1
                 hits.extend(_scan_file(path, root))
     if missing:
+        return 1
+    if scanned == 0:
+        print(f"{root.as_posix()}: no source files scanned")
         return 1
     if hits:
         for hit in hits:
