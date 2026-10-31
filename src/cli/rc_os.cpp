@@ -443,6 +443,12 @@ bool rc_os_update() {
         return drain_gcs_exclusive();
     }
 
+    // Leave the byte for poll_dashboard_keys on the station ANSI pad.
+    if (rc::dashboard_owns_usb_keys(job::kRadioModeRx,
+                                    AO_RCOS_get_output_mode())) {
+        return false;
+    }
+
     const int c = getchar_timeout_us(0);
     if (c == PICO_ERROR_TIMEOUT) {
         return false;

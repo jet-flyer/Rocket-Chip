@@ -7,6 +7,7 @@
 #define ROCKETCHIP_GCS_MAVLINK_H
 
 #include <stdint.h>
+#include "rocketchip/station_output_mode.h"
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/telemetry_state.h"
 
@@ -102,6 +103,14 @@ inline bool gcs_usb_disconnect_expired(bool connected, uint32_t now_ms,
         return false;
     }
     return (now_ms - *since_ms) >= kGcsUsbDisconnectDebounceMs;
+}
+
+// The ANSI pad reads USB keys in poll_dashboard_keys. This applies to every
+// job with job::kRadioModeRx set: the station and the relay. Menu, CSV,
+// MAVLink, and the vehicle keep the byte for rc_os_update.
+[[nodiscard]] inline bool dashboard_owns_usb_keys(bool radio_rx_job,
+                                                  StationOutputMode mode) {
+    return radio_rx_job && (mode == StationOutputMode::kAnsi);
 }
 
 }  // namespace rc
