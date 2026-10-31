@@ -18,7 +18,7 @@ namespace starcom::ccsds {
   if ((b0 >> kSpVersionShift) != 0U) {
     return tl::unexpected(Error::sp_pvn);
   }
-  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(packet[4]) << 8) |
+  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(packet[4]) << 8U) |
                             std::to_integer<std::uint32_t>(packet[5]);
   const std::size_t data_len = static_cast<std::size_t>(length_c) + 1U;
   const std::size_t need = kSpacePacketHeaderSize + data_len;
@@ -30,12 +30,12 @@ namespace starcom::ccsds {
   view.fields.telecommand = (b0 & 0x10U) != 0;
   view.fields.secondary_header = (b0 & 0x08U) != 0;
   const std::uint32_t apid =
-      ((b0 & kSpApidHighMask) << 8) | std::to_integer<std::uint32_t>(packet[1]);
+      ((b0 & kSpApidHighMask) << 8U) | std::to_integer<std::uint32_t>(packet[1]);
   view.fields.apid = Apid{static_cast<std::uint16_t>(apid)};
   const std::uint32_t b2 = std::to_integer<std::uint32_t>(packet[2]);
   view.fields.seq_flags = static_cast<std::uint8_t>((b2 >> kSpSeqFlagsShift) & 0x03U);
   view.fields.seq_count = static_cast<std::uint16_t>(
-      ((b2 & kSpSeqCountHighMask) << 8) | std::to_integer<std::uint32_t>(packet[3]));
+      ((b2 & kSpSeqCountHighMask) << 8U) | std::to_integer<std::uint32_t>(packet[3]));
   view.data = packet.subspan(kSpacePacketHeaderSize, data_len);
   return view;
 }
@@ -60,11 +60,11 @@ namespace starcom::ccsds {
 
   out[0] = std::byte((fields.telecommand ? 0x10U : 0U) |
                      (secondary ? 0x08U : 0U) |
-                     ((apid >> 8) & kSpApidHighMask));
+                     ((apid >> 8U) & kSpApidHighMask));
   out[1] = std::byte(apid & 0xFFU);
-  out[2] = std::byte((flags << kSpSeqFlagsShift) | ((seq >> 8) & kSpSeqCountHighMask));
+  out[2] = std::byte((flags << kSpSeqFlagsShift) | ((seq >> 8U) & kSpSeqCountHighMask));
   out[3] = std::byte(seq & 0xFFU);
-  out[4] = std::byte((c >> 8) & 0xFFU);
+  out[4] = std::byte((c >> 8U) & 0xFFU);
   out[kSpacePacketHeaderSize - 1] = std::byte(c & 0xFFU);
   std::copy(data.begin(), data.end(),
             out.begin() + static_cast<std::ptrdiff_t>(kSpacePacketHeaderSize));

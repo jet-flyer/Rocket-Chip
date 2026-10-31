@@ -34,6 +34,7 @@ using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
 using starcom::ccsds::kUslpConstructionNoSeg;
 using starcom::ccsds::kUslpFrameMin;
+using starcom::ccsds::kUslpPrimaryHeaderMin;
 using starcom::ccsds::kUslpUpidSpacePacket;
 using starcom::ccsds::MapId;
 using starcom::ccsds::SpacePacketFields;
@@ -142,6 +143,24 @@ void test_pointer_rule_and_ocf() {
   CHECK(v->tfdz.size() == 4);
   CHECK(v->ocf.size() == 4);
   CHECK(v->ocf[3] == std::byte{9});
+}
+
+// Bit 15 of the 16-bit TFDF pointer. The other pointer test uses 0x0002.
+void test_pointer_top_bit() {
+  UslpFields f{};
+  f.tfdz_construction = 0b001;
+  f.tfdz_pointer = 0x80FF;
+  const std::array<std::byte, 1> tfdz{std::byte{0x5A}};
+  std::array<std::byte, 32> out{};
+  const auto n = encodeUslp(out, f, asSpan(tfdz));
+  CHECK(n.has_value());
+  // 7 + 3 TFDF + 1 TFDZ = 11. Pointer octets are TFDF[1] and TFDF[2].
+  CHECK(*n == 11u);
+  CHECK(out[kUslpPrimaryHeaderMin + 1] == std::byte{0x80});
+  CHECK(out[kUslpPrimaryHeaderMin + 2] == std::byte{0xFF});
+  const auto v = decodeUslp(std::span<const std::byte>(out.data(), *n));
+  CHECK(v.has_value());
+  CHECK(v->fields.tfdz_pointer == 0x80FF);
 }
 
 void test_pltu_composition() {
@@ -331,6 +350,7 @@ int run_uslp_tests() {
   test_encode_min_matches_golden();
   test_roundtrip_populated();
   test_pointer_rule_and_ocf();
+  test_pointer_top_bit();
   test_pltu_composition();
   test_space_packet_in_uslp_pltu();
   test_reject_tfvn();

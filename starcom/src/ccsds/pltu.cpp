@@ -15,15 +15,15 @@ namespace {
 
 std::uint32_t loadBe32(std::span<const std::byte, kPltuCrcSize> bytes) noexcept {
   return (std::to_integer<std::uint32_t>(bytes[0]) << kBe32HiShift) |
-         (std::to_integer<std::uint32_t>(bytes[1]) << 16) |
-         (std::to_integer<std::uint32_t>(bytes[2]) << 8) |
+         (std::to_integer<std::uint32_t>(bytes[1]) << 16U) |
+         (std::to_integer<std::uint32_t>(bytes[2]) << 8U) |
          (std::to_integer<std::uint32_t>(bytes[3]));
 }
 
 void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   dest[0] = std::byte((value >> kBe32HiShift) & 0xFFU);
-  dest[1] = std::byte((value >> 16) & 0xFFU);
-  dest[2] = std::byte((value >> 8) & 0xFFU);
+  dest[1] = std::byte((value >> 16U) & 0xFFU);
+  dest[2] = std::byte((value >> 8U) & 0xFFU);
   dest[3] = std::byte(value & 0xFFU);
 }
 
@@ -32,7 +32,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t length_c =
-      ((std::to_integer<std::uint32_t>(rest[2]) & 0x07U) << 8) |
+      ((std::to_integer<std::uint32_t>(rest[2]) & 0x07U) << 8U) |
       std::to_integer<std::uint32_t>(rest[3]);
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
@@ -43,7 +43,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
 
 [[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
                                    std::size_t uslp_truncated_len) noexcept {
-  const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4;
+  const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4U;
   if (tfvn4 != kTfvnUslp) {
     return tl::unexpected(Error::tfvn_unknown);
   }
@@ -62,7 +62,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   if (rest.size() < kUslpLengthHeaderOctets) {
     return tl::unexpected(Error::truncated);
   }
-  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(rest[4]) << 8) |
+  const std::uint32_t length_c = (std::to_integer<std::uint32_t>(rest[4]) << 8U) |
                             std::to_integer<std::uint32_t>(rest[5]);
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
@@ -84,7 +84,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   if (rest.empty()) {
     return tl::unexpected(Error::truncated);
   }
-  const std::uint32_t tfvn2 = std::to_integer<std::uint32_t>(rest[0]) >> 6;
+  const std::uint32_t tfvn2 = std::to_integer<std::uint32_t>(rest[0]) >> 6U;
   const auto frame_len = (tfvn2 == 0b10U) ? v3FrameLen(rest)
                        : (tfvn2 == 0b11U) ? uslpFrameLen(rest, uslp_truncated_len)
                        : Result<std::size_t>{tl::unexpect, Error::tfvn_unknown};

@@ -19,10 +19,10 @@ constexpr std::uint32_t kG2 = 0b1011011U;
 
 void encodeBit(ConvEnc& enc, std::uint32_t in_bit, std::uint32_t& c1, std::uint32_t& c2) noexcept {
   // 7-bit register: bit6 = input, bits5..0 = delay line (newest..oldest).
-  const std::uint32_t v = ((in_bit & 1U) << 6) | (enc.mem & 0x3FU);
+  const std::uint32_t v = ((in_bit & 1U) << 6U) | (enc.mem & 0x3FU);
   c1 = static_cast<std::uint32_t>(std::popcount(v & kG1)) & 1U;
   c2 = (static_cast<std::uint32_t>(std::popcount(v & kG2)) & 1U) ^ 1U;  // G2 symbol inversion
-  enc.mem = static_cast<std::uint8_t>(v >> 1);
+  enc.mem = static_cast<std::uint8_t>(v >> 1U);
 }
 
 }  // namespace
@@ -35,15 +35,15 @@ void encodeBit(ConvEnc& enc, std::uint32_t in_bit, std::uint32_t& c1, std::uint3
     return tl::unexpected(Error::buffer_too_small);
   }
   std::size_t o = 0;
-  for (std::byte octet : in) {
+  for (const std::byte octet : in) {
     std::uint32_t acc = 0;
     std::uint32_t nbits = 0;
     const std::uint32_t value = std::to_integer<std::uint32_t>(octet);
     for (std::int32_t i = static_cast<std::int32_t>(kOctetMsb); i >= 0; --i) {
       std::uint32_t c1 = 0;
       std::uint32_t c2 = 0;
-      encodeBit(enc, (value >> i) & 1U, c1, c2);
-      acc = (acc << 2) | (c1 << 1) | c2;
+      encodeBit(enc, (value >> static_cast<std::uint32_t>(i)) & 1U, c1, c2);
+      acc = (acc << 2U) | (c1 << 1U) | c2;
       nbits += 2;
       if (nbits == 8) {
         out[o++] = std::byte{static_cast<std::uint8_t>(acc)};

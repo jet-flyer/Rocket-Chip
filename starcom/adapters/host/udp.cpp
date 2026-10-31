@@ -226,7 +226,7 @@ ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
   if (!netAcquire()) {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  Native sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  const Native sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (sock == kInvalid) {
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);

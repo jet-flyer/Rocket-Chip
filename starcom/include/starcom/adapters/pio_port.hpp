@@ -26,10 +26,10 @@ template <class Pio>
   if (octets.empty()) {
     return std::size_t{0};
   }
-  for (std::byte b : octets) {
+  for (const std::byte b : octets) {
     const auto v = static_cast<std::uint32_t>(b);
     for (std::int32_t i = static_cast<std::int32_t>(ccsds::kOctetMsb); i >= 0; --i) {
-      pio.putBit(((v >> i) & 1U) != 0);
+      pio.putBit(((v >> static_cast<std::uint32_t>(i)) & 1U) != 0);
     }
   }
   return octets.size();
@@ -47,7 +47,7 @@ template <class Pio>
   for (std::size_t i = 0; i < n_octets; ++i) {
     std::uint32_t v = 0;
     for (std::int32_t b = 0; b < 8; ++b) {
-      v = (v << 1) | (pio.getBit() ? 1U : 0U);
+      v = (v << 1U) | (pio.getBit() ? 1U : 0U);
     }
     out[i] = static_cast<std::byte>(v);
   }

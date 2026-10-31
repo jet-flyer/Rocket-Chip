@@ -19,7 +19,7 @@ namespace starcom::ccsds {
     return tl::unexpected(Error::tfvn_unknown);
   }
   const std::uint32_t length_c =
-      ((std::to_integer<std::uint32_t>(frame[2]) & kV3LengthHighMask) << 8) |
+      ((std::to_integer<std::uint32_t>(frame[2]) & kV3LengthHighMask) << 8U) |
       std::to_integer<std::uint32_t>(frame[3]);
   // The stored length is the frame length minus 1.
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
@@ -33,12 +33,12 @@ namespace starcom::ccsds {
   V3View view{};
   view.fields.qos_expedited = (b0 & 0x20U) != 0;
   view.fields.p_frame = (b0 & 0x10U) != 0;
-  view.fields.dfc_id = static_cast<std::uint8_t>((b0 >> 2) & 0x03U);
-  const std::uint32_t scid = ((b0 & 0x03U) << 8) | std::to_integer<std::uint32_t>(frame[1]);
+  view.fields.dfc_id = static_cast<std::uint8_t>((b0 >> 2U) & 0x03U);
+  const std::uint32_t scid = ((b0 & 0x03U) << 8U) | std::to_integer<std::uint32_t>(frame[1]);
   view.fields.scid = Scid{static_cast<std::uint16_t>(scid)};
   const std::uint32_t b2 = std::to_integer<std::uint32_t>(frame[2]);
   view.fields.pcid = Pcid{static_cast<std::uint8_t>((b2 >> kV3PcidShift) & 0x01U)};
-  view.fields.port_id = PortId{static_cast<std::uint8_t>((b2 >> 4) & kV3PortMask)};
+  view.fields.port_id = PortId{static_cast<std::uint8_t>((b2 >> 4U) & kV3PortMask)};
   view.fields.destination = (b2 & 0x08U) != 0;
   view.fields.fsn = std::to_integer<std::uint8_t>(frame[4]);
   view.data = frame.subspan(kV3HeaderSize, frame_len - kV3HeaderSize);
@@ -66,11 +66,11 @@ namespace starcom::ccsds {
   }
 
   out[0] = std::byte((kTfvnV3 << kV3TfvnShift) | (fields.qos_expedited ? 0x20U : 0U) |
-                     (fields.p_frame ? 0x10U : 0U) | (dfc << 2) |
-                     ((scid >> 8) & 0x03U));
+                     (fields.p_frame ? 0x10U : 0U) | (dfc << 2U) |
+                     ((scid >> 8U) & 0x03U));
   out[1] = std::byte(scid & 0xFFU);
-  out[2] = std::byte((pcid << kV3PcidShift) | (port << 4) |
-                     (fields.destination ? 0x08U : 0U) | ((c >> 8) & kV3LengthHighMask));
+  out[2] = std::byte((pcid << kV3PcidShift) | (port << 4U) |
+                     (fields.destination ? 0x08U : 0U) | ((c >> 8U) & kV3LengthHighMask));
   out[3] = std::byte(c & 0xFFU);
   out[4] = std::byte(fields.fsn);
   if (!data.empty()) {

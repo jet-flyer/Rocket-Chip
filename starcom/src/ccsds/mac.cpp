@@ -124,9 +124,9 @@ void queueSetVr(MacSession& m) noexcept {
 }
 
 std::uint8_t rev8(std::uint8_t x) noexcept {
-  x = static_cast<std::uint8_t>(((x & kRev8NibbleHi) >> 4) | ((x & kRev8NibbleLo) << 4));
-  x = static_cast<std::uint8_t>(((x & kRev8PairHi) >> 2) | ((x & kRev8PairLo) << 2));
-  x = static_cast<std::uint8_t>(((x & kRev8BitHi) >> 1) | ((x & kRev8BitLo) << 1));
+  x = static_cast<std::uint8_t>(((x & kRev8NibbleHi) >> 4U) | ((x & kRev8NibbleLo) << 4U));
+  x = static_cast<std::uint8_t>(((x & kRev8PairHi) >> 2U) | ((x & kRev8PairLo) << 2U));
+  x = static_cast<std::uint8_t>(((x & kRev8BitHi) >> 1U) | ((x & kRev8BitLo) << 1U));
   return x;
 }
 
@@ -135,7 +135,7 @@ std::uint8_t rev8(std::uint8_t x) noexcept {
     return tl::unexpected(Error::buffer_too_small);
   }
   out[0] = std::byte{static_cast<std::uint8_t>(book)};
-  out[1] = std::byte{rev8(static_cast<std::uint8_t>(book >> 8))};
+  out[1] = std::byte{rev8(static_cast<std::uint8_t>(book >> 8U))};
   return std::size_t{2};
 }
 
@@ -145,7 +145,7 @@ std::uint8_t rev8(std::uint8_t x) noexcept {
   }
   const auto lo = std::to_integer<std::uint8_t>(octets[0]);
   const auto hi = rev8(std::to_integer<std::uint8_t>(octets[1]));
-  return static_cast<std::uint16_t>(lo | (static_cast<std::uint16_t>(hi) << 8));
+  return static_cast<std::uint16_t>(lo | (static_cast<std::uint32_t>(hi) << 8U));
 }
 
 bool appendQueue(MacSession& m, std::span<const std::byte> src) noexcept {
@@ -1150,10 +1150,10 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
                                   bool transmitter) noexcept {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.mode & kPhyModeMask);
-  book |= static_cast<std::uint16_t>(p.data_rate & kPhyRateMask) << 3;
-  book |= static_cast<std::uint16_t>(p.modulation & 0x01U) << kPhyModBit;
-  book |= static_cast<std::uint16_t>(p.encoding & 0x03U) << 8;
-  book |= static_cast<std::uint16_t>(p.frequency & kPhyFreqMask) << kPhyFreqShift;
+  book |= static_cast<std::uint32_t>(p.data_rate & kPhyRateMask) << 3U;
+  book |= static_cast<std::uint32_t>(p.modulation & 0x01U) << kPhyModBit;
+  book |= static_cast<std::uint32_t>(p.encoding & 0x03U) << 8U;
+  book |= static_cast<std::uint32_t>(p.frequency & kPhyFreqMask) << kPhyFreqShift;
   if (!transmitter) {
     book |= static_cast<std::uint16_t>(1U << kDirTypeMid);  // type 010, LSB at bit 15
   }
@@ -1167,9 +1167,9 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
-                        (((w >> kDirTypeMid) & 1U) << 1) |
-                        (((w >> kDirTypeMsb) & 1U) << 2);
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
   if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
@@ -1178,10 +1178,10 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
   }
   MacPhyParams p{};
   p.mode = static_cast<std::uint8_t>(w & kPhyModeMask);
-  p.data_rate = static_cast<std::uint8_t>((w >> 3) & kPhyRateMask);
-  p.modulation = static_cast<std::uint8_t>((w >> kPhyModBit) & 0x01U);
-  p.encoding = static_cast<std::uint8_t>((w >> 8) & 0x03U);
-  p.frequency = static_cast<std::uint8_t>((w >> kPhyFreqShift) & kPhyFreqMask);
+  p.data_rate = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 3U) & kPhyRateMask);
+  p.modulation = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPhyModBit) & 0x01U);
+  p.encoding = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 8U) & 0x03U);
+  p.frequency = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPhyFreqShift) & kPhyFreqMask);
   return p;
 }
 
@@ -1189,7 +1189,7 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
                                       MacControlParams const& p) noexcept {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.time_sample & kCtrlTimeMask);
-  book |= static_cast<std::uint16_t>(p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
+  book |= static_cast<std::uint32_t>(p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
   if (p.rnmd) {
     book |= static_cast<std::uint16_t>(1U << kCtrlRnmdBit);
   }
@@ -1206,17 +1206,17 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
-                        (((w >> kDirTypeMid) & 1U) << 1) |
-                        (((w >> kDirTypeMsb) & 1U) << 2);
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
   if (type != kSetControlDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
   MacControlParams p{};
   p.time_sample = static_cast<std::uint8_t>(w & kCtrlTimeMask);
-  p.duplex = static_cast<std::uint8_t>((w >> kCtrlDuplexShift) & kCtrlDuplexMask);
-  p.rnmd = ((w >> kCtrlRnmdBit) & 1U) != 0;
-  p.pass = ((w >> kCtrlPassBit) & 1U) != 0;
+  p.duplex = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kCtrlDuplexShift) & kCtrlDuplexMask);
+  p.rnmd = ((static_cast<std::uint32_t>(w) >> kCtrlRnmdBit) & 1U) != 0;
+  p.pass = ((static_cast<std::uint32_t>(w) >> kCtrlPassBit) & 1U) != 0;
   return p;
 }
 
@@ -1226,15 +1226,15 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     book |= 1U;
   }
   if (p.freq_table) {
-    book |= static_cast<std::uint16_t>(1U << 1);
+    book |= static_cast<std::uint16_t>(1U << 1U);
   }
   if (p.rate_table) {
-    book |= static_cast<std::uint16_t>(1U << 2);
+    book |= static_cast<std::uint16_t>(1U << 2U);
   }
-  book |= static_cast<std::uint16_t>(p.carrier_mod & 0x03U) << 3;
-  book |= static_cast<std::uint16_t>(p.data_mod & 0x03U) << kPlExtDataShift;
-  book |= static_cast<std::uint16_t>(p.mode_select & 0x03U) << kPlExtModeShift;
-  book |= static_cast<std::uint16_t>(p.scrambler & 0x03U) << kPlExtScramShift;
+  book |= static_cast<std::uint32_t>(p.carrier_mod & 0x03U) << 3U;
+  book |= static_cast<std::uint32_t>(p.data_mod & 0x03U) << kPlExtDataShift;
+  book |= static_cast<std::uint32_t>(p.mode_select & 0x03U) << kPlExtModeShift;
+  book |= static_cast<std::uint32_t>(p.scrambler & 0x03U) << kPlExtScramShift;
   if (p.diff_mark) {
     book |= static_cast<std::uint16_t>(1U << kPlExtDiffBit);
   }
@@ -1252,22 +1252,22 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const std::uint32_t type = ((w >> kDirTypeLsb) & 1U) |
-                        (((w >> kDirTypeMid) & 1U) << 1) |
-                        (((w >> kDirTypeMsb) & 1U) << 2);
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
   if (type != kSetPlExtDirectiveType) {
     return tl::unexpected(Error::truncated);
   }
   MacPlExt p{};
   p.direction = (w & 1U) != 0;
-  p.freq_table = ((w >> 1) & 1U) != 0;
-  p.rate_table = ((w >> 2) & 1U) != 0;
-  p.carrier_mod = static_cast<std::uint8_t>((w >> 3) & 0x03U);
-  p.data_mod = static_cast<std::uint8_t>((w >> kPlExtDataShift) & 0x03U);
-  p.mode_select = static_cast<std::uint8_t>((w >> kPlExtModeShift) & 0x03U);
-  p.scrambler = static_cast<std::uint8_t>((w >> kPlExtScramShift) & 0x03U);
-  p.diff_mark = ((w >> kPlExtDiffBit) & 1U) != 0;
-  p.rs_code = ((w >> kPlExtRsBit) & 1U) != 0;
+  p.freq_table = ((static_cast<std::uint32_t>(w) >> 1U) & 1U) != 0;
+  p.rate_table = ((static_cast<std::uint32_t>(w) >> 2U) & 1U) != 0;
+  p.carrier_mod = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 3U) & 0x03U);
+  p.data_mod = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtDataShift) & 0x03U);
+  p.mode_select = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtModeShift) & 0x03U);
+  p.scrambler = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtScramShift) & 0x03U);
+  p.diff_mark = ((static_cast<std::uint32_t>(w) >> kPlExtDiffBit) & 1U) != 0;
+  p.rs_code = ((static_cast<std::uint32_t>(w) >> kPlExtRsBit) & 1U) != 0;
   return p;
 }
 

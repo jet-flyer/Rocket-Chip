@@ -119,7 +119,7 @@ Plcw16 farmPReport(FarmP const& f, Pcid pcid) noexcept {
 }
 
 void fopPInit(FopP& f, CoppMib const& mib) noexcept {
-  CoppMib keep = mib;
+  const CoppMib keep = mib;
   std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = keep;
   if (f.mib.transmission_window > kFopPSentCap) {

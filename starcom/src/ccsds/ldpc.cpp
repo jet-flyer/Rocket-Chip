@@ -161,13 +161,13 @@ constexpr std::uint32_t kPnRegMsb = 7U;
 void pnXor(std::span<std::byte> octets) noexcept {
   std::uint8_t r = 0xFF;
   for (std::byte& o : octets) {
-    std::uint32_t v = std::to_integer<std::uint32_t>(o);
+    const std::uint32_t v = std::to_integer<std::uint32_t>(o);
     std::uint32_t acc = 0;
     for (std::int32_t b = static_cast<std::int32_t>(kOctetMsb); b >= 0; --b) {
       const std::uint32_t out = r & 1U;
       const std::uint32_t fb = static_cast<std::uint32_t>(std::popcount(r & 0x5FU)) & 1U;
-      r = static_cast<std::uint8_t>((r >> 1) | (fb << kPnRegMsb));
-      acc |= out << b;
+      r = static_cast<std::uint8_t>((static_cast<std::uint32_t>(r) >> 1U) | (fb << kPnRegMsb));
+      acc |= out << static_cast<std::uint32_t>(b);
     }
     o = std::byte{static_cast<std::uint8_t>(v ^ acc)};
   }
