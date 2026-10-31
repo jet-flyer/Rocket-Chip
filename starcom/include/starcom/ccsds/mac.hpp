@@ -15,27 +15,31 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // 211.0-B-6 section 6 MAC. Sans-I/O. Caller owns now, COP-P, and PHY bits.
 // DUPLEX / MODE / TRANSMIT / SS are the book variables (6.2.2).
 // Timers are Annex C names in Tick; 0 = inactive / never expire (6.3.1, 6.2.4.19.2).
 
-enum class MacMode : std::uint8_t {
+enum class MacMode : std::uint8_t
+{
   inactive = 0,
   connecting_l,
   connecting_t,
   active,
 };
 
-enum class MacDuplex : std::uint8_t {
+enum class MacDuplex : std::uint8_t
+{
   full = 0,
   half,
   simplex_transmit,
   simplex_receive,
 };
 
-enum class MacState : std::uint8_t {
+enum class MacState : std::uint8_t
+{
   s1 = 1,
   s2 = 2,
   s11 = 11,
@@ -68,7 +72,8 @@ enum class MacState : std::uint8_t {
   s80 = 80,
 };
 
-enum class MacNotify : std::uint8_t {
+enum class MacNotify : std::uint8_t
+{
   none = 0,
   hail_ok,
   hail_repeat,          // Hail_Wait timeout; activity still live
@@ -85,7 +90,8 @@ enum class MacNotify : std::uint8_t {
   resync_fail,
 };
 
-enum class MacFifoSource : std::uint8_t {
+enum class MacFifoSource : std::uint8_t
+{
   none = 0,     // TRANSMIT off or SS=5
   carrier_only, // SS=1
   idle,         // table 6-14 acquisition/tail/persistence
@@ -94,10 +100,14 @@ enum class MacFifoSource : std::uint8_t {
   sdu,          // FOP-P U-frame
 };
 
-enum class MacRole : std::uint8_t { caller = 0, responder };
+enum class MacRole : std::uint8_t
+{
+  caller = 0, responder
+};
 
 // Annex C MAC / data-services timers. No library milliseconds.
-struct MacMib {
+struct MacMib
+{
   Tick carrier_only_duration = 0;
   Tick acquisition_idle_duration = 0;
   Tick tail_idle_duration = 0;
@@ -116,7 +126,8 @@ struct MacMib {
   Pcid local_pcid{};
 };
 
-struct MacPhy {
+struct MacPhy
+{
   bool receive = false;
   bool transmit = false;
   bool modulation = false;
@@ -132,7 +143,8 @@ inline constexpr std::uint8_t kPhyEncodingBypass = 0x02;  // Annex B '10'
 inline constexpr std::uint8_t kPhyModeProximity1 = 0x01;
 inline constexpr std::size_t kMacQueueCap = 16;  // 4x 16-bit hail SPDUs
 
-struct MacPhyParams {
+struct MacPhyParams
+{
   std::uint8_t mode = kPhyModeProximity1;  // bits 0-2; 001 = Prox-1
   std::uint8_t data_rate = 0;              // bits 3-6; 211.1 kb/s table, not LoRa
   std::uint8_t modulation = 1;             // bit 7; 1 = non-coherent PSK
@@ -140,14 +152,16 @@ struct MacPhyParams {
   std::uint8_t frequency = 0;              // bits 10-12; 211.1 Ch0-7, not enacted
 };
 
-struct MacControlParams {
+struct MacControlParams
+{
   std::uint8_t time_sample = 0;  // bits 0-5
   std::uint8_t duplex = 0;       // bits 6-8; 0 = no change, 2 = half
   bool rnmd = false;             // bit 11
   bool pass = false;             // bit 12 Token = Transmit
 };
 
-struct MacPlExt {
+struct MacPlExt
+{
   bool direction = false;        // bit 0
   bool freq_table = false;       // bit 1
   bool rate_table = false;       // bit 2
@@ -161,7 +175,8 @@ struct MacPlExt {
 
 // Hail / COMM_CHANGE working set. LoRa SF/BW live in PL EXTENSIONS at the
 // consumer; this library only stores the 16-bit SPDUs.
-struct MacCommValue {
+struct MacCommValue
+{
   MacPhyParams tx{};
   MacPhyParams rx{};
   MacPlExt pl_tx{};
@@ -170,7 +185,8 @@ struct MacCommValue {
   bool has_pl_rx = false;
 };
 
-struct MacSession {
+struct MacSession
+{
   MacMib mib{};
   MacDuplex duplex = MacDuplex::full;
   MacMode mode = MacMode::inactive;

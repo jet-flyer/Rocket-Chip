@@ -13,7 +13,8 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::adapters {
+namespace starcom::adapters
+{
 
 // PIO-shaped PLTU symbol pipe (IVP 17). Octets to bits, MSB first (same order
 // as 211.2 Annex C). Caller owns the clock. No hardware/pio.h, no pin map.
@@ -23,13 +24,17 @@ namespace starcom::adapters {
 
 template <class Pio>
 [[nodiscard]] ccsds::Result<std::size_t> pioShiftOut(Pio& pio,
-                                         std::span<const std::byte> octets) noexcept {
-  if (octets.empty()) {
+                                         std::span<const std::byte> octets) noexcept
+{
+  if (octets.empty())
+  {
     return std::size_t{0};
   }
-  for (const std::byte b : octets) {
+  for (const std::byte b : octets)
+  {
     const auto v = static_cast<std::uint32_t>(b);
-    for (std::int32_t i = static_cast<std::int32_t>(ccsds::kOctetMsb); i >= 0; --i) {
+    for (std::int32_t i = static_cast<std::int32_t>(ccsds::kOctetMsb); i >= 0; --i)
+    {
       pio.putBit(((v >> static_cast<std::uint32_t>(i)) & 1U) != 0);
     }
   }
@@ -38,16 +43,21 @@ template <class Pio>
 
 template <class Pio>
 [[nodiscard]] ccsds::Result<std::size_t> pioShiftIn(Pio& pio, std::span<std::byte> out,
-                                        std::size_t n_octets) noexcept {
-  if (n_octets == 0) {
+                                        std::size_t n_octets) noexcept
+{
+  if (n_octets == 0)
+  {
     return std::size_t{0};
   }
-  if (n_octets > out.size()) {
+  if (n_octets > out.size())
+  {
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
-  for (std::size_t i = 0; i < n_octets; ++i) {
+  for (std::size_t i = 0; i < n_octets; ++i)
+  {
     std::uint32_t v = 0;
-    for (std::int32_t b = 0; b < 8; ++b) {
+    for (std::int32_t b = 0; b < 8; ++b)
+    {
       v = (v << 1U) | (pio.getBit() ? 1U : 0U);
     }
     out[i] = static_cast<std::byte>(v);

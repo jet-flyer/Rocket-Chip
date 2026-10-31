@@ -16,13 +16,16 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // 232.1 section 5.2.1 / section 6.2 note: 8-bit FSN, same modulo-256 compare as 211.0 section 7.1.
-inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexcept {
+inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexcept
+{
   return static_cast<std::uint8_t>(a - b);
 }
-inline constexpr bool cop1SeqLt(std::uint8_t b, std::uint8_t a) noexcept {
+inline constexpr bool cop1SeqLt(std::uint8_t b, std::uint8_t a) noexcept
+{
   const std::uint8_t d = cop1SeqDelta(a, b);
   return d >= 1U && d <= kSeqHalfRange;
 }
@@ -35,15 +38,23 @@ using Tick = std::uint32_t;
 inline constexpr std::uint32_t kFarm1WindowMax = 254U;
 
 // 232.1 section 6.1.8.3.1: 2 <= W <= 254, even; PW = NW = W/2. Default is the legal minimum.
-struct Farm1Mib {
+struct Farm1Mib
+{
   std::uint8_t w = 2;
 };
 
-enum class Farm1State : std::uint8_t { s1_open = 0, s2_wait, s3_lockout };
+enum class Farm1State : std::uint8_t
+{
+  s1_open = 0, s2_wait, s3_lockout
+};
 
-enum class Farm1Disposition : std::uint8_t { discarded = 0, accepted };
+enum class Farm1Disposition : std::uint8_t
+{
+  discarded = 0, accepted
+};
 
-struct Farm1 {
+struct Farm1
+{
   Farm1State state = Farm1State::s1_open;
   std::uint8_t v_r = 0;
   bool lockout_flag = false;
@@ -63,7 +74,8 @@ void farm1OnInvalid(Farm1& f) noexcept;                  // E9
 void farm1BufferRelease(Farm1& f) noexcept;              // E10
 Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept;  // E11
 
-enum class Fop1State : std::uint8_t {
+enum class Fop1State : std::uint8_t
+{
   s1_active = 0,
   s2_retransmit,
   s3_retransmit_wait,
@@ -72,7 +84,8 @@ enum class Fop1State : std::uint8_t {
   s6_initial,
 };
 
-enum class Fop1Send : std::uint8_t {
+enum class Fop1Send : std::uint8_t
+{
   none = 0,
   ad,
   bd,
@@ -81,10 +94,14 @@ enum class Fop1Send : std::uint8_t {
   resend_ad
 };
 
-enum class Fop1Bc : std::uint8_t { none = 0, unlock, set_vr };
+enum class Fop1Bc : std::uint8_t
+{
+  none = 0, unlock, set_vr
+};
 
 // 232.1 section 5.1.12 K <= 255. T1_Initial 0 = timer never expires (caller unit).
-struct Cop1Mib {
+struct Cop1Mib
+{
   std::uint8_t k = 1;
   Tick t1_initial = 0;
   std::uint8_t transmission_limit = 1;  // 1 = no retransmission (5.1.10.2)
@@ -96,7 +113,8 @@ inline constexpr std::size_t kFop1SentCap = 255;  // 232.1 section 5.1.12 K < 25
 inline constexpr std::size_t kCop1Hold = 64;      // host-loop cap, not MIB
 inline constexpr std::size_t kCop1SeqSlots = 4;   // host-loop cap, not MIB
 
-struct Fop1 {
+struct Fop1
+{
   Fop1State state = Fop1State::s6_initial;
   std::uint8_t v_s = 0;
   std::uint8_t nn_r = 0;
@@ -150,7 +168,8 @@ inline constexpr std::byte kCop1SetVr0{0x82};
 inline constexpr std::byte kCop1SetVr1{0x00};
 inline constexpr std::uint8_t kUslpUpidCop1Control = 0b00001;
 
-enum class Cop1Event : std::uint8_t {
+enum class Cop1Event : std::uint8_t
+{
   none = 0,
   farm_accepted,
   fop_alert,
@@ -158,7 +177,8 @@ enum class Cop1Event : std::uint8_t {
   suspend,
 };
 
-struct Cop1Endpoint {
+struct Cop1Endpoint
+{
   Farm1 farm{};
   Fop1 fop{};
   UslpScid local_scid{};

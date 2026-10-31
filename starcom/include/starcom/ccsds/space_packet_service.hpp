@@ -13,20 +13,23 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // 11-bit APID space (4.1.3.3.4). Index 0x7FF is the Idle Packet.
 inline constexpr std::size_t kManagedPathCount = 2048;
 
 // 2.2.2.1: each receiving SAP is Packet or Octet String.
-enum class ServiceType : std::uint8_t {
+enum class ServiceType : std::uint8_t
+{
   unset = 0,
   packet = 1,
   octet_string = 2,
 };
 
 // 3.4.3.2 OCTET_STRING.request parameters. Packet Name is not a parameter here.
-struct OctetStringRequest {
+struct OctetStringRequest
+{
   std::span<const std::byte> octets{};
   Apid apid{};
   bool secondary_header = false;
@@ -34,20 +37,23 @@ struct OctetStringRequest {
 };
 
 // 3.3.3.3 PACKET.indication. Packet Loss Indicator is not provided.
-struct PacketIndication {
+struct PacketIndication
+{
   std::span<const std::byte> packet{};
   Apid apid{};
 };
 
 // 3.4.3.3 OCTET_STRING.indication. Data Loss Indicator is not provided.
-struct OctetStringIndication {
+struct OctetStringIndication
+{
   std::span<const std::byte> octets{};
   Apid apid{};
   bool secondary_header = false;
 };
 
 // 4.3.3 demultiplex result. `octets` is the intact packet or the extracted string.
-struct PacketReception {
+struct PacketReception
+{
   ServiceType service = ServiceType::unset;
   Apid apid{};
   std::span<const std::byte> octets{};
@@ -56,7 +62,8 @@ struct PacketReception {
 
 // One SPP entity. The per-APID tables are about 10 KiB, so keep the object
 // off a 4 KiB stack.
-struct SpacePacketService {
+struct SpacePacketService
+{
   // 133.0-B-2 4.1.3.4.3.3: the count is per APID, unique to that user
   // application, and not shared across APIDs.
   // 4.1.3.3.4.2: the APID names the managed data path.

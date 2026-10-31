@@ -13,7 +13,8 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 inline constexpr std::size_t kV3HeaderSize = 5;
 inline constexpr std::uint32_t kTfvnV3 = 0b10U;
@@ -34,7 +35,8 @@ inline constexpr std::uint8_t kDfcReserved = 2;      // Table 3-1 reserved
 inline constexpr std::uint8_t kDfcUserDefined = 3;   // 3.2.3.5; 0b11
 inline constexpr std::size_t kV3DataMax = kTransferFrameMax - kV3HeaderSize;  // 2043
 
-struct V3Fields {
+struct V3Fields
+{
   bool qos_expedited = false;
   bool p_frame = false;
   std::uint8_t dfc_id = 0;  // 2 bits
@@ -45,12 +47,14 @@ struct V3Fields {
   std::uint8_t fsn = 0;
 };
 
-struct V3View {
+struct V3View
+{
   V3Fields fields;
   std::span<const std::byte> data;  // Transfer Frame after the 5-octet header
 };
 
-inline constexpr bool v3IsUserDefined(V3Fields const& f) noexcept {
+inline constexpr bool v3IsUserDefined(V3Fields const& f) noexcept
+{
   return !f.p_frame && f.dfc_id == kDfcUserDefined;
 }
 

@@ -8,32 +8,38 @@
 
 #include "starcom/adapters/loopback.hpp"
 
-namespace starcom::adapters {
+namespace starcom::adapters
+{
 
 // Generic radio mailbox. One TX slot, one RX slot. No SPI, GPIO, or Pico SDK.
 // A board driver would take_tx / offer_rx; the core still only sees bytes.
-struct RadioPort {
+struct RadioPort
+{
   FrameSlot tx{};
   FrameSlot rx{};
 };
 
 [[nodiscard]] inline ccsds::Result<std::size_t> radioBeginTx(
-    RadioPort& p, std::span<const std::byte> frame) noexcept {
+    RadioPort& p, std::span<const std::byte> frame) noexcept
+{
   return slotWrite(p.tx, frame);
 }
 
 [[nodiscard]] inline ccsds::Result<std::size_t> radioTakeTx(RadioPort& p,
-                                                std::span<std::byte> out) noexcept {
+                                                std::span<std::byte> out) noexcept
+{
   return slotRead(p.tx, out);
 }
 
 [[nodiscard]] inline ccsds::Result<std::size_t> radioOfferRx(
-    RadioPort& p, std::span<const std::byte> frame) noexcept {
+    RadioPort& p, std::span<const std::byte> frame) noexcept
+{
   return slotWrite(p.rx, frame);
 }
 
 [[nodiscard]] inline ccsds::Result<std::size_t> radioPollRx(RadioPort& p,
-                                                std::span<std::byte> out) noexcept {
+                                                std::span<std::byte> out) noexcept
+{
   return slotRead(p.rx, out);
 }
 

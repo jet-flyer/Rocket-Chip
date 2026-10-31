@@ -16,14 +16,22 @@
 
 int _probe_reserved = 0;  // EXPECT bugprone-reserved-identifier
 
-enum class ProbeEnum : int { a, b };  // EXPECT performance-enum-size
+enum class ProbeEnum : int  // EXPECT performance-enum-size
+{
+  a, b
+};
 
 void probeConstParam(const int v);  // EXPECT readability-avoid-const-params-in-decls
 
-int probeVarargDef(int n, ...) { return n; }  // EXPECT cert-dcl50-cpp
+int probeVarargDef(int n, ...)  // EXPECT cert-dcl50-cpp
+{
+  return n;
+}
 
-int probeGoto(int x) {
-  if (x > 0) {
+int probeGoto(int x)
+{
+  if (x > 0)
+  {
     goto done;  // EXPECT cppcoreguidelines-avoid-goto
   }
   x = 2;
@@ -31,17 +39,20 @@ done:
   return x;
 }
 
-int probeAnalyzerNull() {
+int probeAnalyzerNull()
+{
   int* p = nullptr;
   return *p;  // EXPECT clang-analyzer-core.NullDereference
 }
 
-int probeAnalyzerDiv(int x) {
+int probeAnalyzerDiv(int x)
+{
   const int z = 0;
   return x / z;  // EXPECT clang-analyzer-core.DivideZero
 }
 
-int probeMisc(int x, int* buf) {
+int probeMisc(int x, int* buf)
+{
   int unchanged = x;  // EXPECT misc-const-correctness
   assert(++x > 0);    // EXPECT bugprone-assert-side-effect
   const int s = x & 3;  // EXPECT hicpp-signed-bitwise

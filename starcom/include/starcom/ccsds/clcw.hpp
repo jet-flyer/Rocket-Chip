@@ -11,7 +11,8 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 inline constexpr std::size_t kClcwSize = 4;
 
@@ -21,7 +22,8 @@ inline constexpr std::uint32_t kClcwStatusMask = 0x07U;
 inline constexpr std::uint32_t kClcwVcidMask = 0x3FU;
 
 // COP-1 CLCW. VCID here is the COP-1 virtual channel, not USLP MapId.
-struct Clcw32 {
+struct Clcw32
+{
   std::uint8_t status = 0;           // 3-bit, mission
   std::uint8_t cop_in_effect = 0b01; // 2-bit; 01 = COP-1
   std::uint8_t vcid = 0;             // 6-bit

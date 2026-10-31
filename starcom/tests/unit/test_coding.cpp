@@ -40,17 +40,21 @@ using starcom::ccsds::ldpcEncodeBlock;
 using starcom::ccsds::ldpcEncodeStream;
 using starcom::ccsds::ldpcRandomize;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
 constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
@@ -58,13 +62,16 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
 
 // Independent rate-1/2 K=7 encoder. G1=171, G2=133, G2 inverted, C1 then C2.
 void indepEncode(std::span<std::byte> out, std::span<const std::byte> in,
-                  bool d[6]) {
+                  bool d[6])
+{
   std::size_t o = 0;
   unsigned acc = 0;
   unsigned nbits = 0;
-  for (std::byte octet : in) {
+  for (std::byte octet : in)
+  {
     const unsigned value = std::to_integer<unsigned>(octet);
-    for (int b = 7; b >= 0; --b) {
+    for (int b = 7; b >= 0; --b)
+    {
       const bool in_bit = ((value >> b) & 1u) != 0u;
       const bool v6 = in_bit;
       const bool v5 = d[0];
@@ -77,7 +84,8 @@ void indepEncode(std::span<std::byte> out, std::span<const std::byte> in,
       acc = (acc << 2) | (static_cast<unsigned>(c1) << 1) |
             static_cast<unsigned>(c2);
       nbits += 2;
-      if (nbits == 8) {
+      if (nbits == 8)
+      {
         out[o++] = std::byte{static_cast<std::uint8_t>(acc)};
         acc = 0;
         nbits = 0;
@@ -92,11 +100,14 @@ void indepEncode(std::span<std::byte> out, std::span<const std::byte> in,
   }
 }
 
-void pnFill(std::span<std::byte> octets) {
+void pnFill(std::span<std::byte> octets)
+{
   std::uint8_t r = 0xFF;
-  for (std::byte& o : octets) {
+  for (std::byte& o : octets)
+  {
     unsigned acc = 0;
-    for (int b = 7; b >= 0; --b) {
+    for (int b = 7; b >= 0; --b)
+    {
       const unsigned outb = r & 1u;
       const unsigned fb =
           std::popcount(static_cast<unsigned>(r & 0x5Fu)) & 1u;
@@ -107,18 +118,21 @@ void pnFill(std::span<std::byte> octets) {
   }
 }
 
-void test_conv_zero() {
+void test_conv_zero()
+{
   const std::array<std::byte, 4> in{};
   std::array<std::byte, 8> out{};
   const auto n = convEncode(out, in);
   CHECK(n.has_value());
   CHECK(*n == 8u);
-  for (std::byte b : out) {
+  for (std::byte b : out)
+  {
     CHECK(b == std::byte{0x55});
   }
 }
 
-void test_conv_single_one() {
+void test_conv_single_one()
+{
   // First input bit = 1. Hand bits: C1=1, C2=0.
   const std::array<std::byte, 1> in{std::byte{0x80}};
   std::array<std::byte, 2> out{};
@@ -128,10 +142,13 @@ void test_conv_single_one() {
   CHECK((std::to_integer<unsigned>(out[0]) & 0xC0u) == 0x80u);
 }
 
-void test_conv_independent() {
-  for (std::size_t len : {std::size_t{1}, std::size_t{3}, std::size_t{12}}) {
+void test_conv_independent()
+{
+  for (std::size_t len : {std::size_t{1}, std::size_t{3}, std::size_t{12}})
+  {
     std::vector<std::byte> in(len);
-    for (std::size_t i = 0; i < len; ++i) {
+    for (std::size_t i = 0; i < len; ++i)
+    {
       in[i] = std::byte{static_cast<std::uint8_t>(0xA5u ^ i)};
     }
     std::vector<std::byte> a(len * 2);
@@ -145,7 +162,8 @@ void test_conv_independent() {
   }
 }
 
-void test_conv_state_concat() {
+void test_conv_state_concat()
+{
   const std::array<std::byte, 3> a{
       std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20}};
   const std::array<std::byte, 5> b{
@@ -171,7 +189,8 @@ void test_conv_state_concat() {
   CHECK(convEncodeStep(step_out, a[0], enc2).value() == 2u);
 }
 
-void test_conv_pltu_and_uncoded_phy() {
+void test_conv_pltu_and_uncoded_phy()
+{
   std::array<std::byte, 32> pltu{};
   const auto n = encodePltu(pltu, kV3HeaderOnly);
   CHECK(n.has_value());
@@ -196,7 +215,8 @@ void test_conv_pltu_and_uncoded_phy() {
   CHECK(*u2 == *n);
 }
 
-void test_ldpc_errors() {
+void test_ldpc_errors()
+{
   std::array<std::byte, kLdpcCodewordOctets> out{};
   std::array<std::byte, 64> short_msg{};
   CHECK(ldpcEncodeBlock(out, short_msg).error() == Error::truncated);
@@ -214,7 +234,8 @@ void test_ldpc_errors() {
         Error::buffer_too_small);
 }
 
-void test_ldpc_zero_is_pn() {
+void test_ldpc_zero_is_pn()
+{
   std::array<std::byte, kLdpcMessageOctets> msg{};
   std::array<std::byte, kLdpcCodewordOctets> cw{};
   CHECK(ldpcEncodeBlock(cw, msg).value() == kLdpcCodewordOctets);
@@ -236,12 +257,14 @@ void test_ldpc_zero_is_pn() {
   CHECK(fifth == 0x68u);
 
   CHECK(ldpcRandomize(cw).value() == kLdpcCodewordOctets);
-  for (std::byte b : cw) {
+  for (std::byte b : cw)
+  {
     CHECK(b == std::byte{0});
   }
 }
 
-void test_ldpc_csm_and_stream() {
+void test_ldpc_csm_and_stream()
+{
   std::array<std::byte, kLdpcMessageOctets> msg{};
   msg[0] = std::byte{0xA5};
   std::array<std::byte, kLdpcCodewordOctets> block{};
@@ -268,9 +291,11 @@ void test_ldpc_csm_and_stream() {
                    stream.begin() + kLdpcCodedOctets + kLdpcCsmOctets));
 }
 
-void test_ldpc_systematic_noiseless() {
+void test_ldpc_systematic_noiseless()
+{
   std::array<std::byte, kLdpcMessageOctets> msg{};
-  for (std::size_t i = 0; i < msg.size(); ++i) {
+  for (std::size_t i = 0; i < msg.size(); ++i)
+  {
     msg[i] = std::byte{static_cast<std::uint8_t>(i * 3u + 1u)};
   }
   std::array<std::byte, kLdpcCodewordOctets> cw{};
@@ -279,11 +304,13 @@ void test_ldpc_systematic_noiseless() {
   CHECK(std::equal(msg.begin(), msg.end(), cw.begin()));
 }
 
-void test_ldpc_linearity() {
+void test_ldpc_linearity()
+{
   std::array<std::byte, kLdpcMessageOctets> u{};
   std::array<std::byte, kLdpcMessageOctets> v{};
   std::array<std::byte, kLdpcMessageOctets> uv{};
-  for (std::size_t i = 0; i < u.size(); ++i) {
+  for (std::size_t i = 0; i < u.size(); ++i)
+  {
     u[i] = std::byte{static_cast<std::uint8_t>(0x11u * i)};
     v[i] = std::byte{static_cast<std::uint8_t>(0xC3u + i)};
     uv[i] = u[i] ^ v[i];
@@ -297,12 +324,14 @@ void test_ldpc_linearity() {
   CHECK(ldpcEncodeBlock(ev, v).has_value());
   CHECK(ldpcEncodeBlock(euv, uv).has_value());
   CHECK(ldpcEncodeBlock(e0, z).has_value());
-  for (std::size_t i = 0; i < eu.size(); ++i) {
+  for (std::size_t i = 0; i < eu.size(); ++i)
+  {
     CHECK((eu[i] ^ ev[i] ^ e0[i]) == euv[i]);
   }
 }
 
-void test_codecs_allocate_nothing() {
+void test_codecs_allocate_nothing()
+{
   std::array<std::byte, 32> cin{std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20}};
   std::array<std::byte, 64> cout{};
   std::array<std::byte, kLdpcMessageOctets> msg{};
@@ -319,7 +348,8 @@ void test_codecs_allocate_nothing() {
 
 }  // namespace
 
-int run_coding_tests() {
+int run_coding_tests()
+{
   test_conv_zero();
   test_conv_single_one();
   test_conv_independent();

@@ -5,10 +5,13 @@
 
 #include "starcom/ccsds/plcw.hpp"
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
-[[nodiscard]] Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept {
-  if (octets.size() < kPlcwSize) {
+[[nodiscard]] Result<Plcw16> decodePlcw(std::span<const std::byte> octets) noexcept
+{
+  if (octets.size() < kPlcwSize)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t hi = std::to_integer<std::uint32_t>(octets[0]);
@@ -21,8 +24,10 @@ namespace starcom::ccsds {
 }
 
 [[nodiscard]] Result<std::size_t> encodePlcw(std::span<std::byte> out,
-                                Plcw16 const& fields) noexcept {
-  if (out.size() < kPlcwSize) {
+                                Plcw16 const& fields) noexcept
+{
+  if (out.size() < kPlcwSize)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   const std::uint32_t pcid = static_cast<std::uint32_t>(fields.pcid) & 0x01U;

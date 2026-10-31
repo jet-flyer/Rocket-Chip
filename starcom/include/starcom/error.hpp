@@ -8,10 +8,12 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // Closed set. ICD table. New values are a handshake change.
-enum class Error : std::uint8_t {
+enum class Error : std::uint8_t
+{
   truncated = 0,
   bad_asm,
   bad_crc,

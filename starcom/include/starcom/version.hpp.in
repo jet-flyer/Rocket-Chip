@@ -6,7 +6,8 @@
 
 #include <cstdint>
 
-namespace starcom {
+namespace starcom
+{
 
 inline constexpr std::uint8_t  kVersionMajor = @STARCOM_VERSION_MAJOR@;
 inline constexpr std::uint8_t  kVersionMinor = @STARCOM_VERSION_MINOR@;

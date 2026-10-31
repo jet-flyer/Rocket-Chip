@@ -72,19 +72,24 @@ using starcom::ccsds::PortId;
 using starcom::ccsds::Scid;
 using starcom::ccsds::Tick;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-MacMib test_mib() {
+MacMib test_mib()
+{
   MacMib m{};
   m.carrier_only_duration = 2;
   m.acquisition_idle_duration = 2;
@@ -102,7 +107,8 @@ MacMib test_mib() {
   return m;
 }
 
-void test_set_vr_codec() {
+void test_set_vr_codec()
+{
   std::array<std::byte, 2> buf{};
   auto n = encodeSetVr(buf, 0x2A, Pcid{0});
   CHECK(n.has_value());
@@ -116,7 +122,8 @@ void test_set_vr_codec() {
   CHECK(!encodeSetVr(tiny, 0, Pcid{0}).has_value());
 }
 
-void test_s1_initialize() {
+void test_s1_initialize()
+{
   MacSession s{};
   CoppEndpoint e{};
   CoppMib cm{};
@@ -134,7 +141,8 @@ void test_s1_initialize() {
   CHECK(e.fop.state == FopPState::s1_active);
 }
 
-void test_full_hail_tables() {
+void test_full_hail_tables()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::full, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -174,7 +182,8 @@ void test_full_hail_tables() {
   CHECK(s.ss == 0);
 }
 
-void test_full_responder_hail() {
+void test_full_responder_hail()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::full, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -183,7 +192,8 @@ void test_full_responder_hail() {
   CHECK(s.need_plcw);
 }
 
-void test_half_and_simplex() {
+void test_half_and_simplex()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_t, 0);
@@ -219,7 +229,8 @@ void test_half_and_simplex() {
   CHECK(!macPhy(s).transmit);
 }
 
-void test_set_duplex_s1_only() {
+void test_set_duplex_s1_only()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::full, nullptr);
   macSetDuplex(s, MacDuplex::half);
@@ -229,7 +240,8 @@ void test_set_duplex_s1_only() {
   CHECK(s.duplex == MacDuplex::half);
 }
 
-void test_set_vr_persistent() {
+void test_set_vr_persistent()
+{
   MacSession s{};
   CoppEndpoint e{};
   CoppMib cm{};
@@ -258,7 +270,8 @@ void test_set_vr_persistent() {
   CHECK(!s.persistence);
 }
 
-void test_inbound_set_vr() {
+void test_inbound_set_vr()
+{
   MacSession s{};
   CoppEndpoint e{};
   CoppMib cm{};
@@ -270,7 +283,8 @@ void test_inbound_set_vr() {
   CHECK(e.farm.need_plcw);
 }
 
-void test_carrier_loss_caller() {
+void test_carrier_loss_caller()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::full, nullptr);
   macSetMode(s, MacMode::connecting_t, 0);
@@ -288,7 +302,8 @@ void test_carrier_loss_caller() {
   CHECK(s.state == MacState::s80);
 }
 
-void test_annex_b_codecs() {
+void test_annex_b_codecs()
+{
   MacPhyParams tx{};
   tx.encoding = kPhyEncodingBypass;
   tx.mode = 1;
@@ -332,7 +347,8 @@ void test_annex_b_codecs() {
   CHECK(pback->rate_table);
 }
 
-void test_half_hail_octets() {
+void test_half_hail_octets()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_t, 0);
@@ -351,7 +367,8 @@ void test_half_hail_octets() {
   CHECK(*n == 4);
 }
 
-void test_half_e48_e49_carrier() {
+void test_half_e48_e49_carrier()
+{
   // 211.0 table 6-12: E49 token swap; E48 missed-token backup; E44
   // sender-overran only while CARRIER_ACQUIRED (6.5.2) is still true.
   MacSession s{};
@@ -393,7 +410,8 @@ void test_half_e48_e49_carrier() {
   CHECK(macPollNotify(s) == MacNotify::sender_overran);
 }
 
-void test_half_e42_tail_e50_counts_miss() {
+void test_half_e42_tail_e50_counts_miss()
+{
   // 211.0 table 6-10 E42 is the tail only. Annex C counts S62->E50.
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -416,7 +434,8 @@ void test_half_e42_tail_e50_counts_miss() {
   CHECK(s.token_fail_n == 1);
 }
 
-void test_half_e83_rehail() {
+void test_half_e83_rehail()
+{
   MacMib mb = test_mib();
   mb.maximum_failed_token_passes = 2;
   mb.drop_carrier_duration = 2;
@@ -444,7 +463,8 @@ void test_half_e83_rehail() {
   CHECK(s.mode == MacMode::connecting_t);
 }
 
-void test_half_e83_responder_listens() {
+void test_half_e83_responder_listens()
+{
   MacMib mb = test_mib();
   mb.maximum_failed_token_passes = 2;
   MacSession s{};
@@ -463,7 +483,8 @@ void test_half_e83_responder_listens() {
   CHECK(!s.transmit_on);
 }
 
-void test_half_rehail_while_active() {
+void test_half_rehail_while_active()
+{
   // Station reboot hails again while the responder is still S50.
   // 211.0 E85/E82 -> S2, then E30 -> S51 (not ignore / E69).
   MacSession s{};
@@ -483,7 +504,8 @@ void test_half_rehail_while_active() {
   CHECK(macPollNotify(s) == MacNotify::hail_ok);
 }
 
-void test_half_token_octets() {
+void test_half_token_octets()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -511,7 +533,8 @@ void test_half_token_octets() {
   CHECK(ctl->pass);
 }
 
-void test_half_comm_change_and_revert() {
+void test_half_comm_change_and_revert()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -548,7 +571,8 @@ void test_half_comm_change_and_revert() {
   CHECK(!s.pending_cv_valid);
 }
 
-void test_half_comm_change_ok() {
+void test_half_comm_change_ok()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -575,7 +599,8 @@ void test_half_comm_change_ok() {
   CHECK(!s.pending_cv_valid);
 }
 
-void test_half_remote_comm_change_echo() {
+void test_half_remote_comm_change_echo()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_t, 0);
@@ -607,7 +632,8 @@ void test_half_remote_comm_change_echo() {
   CHECK(!macPhy(s).transmit);
 }
 
-void test_half_comm_change_fifo_empty_leaves_s56() {
+void test_half_comm_change_fifo_empty_leaves_s56()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -630,7 +656,8 @@ void test_half_comm_change_fifo_empty_leaves_s56() {
 
 // Caller hail through S60, missed receive (E48), then S52 into S50.
 // Send_Duration is armed. last_now is the returned tick.
-Tick half_caller_to_s50(MacSession& s) {
+Tick half_caller_to_s50(MacSession& s)
+{
   macSetMode(s, MacMode::connecting_t, 0);
   Tick now = s.mib.carrier_only_duration;
   macTick(s, now);
@@ -658,7 +685,8 @@ Tick half_caller_to_s50(MacSession& s) {
 }
 
 // Responder hail into S50. Send_Duration is armed.
-Tick half_responder_to_s50(MacSession& s) {
+Tick half_responder_to_s50(MacSession& s)
+{
   macSetMode(s, MacMode::connecting_l, 0);
   macOnHailReceived(s, 0);
   Tick now = s.mib.carrier_only_duration;
@@ -675,7 +703,8 @@ Tick half_responder_to_s50(MacSession& s) {
 
 // S50, Y=0, NEED_PLCW clear: E39 to S56, then E42 to S58. Tail wait is armed.
 // Setup sets need_plcw by hand; a real link may not reach this state.
-Tick half_responder_to_s58(MacSession& s) {
+Tick half_responder_to_s58(MacSession& s)
+{
   Tick now = half_responder_to_s50(s);
   s.need_plcw = false;
   macOnNoFramesPending(s, now);
@@ -690,7 +719,8 @@ Tick half_responder_to_s58(MacSession& s) {
 
 // S50 local COMM_CHANGE (E63, Y=2), then E65/E66 into S58. Tail wait is armed.
 // Setup sets need_plcw by hand; a real link may not reach this state.
-Tick half_responder_comm_to_s58(MacSession& s) {
+Tick half_responder_comm_to_s58(MacSession& s)
+{
   Tick now = half_responder_to_s50(s);
   MacCommValue cv{};
   cv.tx.encoding = kPhyEncodingBypass;
@@ -715,7 +745,8 @@ Tick half_responder_comm_to_s58(MacSession& s) {
 void check_half_expiry(MacSession& s, MacState state, std::uint8_t y, bool persistence,
                        bool modulation, bool need_plcw, bool transmit_on,
                        std::uint8_t token_fail_n, bool pending, bool wait_armed,
-                       Tick wait_left, MacNotify note) {
+                       Tick wait_left, MacNotify note)
+{
   CHECK(s.state == state);
   CHECK(s.y == y);
   CHECK(s.persistence == persistence);
@@ -730,7 +761,8 @@ void check_half_expiry(MacSession& s, MacState state, std::uint8_t y, bool persi
 }
 
 // Setup sets token_fail_n and y by hand; a real link may not reach this state.
-void test_half_s50_e38_token_below_and_off() {
+void test_half_s50_e38_token_below_and_off()
+{
   // Limit is on. token_fail_n is one below it. Y=0: E38 sets PERSISTENCE.
   // The wait is not reloaded.
   {
@@ -793,7 +825,8 @@ void test_half_s50_e38_token_below_and_off() {
 }
 
 // Pins current behavior. FAILS 211.0-B-6 Table 6-11 E65 (needs No Frames Pending AND Y=2). Fix is a later step.
-void test_half_s52_e64_y1_and_y3() {
+void test_half_s52_e64_y1_and_y3()
+{
   // Y=1 at S52: E41, then E64, then E65. Ends in S56. Wait stays Send_Duration.
   {
     MacSession s{};
@@ -852,7 +885,8 @@ void test_half_s52_e64_y1_and_y3() {
   }
 }
 
-void test_half_s55_e57_enter_s1() {
+void test_half_s55_e57_enter_s1()
+{
   // E51 then remote RNMD (X=4), S50, E55, E56, then the S55 wait (E57).
   MacMib mb = test_mib();
   mb.hail_lifetime = 1000;
@@ -946,7 +980,8 @@ void test_half_s55_e57_enter_s1() {
   CHECK(macPollNotify(s) == MacNotify::end_session);
 }
 
-void test_half_s61_e45_and_e50() {
+void test_half_s61_e45_and_e50()
+{
   // E45: carrier still held when the S61 receive wait ends.
   {
     MacSession s{};
@@ -1008,7 +1043,8 @@ void test_half_s61_e45_and_e50() {
 }
 
 // Pins current behavior. FAILS 211.0-B-6 Table 6-10 E47 (Carrier Lock true in S62 should go to S61). Fix is a later step.
-void test_half_s62_carrier_no_e50() {
+void test_half_s62_carrier_no_e50()
+{
   // Carrier is already true in S58, so S62 does not leave on E47.
   // The receive wait then ends with the carrier still held: E50 does not run.
   MacSession s{};
@@ -1032,7 +1068,8 @@ void test_half_s62_carrier_no_e50() {
 
 // Project behavior: 211.0-B-6 does not define this case.
 // Setup sets need_plcw by hand; a real link may not reach this state.
-void test_half_wait_expired_other_state() {
+void test_half_wait_expired_other_state()
+{
   // S56 is not a case in macWaitExpiredHalf. The armed send wait still ends.
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -1052,7 +1089,8 @@ void test_half_wait_expired_other_state() {
 }
 
 // Caller hail stops in S60. receive_duration is armed.
-Tick half_caller_to_s60(MacSession& s) {
+Tick half_caller_to_s60(MacSession& s)
+{
   macSetMode(s, MacMode::connecting_t, 0);
   Tick now = s.mib.carrier_only_duration;
   macTick(s, now);
@@ -1069,7 +1107,8 @@ Tick half_caller_to_s60(MacSession& s) {
 }
 
 // Setup sets token_fail_n by hand; a real link may not reach this state.
-void test_half_s50_token_fail_caller_full() {
+void test_half_s50_token_fail_caller_full()
+{
   MacMib mb = test_mib();
   mb.maximum_failed_token_passes = 2;
   MacSession s{};
@@ -1085,7 +1124,8 @@ void test_half_s50_token_fail_caller_full() {
 
 // Project behavior: 211.0-B-6 does not define this case.
 // Setup sets token_fail_n by hand; a real link may not reach this state.
-void test_half_s50_token_fail_responder_full() {
+void test_half_s50_token_fail_responder_full()
+{
   MacMib mb = test_mib();
   mb.maximum_failed_token_passes = 2;
   MacSession s{};
@@ -1099,7 +1139,8 @@ void test_half_s50_token_fail_responder_full() {
                     MacNotify::none);
 }
 
-void test_half_s51_e40_and_s52_y0_full() {
+void test_half_s51_e40_and_s52_y0_full()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -1117,7 +1158,8 @@ void test_half_s51_e40_and_s52_y0_full() {
 }
 
 // Pins current behavior. FAILS 211.0-B-6 Table 6-11 E65 (needs No Frames Pending AND Y=2). Fix is a later step.
-void test_half_s52_y2_full() {
+void test_half_s52_y2_full()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   Tick now = half_caller_to_s60(s);
@@ -1140,7 +1182,8 @@ void test_half_s52_y2_full() {
   CHECK(s.mac_frame_pending);
 }
 
-void test_half_s58_full() {
+void test_half_s58_full()
+{
   {
     MacSession s{};
     macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -1163,7 +1206,8 @@ void test_half_s58_full() {
   }
 }
 
-void test_half_s60_full() {
+void test_half_s60_full()
+{
   {
     MacSession s{};
     macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -1189,7 +1233,8 @@ void test_half_s60_full() {
 }
 
 // Project behavior: 211.0-B-6 does not define this case.
-void test_half_s62_e50_y3_full() {
+void test_half_s62_e50_y3_full()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   Tick now = half_responder_comm_to_s58(s);
@@ -1205,7 +1250,8 @@ void test_half_s62_e50_y3_full() {
                     s.mib.carrier_only_duration, MacNotify::comm_change_revert);
 }
 
-void test_half_s62_e50_y0_full() {
+void test_half_s62_e50_y0_full()
+{
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   Tick now = half_responder_to_s58(s);
@@ -1220,7 +1266,8 @@ void test_half_s62_e50_y0_full() {
                     s.mib.carrier_only_duration, MacNotify::no_carrier_this_contact);
 }
 
-void test_plcw_repeat_arms() {
+void test_plcw_repeat_arms()
+{
   MacSession s{};
   MacMib m = test_mib();
   m.plcw_repeat_interval = 4;
@@ -1235,7 +1282,8 @@ void test_plcw_repeat_arms() {
   CHECK(s.plcw_left == 4);
 }
 
-void test_heap() {
+void test_heap()
+{
   MacSession s{};
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
@@ -1252,7 +1300,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_mac_tests() {
+int run_mac_tests()
+{
   test_set_vr_codec();
   test_s1_initialize();
   test_full_hail_tables();

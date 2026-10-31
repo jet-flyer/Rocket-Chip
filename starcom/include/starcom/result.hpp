@@ -9,7 +9,8 @@
 #include <tl/expected.hpp>
 
 // The library build uses tl::expected.
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 template <typename T>
 using Result = tl::expected<T, Error>;
 }

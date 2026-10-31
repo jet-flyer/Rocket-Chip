@@ -12,14 +12,16 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // 211.2 section 3.4.3 -> 131.0-B-5 section 3.3. Rate 1/2, K=7, non-punctured.
 // G1 = 171 octal, G2 = 133 octal, G2 inverted. C1 then C2. MSB-first.
 // Encodes the whole C&S stream (ASM and Idle included). Decode is not this
 // increment (GCS/Pi).
 
-struct ConvEnc {
+struct ConvEnc
+{
   std::uint8_t mem = 0;  // 6 delay elements; bit5 = newest, bit0 = oldest
 };
 

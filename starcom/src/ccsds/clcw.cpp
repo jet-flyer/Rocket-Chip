@@ -5,10 +5,13 @@
 
 #include "starcom/ccsds/clcw.hpp"
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
-[[nodiscard]] Result<Clcw32> decodeClcw(std::span<const std::byte> octets) noexcept {
-  if (octets.size() < kClcwSize) {
+[[nodiscard]] Result<Clcw32> decodeClcw(std::span<const std::byte> octets) noexcept
+{
+  if (octets.size() < kClcwSize)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t b0 = std::to_integer<std::uint32_t>(octets[0]);
@@ -29,8 +32,10 @@ namespace starcom::ccsds {
 }
 
 [[nodiscard]] Result<std::size_t> encodeClcw(std::span<std::byte> out,
-                                Clcw32 const& fields) noexcept {
-  if (out.size() < kClcwSize) {
+                                Clcw32 const& fields) noexcept
+{
+  if (out.size() < kClcwSize)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   const std::uint32_t status = static_cast<std::uint32_t>(fields.status) & kClcwStatusMask;

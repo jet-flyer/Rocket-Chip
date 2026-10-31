@@ -13,9 +13,11 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::adapters {
+namespace starcom::adapters
+{
 
-struct UdpSocket {
+struct UdpSocket
+{
   std::uintptr_t native = 0;
 };
 

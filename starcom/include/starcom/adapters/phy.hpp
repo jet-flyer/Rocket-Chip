@@ -12,21 +12,25 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::adapters {
+namespace starcom::adapters
+{
 
 // PHY adapter tiers (IVP 18 / D-1). No blanket 211.1-B-4 claim.
 // FPGA C&S and 211.1 compliant waveform wait on HDL sim (Researcher).
-enum class PhyTier : std::uint8_t {
+enum class PhyTier : std::uint8_t
+{
   none = 0,
   best_effort = 1,
   compliant = 2,
 };
 
-struct PhyDecl {
+struct PhyDecl
+{
   PhyTier tier = PhyTier::none;
 };
 
-inline constexpr bool phyUncodedOk(PhyDecl d) noexcept {
+inline constexpr bool phyUncodedOk(PhyDecl d) noexcept
+{
   return d.tier == PhyTier::none || d.tier == PhyTier::best_effort;
 }
 

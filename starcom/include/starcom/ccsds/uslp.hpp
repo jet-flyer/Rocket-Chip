@@ -13,7 +13,8 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 inline constexpr std::uint32_t kTfvnUslp = 0b1100U;
 inline constexpr std::size_t kUslpPrimaryHeaderMin = 7;   // VCF Count Length 0
@@ -51,13 +52,15 @@ inline constexpr std::size_t kUslpLengthHeaderOctets = 6;
 
 // Caller-owned. 0 length = absent / not supplied. No Starcom default milliseconds
 // or invented insert depth (732.1 section 5 / table 5-1).
-struct UslpMib {
+struct UslpMib
+{
   std::size_t truncated_frame_length = 0;  // D1.3.2; 0 = not supplied
   std::size_t insert_zone_length = 0;      // 0 = absent
   bool fecf_present = false;
 };
 
-struct UslpFields {
+struct UslpFields
+{
   UslpScid scid{};
   bool destination = false;  // 1 = SCID is destination
   Vcid vcid{};
@@ -73,7 +76,8 @@ struct UslpFields {
   std::uint16_t tfdz_pointer = 0;  // rules 000/001/010 only
 };
 
-struct UslpView {
+struct UslpView
+{
   UslpFields fields;
   std::span<const std::byte> insert_zone;  // empty if insert_zone_length = 0
   std::span<const std::byte> tfdz;

@@ -16,35 +16,42 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 // Caller clock. Intervals are in the same unit as `now` (211.0 Annex C names, not defaults).
 using Tick = std::uint32_t;
 
 // 211.0 section 7.1 modulo-256 compare: B < A iff (A-B) is 1..127.
-inline constexpr std::uint8_t seqDelta(std::uint8_t a, std::uint8_t b) noexcept {
+inline constexpr std::uint8_t seqDelta(std::uint8_t a, std::uint8_t b) noexcept
+{
   return static_cast<std::uint8_t>(a - b);
 }
-inline constexpr bool seqLt(std::uint8_t b, std::uint8_t a) noexcept {
+inline constexpr bool seqLt(std::uint8_t b, std::uint8_t a) noexcept
+{
   const std::uint8_t d = seqDelta(a, b);
   return d >= 1U && d <= kSeqHalfRange;
 }
-inline constexpr bool seqEq(std::uint8_t b, std::uint8_t a) noexcept {
+inline constexpr bool seqEq(std::uint8_t b, std::uint8_t a) noexcept
+{
   return seqDelta(a, b) == 0U;
 }
 
-struct CoppMib {
+struct CoppMib
+{
   std::uint8_t transmission_window = 1;  // 1..127 (211.0 section 7.2.3.3 note 4)
   Tick synch_timeout = 0;                // 0 = SYNCH_TIMER never expires
   bool resync_local = true;
 };
 
-enum class FarmPDisposition : std::uint8_t {
+enum class FarmPDisposition : std::uint8_t
+{
   discarded = 0,
   accepted,
 };
 
-struct FarmP {
+struct FarmP
+{
   std::uint8_t v_r = 0;
   bool r_s = false;
   std::uint8_t expedited_frame_counter = 0;  // modulo 8
@@ -57,9 +64,13 @@ FarmPDisposition farmPOnFrame(FarmP& f, bool valid, bool expedited,
 void farmPSetVr(FarmP& f, std::uint8_t seq_ctrl_fsn) noexcept;  // RE2
 Plcw16 farmPReport(FarmP const& f, Pcid pcid) noexcept;          // RE7
 
-enum class FopPState : std::uint8_t { s1_active = 0, s2_resync };
+enum class FopPState : std::uint8_t
+{
+  s1_active = 0, s2_resync
+};
 
-enum class FopPSend : std::uint8_t {
+enum class FopPSend : std::uint8_t
+{
   none = 0,
   expedited,
   new_seq,
@@ -70,7 +81,8 @@ inline constexpr std::size_t kFopPSentCap = 127;  // 211.0 section 7.2.3.3 windo
 inline constexpr std::size_t kCoppHold = 64;      // host-loop cap, not MIB
 inline constexpr std::size_t kCoppSeqSlots = 4;   // host-loop cap, not MIB
 
-struct FopP {
+struct FopP
+{
   FopPState state = FopPState::s1_active;
   std::uint8_t ve_s = 0;
   std::uint8_t v_s = 0;
@@ -101,7 +113,8 @@ void fopPOnPlcw(FopP& f, Plcw16 const& plcw, bool format_ok) noexcept;
 bool fopPTick(FopP& f, Tick now) noexcept;
 void fopPReset(FopP& f) noexcept;  // SE7
 
-enum class CoppEvent : std::uint8_t {
+enum class CoppEvent : std::uint8_t
+{
   none = 0,
   synch_timeout,
   farm_accepted,
@@ -110,7 +123,8 @@ enum class CoppEvent : std::uint8_t {
 // One COP-P endpoint (FOP-P + FARM-P). Wait/rx queues are host-loop caps,
 // not MIB. Sent copies live on FopP (kFopPSentCap), not a 256-FSN table.
 
-struct CoppEndpoint {
+struct CoppEndpoint
+{
   FarmP farm{};
   FopP fop{};
   bool uslp = false;  // IVP 11: Version-4 VC/MAP; PLCW still the Prox report

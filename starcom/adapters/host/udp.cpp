@@ -22,17 +22,22 @@
 #include <unistd.h>
 #endif
 
-namespace starcom::adapters {
-namespace {
+namespace starcom::adapters
+{
+namespace
+{
 
 #if defined(_WIN32)
 // Windows starts the socket library on the first open and stops it on the last close.
 int g_wsa = 0;
 
-bool wsaAcquire() noexcept {
-  if (g_wsa == 0) {
+bool wsaAcquire() noexcept
+{
+  if (g_wsa == 0)
+  {
     WSADATA data{};
-    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
+    {
       return false;
     }
   }
@@ -40,12 +45,15 @@ bool wsaAcquire() noexcept {
   return true;
 }
 
-void wsaRelease() noexcept {
-  if (g_wsa == 0) {
+void wsaRelease() noexcept
+{
+  if (g_wsa == 0)
+  {
     return;
   }
   --g_wsa;
-  if (g_wsa == 0) {
+  if (g_wsa == 0)
+  {
     WSACleanup();
   }
 }
@@ -59,16 +67,19 @@ constexpr Native kInvalid = -1;
 using AddrLen = socklen_t;
 #endif
 
-Native asNative(std::uintptr_t n) noexcept {
+Native asNative(std::uintptr_t n) noexcept
+{
   return static_cast<Native>(n);
 }
 
-bool hostEmpty(char const* host) noexcept {
+bool hostEmpty(char const* host) noexcept
+{
   return host == nullptr || host[0] == '\0';
 }
 
 bool makeAddr(char const* host, std::uint16_t port,
-               sockaddr_in& addr) noexcept {
+               sockaddr_in& addr) noexcept
+{
   std::memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
@@ -76,43 +87,52 @@ bool makeAddr(char const* host, std::uint16_t port,
 }
 
 // bind, sendto, and getsockname take sockaddr*.
-sockaddr* asSockaddr(sockaddr_storage& storage) noexcept {
+sockaddr* asSockaddr(sockaddr_storage& storage) noexcept
+{
   return reinterpret_cast<sockaddr*>(&storage);
 }
 
-void storeAddr(sockaddr_in const& addr, sockaddr_storage& storage) noexcept {
+void storeAddr(sockaddr_in const& addr, sockaddr_storage& storage) noexcept
+{
   std::memset(&storage, 0, sizeof(storage));
   std::memcpy(&storage, &addr, sizeof(addr));
 }
 
 #if defined(_WIN32)
-bool setNonblock(Native s) noexcept {
+bool setNonblock(Native s) noexcept
+{
   u_long one = 1;
   return ioctlsocket(s, static_cast<std::int32_t>(FIONBIO), &one) == 0;
 }
 
-char const* asOsChar(std::span<const std::byte> octets) noexcept {
+char const* asOsChar(std::span<const std::byte> octets) noexcept
+{
   return reinterpret_cast<char const*>(octets.data());  // Winsock takes char const*
 }
 
-char* asOsChar(std::span<std::byte> octets) noexcept {
+char* asOsChar(std::span<std::byte> octets) noexcept
+{
   return reinterpret_cast<char*>(octets.data());  // Winsock takes char*
 }
 #else
-bool setNonBlocking(int fd) noexcept {
+bool setNonBlocking(int fd) noexcept
+{
   const int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0) {
+  if (flags < 0)
+  {
     return false;
   }
   return fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
 }
 
-bool setNonblock(Native s) noexcept {
+bool setNonblock(Native s) noexcept
+{
   return setNonBlocking(s);
 }
 #endif
 
-void closeNative(Native s) noexcept {
+void closeNative(Native s) noexcept
+{
 #if defined(_WIN32)
   closesocket(s);
 #else
@@ -120,7 +140,8 @@ void closeNative(Native s) noexcept {
 #endif
 }
 
-bool netAcquire() noexcept {
+bool netAcquire() noexcept
+{
 #if defined(_WIN32)
   return wsaAcquire();
 #else
@@ -128,23 +149,27 @@ bool netAcquire() noexcept {
 #endif
 }
 
-void netRelease() noexcept {
+void netRelease() noexcept
+{
 #if defined(_WIN32)
   wsaRelease();
 #endif
 }
 
-bool osBind(Native sock, sockaddr_in const& addr) noexcept {
+bool osBind(Native sock, sockaddr_in const& addr) noexcept
+{
   sockaddr_storage storage{};
   storeAddr(addr, storage);
   const AddrLen len = static_cast<AddrLen>(sizeof(addr));
   return ::bind(sock, asSockaddr(storage), len) == 0;
 }
 
-bool osGetSockName(Native sock, sockaddr_in& bound) noexcept {
+bool osGetSockName(Native sock, sockaddr_in& bound) noexcept
+{
   sockaddr_storage storage{};
   AddrLen len = static_cast<AddrLen>(sizeof(bound));
-  if (::getsockname(sock, asSockaddr(storage), &len) != 0) {
+  if (::getsockname(sock, asSockaddr(storage), &len) != 0)
+  {
     return false;
   }
   std::memcpy(&bound, &storage, sizeof(bound));
@@ -153,7 +178,8 @@ bool osGetSockName(Native sock, sockaddr_in& bound) noexcept {
 
 ccsds::Result<std::size_t> osSendTo(Native sock,
                                      std::span<const std::byte> octets,
-                                     sockaddr_in const& addr) noexcept {
+                                     sockaddr_in const& addr) noexcept
+{
   sockaddr_storage storage{};
   storeAddr(addr, storage);
   const AddrLen len = static_cast<AddrLen>(sizeof(addr));
@@ -161,9 +187,11 @@ ccsds::Result<std::size_t> osSendTo(Native sock,
   const int n =
       ::sendto(sock, asOsChar(octets), static_cast<int>(octets.size()), 0,
                asSockaddr(storage), len);
-  if (n == SOCKET_ERROR) {
+  if (n == SOCKET_ERROR)
+  {
     const int os_err = WSAGetLastError();
-    if (os_err == WSAEWOULDBLOCK) {
+    if (os_err == WSAEWOULDBLOCK)
+    {
       return std::size_t{0};
     }
     return tl::unexpected(ccsds::Error::truncated);
@@ -172,9 +200,11 @@ ccsds::Result<std::size_t> osSendTo(Native sock,
 #else
   const ssize_t n = ::sendto(sock, octets.data(), octets.size(), 0,
                               asSockaddr(storage), len);
-  if (n < 0) {
+  if (n < 0)
+  {
     const int os_err = errno;
-    if (os_err == EAGAIN || os_err == EWOULDBLOCK) {
+    if (os_err == EAGAIN || os_err == EWOULDBLOCK)
+    {
       return std::size_t{0};
     }
     return tl::unexpected(ccsds::Error::truncated);
@@ -184,16 +214,20 @@ ccsds::Result<std::size_t> osSendTo(Native sock,
 }
 
 ccsds::Result<std::size_t> osRecv(Native sock,
-                                   std::span<std::byte> out) noexcept {
+                                   std::span<std::byte> out) noexcept
+{
 #if defined(_WIN32)
   const int n = ::recvfrom(sock, asOsChar(out), static_cast<int>(out.size()),
                            0, nullptr, nullptr);
-  if (n == SOCKET_ERROR) {
+  if (n == SOCKET_ERROR)
+  {
     const int os_err = WSAGetLastError();
-    if (os_err == WSAEWOULDBLOCK) {
+    if (os_err == WSAEWOULDBLOCK)
+    {
       return std::size_t{0};
     }
-    if (os_err == WSAEMSGSIZE) {
+    if (os_err == WSAEMSGSIZE)
+    {
       return tl::unexpected(ccsds::Error::buffer_too_small);
     }
     return tl::unexpected(ccsds::Error::truncated);
@@ -202,9 +236,11 @@ ccsds::Result<std::size_t> osRecv(Native sock,
 #else
   const ssize_t n =
       ::recvfrom(sock, out.data(), out.size(), 0, nullptr, nullptr);
-  if (n < 0) {
+  if (n < 0)
+  {
     const int os_err = errno;
-    if (os_err == EAGAIN || os_err == EWOULDBLOCK) {
+    if (os_err == EAGAIN || os_err == EWOULDBLOCK)
+    {
       return std::size_t{0};
     }
     return tl::unexpected(ccsds::Error::truncated);
@@ -216,39 +252,48 @@ ccsds::Result<std::size_t> osRecv(Native sock,
 }  // namespace
 
 ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
-                                      std::uint16_t port) noexcept {
-  if (hostEmpty(host)) {
+                                      std::uint16_t port) noexcept
+{
+  if (hostEmpty(host))
+  {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (s.native != 0) {
+  if (s.native != 0)
+  {
     udpClose(s);
   }
-  if (!netAcquire()) {
+  if (!netAcquire())
+  {
     return tl::unexpected(ccsds::Error::truncated);
   }
   const Native sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-  if (sock == kInvalid) {
+  if (sock == kInvalid)
+  {
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (!setNonblock(sock)) {
+  if (!setNonblock(sock))
+  {
     closeNative(sock);
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in addr{};
-  if (!makeAddr(host, port, addr)) {
+  if (!makeAddr(host, port, addr))
+  {
     closeNative(sock);
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (!osBind(sock, addr)) {
+  if (!osBind(sock, addr))
+  {
     closeNative(sock);
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in bound{};
-  if (!osGetSockName(sock, bound)) {
+  if (!osGetSockName(sock, bound))
+  {
     closeNative(sock);
     netRelease();
     return tl::unexpected(ccsds::Error::truncated);
@@ -257,8 +302,10 @@ ccsds::Result<std::uint16_t> udpBind(UdpSocket& s, char const* host,
   return ntohs(bound.sin_port);
 }
 
-void udpClose(UdpSocket& s) noexcept {
-  if (s.native == 0) {
+void udpClose(UdpSocket& s) noexcept
+{
+  if (s.native == 0)
+  {
     return;
   }
   closeNative(asNative(s.native));
@@ -269,23 +316,29 @@ void udpClose(UdpSocket& s) noexcept {
 ccsds::Result<std::size_t> udpSendTo(UdpSocket& s,
                                        std::span<const std::byte> octets,
                                        char const* host,
-                                       std::uint16_t port) noexcept {
-  if (s.native == 0 || hostEmpty(host)) {
+                                       std::uint16_t port) noexcept
+{
+  if (s.native == 0 || hostEmpty(host))
+  {
     return tl::unexpected(ccsds::Error::truncated);
   }
   sockaddr_in addr{};
-  if (!makeAddr(host, port, addr)) {
+  if (!makeAddr(host, port, addr))
+  {
     return tl::unexpected(ccsds::Error::truncated);
   }
   return osSendTo(asNative(s.native), octets, addr);
 }
 
 ccsds::Result<std::size_t> udpRecv(UdpSocket& s,
-                                    std::span<std::byte> out) noexcept {
-  if (s.native == 0) {
+                                    std::span<std::byte> out) noexcept
+{
+  if (s.native == 0)
+  {
     return tl::unexpected(ccsds::Error::truncated);
   }
-  if (out.empty()) {
+  if (out.empty())
+  {
     return tl::unexpected(ccsds::Error::buffer_too_small);
   }
   return osRecv(asNative(s.native), out);

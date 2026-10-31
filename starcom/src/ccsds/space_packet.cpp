@@ -8,21 +8,26 @@
 
 #include <algorithm>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
-[[nodiscard]] Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept {
-  if (packet.size() < kSpacePacketMinSize) {
+[[nodiscard]] Result<SpacePacketView> decodeSpacePacket(std::span<const std::byte> packet) noexcept
+{
+  if (packet.size() < kSpacePacketMinSize)
+  {
     return tl::unexpected(Error::sp_too_short);
   }
   const std::uint32_t b0 = std::to_integer<std::uint32_t>(packet[0]);
-  if ((b0 >> kSpVersionShift) != 0U) {
+  if ((b0 >> kSpVersionShift) != 0U)
+  {
     return tl::unexpected(Error::sp_pvn);
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(packet[4]) << 8U) |
                             std::to_integer<std::uint32_t>(packet[5]);
   const std::size_t data_len = static_cast<std::size_t>(length_c) + 1U;
   const std::size_t need = kSpacePacketHeaderSize + data_len;
-  if (packet.size() < need) {
+  if (packet.size() < need)
+  {
     return tl::unexpected(Error::sp_too_short);
   }
 
@@ -42,12 +47,15 @@ namespace starcom::ccsds {
 
 [[nodiscard]] Result<std::size_t> encodeSpacePacket(std::span<std::byte> out,
                                         SpacePacketFields const& fields,
-                                        std::span<const std::byte> data) noexcept {
-  if (data.size() < 1 || data.size() > kSpacePacketDataMax) {
+                                        std::span<const std::byte> data) noexcept
+{
+  if (data.size() < 1 || data.size() > kSpacePacketDataMax)
+  {
     return tl::unexpected(Error::sp_too_short);
   }
   const std::size_t need = kSpacePacketHeaderSize + data.size();
-  if (out.size() < need) {
+  if (out.size() < need)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   const std::uint32_t apid = static_cast<std::uint32_t>(fields.apid) & kSpApidMask;

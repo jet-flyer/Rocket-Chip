@@ -51,17 +51,21 @@ using starcom::ccsds::Scid;
 using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
 constexpr std::size_t kPltuMinEnvelope =
     kPltuAsmSize + kV3HeaderSize + kPltuCrcSize;  // 12; 211.2 Fig 3-1 + V-3 min
@@ -84,8 +88,10 @@ CoppEndpoint g_copp{};
 Cop1Endpoint g_cop1{};
 bool g_cop_ready = false;
 
-void copReady() {
-  if (g_cop_ready) {
+void copReady()
+{
+  if (g_cop_ready)
+  {
     return;
   }
   CoppMib pm{};
@@ -95,7 +101,8 @@ void copReady() {
   g_cop_ready = true;
 }
 
-void feed(std::span<const std::byte> s) {
+void feed(std::span<const std::byte> s)
+{
   (void)decodePltu(s);
   (void)decodeV3(s);
   (void)decodeUslp(s);
@@ -107,13 +114,16 @@ void feed(std::span<const std::byte> s) {
   cop1ReceiveBytes(g_cop1, s);
 }
 
-void test_prefix_smoke() {
+void test_prefix_smoke()
+{
   std::array<std::byte, kPltuMinEnvelope + 1> buf{};
   copReady();
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
-  for (auto fill : kFills) {
-    for (std::size_t n = 0; n <= buf.size(); ++n) {
+  for (auto fill : kFills)
+  {
+    for (std::size_t n = 0; n <= buf.size(); ++n)
+    {
       buf.fill(fill);
       feed(std::span<const std::byte>(buf.data(), n));
     }
@@ -122,12 +132,14 @@ void test_prefix_smoke() {
   CHECK(starcom::test::heapTrapCount() == 0);
 }
 
-void test_book_max_envelope() {
+void test_book_max_envelope()
+{
   std::array<std::byte, kPltuMaxEnvelope> buf{};
   copReady();
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
-  for (auto fill : kFills) {
+  for (auto fill : kFills)
+  {
     buf.fill(fill);
     feed(std::span<const std::byte>(buf.data(), buf.size()));
     feed(std::span<const std::byte>(buf.data(), kPltuMinEnvelope));
@@ -137,7 +149,8 @@ void test_book_max_envelope() {
   CHECK(starcom::test::heapTrapCount() == 0);
 }
 
-void test_mutate_golden_pltu() {
+void test_mutate_golden_pltu()
+{
   std::array<std::byte, kPltuMinEnvelope> pltu{};
   const auto n = encodePltu(pltu, kV3HeaderOnly);
   CHECK(n.has_value());
@@ -146,8 +159,10 @@ void test_mutate_golden_pltu() {
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   feed(std::span<const std::byte>(pltu.data(), *n));
-  for (std::size_t i = 0; i < *n; ++i) {
-    for (auto xorv : {std::byte{0x01}, std::byte{0x80}, std::byte{0xFF}}) {
+  for (std::size_t i = 0; i < *n; ++i)
+  {
+    for (auto xorv : {std::byte{0x01}, std::byte{0x80}, std::byte{0xFF}})
+    {
       auto mut = pltu;
       mut[i] ^= xorv;
       feed(std::span<const std::byte>(mut.data(), *n));
@@ -159,7 +174,8 @@ void test_mutate_golden_pltu() {
 
 }  // namespace
 
-int run_fuzz_tests() {
+int run_fuzz_tests()
+{
   test_prefix_smoke();
   test_book_max_envelope();
   test_mutate_golden_pltu();

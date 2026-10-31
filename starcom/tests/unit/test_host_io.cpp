@@ -44,30 +44,38 @@ using starcom::ccsds::repeatPltu;
 using starcom::ccsds::Scid;
 using starcom::ccsds::V3Fields;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
-struct Collected {
+struct Collected
+{
   std::array<std::array<std::byte, kAdapterFrameMax>, 4> units{};
   std::array<std::size_t, 4> lens{};
   std::size_t n = 0;
 
   starcom::ccsds::Result<std::size_t> operator()(
-      std::span<const std::byte> pltu) {
-    if (n >= units.size() || pltu.size() > kAdapterFrameMax) {
+      std::span<const std::byte> pltu)
+  {
+    if (n >= units.size() || pltu.size() > kAdapterFrameMax)
+    {
       return tl::unexpected(Error::buffer_too_small);
     }
     std::copy(pltu.begin(), pltu.end(), units[n].begin());
@@ -77,14 +85,17 @@ struct Collected {
   }
 };
 
-struct RepeatCtx {
+struct RepeatCtx
+{
   std::array<std::byte, kAdapterFrameMax> out{};
   std::size_t n = 0;
 
   starcom::ccsds::Result<std::size_t> operator()(
-      std::span<const std::byte> pltu) {
+      std::span<const std::byte> pltu)
+  {
     const auto got = repeatPltu(out, pltu);
-    if (!got) {
+    if (!got)
+    {
       return tl::unexpected(got.error());
     }
     n = *got;
@@ -92,26 +103,32 @@ struct RepeatCtx {
   }
 };
 
-struct CoppSinkCtx {
+struct CoppSinkCtx
+{
   CoppEndpoint* e = nullptr;
 
   starcom::ccsds::Result<std::size_t> operator()(
-      std::span<const std::byte> pltu) {
+      std::span<const std::byte> pltu)
+  {
     coppReceiveBytes(*e, pltu);
     return pltu.size();
   }
 };
 
-struct FailSink {
-  starcom::ccsds::Result<std::size_t> operator()(std::span<const std::byte>) {
+struct FailSink
+{
+  starcom::ccsds::Result<std::size_t> operator()(std::span<const std::byte>)
+  {
     return tl::unexpected(Error::bad_crc);
   }
 };
 
 bool writeTwoPltus(char const* path, std::span<const std::byte> a,
-                     std::span<const std::byte> b) {
+                     std::span<const std::byte> b)
+{
   std::FILE* f = std::fopen(path, "wb");
-  if (f == nullptr) {
+  if (f == nullptr)
+  {
     return false;
   }
   const bool ok = std::fwrite(a.data(), 1, a.size(), f) == a.size() &&
@@ -121,7 +138,8 @@ bool writeTwoPltus(char const* path, std::span<const std::byte> a,
 }
 
 bool makeUserPltu(std::span<std::byte> out, std::uint8_t fsn,
-                    std::span<const std::byte> opaque, std::size_t& n) {
+                    std::span<const std::byte> opaque, std::size_t& n)
+{
   V3Fields f{};
   f.scid = Scid{1};
   f.pcid = Pcid{0};
@@ -129,18 +147,21 @@ bool makeUserPltu(std::span<std::byte> out, std::uint8_t fsn,
   f.fsn = fsn;
   std::array<std::byte, 32> frame{};
   const auto fn = encodeV3UserDefined(frame, f, opaque);
-  if (!fn) {
+  if (!fn)
+  {
     return false;
   }
   const auto p = encodePltu(out, std::span<const std::byte>(frame.data(), *fn));
-  if (!p) {
+  if (!p)
+  {
     return false;
   }
   n = *p;
   return true;
 }
 
-void test_replay_two_pltus() {
+void test_replay_two_pltus()
+{
   std::array<std::byte, 64> a{};
   std::array<std::byte, 64> b{};
   const std::array<std::byte, 2> p0{std::byte{0xAA}, std::byte{0xBB}};
@@ -182,7 +203,8 @@ void test_replay_two_pltus() {
   std::remove(path);
 }
 
-void test_replay_into_repeat_pltu() {
+void test_replay_into_repeat_pltu()
+{
   std::array<std::byte, 64> a{};
   const std::array<std::byte, 1> opaque{std::byte{0x11}};
   std::size_t na = 0;
@@ -202,7 +224,8 @@ void test_replay_into_repeat_pltu() {
   std::remove(path);
 }
 
-void test_replay_into_copp() {
+void test_replay_into_copp()
+{
   std::array<std::byte, 64> a{};
   const std::array<std::byte, 2> opaque{std::byte{0xEE}, std::byte{0xFF}};
   std::size_t na = 0;
@@ -230,7 +253,8 @@ void test_replay_into_copp() {
   std::remove(path);
 }
 
-void test_replay_errors() {
+void test_replay_errors()
+{
   std::array<std::byte, kAdapterFrameMax> scratch{};
   Collected col{};
   CHECK(replayPltuFile(nullptr, scratch, col).error() == Error::truncated);
@@ -243,7 +267,8 @@ void test_replay_errors() {
         Error::buffer_too_small);
 }
 
-void test_replay_split_short_read() {
+void test_replay_split_short_read()
+{
   std::array<std::byte, 64> pltu{};
   const std::array<std::byte, 1> opaque{std::byte{0x42}};
   std::size_t n = 0;
@@ -269,7 +294,8 @@ void test_replay_split_short_read() {
   std::remove(path);
 }
 
-void test_replay_sink_error() {
+void test_replay_sink_error()
+{
   std::array<std::byte, 64> a{};
   const std::array<std::byte, 1> opaque{std::byte{0x11}};
   std::size_t na = 0;
@@ -286,7 +312,8 @@ void test_replay_sink_error() {
   std::remove(path);
 }
 
-void test_udp_loopback_pltu() {
+void test_udp_loopback_pltu()
+{
   std::array<std::byte, 64> pltu{};
   const std::array<std::byte, 1> opaque{std::byte{0x42}};
   std::size_t n = 0;
@@ -308,9 +335,11 @@ void test_udp_loopback_pltu() {
 
   std::array<std::byte, kAdapterFrameMax> got{};
   starcom::ccsds::Result<std::size_t> rec = std::size_t{0};
-  for (int i = 0; i < 64; ++i) {
+  for (int i = 0; i < 64; ++i)
+  {
     rec = udpRecv(rx, got);
-    if (rec.has_value() && *rec > 0) {
+    if (rec.has_value() && *rec > 0)
+    {
       break;
     }
   }
@@ -325,7 +354,8 @@ void test_udp_loopback_pltu() {
   udpClose(rx);
 }
 
-void test_udp_would_block_and_errors() {
+void test_udp_would_block_and_errors()
+{
   UdpSocket closed{};
   std::array<std::byte, 8> buf{};
   const std::array<std::byte, 1> one{std::byte{0x01}};
@@ -385,7 +415,8 @@ void test_udp_would_block_and_errors() {
 
 }  // namespace
 
-int run_host_io_tests() {
+int run_host_io_tests()
+{
   test_replay_two_pltus();
   test_replay_into_repeat_pltu();
   test_replay_into_copp();

@@ -26,37 +26,48 @@ using starcom::ccsds::kPltuAsm;
 using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
 constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
     std::byte{0x00}};
 
-struct FakePio {
+struct FakePio
+{
   std::vector<bool> bits;
   std::size_t rd = 0;
 
-  void putBit(bool bit) noexcept { bits.push_back(bit); }
+  void putBit(bool bit) noexcept
+  {
+    bits.push_back(bit);
+  }
 
-  bool getBit() noexcept {
-    if (rd >= bits.size()) {
+  bool getBit() noexcept
+  {
+    if (rd >= bits.size())
+    {
       return false;
     }
     return bits[rd++];
   }
 };
 
-void test_v3_header_only_roundtrip() {
+void test_v3_header_only_roundtrip()
+{
   std::array<std::byte, 32> pltu{};
   const auto n = encodePltu(pltu, kV3HeaderOnly);
   CHECK(n.has_value());
@@ -76,7 +87,8 @@ void test_v3_header_only_roundtrip() {
                    got.begin()));
 }
 
-void test_shift_in_too_small() {
+void test_shift_in_too_small()
+{
   FakePio ops{};
   std::array<std::byte, 2> tiny{};
   CHECK(pioShiftIn(ops, tiny, 4).error() == Error::buffer_too_small);
@@ -84,7 +96,8 @@ void test_shift_in_too_small() {
 
 }  // namespace
 
-int run_pio_port_tests() {
+int run_pio_port_tests()
+{
   test_v3_header_only_roundtrip();
   test_shift_in_too_small();
   return g_fails;

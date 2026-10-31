@@ -38,17 +38,21 @@ using starcom::ccsds::kPltuCrcSize;
 using starcom::ccsds::kTransferFrameMax;
 using starcom::ccsds::kTransferFrameMin;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
 using ByteBuf = std::array<std::byte, 64>;
 
@@ -59,22 +63,26 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
 // Annex C remainder of kV3HeaderOnly. Independent Python bit-division matched.
 constexpr std::uint32_t kV3HeaderOnlyCrc = 0xBCC004E7u;
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
-void test_crc_empty_and_zeros() {
+void test_crc_empty_and_zeros()
+{
   CHECK(crc32({}) == 0u);
   const std::array<std::byte, 5> zeros{};
   CHECK(crc32(asSpan(zeros)) == 0u);
 }
 
-void test_crc_v3_header_only() {
+void test_crc_v3_header_only()
+{
   // IVP v3-header-only
   CHECK(crc32(asSpan(kV3HeaderOnly)) == kV3HeaderOnlyCrc);
 }
 
-void test_asm_in_crc() {
+void test_asm_in_crc()
+{
   // IVP asm-in-crc (analysis): remainder over ASM+frame is not the PLTU CRC.
   std::array<std::byte, 8> covered{};
   std::copy(kPltuAsm.begin(), kPltuAsm.end(), covered.begin());
@@ -83,7 +91,8 @@ void test_asm_in_crc() {
   CHECK(crc32(asSpan(covered)) != kV3HeaderOnlyCrc);
 }
 
-void test_encode_decode_roundtrip() {
+void test_encode_decode_roundtrip()
+{
   ByteBuf out{};
   const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -109,7 +118,8 @@ void test_encode_decode_roundtrip() {
                    kV3HeaderOnly.begin()));
 }
 
-void test_repeat_bit_exact_and_rejects() {
+void test_repeat_bit_exact_and_rejects()
+{
   ByteBuf src{};
   const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -135,7 +145,8 @@ void test_repeat_bit_exact_and_rejects() {
             .error() == Error::buffer_too_small);
 }
 
-void test_hunt_leading_junk_and_back_to_back() {
+void test_hunt_leading_junk_and_back_to_back()
+{
   ByteBuf a{};
   ByteBuf b{};
   const auto na = encodePltu(a, asSpan(kV3HeaderOnly));
@@ -164,7 +175,8 @@ void test_hunt_leading_junk_and_back_to_back() {
   CHECK(second.consumed == *nb);
 }
 
-void test_hunt_split_across_calls() {
+void test_hunt_split_across_calls()
+{
   ByteBuf src{};
   const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -194,7 +206,8 @@ void test_hunt_split_across_calls() {
   CHECK(h2.consumed == *n);
 }
 
-void test_hunt_idle_then_pltu() {
+void test_hunt_idle_then_pltu()
+{
   // 211.2 section 3.3.2.2 idle PN. Receive discards it until the next ASM.
   ByteBuf src{};
   const auto n = encodePltu(src, asSpan(kV3HeaderOnly));
@@ -209,7 +222,8 @@ void test_hunt_idle_then_pltu() {
   CHECK(h.consumed == 4u + *n);
 }
 
-void test_hunt_partial_asm_kept() {
+void test_hunt_partial_asm_kept()
+{
   const std::array<std::byte, 3> tail{std::byte{0x00}, std::byte{0xFA},
                                       std::byte{0xF3}};
   const auto h = huntPltu(asSpan(tail));
@@ -218,7 +232,8 @@ void test_hunt_partial_asm_kept() {
   CHECK(h.consumed == 1u);
 }
 
-void test_hunt_unknown_tfvn_steps_one() {
+void test_hunt_unknown_tfvn_steps_one()
+{
   // 211.2 section 3.6.4 c: TFVN is not V-3 and not USLP. Hunt steps one octet.
   ByteBuf good{};
   const auto n = encodePltu(good, asSpan(kV3HeaderOnly));
@@ -243,7 +258,8 @@ void test_hunt_unknown_tfvn_steps_one() {
   CHECK(end.consumed == only.size());
 }
 
-void test_hunt_bad_crc_consumes_unit() {
+void test_hunt_bad_crc_consumes_unit()
+{
   ByteBuf bad{};
   ByteBuf good{};
   const auto n1 = encodePltu(bad, asSpan(kV3HeaderOnly));
@@ -269,7 +285,8 @@ void test_hunt_bad_crc_consumes_unit() {
   CHECK(h2.consumed == *n2);
 }
 
-void test_buffered_repeat_fifo_dedup_full() {
+void test_buffered_repeat_fifo_dedup_full()
+{
   ByteBuf a{};
   const auto na = encodePltu(a, asSpan(kV3HeaderOnly));
   CHECK(na.has_value());
@@ -306,7 +323,8 @@ void test_buffered_repeat_fifo_dedup_full() {
             .error() == Error::bad_crc);
 }
 
-void test_decode_ignores_trailing() {
+void test_decode_ignores_trailing()
+{
   ByteBuf out{};
   const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
   CHECK(n.has_value());
@@ -317,7 +335,8 @@ void test_decode_ignores_trailing() {
   CHECK(view->frame.size() == kV3HeaderOnly.size());
 }
 
-void test_reject_bad_asm() {
+void test_reject_bad_asm()
+{
   // IVP bad-asm
   ByteBuf buf{};
   const auto n = encodePltu(buf, asSpan(kV3HeaderOnly));
@@ -328,7 +347,8 @@ void test_reject_bad_asm() {
   CHECK(r.error() == Error::bad_asm);
 }
 
-void test_reject_truncated() {
+void test_reject_truncated()
+{
   // IVP truncated
   const auto empty = decodePltu({});
   CHECK(!empty.has_value());
@@ -351,7 +371,8 @@ void test_reject_truncated() {
   CHECK(cut.error() == Error::truncated);
 }
 
-void test_reject_bad_crc() {
+void test_reject_bad_crc()
+{
   // IVP bad-crc
   ByteBuf buf{};
   const auto n = encodePltu(buf, asSpan(kV3HeaderOnly));
@@ -362,7 +383,8 @@ void test_reject_bad_crc() {
   CHECK(r.error() == Error::bad_crc);
 }
 
-void test_reject_tfvn_unknown() {
+void test_reject_tfvn_unknown()
+{
   // IVP tfvn-unknown
   ByteBuf buf{};
   auto frame = kV3HeaderOnly;
@@ -381,7 +403,8 @@ void test_reject_tfvn_unknown() {
   CHECK(r2.error() == Error::tfvn_unknown);
 }
 
-void test_reject_v3_length_oob() {
+void test_reject_v3_length_oob()
+{
   // IVP v3-length-oob
   // C = 3 -> 4-octet frame, below V-3 min. Length is readable at ASM+4 octets.
   std::array<std::byte, 7> too_small{
@@ -405,14 +428,16 @@ void test_reject_v3_length_oob() {
   CHECK(enc_big.error() == Error::v3_length_oob);
 }
 
-void test_encode_buffer_too_small() {
+void test_encode_buffer_too_small()
+{
   std::array<std::byte, 11> too_small{};  // need 12 for header-only PLTU
   const auto r = encodePltu(too_small, asSpan(kV3HeaderOnly));
   CHECK(!r.has_value());
   CHECK(r.error() == Error::buffer_too_small);
 }
 
-void test_encode_max_frame() {
+void test_encode_max_frame()
+{
   std::vector<std::byte> frame(kTransferFrameMax, std::byte{0x00});
   frame[0] = std::byte{0x80};
   // C = 2047 -> 0x07FF in bits 21-31. Octet 2 low 3 bits = 0x07, octet 3 = 0xFF.
@@ -427,7 +452,8 @@ void test_encode_max_frame() {
   CHECK(view->frame.size() == kTransferFrameMax);
 }
 
-void test_one_data_octet() {
+void test_one_data_octet()
+{
   // C = 5, six-octet frame, data 0xAA. CRC 0x85C4556E from Annex C model.
   const std::array<std::byte, 6> frame{
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x05},
@@ -442,7 +468,8 @@ void test_one_data_octet() {
   CHECK(view->frame.size() == 6u);
 }
 
-void test_heap_trap_positive_control() {
+void test_heap_trap_positive_control()
+{
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   auto* p = new int{42};
@@ -453,13 +480,15 @@ void test_heap_trap_positive_control() {
   delete p;
 }
 
-void test_codecs_allocate_nothing() {
+void test_codecs_allocate_nothing()
+{
   ByteBuf out{};
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   (void)crc32(asSpan(kV3HeaderOnly));
   const auto n = encodePltu(out, asSpan(kV3HeaderOnly));
-  if (n.has_value()) {
+  if (n.has_value())
+  {
     (void)decodePltu(std::span<const std::byte>(out.data(), *n));
     ByteBuf rpt{};
     (void)repeatPltu(rpt, std::span<const std::byte>(out.data(), *n));
@@ -496,7 +525,8 @@ int run_phy_tests();
 int run_coding_tests();
 int run_constant_tests();
 
-int main() {
+int main()
+{
   test_crc_empty_and_zeros();
   test_crc_v3_header_only();
   test_asm_in_crc();
@@ -539,7 +569,8 @@ int main() {
   g_fails += run_coding_tests();
   g_fails += run_constant_tests();
 
-  if (g_fails != 0) {
+  if (g_fails != 0)
+  {
     std::fprintf(stderr, "%d check(s) failed\n", g_fails);
     return 1;
   }

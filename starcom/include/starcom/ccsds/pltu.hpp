@@ -14,7 +14,8 @@
 #include <cstddef>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 inline constexpr std::size_t kPltuAsmSize = 3;
 inline constexpr std::size_t kPltuCrcSize = 4;
@@ -26,7 +27,8 @@ inline constexpr std::uint32_t kBe32HiShift = 24U;
 inline constexpr std::array<std::byte, kPltuAsmSize> kPltuAsm{
     std::byte{0xFA}, std::byte{0xF3}, std::byte{0x20}};
 
-struct PltuView {
+struct PltuView
+{
   std::span<const std::byte> frame;  // Transfer Frame, no ASM, no CRC
 };
 
@@ -49,7 +51,8 @@ struct PltuView {
 
 // 211.2 section 3.6: search span for exact ASM. One PLTU per call. leftover is the
 // caller's span (no library buffer). Handshake: ICD.
-struct PltuHunt {
+struct PltuHunt
+{
   std::size_t consumed;
   Result<PltuView> pltu;
 };
@@ -59,13 +62,15 @@ PltuHunt huntPltu(std::span<const std::byte> octets,
 
 // IVP 12: caller-owned store-and-forward. slots.size() is the depth - not a
 // Starcom constant. seq is V-3 FSN or USLP VC Frame Count.
-struct PltuRepeatSlot {
+struct PltuRepeatSlot
+{
   std::span<std::byte> buf;
   std::size_t len = 0;
   std::uint64_t seq = 0;
 };
 
-struct PltuRepeatQ {
+struct PltuRepeatQ
+{
   std::span<PltuRepeatSlot> slots;
   std::size_t head = 0;
   std::size_t count = 0;

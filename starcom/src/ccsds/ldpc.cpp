@@ -9,8 +9,10 @@
 #include <bit>
 #include <cstdint>
 
-namespace starcom::ccsds {
-namespace {
+namespace starcom::ccsds
+{
+namespace
+{
 
 // 131.0-B-5 annex B notes US Patent 7,343,539; encode is still required.
 
@@ -129,22 +131,29 @@ constexpr std::size_t kCirc = 128;
 constexpr std::size_t kCircOctets = 16;
 constexpr std::size_t kBlocks = 8;
 
-std::uint32_t bitAt(std::uint8_t const* oct, std::size_t i) noexcept {
+std::uint32_t bitAt(std::uint8_t const* oct, std::size_t i) noexcept
+{
   return (static_cast<std::uint32_t>(oct[i / 8]) >> (kOctetMsb - (i % 8U))) & 1U;
 }
 
-void xorBit(std::uint8_t* oct, std::size_t i) noexcept {
+void xorBit(std::uint8_t* oct, std::size_t i) noexcept
+{
   oct[i / 8] = static_cast<std::uint8_t>(
       oct[i / 8] ^ static_cast<std::uint8_t>(1U << (kOctetMsb - (i % 8U))));
 }
 
 // Right-circulant C[row,col] = r[(col-row) mod 128].
-void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noexcept {
-  for (std::size_t i = 0; i < kCirc; ++i) {
-    if (bitAt(u, i) != 0U) {
-      for (std::size_t j = 0; j < kCirc; ++j) {
+void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noexcept
+{
+  for (std::size_t i = 0; i < kCirc; ++i)
+  {
+    if (bitAt(u, i) != 0U)
+    {
+      for (std::size_t j = 0; j < kCirc; ++j)
+      {
         const std::size_t src = (j - i) & (kCirc - 1U);
-        if (bitAt(r, src) != 0U) {
+        if (bitAt(r, src) != 0U)
+        {
           xorBit(p, j);
         }
       }
@@ -158,12 +167,15 @@ void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noex
 // feedback bit goes into the top stage, bit 7.
 constexpr std::uint32_t kPnRegMsb = 7U;
 
-void pnXor(std::span<std::byte> octets) noexcept {
+void pnXor(std::span<std::byte> octets) noexcept
+{
   std::uint8_t r = 0xFF;
-  for (std::byte& o : octets) {
+  for (std::byte& o : octets)
+  {
     const std::uint32_t v = std::to_integer<std::uint32_t>(o);
     std::uint32_t acc = 0;
-    for (std::int32_t b = static_cast<std::int32_t>(kOctetMsb); b >= 0; --b) {
+    for (std::int32_t b = static_cast<std::int32_t>(kOctetMsb); b >= 0; --b)
+    {
       const std::uint32_t out = r & 1U;
       const std::uint32_t fb = static_cast<std::uint32_t>(std::popcount(r & 0x5FU)) & 1U;
       r = static_cast<std::uint8_t>((static_cast<std::uint32_t>(r) >> 1U) | (fb << kPnRegMsb));
@@ -175,8 +187,10 @@ void pnXor(std::span<std::byte> octets) noexcept {
 
 }  // namespace
 
-[[nodiscard]] Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept {
-  if (codeword.size() != kLdpcCodewordOctets) {
+[[nodiscard]] Result<std::size_t> ldpcRandomize(std::span<std::byte> codeword) noexcept
+{
+  if (codeword.size() != kLdpcCodewordOctets)
+  {
     return tl::unexpected(Error::truncated);
   }
   pnXor(codeword);
@@ -184,25 +198,32 @@ void pnXor(std::span<std::byte> octets) noexcept {
 }
 
 [[nodiscard]] Result<std::size_t> ldpcEncodeBlock(std::span<std::byte> out,
-                                      std::span<const std::byte> message) noexcept {
-  if (message.size() != kLdpcMessageOctets) {
+                                      std::span<const std::byte> message) noexcept
+{
+  if (message.size() != kLdpcMessageOctets)
+  {
     return tl::unexpected(Error::truncated);
   }
-  if (out.size() < kLdpcCodewordOctets) {
+  if (out.size() < kLdpcCodewordOctets)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
 
   std::uint8_t u[kLdpcMessageOctets];
   std::uint8_t p[kLdpcMessageOctets] = {};
-  for (std::size_t i = 0; i < kLdpcMessageOctets; ++i) {
+  for (std::size_t i = 0; i < kLdpcMessageOctets; ++i)
+  {
     u[i] = std::to_integer<std::uint8_t>(message[i]);
   }
-  for (std::size_t br = 0; br < kBlocks; ++br) {
-    for (std::size_t bc = 0; bc < kBlocks; ++bc) {
+  for (std::size_t br = 0; br < kBlocks; ++br)
+  {
+    for (std::size_t bc = 0; bc < kBlocks; ++bc)
+    {
       xorCirc(p + bc * kCircOctets, u + br * kCircOctets, kWFirstRow[br][bc]);
     }
   }
-  for (std::size_t i = 0; i < kLdpcMessageOctets; ++i) {
+  for (std::size_t i = 0; i < kLdpcMessageOctets; ++i)
+  {
     out[i] = std::byte{u[i]};
     out[kLdpcMessageOctets + i] = std::byte{p[i]};
   }
@@ -211,24 +232,30 @@ void pnXor(std::span<std::byte> octets) noexcept {
 }
 
 [[nodiscard]] Result<std::size_t> ldpcEncodeStream(std::span<std::byte> out,
-                                       std::span<const std::byte> bitstream) noexcept {
-  if (bitstream.size() % kLdpcMessageOctets != 0) {
+                                       std::span<const std::byte> bitstream) noexcept
+{
+  if (bitstream.size() % kLdpcMessageOctets != 0)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::size_t blocks = bitstream.size() / kLdpcMessageOctets;
   const std::size_t need = blocks * kLdpcCodedOctets;
-  if (out.size() < need) {
+  if (out.size() < need)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   std::size_t w = 0;
-  for (std::size_t b = 0; b < blocks; ++b) {
-    for (std::size_t i = 0; i < kLdpcCsmOctets; ++i) {
+  for (std::size_t b = 0; b < blocks; ++b)
+  {
+    for (std::size_t i = 0; i < kLdpcCsmOctets; ++i)
+    {
       out[w++] = kLdpcCsm[i];
     }
     const auto msg = bitstream.subspan(b * kLdpcMessageOctets, kLdpcMessageOctets);
     const auto cw = out.subspan(w, kLdpcCodewordOctets);
     const auto n = ldpcEncodeBlock(cw, msg);
-    if (!n.has_value()) {
+    if (!n.has_value())
+    {
       return n;
     }
     w += kLdpcCodewordOctets;

@@ -57,19 +57,24 @@ using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 using starcom::ccsds::MapId;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-void test_seq_compare() {
+void test_seq_compare()
+{
   CHECK(!seqLt(0, 0));
   CHECK(seqLt(0, 1));
   CHECK(seqLt(255, 0));
@@ -78,7 +83,8 @@ void test_seq_compare() {
   CHECK(!seqLt(20, 10));
 }
 
-void test_farm_p_table() {
+void test_farm_p_table()
+{
   FarmP f{};
   farmPInit(f);
   CHECK(f.v_r == 0);
@@ -113,7 +119,8 @@ void test_farm_p_table() {
   CHECK(!w.retransmit);
 }
 
-void test_fop_p_send_and_ack() {
+void test_fop_p_send_and_ack()
+{
   CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 10;
@@ -147,7 +154,8 @@ void test_fop_p_send_and_ack() {
   CHECK(f.sent_n == 0);
 }
 
-void test_fop_p_invalid_plcw_and_timer() {
+void test_fop_p_invalid_plcw_and_timer()
+{
   CoppMib mib{};
   mib.transmission_window = 4;
   mib.synch_timeout = 5;
@@ -178,7 +186,8 @@ void test_fop_p_invalid_plcw_and_timer() {
   CHECK(f.state == FopPState::s1_active);
 }
 
-void test_canned_pltu_to_plcw() {
+void test_canned_pltu_to_plcw()
+{
   CoppMib mib{};
   mib.transmission_window = 4;
   CoppEndpoint rx{};
@@ -225,7 +234,8 @@ void test_canned_pltu_to_plcw() {
   CHECK(tx.fop.nn_r == 1);
 }
 
-void test_uslp_host_loop() {
+void test_uslp_host_loop()
+{
   CoppMib mib{};
   mib.transmission_window = 4;
   CoppEndpoint rx{};
@@ -273,7 +283,8 @@ void test_uslp_host_loop() {
 // so SE4 is not the path that recovers the loss.
 // Report Value 3 is not used. A PLCW with second octet 0x03 matches decodeSetVr,
 // and that decode runs before decodePlcw, so FARM-P would take SET V(R) instead.
-void test_copp_lossy_loop() {
+void test_copp_lossy_loop()
+{
   constexpr int kWarm = 2;
   constexpr int kLoss = 4;
   constexpr int kBound = 48;
@@ -291,16 +302,19 @@ void test_copp_lossy_loop() {
 
   Tick now = 1;
   std::array<std::byte, 128> wire{};
-  const auto pass_frame = [&](CoppEndpoint& from, CoppEndpoint& to) -> std::size_t {
+  const auto pass_frame = [&](CoppEndpoint& from, CoppEndpoint& to) -> std::size_t
+  {
     const auto n = coppBytesToSend(from, wire);
     CHECK(n.has_value());
-    if (!n.has_value() || *n == 0) {
+    if (!n.has_value() || *n == 0)
+    {
       return 0;
     }
     coppReceiveBytes(to, std::span<const std::byte>(wire.data(), *n));
     return *n;
   };
-  const auto require_frame = [&](CoppEndpoint& from, CoppEndpoint& to) {
+  const auto require_frame = [&](CoppEndpoint& from, CoppEndpoint& to)
+  {
     CHECK(pass_frame(from, to) > 0);
   };
 
@@ -322,7 +336,8 @@ void test_copp_lossy_loop() {
   CHECK(b.farm.v_r == kBase);
   CHECK(!b.farm.need_plcw);
 
-  struct Held {
+  struct Held
+  {
     std::array<std::byte, 16> bytes{};
     std::size_t n = 0;
   };
@@ -330,14 +345,16 @@ void test_copp_lossy_loop() {
   int got = 0;
   std::array<Held, kWarm + kLoss> have{};
 
-  const auto submit = [&](int index, std::uint8_t mark) {
+  const auto submit = [&](int index, std::uint8_t mark)
+  {
     SpacePacketFields sp{};
     sp.seq_count = static_cast<std::uint16_t>(index);
     const std::array<std::byte, 1> user{std::byte{mark}};
     const auto pn = encodeSpacePacket(want[static_cast<std::size_t>(index)].bytes, sp,
                                        user);
     CHECK(pn.has_value());
-    if (!pn.has_value()) {
+    if (!pn.has_value())
+    {
       return;
     }
     want[static_cast<std::size_t>(index)].n = *pn;
@@ -348,16 +365,20 @@ void test_copp_lossy_loop() {
         false);
     CHECK(sub.has_value());
   };
-  const auto drain = [&]() {
-    for (int k = 0; k < kLoss; ++k) {
+  const auto drain = [&]()
+  {
+    for (int k = 0; k < kLoss; ++k)
+    {
       std::array<std::byte, 16> sdu{};
       const auto tn = coppTakeSdu(b, sdu);
       CHECK(tn.has_value());
-      if (!tn.has_value() || *tn == 0) {
+      if (!tn.has_value() || *tn == 0)
+      {
         return;
       }
       CHECK(got < kWarm + kLoss);
-      if (got >= kWarm + kLoss) {
+      if (got >= kWarm + kLoss)
+      {
         return;
       }
       std::copy_n(sdu.begin(), *tn, have[static_cast<std::size_t>(got)].bytes.begin());
@@ -366,10 +387,12 @@ void test_copp_lossy_loop() {
     }
   };
 
-  for (int i = 0; i < kWarm; ++i) {
+  for (int i = 0; i < kWarm; ++i)
+  {
     submit(i, static_cast<std::uint8_t>(0x10u + i));
     bool acked = false;
-    for (int step = 0; step < kBound; ++step) {
+    for (int step = 0; step < kBound; ++step)
+    {
       ++now;
       coppTick(a, now);
       coppTick(b, now);
@@ -378,12 +401,14 @@ void test_copp_lossy_loop() {
       const std::uint8_t vs = a.fop.v_s;
       const auto n = coppBytesToSend(a, wire);
       CHECK(n.has_value());
-      if (n.has_value() && *n > 0) {
+      if (n.has_value() && *n > 0)
+      {
         CHECK(plc || a.fop.v_s != vs);
         coppReceiveBytes(b, std::span<const std::byte>(wire.data(), *n));
       }
       drain();
-      if (got == i + 1 && a.fop.sent_n == 0 && a.fop.v_s == a.fop.nn_r) {
+      if (got == i + 1 && a.fop.sent_n == 0 && a.fop.v_s == a.fop.nn_r)
+      {
         acked = true;
         break;
       }
@@ -395,7 +420,8 @@ void test_copp_lossy_loop() {
   CHECK(b.farm.v_r == static_cast<std::uint8_t>(kBase + kWarm));
 
   const std::uint32_t rtx_before = coppRetransmitCount(a);
-  for (int i = 0; i < kLoss; ++i) {
+  for (int i = 0; i < kLoss; ++i)
+  {
     submit(kWarm + i, static_cast<std::uint8_t>(0x40u + i));
   }
 
@@ -404,7 +430,8 @@ void test_copp_lossy_loop() {
   std::uint8_t dropped_fsn = 0;
   std::array<std::uint8_t, 4> resent_fsn{};
   bool done = false;
-  for (int step = 0; step < kBound; ++step) {
+  for (int step = 0; step < kBound; ++step)
+  {
     ++now;
     coppTick(a, now);
     coppTick(b, now);
@@ -413,30 +440,43 @@ void test_copp_lossy_loop() {
     const std::uint8_t vs = a.fop.v_s;
     const auto n = coppBytesToSend(a, wire);
     CHECK(n.has_value());
-    if (n.has_value() && *n > 0 && !plc) {
-      if (a.fop.v_s != vs) {
+    if (n.has_value() && *n > 0 && !plc)
+    {
+      if (a.fop.v_s != vs)
+      {
         ++new_seen;
-        if (new_seen == 2) {
+        if (new_seen == 2)
+        {
           dropped_fsn = a.fop.last_send_fsn;
-        } else {
+        }
+        else
+        {
           coppReceiveBytes(b, std::span<const std::byte>(wire.data(), *n));
         }
-      } else {
+      }
+      else
+      {
         CHECK(resend_n < 4);
-        if (resend_n < 4) {
+        if (resend_n < 4)
+        {
           resent_fsn[static_cast<std::size_t>(resend_n)] = a.fop.last_send_fsn;
         }
         ++resend_n;
         coppReceiveBytes(b, std::span<const std::byte>(wire.data(), *n));
       }
-    } else if (n.has_value() && *n > 0) {
+    }
+    else if (n.has_value() && *n > 0)
+    {
       coppReceiveBytes(b, std::span<const std::byte>(wire.data(), *n));
-    } else {
+    }
+    else
+    {
       /* no action: A sent nothing on this step (no octets, or an error the CHECK above reports) */
     }
     drain();
     if (got == kWarm + kLoss && new_seen == kLoss && a.fop.sent_n == 0 &&
-        a.fop.v_s == a.fop.nn_r) {
+        a.fop.v_s == a.fop.nn_r)
+    {
       done = true;
       break;
     }
@@ -452,7 +492,8 @@ void test_copp_lossy_loop() {
                a.fop.v_s, a.fop.n_r, b.farm.v_r);
 
   CHECK(got == kWarm + kLoss);
-  for (int i = 0; i < kWarm + kLoss; ++i) {
+  for (int i = 0; i < kWarm + kLoss; ++i)
+  {
     CHECK(have[static_cast<std::size_t>(i)].n == want[static_cast<std::size_t>(i)].n);
     CHECK(std::equal(want[static_cast<std::size_t>(i)].bytes.begin(),
                      want[static_cast<std::size_t>(i)].bytes.begin() +
@@ -479,7 +520,8 @@ void test_copp_lossy_loop() {
   CHECK(coppSyncLossCount(a) == a_sync);
 }
 
-void test_heap() {
+void test_heap()
+{
   CoppMib mib{};
   FarmP farm{};
   FopP fop{};
@@ -499,7 +541,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_copp_tests() {
+int run_copp_tests()
+{
   test_seq_compare();
   test_farm_p_table();
   test_fop_p_send_and_ack();

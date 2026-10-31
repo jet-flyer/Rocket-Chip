@@ -70,19 +70,24 @@ using starcom::ccsds::SpacePacketFields;
 using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-void test_farm_1_table() {
+void test_farm_1_table()
+{
   Farm1Mib mib{};
   mib.w = 8;  // PW = NW = 4
   Farm1 f{};
@@ -133,7 +138,8 @@ void test_farm_1_table() {
   CHECK(clcw.report_value == 10);
 }
 
-void test_fop_1_initiate_and_ack() {
+void test_fop_1_initiate_and_ack()
+{
   Cop1Mib mib{};
   mib.k = 4;
   mib.transmission_limit = 4;
@@ -156,7 +162,8 @@ void test_fop_1_initiate_and_ack() {
   CHECK(f.sent_n == 0);
 }
 
-void test_fop_1_retransmit_flag() {
+void test_fop_1_retransmit_flag()
+{
   Cop1Mib mib{};
   mib.k = 4;
   mib.transmission_limit = 4;
@@ -175,7 +182,8 @@ void test_fop_1_retransmit_flag() {
   CHECK(f.last_send_ns == 0);
 }
 
-void test_fop_1_s4_clcw_check() {
+void test_fop_1_s4_clcw_check()
+{
   Cop1Mib mib{};
   Fop1 f{};
   fop1Init(f, mib);
@@ -189,7 +197,8 @@ void test_fop_1_s4_clcw_check() {
   CHECK(f.state == Fop1State::s1_active);
 }
 
-void test_fop_1_s5_unlock_and_terminate() {
+void test_fop_1_s5_unlock_and_terminate()
+{
   Cop1Mib mib{};
   Fop1 f{};
   fop1Init(f, mib);
@@ -205,7 +214,8 @@ void test_fop_1_s5_unlock_and_terminate() {
   CHECK(f.state == Fop1State::s6_initial);
 }
 
-void test_fop_1_s5_set_vr() {
+void test_fop_1_s5_set_vr()
+{
   Cop1Mib mib{};
   Fop1 f{};
   fop1Init(f, mib);
@@ -220,7 +230,8 @@ void test_fop_1_s5_set_vr() {
   CHECK(f.state == Fop1State::s1_active);
 }
 
-void test_host_loop_unlock() {
+void test_host_loop_unlock()
+{
   Cop1Mib mib{};
   mib.k = 4;
   mib.transmission_limit = 4;
@@ -260,7 +271,8 @@ void test_host_loop_unlock() {
   CHECK(tx.fop.state == Fop1State::s6_initial);
 }
 
-void test_host_loop() {
+void test_host_loop()
+{
   Cop1Mib mib{};
   mib.k = 4;
   mib.transmission_limit = 4;
@@ -299,7 +311,8 @@ void test_host_loop() {
   CHECK(tx.fop.sent_n == 0);
 }
 
-void test_fop_1_suspend_resume() {
+void test_fop_1_suspend_resume()
+{
   Cop1Mib mib{};
   mib.t1_initial = 10;
   mib.transmission_limit = 1;
@@ -321,7 +334,8 @@ void test_fop_1_suspend_resume() {
   CHECK(f.state == Fop1State::s1_active);
 }
 
-void test_fop_1_setup_and_llif() {
+void test_fop_1_setup_and_llif()
+{
   Fop1 f{};
   Cop1Mib mib{};
   fop1Init(f, mib);
@@ -340,19 +354,23 @@ void test_fop_1_setup_and_llif() {
 }
 
 bool resentTfdzIs(std::span<const std::byte> pltu,
-                  std::span<const std::byte> packet) {
+                  std::span<const std::byte> packet)
+{
   const auto view = decodePltu(pltu);
-  if (!view) {
+  if (!view)
+  {
     return false;
   }
   const auto u = decodeUslp(view->frame);
-  if (!u || u->tfdz.size() != packet.size()) {
+  if (!u || u->tfdz.size() != packet.size())
+  {
     return false;
   }
   return std::equal(packet.begin(), packet.end(), u->tfdz.begin());
 }
 
-void test_resend_ad_match_then_skip() {
+void test_resend_ad_match_then_skip()
+{
   // First resend matches sent[0] and leaves the loop. Second resend
   // skips sent[0] and matches sent[1]. Each TFDZ is that slot's packet.
   Cop1Mib mib{};
@@ -408,7 +426,8 @@ void test_resend_ad_match_then_skip() {
   CHECK(tx.fop.sent_n == 2);
 }
 
-void test_heap() {
+void test_heap()
+{
   Cop1Mib mib{};
   Farm1 farm{};
   Fop1 fop{};
@@ -431,7 +450,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_cop1_tests() {
+int run_cop1_tests()
+{
   test_farm_1_table();
   test_fop_1_initiate_and_ack();
   test_fop_1_retransmit_flag();

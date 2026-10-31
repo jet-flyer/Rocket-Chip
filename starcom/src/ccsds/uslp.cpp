@@ -10,46 +10,57 @@
 
 #include <algorithm>
 
-namespace starcom::ccsds {
-namespace {
+namespace starcom::ccsds
+{
+namespace
+{
 
 // Rules 0, 1 and 2 (binary 000 to 010) carry a 16-bit pointer: a First Header
 // Pointer for 000, a Last Valid Octet Pointer for 001 and 010. The TFDF header
 // is then 3 octets. Other rules use a 1-octet header (732.1-B-3 4.1.4.2.1.2,
 // 4.1.4.2.4).
-bool constructionHasPointer(std::uint8_t rule) noexcept {
+bool constructionHasPointer(std::uint8_t rule) noexcept
+{
   return rule <= 0b010U;
 }
 
-std::size_t primaryHeaderSize(std::uint8_t vcf_len) noexcept {
+std::size_t primaryHeaderSize(std::uint8_t vcf_len) noexcept
+{
   return kUslpPrimaryHeaderMin + static_cast<std::size_t>(vcf_len);
 }
 
-std::size_t tfdfHeaderSize(std::uint8_t rule) noexcept {
+std::size_t tfdfHeaderSize(std::uint8_t rule) noexcept
+{
   return constructionHasPointer(rule) ? 3U : 1U;
 }
 
-void storeBeN(std::span<std::byte> dest, std::uint64_t value) noexcept {
-  for (std::size_t i = 0; i < dest.size(); ++i) {
+void storeBeN(std::span<std::byte> dest, std::uint64_t value) noexcept
+{
+  for (std::size_t i = 0; i < dest.size(); ++i)
+  {
     const auto shift = 8U * (dest.size() - 1U - i);
     dest[i] = std::byte(static_cast<std::uint32_t>(value >> shift) & 0xFFU);
   }
 }
 
-std::uint64_t loadBeN(std::span<const std::byte> src) noexcept {
+std::uint64_t loadBeN(std::span<const std::byte> src) noexcept
+{
   std::uint64_t v = 0;
-  for (auto b : src) {
+  for (auto b : src)
+  {
     v = (v << 8U) | std::to_integer<std::uint64_t>(b);
   }
   return v;
 }
 
-void storeBe16(std::span<std::byte> dest, std::uint16_t value) noexcept {
+void storeBe16(std::span<std::byte> dest, std::uint16_t value) noexcept
+{
   dest[0] = std::byte((static_cast<std::uint32_t>(value) >> 8U) & 0xFFU);
   dest[1] = std::byte(value & 0xFFU);
 }
 
-void fillPrimaryIds(UslpView& view, std::span<const std::byte> frame) noexcept {
+void fillPrimaryIds(UslpView& view, std::span<const std::byte> frame) noexcept
+{
   const std::uint32_t b0 = std::to_integer<std::uint32_t>(frame[0]);
   const std::uint32_t b2 = std::to_integer<std::uint32_t>(frame[2]);
   const std::uint32_t b3 = std::to_integer<std::uint32_t>(frame[3]);
@@ -63,7 +74,8 @@ void fillPrimaryIds(UslpView& view, std::span<const std::byte> frame) noexcept {
 }
 
 void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
-                  bool truncated) noexcept {
+                  bool truncated) noexcept
+{
   const std::uint32_t scid = static_cast<std::uint32_t>(fields.scid);
   const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & 0x3FU;
   const std::uint32_t map = static_cast<std::uint32_t>(fields.map_id) & kUslpMapMask;
@@ -76,19 +88,24 @@ void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
 }
 
 [[nodiscard]] Result<UslpView> decodeUslpTruncated(std::span<const std::byte> frame,
-                                    UslpMib const& mib) noexcept {
-  if (mib.truncated_frame_length == 0) {
+                                    UslpMib const& mib) noexcept
+{
+  if (mib.truncated_frame_length == 0)
+  {
     return tl::unexpected(Error::uslp_truncated);
   }
   const std::size_t flen = mib.truncated_frame_length;
-  if (flen < kUslpTruncatedMin || flen > kUslpTruncatedMax) {
+  if (flen < kUslpTruncatedMin || flen > kUslpTruncatedMax)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
-  if (frame.size() < flen) {
+  if (frame.size() < flen)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::size_t th = kUslpTfdfHeaderMin;
-  if (flen < kUslpTruncatedHeaderSize + th) {
+  if (flen < kUslpTruncatedHeaderSize + th)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
   UslpView view{};
@@ -104,18 +121,22 @@ void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
   return view;
 }
 
-bool fillTfdf(UslpView& view, std::span<const std::byte> body) noexcept {
-  if (body.empty()) {
+bool fillTfdf(UslpView& view, std::span<const std::byte> body) noexcept
+{
+  if (body.empty())
+  {
     return false;
   }
   const std::uint32_t tfdf0 = std::to_integer<std::uint32_t>(body[0]);
   view.fields.tfdz_construction = static_cast<std::uint8_t>(tfdf0 >> kUslpRuleShift);
   view.fields.upid = static_cast<std::uint8_t>(tfdf0 & kUslpUpidMask);
   const std::size_t th = tfdfHeaderSize(view.fields.tfdz_construction);
-  if (body.size() < th) {
+  if (body.size() < th)
+  {
     return false;
   }
-  if (constructionHasPointer(view.fields.tfdz_construction)) {
+  if (constructionHasPointer(view.fields.tfdz_construction))
+  {
     view.fields.tfdz_pointer =
         static_cast<std::uint16_t>((std::to_integer<std::uint32_t>(body[1]) << 8U) |
                                    std::to_integer<std::uint32_t>(body[2]));
@@ -125,7 +146,8 @@ bool fillTfdf(UslpView& view, std::span<const std::byte> body) noexcept {
 }
 
 bool checkFecf(UslpView& view, std::span<const std::byte> frame,
-               std::size_t frame_len) noexcept {
+               std::size_t frame_len) noexcept
+{
   view.fecf = frame.subspan(frame_len - kUslpFecfSize, kUslpFecfSize);
   const auto covered = frame.subspan(0, frame_len - kUslpFecfSize);
   const std::uint16_t got =
@@ -134,31 +156,38 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   return crc16Fecf(covered) == got;
 }
 
-[[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> frame) noexcept {
-  if (frame.size() < kUslpLengthHeaderOctets) {
+[[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> frame) noexcept
+{
+  if (frame.size() < kUslpLengthHeaderOctets)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(frame[4]) << 8U) |
                             std::to_integer<std::uint32_t>(frame[5]);
   // The stored length is the frame length minus 1.
   const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
-  if (frame_len < kUslpFrameMin || frame_len > kUslpFrameMax) {
+  if (frame_len < kUslpFrameMin || frame_len > kUslpFrameMax)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
-  if (frame.size() < frame_len) {
+  if (frame.size() < frame_len)
+  {
     return tl::unexpected(Error::truncated);
   }
   return frame_len;
 }
 
 [[nodiscard]] Result<UslpView> decodeUslpNonTruncated(std::span<const std::byte> frame,
-                                       UslpMib const& mib) noexcept {
+                                       UslpMib const& mib) noexcept
+{
   const auto flen = uslpFrameLen(frame);
-  if (!flen) {
+  if (!flen)
+  {
     return tl::unexpected(flen.error());
   }
   const std::size_t frame_len = *flen;
-  if (frame.size() < kUslpPrimaryHeaderMin) {
+  if (frame.size() < kUslpPrimaryHeaderMin)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t b6 = std::to_integer<std::uint32_t>(frame[6]);
@@ -171,27 +200,34 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   const std::size_t ph = primaryHeaderSize(view.fields.vcf_count_len);
   const std::size_t iz = mib.insert_zone_length;
   std::size_t trailer = view.fields.ocf_present ? kUslpOcfSize : 0;
-  if (mib.fecf_present) {
+  if (mib.fecf_present)
+  {
     trailer += kUslpFecfSize;
   }
   if (frame_len < ph + kUslpTfdfHeaderMin ||
-      frame_len < ph + iz + kUslpTfdfHeaderMin + trailer) {
+      frame_len < ph + iz + kUslpTfdfHeaderMin + trailer)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
-  if (view.fields.vcf_count_len != 0) {
+  if (view.fields.vcf_count_len != 0)
+  {
     view.fields.vcf_count =
         loadBeN(frame.subspan(kUslpPrimaryHeaderMin, view.fields.vcf_count_len));
   }
-  if (iz != 0) {
+  if (iz != 0)
+  {
     view.insert_zone = frame.subspan(ph, iz);
   }
-  if (!fillTfdf(view, frame.subspan(ph + iz, frame_len - ph - iz - trailer))) {
+  if (!fillTfdf(view, frame.subspan(ph + iz, frame_len - ph - iz - trailer)))
+  {
     return tl::unexpected(Error::truncated);
   }
-  if (view.fields.ocf_present) {
+  if (view.fields.ocf_present)
+  {
     view.ocf = frame.subspan(frame_len - trailer, kUslpOcfSize);
   }
-  if (mib.fecf_present && !checkFecf(view, frame, frame_len)) {
+  if (mib.fecf_present && !checkFecf(view, frame, frame_len))
+  {
     return tl::unexpected(Error::uslp_bad_fecf);
   }
   return view;
@@ -200,21 +236,26 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
 [[nodiscard]] Result<std::size_t> encodeUslpTruncated(std::span<std::byte> out,
                                        UslpFields const& fields,
                                        std::span<const std::byte> tfdz,
-                                       UslpMib const& mib) noexcept {
+                                       UslpMib const& mib) noexcept
+{
   if (mib.insert_zone_length != 0 || mib.fecf_present || fields.ocf_present ||
-      tfdz.empty()) {
+      tfdz.empty())
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
   const std::size_t frame_len =
       kUslpTruncatedHeaderSize + kUslpTfdfHeaderMin + tfdz.size();
-  if (frame_len < kUslpTruncatedMin || frame_len > kUslpTruncatedMax) {
+  if (frame_len < kUslpTruncatedMin || frame_len > kUslpTruncatedMax)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
   if (mib.truncated_frame_length != 0 &&
-      mib.truncated_frame_length != frame_len) {
+      mib.truncated_frame_length != frame_len)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
-  if (out.size() < frame_len) {
+  if (out.size() < frame_len)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   writeUslpIds(out, fields, true);
@@ -226,7 +267,8 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   return frame_len;
 }
 
-struct UslpLayout {
+struct UslpLayout
+{
   std::uint8_t vcf_len;
   std::uint8_t rule;
   std::size_t ph;
@@ -242,7 +284,8 @@ struct UslpLayout {
 void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
                    UslpLayout const& lay, std::span<const std::byte> tfdz,
                    std::span<const std::byte> ocf,
-                   std::span<const std::byte> insert) noexcept {
+                   std::span<const std::byte> insert) noexcept
+{
   // The stored length is the frame length minus 1.
   const std::uint32_t c = static_cast<std::uint32_t>(lay.frame_len - 1U);
   writeUslpIds(out, fields, false);
@@ -251,30 +294,36 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
   out[kUslpPrimaryHeaderMin - 1] = std::byte((fields.expedited ? 0x80U : 0U) |
                      (fields.protocol_control ? 0x40U : 0U) |
                      (lay.want_ocf ? 0x08U : 0U) | (lay.vcf_len & kUslpVcfLenMask));
-  if (lay.vcf_len != 0) {
+  if (lay.vcf_len != 0)
+  {
     storeBeN(out.subspan(kUslpPrimaryHeaderMin, lay.vcf_len), fields.vcf_count);
   }
-  if (lay.iz != 0) {
+  if (lay.iz != 0)
+  {
     std::copy(insert.begin(), insert.end(),
               out.begin() + static_cast<std::ptrdiff_t>(lay.ph));
   }
   auto tfdf = out.subspan(lay.ph + lay.iz, lay.th);
   tfdf[0] = std::byte((static_cast<std::uint32_t>(lay.rule) << kUslpRuleShift) |
                       (fields.upid & kUslpUpidMask));
-  if (lay.th == 3) {
+  if (lay.th == 3)
+  {
     tfdf[1] = std::byte((static_cast<std::uint32_t>(fields.tfdz_pointer) >> 8U) & 0xFFU);
     tfdf[2] = std::byte(fields.tfdz_pointer & 0xFFU);
   }
-  if (!tfdz.empty()) {
+  if (!tfdz.empty())
+  {
     std::copy(tfdz.begin(), tfdz.end(),
               out.begin() + static_cast<std::ptrdiff_t>(lay.ph + lay.iz + lay.th));
   }
-  if (lay.want_ocf) {
+  if (lay.want_ocf)
+  {
     std::copy(ocf.begin(), ocf.begin() + static_cast<std::ptrdiff_t>(kUslpOcfSize),
               out.begin() + static_cast<std::ptrdiff_t>(lay.frame_len - lay.fecf_n -
                                                         lay.ocf_n));
   }
-  if (lay.fecf) {
+  if (lay.fecf)
+  {
     const auto covered =
         std::span<const std::byte>(out.data(), lay.frame_len - lay.fecf_n);
     storeBe16(out.subspan(lay.frame_len - lay.fecf_n, kUslpFecfSize),
@@ -285,15 +334,19 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
 }  // namespace
 
 [[nodiscard]] Result<UslpView> decodeUslp(std::span<const std::byte> frame,
-                             UslpMib const& mib) noexcept {
-  if (frame.size() < 4) {
+                             UslpMib const& mib) noexcept
+{
+  if (frame.size() < 4)
+  {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t b0 = std::to_integer<std::uint32_t>(frame[0]);
-  if ((b0 >> 4U) != kTfvnUslp) {
+  if ((b0 >> 4U) != kTfvnUslp)
+  {
     return tl::unexpected(Error::tfvn_unknown);
   }
-  if ((std::to_integer<std::uint32_t>(frame[3]) & 0x01U) != 0) {
+  if ((std::to_integer<std::uint32_t>(frame[3]) & 0x01U) != 0)
+  {
     return decodeUslpTruncated(frame, mib);
   }
   return decodeUslpNonTruncated(frame, mib);
@@ -303,15 +356,19 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
                                 std::span<const std::byte> tfdz,
                                 std::span<const std::byte> ocf,
                                 UslpMib const& mib,
-                                std::span<const std::byte> insert) noexcept {
-  if (fields.truncated) {
-    if (!insert.empty() || !ocf.empty()) {
+                                std::span<const std::byte> insert) noexcept
+{
+  if (fields.truncated)
+  {
+    if (!insert.empty() || !ocf.empty())
+    {
       return tl::unexpected(Error::uslp_length_oob);
     }
     return encodeUslpTruncated(out, fields, tfdz, mib);
   }
   std::uint8_t vcf_len = fields.vcf_count_len;
-  if (vcf_len > kUslpVcfLenMax) {
+  if (vcf_len > kUslpVcfLenMax)
+  {
     vcf_len = kUslpVcfLenMax;
   }
   UslpLayout lay{};
@@ -320,10 +377,12 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
   lay.ph = primaryHeaderSize(lay.vcf_len);
   lay.th = tfdfHeaderSize(lay.rule);
   lay.want_ocf = fields.ocf_present;
-  if (lay.want_ocf && ocf.size() < kUslpOcfSize) {
+  if (lay.want_ocf && ocf.size() < kUslpOcfSize)
+  {
     return tl::unexpected(Error::truncated);
   }
-  if (mib.insert_zone_length != insert.size()) {
+  if (mib.insert_zone_length != insert.size())
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
   lay.ocf_n = lay.want_ocf ? kUslpOcfSize : 0;
@@ -331,10 +390,12 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
   lay.iz = mib.insert_zone_length;
   lay.fecf = mib.fecf_present;
   lay.frame_len = lay.ph + lay.iz + lay.th + tfdz.size() + lay.ocf_n + lay.fecf_n;
-  if (lay.frame_len < kUslpFrameMin || lay.frame_len > kUslpFrameMax) {
+  if (lay.frame_len < kUslpFrameMin || lay.frame_len > kUslpFrameMax)
+  {
     return tl::unexpected(Error::uslp_length_oob);
   }
-  if (out.size() < lay.frame_len) {
+  if (out.size() < lay.frame_len)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   writeUslpBody(out, fields, lay, tfdz, ocf, insert);

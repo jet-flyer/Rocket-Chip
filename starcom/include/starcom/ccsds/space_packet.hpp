@@ -13,7 +13,8 @@
 #include <cstdint>
 #include <span>
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 inline constexpr std::size_t kSpacePacketHeaderSize = 6;
 inline constexpr std::size_t kSpacePacketMinSize = 7;  // header + mandatory 1-octet data field
@@ -29,7 +30,8 @@ inline constexpr std::uint32_t kSpSeqFlagsShift = 6U;
 // CCSDS 133.0-B-2 4.1.3.4.1.2. Packet Sequence Count is 14 bits.
 inline constexpr std::uint32_t kSpSeqCountHighMask = 0x3FU;
 
-struct SpacePacketFields {
+struct SpacePacketFields
+{
   bool telecommand = false;       // Packet Type; 1 = telecommand
   bool secondary_header = false;
   Apid apid{};
@@ -37,7 +39,8 @@ struct SpacePacketFields {
   std::uint16_t seq_count = 0;    // 14-bit
 };
 
-struct SpacePacketView {
+struct SpacePacketView
+{
   SpacePacketFields fields;
   std::span<const std::byte> data;  // Packet Data Field
 };

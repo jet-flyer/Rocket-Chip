@@ -18,41 +18,52 @@
 #error "STARCOM_ROOT must be defined to the starcom/ tree"
 #endif
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-std::map<std::string, std::string> parseVersionFile() {
+std::map<std::string, std::string> parseVersionFile()
+{
   const std::string path = std::string(STARCOM_ROOT) + "/STARCOM_VERSION";
   std::ifstream in(path);
   CHECK(in.good());
   std::map<std::string, std::string> kv;
   std::string line;
-  while (std::getline(in, line)) {
-    if (!line.empty() && line.back() == '\r') {
+  while (std::getline(in, line))
+  {
+    if (!line.empty() && line.back() == '\r')
+    {
       line.pop_back();
     }
-    if (line.empty() || line[0] == '#') {
+    if (line.empty() || line[0] == '#')
+    {
       continue;
     }
     const auto eq = line.find('=');
-    if (eq == std::string::npos) {
+    if (eq == std::string::npos)
+    {
       continue;
     }
     std::string key = line.substr(0, eq);
     std::string val = line.substr(eq + 1);
-    auto trim = [](std::string& s) {
+    auto trim = [](std::string& s)
+    {
       const auto first = s.find_first_not_of(" \t");
       const auto last = s.find_last_not_of(" \t");
-      if (first == std::string::npos) {
+      if (first == std::string::npos)
+      {
         s.clear();
         return;
       }
@@ -65,7 +76,8 @@ std::map<std::string, std::string> parseVersionFile() {
   return kv;
 }
 
-void test_header_matches_file_and_git() {
+void test_header_matches_file_and_git()
+{
   const auto kv = parseVersionFile();
   CHECK(kv.find("VERSION_MAJOR") != kv.end());
   CHECK(kv.find("VERSION_MINOR") != kv.end());
@@ -85,7 +97,8 @@ void test_header_matches_file_and_git() {
 
   std::string expected_string = expected_lib;
   const auto extra = kv.find("EXTRAVERSION");
-  if (extra != kv.end() && !extra->second.empty()) {
+  if (extra != kv.end() && !extra->second.empty())
+  {
     expected_string += "-";
     expected_string += extra->second;
   }
@@ -99,7 +112,8 @@ void test_header_matches_file_and_git() {
 
 }  // namespace
 
-int run_version_tests() {
+int run_version_tests()
+{
   test_header_matches_file_and_git();
   return g_fails;
 }

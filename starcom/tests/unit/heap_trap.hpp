@@ -5,7 +5,8 @@
 #ifndef STARCOM_TESTS_UNIT_HEAP_TRAP_H_
 #define STARCOM_TESTS_UNIT_HEAP_TRAP_H_
 
-namespace starcom::test {
+namespace starcom::test
+{
 
 void heapTrapArm() noexcept;
 void heapTrapDisarm() noexcept;

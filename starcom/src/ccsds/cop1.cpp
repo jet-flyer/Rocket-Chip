@@ -10,37 +10,46 @@
 #include <cstring>
 #include <type_traits>
 
-namespace starcom::ccsds {
-namespace {
+namespace starcom::ccsds
+{
+namespace
+{
 
 // This file owns g_cop1TfScratch.
 // cop1BytesToSend is the only caller.
 // The buffer stays off the stack. Pico Core 0 stack is 4 KiB.
 std::array<std::byte, kTransferFrameMax> g_cop1TfScratch{};
 
-std::uint8_t farmPw(Farm1 const& f) noexcept {
+std::uint8_t farmPw(Farm1 const& f) noexcept
+{
   return static_cast<std::uint8_t>(f.mib.w / 2U);
 }
 
-std::uint8_t farmNw(Farm1 const& f) noexcept {
+std::uint8_t farmNw(Farm1 const& f) noexcept
+{
   return farmPw(f);
 }
 
-void farmEnterOpen(Farm1& f) noexcept {
+void farmEnterOpen(Farm1& f) noexcept
+{
   f.state = Farm1State::s1_open;
   f.lockout_flag = false;
   f.wait_flag = false;
 }
 
-void sentPopFront(Fop1& f, std::uint8_t n) noexcept {
-  if (n > f.sent_n) {
+void sentPopFront(Fop1& f, std::uint8_t n) noexcept
+{
+  if (n > f.sent_n)
+  {
     n = f.sent_n;
   }
-  if (n == 0) {
+  if (n == 0)
+  {
     return;
   }
   const std::uint8_t rest = static_cast<std::uint8_t>(f.sent_n - n);
-  for (std::uint8_t i = 0; i < rest; ++i) {
+  for (std::uint8_t i = 0; i < rest; ++i)
+  {
     const auto src = static_cast<std::uint8_t>(i + n);
     f.sent[i] = f.sent[src];
     f.to_retransmit[i] = f.to_retransmit[src];
@@ -50,22 +59,27 @@ void sentPopFront(Fop1& f, std::uint8_t n) noexcept {
   f.sent_n = rest;
 }
 
-void startT1(Fop1& f) noexcept {
-  if (f.mib.t1_initial == 0) {
+void startT1(Fop1& f) noexcept
+{
+  if (f.mib.t1_initial == 0)
+  {
     return;
   }
-  if (!f.t1_running) {
+  if (!f.t1_running)
+  {
     f.t1_running = true;
     f.t1_deadline = 0;
   }
 }
 
-void cancelT1(Fop1& f) noexcept {
+void cancelT1(Fop1& f) noexcept
+{
   f.t1_running = false;
   f.t1_deadline = 0;
 }
 
-void fopInitialize(Fop1& f) noexcept {
+void fopInitialize(Fop1& f) noexcept
+{
   f.sent_n = 0;
   f.v_s = 0;
   f.nn_r = 0;
@@ -77,35 +91,43 @@ void fopInitialize(Fop1& f) noexcept {
   cancelT1(f);
 }
 
-void fopAlert(Fop1& f) noexcept {
+void fopAlert(Fop1& f) noexcept
+{
   fopInitialize(f);
   f.alert_latched = true;
   f.state = Fop1State::s6_initial;
 }
 
-void fopSuspend(Fop1& f, std::uint8_t ss) noexcept {
+void fopSuspend(Fop1& f, std::uint8_t ss) noexcept
+{
   f.ss = ss;
   f.suspend_latched = true;
   cancelT1(f);
   f.state = Fop1State::s6_initial;
 }
 
-void initiateAdRetrans(Fop1& f) noexcept {
-  for (std::uint8_t i = 0; i < f.sent_n; ++i) {
+void initiateAdRetrans(Fop1& f) noexcept
+{
+  for (std::uint8_t i = 0; i < f.sent_n; ++i)
+  {
     f.to_retransmit[i] = true;
   }
   ++f.transmission_count;
   startT1(f);
-  if (f.state != Fop1State::s1_active && f.state != Fop1State::s2_retransmit) {
+  if (f.state != Fop1State::s1_active && f.state != Fop1State::s2_retransmit)
+  {
     f.state = Fop1State::s2_retransmit;
   }
 }
 
-bool nrInRange(Fop1 const& f, std::uint8_t nr) noexcept {
-  if (nr == f.v_s) {
+bool nrInRange(Fop1 const& f, std::uint8_t nr) noexcept
+{
+  if (nr == f.v_s)
+  {
     return true;
   }
-  if (nr == f.nn_r) {
+  if (nr == f.nn_r)
+  {
     return true;
   }
   return cop1SeqLt(f.nn_r, nr) && (cop1SeqLt(nr, f.v_s) || nr == f.v_s);
@@ -113,30 +135,38 @@ bool nrInRange(Fop1 const& f, std::uint8_t nr) noexcept {
 
 }  // namespace
 
-void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept {
+void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept
+{
   f = Farm1{};
   f.mib = mib;
-  if (f.mib.w < 2U) {
+  if (f.mib.w < 2U)
+  {
     f.mib.w = 2;
   }
-  if (f.mib.w > kFarm1WindowMax) {
+  if (f.mib.w > kFarm1WindowMax)
+  {
     f.mib.w = static_cast<std::uint8_t>(kFarm1WindowMax);
   }
-  if ((f.mib.w % 2U) != 0) {
+  if ((f.mib.w % 2U) != 0)
+  {
     --f.mib.w;
   }
   farmEnterOpen(f);
 }
 
-Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept {
-  if (n_s == f.v_r) {
-    if (f.state == Farm1State::s1_open && buffer_ok) {
+Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept
+{
+  if (n_s == f.v_r)
+  {
+    if (f.state == Farm1State::s1_open && buffer_ok)
+    {
       f.v_r = static_cast<std::uint8_t>(f.v_r + 1U);
       f.retransmit_flag = false;
       f.need_clcw = true;
       return Farm1Disposition::accepted;  // E1
     }
-    if (f.state == Farm1State::s1_open && !buffer_ok) {
+    if (f.state == Farm1State::s1_open && !buffer_ok)
+    {
       f.retransmit_flag = true;
       f.wait_flag = true;
       f.state = Farm1State::s2_wait;
@@ -145,19 +175,22 @@ Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept 
     }
     return Farm1Disposition::discarded;  // S2/S3
   }
-  if (f.state == Farm1State::s3_lockout) {
+  if (f.state == Farm1State::s3_lockout)
+  {
     return Farm1Disposition::discarded;
   }
   const std::uint8_t pw = farmPw(f);
   const std::uint8_t nw = farmNw(f);
   const std::uint8_t dpos = cop1SeqDelta(n_s, f.v_r);
-  if (dpos >= 1U && pw > 1U && dpos <= static_cast<std::uint8_t>(pw - 1U)) {
+  if (dpos >= 1U && pw > 1U && dpos <= static_cast<std::uint8_t>(pw - 1U))
+  {
     f.retransmit_flag = true;
     f.need_clcw = true;
     return Farm1Disposition::discarded;  // E3
   }
   const std::uint8_t dneg = cop1SeqDelta(f.v_r, n_s);
-  if (dneg >= 1U && dneg <= nw) {
+  if (dneg >= 1U && dneg <= nw)
+  {
     return Farm1Disposition::discarded;  // E4
   }
   f.lockout_flag = true;
@@ -166,13 +199,15 @@ Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept 
   return Farm1Disposition::discarded;  // E5
 }
 
-Farm1Disposition farm1OnBd(Farm1& f) noexcept {
+Farm1Disposition farm1OnBd(Farm1& f) noexcept
+{
   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
   f.need_clcw = true;
   return Farm1Disposition::accepted;  // E6 all states
 }
 
-void farm1OnUnlock(Farm1& f) noexcept {
+void farm1OnUnlock(Farm1& f) noexcept
+{
   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
   f.retransmit_flag = false;
   f.wait_flag = false;
@@ -181,9 +216,11 @@ void farm1OnUnlock(Farm1& f) noexcept {
   f.need_clcw = true;
 }
 
-void farm1OnSetVr(Farm1& f, std::uint8_t v_star) noexcept {
+void farm1OnSetVr(Farm1& f, std::uint8_t v_star) noexcept
+{
   f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
-  if (f.state == Farm1State::s3_lockout) {
+  if (f.state == Farm1State::s3_lockout)
+  {
     f.need_clcw = true;
     return;  // E8 S3: count only
   }
@@ -194,17 +231,23 @@ void farm1OnSetVr(Farm1& f, std::uint8_t v_star) noexcept {
   f.need_clcw = true;
 }
 
-void farm1OnInvalid(Farm1& f) noexcept { (void)f; }
+void farm1OnInvalid(Farm1& f) noexcept
+{
+  (void)f;
+}
 
-void farm1BufferRelease(Farm1& f) noexcept {
-  if (f.state == Farm1State::s2_wait) {
+void farm1BufferRelease(Farm1& f) noexcept
+{
+  if (f.state == Farm1State::s2_wait)
+  {
     f.wait_flag = false;
     farmEnterOpen(f);
     f.need_clcw = true;
   }
 }
 
-Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
+Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept
+{
   Clcw32 w{};
   w.cop_in_effect = 0b01;
   w.vcid = static_cast<std::uint8_t>(vcid & kClcwVcidMask);
@@ -216,13 +259,16 @@ Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
   return w;
 }
 
-void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept {
+void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept
+{
   std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = mib;
-  if (f.mib.k == 0U) {
+  if (f.mib.k == 0U)
+  {
     f.mib.k = 1;
   }
-  if (f.mib.transmission_limit == 0U) {
+  if (f.mib.transmission_limit == 0U)
+  {
     f.mib.transmission_limit = 1;
   }
   f.state = Fop1State::s6_initial;
@@ -232,8 +278,10 @@ void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept {
   f.bd_out_ready = true;
 }
 
-bool fop1InitiateAd(Fop1& f) noexcept {
-  if (f.state != Fop1State::s6_initial) {
+bool fop1InitiateAd(Fop1& f) noexcept
+{
+  if (f.state != Fop1State::s6_initial)
+  {
     return false;  // E23 Reject except S6
   }
   fopInitialize(f);
@@ -241,8 +289,10 @@ bool fop1InitiateAd(Fop1& f) noexcept {
   return true;
 }
 
-bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept {
-  if (f.state != Fop1State::s6_initial) {
+bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept
+{
+  if (f.state != Fop1State::s6_initial)
+  {
     return false;  // E24
   }
   fopInitialize(f);
@@ -251,11 +301,14 @@ bool fop1InitiateAdWithClcwCheck(Fop1& f) noexcept {
   return true;
 }
 
-bool fop1InitiateAdUnlock(Fop1& f) noexcept {
-  if (f.state != Fop1State::s6_initial) {
+bool fop1InitiateAdUnlock(Fop1& f) noexcept
+{
+  if (f.state != Fop1State::s6_initial)
+  {
     return false;  // E25
   }
-  if (!f.bc_out_ready) {
+  if (!f.bc_out_ready)
+  {
     return false;  // E26
   }
   fopInitialize(f);
@@ -266,11 +319,14 @@ bool fop1InitiateAdUnlock(Fop1& f) noexcept {
   return true;
 }
 
-bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept {
-  if (f.state != Fop1State::s6_initial) {
+bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept
+{
+  if (f.state != Fop1State::s6_initial)
+  {
     return false;  // E27
   }
-  if (!f.bc_out_ready) {
+  if (!f.bc_out_ready)
+  {
     return false;  // E28
   }
   fopInitialize(f);
@@ -284,25 +340,36 @@ bool fop1InitiateAdSetVr(Fop1& f, std::uint8_t v_star) noexcept {
   return true;
 }
 
-void fop1TerminateAd(Fop1& f) noexcept {
-  if (f.state == Fop1State::s6_initial) {
+void fop1TerminateAd(Fop1& f) noexcept
+{
+  if (f.state == Fop1State::s6_initial)
+  {
     return;  // E29 S6: Confirm, remain (incl. suspended)
   }
   fopAlert(f);  // E29 S1-S5 Alert [term] -> S6
 }
 
-bool fop1ResumeAd(Fop1& f) noexcept {
-  if (f.ss == 0U || f.state != Fop1State::s6_initial) {
+bool fop1ResumeAd(Fop1& f) noexcept
+{
+  if (f.ss == 0U || f.state != Fop1State::s6_initial)
+  {
     return false;  // E30
   }
   Fop1State dest = Fop1State::s1_active;
-  if (f.ss == 2U) {
+  if (f.ss == 2U)
+  {
     dest = Fop1State::s2_retransmit;
-  } else if (f.ss == 3U) {
+  }
+  else if (f.ss == 3U)
+  {
     dest = Fop1State::s3_retransmit_wait;
-  } else if (f.ss == 4U) {
+  }
+  else if (f.ss == 4U)
+  {
     dest = Fop1State::s4_init_no_bc;
-  } else {
+  }
+  else
+  {
     /* no action: Suspend_State is not 2, 3, or 4, so resume stays in S1 */
   }
   f.ss = 0;
@@ -311,8 +378,10 @@ bool fop1ResumeAd(Fop1& f) noexcept {
   return true;
 }
 
-bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
-  if (f.state != Fop1State::s6_initial || f.ss != 0U) {
+bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept
+{
+  if (f.state != Fop1State::s6_initial || f.ss != 0U)
+  {
     return false;  // E35
   }
   f.v_s = v_star;
@@ -320,43 +389,75 @@ bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
   return true;
 }
 
-void fop1SetK(Fop1& f, std::uint8_t k) noexcept {
+void fop1SetK(Fop1& f, std::uint8_t k) noexcept
+{
   f.mib.k = (k == 0U) ? 1U : k;  // E36; 232.1 section 5.1.12 1 <= K < 256
 }
 
-void fop1SetT1Initial(Fop1& f, Tick t1) noexcept { f.mib.t1_initial = t1; }
+void fop1SetT1Initial(Fop1& f, Tick t1) noexcept
+{
+  f.mib.t1_initial = t1;
+}
 
-void fop1SetTransmissionLimit(Fop1& f, std::uint8_t n) noexcept {
+void fop1SetTransmissionLimit(Fop1& f, std::uint8_t n) noexcept
+{
   f.mib.transmission_limit = (n == 0U) ? 1U : n;
 }
 
-void fop1SetTimeoutType(Fop1& f, std::uint8_t tt) noexcept {
+void fop1SetTimeoutType(Fop1& f, std::uint8_t tt) noexcept
+{
   f.mib.timeout_type = (tt == 0U) ? 0U : 1U;
 }
 
-void fop1AdAccept(Fop1& f) noexcept { f.ad_out_ready = true; }
-void fop1AdReject(Fop1& f) noexcept { fopAlert(f); }
-void fop1BcAccept(Fop1& f) noexcept { f.bc_out_ready = true; }
-void fop1BcReject(Fop1& f) noexcept { fopAlert(f); }
-void fop1BdAccept(Fop1& f) noexcept { f.bd_out_ready = true; }
-void fop1BdReject(Fop1& f) noexcept { fopAlert(f); }
+void fop1AdAccept(Fop1& f) noexcept
+{
+  f.ad_out_ready = true;
+}
+void fop1AdReject(Fop1& f) noexcept
+{
+  fopAlert(f);
+}
+void fop1BcAccept(Fop1& f) noexcept
+{
+  f.bc_out_ready = true;
+}
+void fop1BcReject(Fop1& f) noexcept
+{
+  fopAlert(f);
+}
+void fop1BdAccept(Fop1& f) noexcept
+{
+  f.bd_out_ready = true;
+}
+void fop1BdReject(Fop1& f) noexcept
+{
+  fopAlert(f);
+}
 
-Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
-  if (bd_available && f.bd_out_ready) {
+Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept
+{
+  if (bd_available && f.bd_out_ready)
+  {
     return Fop1Send::bd;  // E21
   }
-  if (f.state == Fop1State::s5_init_bc && f.bc_to_send && f.bc_out_ready) {
+  if (f.state == Fop1State::s5_init_bc && f.bc_to_send && f.bc_out_ready)
+  {
     f.bc_to_send = false;
-    if (f.pending_bc == Fop1Bc::unlock) {
+    if (f.pending_bc == Fop1Bc::unlock)
+    {
       return Fop1Send::bc_unlock;
     }
-    if (f.pending_bc == Fop1Bc::set_vr) {
+    if (f.pending_bc == Fop1Bc::set_vr)
+    {
       return Fop1Send::bc_set_vr;
     }
   }
-  if (f.state == Fop1State::s2_retransmit) {
-    for (std::uint8_t i = 0; i < f.sent_n; ++i) {
-      if (f.to_retransmit[i]) {
+  if (f.state == Fop1State::s2_retransmit)
+  {
+    for (std::uint8_t i = 0; i < f.sent_n; ++i)
+    {
+      if (f.to_retransmit[i])
+      {
         f.to_retransmit[i] = false;
         f.last_send_ns = f.sent[i];
         startT1(f);
@@ -365,18 +466,21 @@ Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
     }
     f.state = Fop1State::s1_active;
   }
-  if (f.state != Fop1State::s1_active) {
+  if (f.state != Fop1State::s1_active)
+  {
     return Fop1Send::none;
   }
   const std::uint8_t unacked = cop1SeqDelta(f.v_s, f.nn_r);
   if (ad_available && f.ad_out_ready && unacked < f.mib.k &&
-      f.sent_n < kFop1SentCap) {
+      f.sent_n < kFop1SentCap)
+  {
     f.last_send_ns = f.v_s;
     f.sent[f.sent_n] = f.v_s;
     f.to_retransmit[f.sent_n] = false;
     ++f.sent_n;
     f.v_s = static_cast<std::uint8_t>(f.v_s + 1U);
-    if (f.sent_n == 1) {
+    if (f.sent_n == 1)
+    {
       f.transmission_count = 1;
     }
     startT1(f);
@@ -385,43 +489,55 @@ Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
   return Fop1Send::none;
 }
 
-namespace {
+namespace
+{
 
-void fop1OnClcwInit(Fop1& f, Clcw32 const& w) noexcept {
+void fop1OnClcwInit(Fop1& f, Clcw32 const& w) noexcept
+{
   const std::uint8_t nr = w.report_value;
-  if (w.lockout) {
-    if (f.state == Fop1State::s4_init_no_bc) {
+  if (w.lockout)
+  {
+    if (f.state == Fop1State::s4_init_no_bc)
+    {
       fopAlert(f);  // E14 S4
     }
     return;  // E14 S5 Ignore
   }
-  if (w.wait) {
+  if (w.wait)
+  {
     fopAlert(f);  // E3
     return;
   }
-  if (w.retransmit) {
-    if (f.state == Fop1State::s4_init_no_bc) {
+  if (w.retransmit)
+  {
+    if (f.state == Fop1State::s4_init_no_bc)
+    {
       fopAlert(f);  // E4 S4
     }
     return;  // E4 S5 Ignore
   }
-  if (nr == f.v_s) {
+  if (nr == f.v_s)
+  {
     cancelT1(f);
     f.pending_bc = Fop1Bc::none;
     f.state = Fop1State::s1_active;  // E1 S4/S5
   }
 }
 
-void fop1OnClcwEqVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
-  if (w.retransmit) {
+void fop1OnClcwEqVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept
+{
+  if (w.retransmit)
+  {
     fopAlert(f);  // E4
     return;
   }
-  if (w.wait) {
+  if (w.wait)
+  {
     fopAlert(f);  // E3
     return;
   }
-  if (nr != f.nn_r) {
+  if (nr != f.nn_r)
+  {
     sentPopFront(f, cop1SeqDelta(nr, f.nn_r));
     f.nn_r = nr;
     f.transmission_count = 1;
@@ -429,21 +545,27 @@ void fop1OnClcwEqVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
   }
 }
 
-void fop1OnClcwLtVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
-  if (w.retransmit) {
-    if (f.mib.transmission_limit <= 1U) {
+void fop1OnClcwLtVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept
+{
+  if (w.retransmit)
+  {
+    if (f.mib.transmission_limit <= 1U)
+    {
       fopAlert(f);  // E101/E102
       return;
     }
-    if (nr != f.nn_r) {
+    if (nr != f.nn_r)
+    {
       sentPopFront(f, cop1SeqDelta(nr, f.nn_r));
       f.nn_r = nr;
     }
-    if (w.wait) {
+    if (w.wait)
+    {
       f.state = Fop1State::s3_retransmit_wait;
       return;
     }
-    for (std::uint8_t i = 0; i < f.sent_n; ++i) {
+    for (std::uint8_t i = 0; i < f.sent_n; ++i)
+    {
       f.to_retransmit[i] = true;
     }
     ++f.transmission_count;
@@ -451,11 +573,13 @@ void fop1OnClcwLtVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
     f.state = Fop1State::s2_retransmit;  // E8
     return;
   }
-  if (w.wait) {
+  if (w.wait)
+  {
     fopAlert(f);  // E7
     return;
   }
-  if (nr != f.nn_r) {
+  if (nr != f.nn_r)
+  {
     sentPopFront(f, cop1SeqDelta(nr, f.nn_r));
     f.nn_r = nr;
     f.transmission_count = 1;
@@ -464,50 +588,63 @@ void fop1OnClcwLtVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
 
 }  // namespace
 
-void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept {
-  if (!format_ok || w.cop_in_effect != 0b01) {
-    if (f.state != Fop1State::s6_initial) {
+void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept
+{
+  if (!format_ok || w.cop_in_effect != 0b01)
+  {
+    if (f.state != Fop1State::s6_initial)
+    {
       fopAlert(f);  // E15
     }
     return;
   }
-  if (f.state == Fop1State::s6_initial) {
+  if (f.state == Fop1State::s6_initial)
+  {
     return;
   }
   if (f.state == Fop1State::s4_init_no_bc ||
-      f.state == Fop1State::s5_init_bc) {
+      f.state == Fop1State::s5_init_bc)
+  {
     fop1OnClcwInit(f, w);
     return;
   }
   const std::uint8_t nr = w.report_value;
-  if (w.lockout || !nrInRange(f, nr)) {
+  if (w.lockout || !nrInRange(f, nr))
+  {
     fopAlert(f);
     return;
   }
-  if (nr == f.v_s) {
+  if (nr == f.v_s)
+  {
     fop1OnClcwEqVs(f, w, nr);  // E1 or E2
     return;
   }
   fop1OnClcwLtVs(f, w, nr);
 }
 
-void fop1Tick(Fop1& f, Tick now) noexcept {
-  if (!f.t1_running || f.mib.t1_initial == 0) {
+void fop1Tick(Fop1& f, Tick now) noexcept
+{
+  if (!f.t1_running || f.mib.t1_initial == 0)
+  {
     return;
   }
-  if (f.t1_deadline == 0) {
+  if (f.t1_deadline == 0)
+  {
     f.t1_deadline = now + f.mib.t1_initial;
     return;
   }
-  if (now < f.t1_deadline) {
+  if (now < f.t1_deadline)
+  {
     return;
   }
   f.t1_expired_latched = true;
   cancelT1(f);
   const bool tt1 = f.mib.timeout_type == 1U;
   const bool at_limit = f.transmission_count >= f.mib.transmission_limit;
-  if (f.state == Fop1State::s5_init_bc) {
-    if (at_limit) {
+  if (f.state == Fop1State::s5_init_bc)
+  {
+    if (at_limit)
+    {
       fopAlert(f);  // E17/E18 S5 Alert [T1]
       return;
     }
@@ -516,25 +653,35 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
     startT1(f);
     return;
   }
-  if (f.state == Fop1State::s3_retransmit_wait) {
+  if (f.state == Fop1State::s3_retransmit_wait)
+  {
     return;  // E16/E104 S3 Ignore
   }
-  if (f.state == Fop1State::s4_init_no_bc) {
-    if (tt1) {
+  if (f.state == Fop1State::s4_init_no_bc)
+  {
+    if (tt1)
+    {
       fopSuspend(f, 4);  // E104/E18 S4
       return;
     }
     fopAlert(f);  // E16/E17 S4 Alert [T1]
     return;
   }
-  if (at_limit) {
-    if (tt1) {
+  if (at_limit)
+  {
+    if (tt1)
+    {
       std::uint8_t ss = 1;
-      if (f.state == Fop1State::s2_retransmit) {
+      if (f.state == Fop1State::s2_retransmit)
+      {
         ss = 2;
-      } else if (f.state == Fop1State::s3_retransmit_wait) {
+      }
+      else if (f.state == Fop1State::s3_retransmit_wait)
+      {
         ss = 3;
-      } else {
+      }
+      else
+      {
         /* no action: state is not S2 or S3, so the suspend substate stays 1 */
       }
       fopSuspend(f, ss);  // E18
@@ -547,7 +694,8 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
 }
 
 void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remote,
-               Vcid vcid, MapId map) noexcept {
+               Vcid vcid, MapId map) noexcept
+{
   static_assert(std::is_trivially_copyable_v<Cop1Endpoint>);
   // Same as coppInit: Fop1 sent copies are kFop1SentCap x kCop1Hold. Do not
   // `e = Cop1Endpoint{}` on a 4 KiB MCU stack.
@@ -560,59 +708,104 @@ void cop1Init(Cop1Endpoint& e, Cop1Mib const& mib, UslpScid local, UslpScid remo
   fop1Init(e.fop, mib);
 }
 
-bool cop1InitiateAd(Cop1Endpoint& e) noexcept { return fop1InitiateAd(e.fop); }
+bool cop1InitiateAd(Cop1Endpoint& e) noexcept
+{
+  return fop1InitiateAd(e.fop);
+}
 
-bool cop1InitiateAdWithClcwCheck(Cop1Endpoint& e) noexcept {
+bool cop1InitiateAdWithClcwCheck(Cop1Endpoint& e) noexcept
+{
   return fop1InitiateAdWithClcwCheck(e.fop);
 }
 
-bool cop1InitiateAdUnlock(Cop1Endpoint& e) noexcept {
+bool cop1InitiateAdUnlock(Cop1Endpoint& e) noexcept
+{
   return fop1InitiateAdUnlock(e.fop);
 }
 
-bool cop1InitiateAdSetVr(Cop1Endpoint& e, std::uint8_t v_star) noexcept {
+bool cop1InitiateAdSetVr(Cop1Endpoint& e, std::uint8_t v_star) noexcept
+{
   return fop1InitiateAdSetVr(e.fop, v_star);
 }
 
-void cop1TerminateAd(Cop1Endpoint& e) noexcept { fop1TerminateAd(e.fop); }
+void cop1TerminateAd(Cop1Endpoint& e) noexcept
+{
+  fop1TerminateAd(e.fop);
+}
 
-bool cop1ResumeAd(Cop1Endpoint& e) noexcept { return fop1ResumeAd(e.fop); }
-bool cop1SetVs(Cop1Endpoint& e, std::uint8_t v_star) noexcept {
+bool cop1ResumeAd(Cop1Endpoint& e) noexcept
+{
+  return fop1ResumeAd(e.fop);
+}
+bool cop1SetVs(Cop1Endpoint& e, std::uint8_t v_star) noexcept
+{
   return fop1SetVs(e.fop, v_star);
 }
-void cop1SetK(Cop1Endpoint& e, std::uint8_t k) noexcept { fop1SetK(e.fop, k); }
-void cop1SetT1Initial(Cop1Endpoint& e, Tick t1) noexcept {
+void cop1SetK(Cop1Endpoint& e, std::uint8_t k) noexcept
+{
+  fop1SetK(e.fop, k);
+}
+void cop1SetT1Initial(Cop1Endpoint& e, Tick t1) noexcept
+{
   fop1SetT1Initial(e.fop, t1);
 }
-void cop1SetTransmissionLimit(Cop1Endpoint& e, std::uint8_t n) noexcept {
+void cop1SetTransmissionLimit(Cop1Endpoint& e, std::uint8_t n) noexcept
+{
   fop1SetTransmissionLimit(e.fop, n);
 }
-void cop1SetTimeoutType(Cop1Endpoint& e, std::uint8_t tt) noexcept {
+void cop1SetTimeoutType(Cop1Endpoint& e, std::uint8_t tt) noexcept
+{
   fop1SetTimeoutType(e.fop, tt);
 }
-void cop1AdAccept(Cop1Endpoint& e) noexcept { fop1AdAccept(e.fop); }
-void cop1AdReject(Cop1Endpoint& e) noexcept { fop1AdReject(e.fop); }
-void cop1BcAccept(Cop1Endpoint& e) noexcept { fop1BcAccept(e.fop); }
-void cop1BcReject(Cop1Endpoint& e) noexcept { fop1BcReject(e.fop); }
-void cop1BdAccept(Cop1Endpoint& e) noexcept { fop1BdAccept(e.fop); }
-void cop1BdReject(Cop1Endpoint& e) noexcept { fop1BdReject(e.fop); }
+void cop1AdAccept(Cop1Endpoint& e) noexcept
+{
+  fop1AdAccept(e.fop);
+}
+void cop1AdReject(Cop1Endpoint& e) noexcept
+{
+  fop1AdReject(e.fop);
+}
+void cop1BcAccept(Cop1Endpoint& e) noexcept
+{
+  fop1BcAccept(e.fop);
+}
+void cop1BcReject(Cop1Endpoint& e) noexcept
+{
+  fop1BcReject(e.fop);
+}
+void cop1BdAccept(Cop1Endpoint& e) noexcept
+{
+  fop1BdAccept(e.fop);
+}
+void cop1BdReject(Cop1Endpoint& e) noexcept
+{
+  fop1BdReject(e.fop);
+}
 
-void cop1Tick(Cop1Endpoint& e, Tick now) noexcept { fop1Tick(e.fop, now); }
+void cop1Tick(Cop1Endpoint& e, Tick now) noexcept
+{
+  fop1Tick(e.fop, now);
+}
 
-Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
-  if (e.fop.alert_latched) {
+Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept
+{
+  if (e.fop.alert_latched)
+  {
     e.fop.alert_latched = false;
     return Cop1Event::fop_alert;
   }
-  if (e.fop.suspend_latched) {
+  if (e.fop.suspend_latched)
+  {
     e.fop.suspend_latched = false;
     return Cop1Event::suspend;
   }
-  if (e.fop.t1_expired_latched) {
+  if (e.fop.t1_expired_latched)
+  {
     e.fop.t1_expired_latched = false;
     return Cop1Event::t1_expired;
   }
-  if (e.farm_accepted_latched) {
+  if (e.farm_accepted_latched)
+  {
     e.farm_accepted_latched = false;
     return Cop1Event::farm_accepted;
   }
@@ -620,12 +813,16 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
 }
 
 [[nodiscard]] Result<std::size_t> cop1SubmitSdu(Cop1Endpoint& e, std::span<const std::byte> packet,
-                                    bool expedited) noexcept {
-  if (packet.empty() || packet.size() > kCop1Hold) {
+                                    bool expedited) noexcept
+{
+  if (packet.empty() || packet.size() > kCop1Hold)
+  {
     return tl::unexpected(Error::truncated);
   }
-  if (expedited) {
-    if (e.bd_full) {
+  if (expedited)
+  {
+    if (e.bd_full)
+    {
       return tl::unexpected(Error::buffer_too_small);
     }
     std::copy(packet.begin(), packet.end(), e.bd_q.begin());
@@ -633,7 +830,8 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
     e.bd_full = true;
     return packet.size();
   }
-  if (e.ad_n >= kCop1SeqSlots) {
+  if (e.ad_n >= kCop1SeqSlots)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   std::copy(packet.begin(), packet.end(), e.ad_q[e.ad_n].begin());
@@ -642,17 +840,21 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
   return packet.size();
 }
 
-[[nodiscard]] Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept {
-  if (e.rx_n == 0) {
+[[nodiscard]] Result<std::size_t> cop1TakeSdu(Cop1Endpoint& e, std::span<std::byte> out) noexcept
+{
+  if (e.rx_n == 0)
+  {
     return std::size_t{0};
   }
   const std::size_t n = e.rx_len[0];
-  if (out.size() < n) {
+  if (out.size() < n)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   std::copy(e.rx_q[0].begin(), e.rx_q[0].begin() + static_cast<std::ptrdiff_t>(n),
             out.begin());
-  for (std::uint8_t i = 0; i + 1U < e.rx_n; ++i) {
+  for (std::uint8_t i = 0; i + 1U < e.rx_n; ++i)
+  {
     e.rx_q[i] = e.rx_q[i + 1U];
     e.rx_len[i] = e.rx_len[i + 1U];
   }
@@ -660,18 +862,22 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
   return n;
 }
 
-void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept {
+void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept
+{
   const auto pltu = decodePltu(octets);
-  if (!pltu) {
+  if (!pltu)
+  {
     farm1OnInvalid(e.farm);
     return;
   }
   const auto u = decodeUslp(pltu->frame);
-  if (!u) {
+  if (!u)
+  {
     farm1OnInvalid(e.farm);
     return;
   }
-  if (!u->ocf.empty()) {
+  if (!u->ocf.empty())
+  {
     const auto clcw = decodeClcw(u->ocf);
     fop1OnClcw(e.fop, clcw.has_value() ? *clcw : Clcw32{}, clcw.has_value());
   }
@@ -679,30 +885,43 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   const bool bc = u->fields.expedited && u->fields.protocol_control;
   const bool ad = !u->fields.expedited && !u->fields.protocol_control;
   Farm1Disposition d = Farm1Disposition::discarded;
-  if (bc) {
-    if (u->tfdz.size() == 1 && u->tfdz[0] == kCop1Unlock) {
+  if (bc)
+  {
+    if (u->tfdz.size() == 1 && u->tfdz[0] == kCop1Unlock)
+    {
       farm1OnUnlock(e.farm);
-    } else if (u->tfdz.size() == 3 && u->tfdz[0] == kCop1SetVr0 &&
-               u->tfdz[1] == kCop1SetVr1) {
+    }
+    else if (u->tfdz.size() == 3 && u->tfdz[0] == kCop1SetVr0 &&
+               u->tfdz[1] == kCop1SetVr1)
+    {
       farm1OnSetVr(e.farm, std::to_integer<std::uint8_t>(u->tfdz[2]));
-    } else {
+    }
+    else
+    {
       farm1OnInvalid(e.farm);
     }
     return;
   }
-  if (bd) {
+  if (bd)
+  {
     d = farm1OnBd(e.farm);
-  } else if (ad) {
+  }
+  else if (ad)
+  {
     const std::uint8_t ns = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFU);
     d = farm1OnAd(e.farm, ns, e.rx_n < kCop1SeqSlots);
-  } else {
+  }
+  else
+  {
     /* no action: bypass 0 with control 1 is reserved (232.0 Table 4-1), so the frame is discarded */
   }
-  if (d != Farm1Disposition::accepted) {
+  if (d != Farm1Disposition::accepted)
+  {
     return;
   }
   e.farm_accepted_latched = true;
-  if (e.rx_n >= kCop1SeqSlots || u->tfdz.size() > kCop1Hold) {
+  if (e.rx_n >= kCop1SeqSlots || u->tfdz.size() > kCop1Hold)
+  {
     return;
   }
   std::copy(u->tfdz.begin(), u->tfdz.end(), e.rx_q[e.rx_n].begin());
@@ -710,9 +929,11 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   ++e.rx_n;
 }
 
-namespace {
+namespace
+{
 
-void cop1FillHdr(Cop1Endpoint const& e, UslpFields& hdr) noexcept {
+void cop1FillHdr(Cop1Endpoint const& e, UslpFields& hdr) noexcept
+{
   hdr.scid = e.remote_scid;
   hdr.destination = true;
   hdr.vcid = e.vcid;
@@ -724,17 +945,20 @@ void cop1FillHdr(Cop1Endpoint const& e, UslpFields& hdr) noexcept {
 }
 
 void cop1TakeAd(Cop1Endpoint& e, UslpFields& hdr,
-                std::span<const std::byte>& tfdz) noexcept {
+                std::span<const std::byte>& tfdz) noexcept
+{
   const auto ns = e.fop.last_send_ns;
   tfdz = std::span<const std::byte>(e.ad_q[0].data(), e.ad_len[0]);
-  if (e.fop.sent_n > 0) {
+  if (e.fop.sent_n > 0)
+  {
     const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1U);
     std::copy(e.ad_q[0].begin(),
               e.ad_q[0].begin() + static_cast<std::ptrdiff_t>(e.ad_len[0]),
               e.fop.sent_payload[slot].begin());
     e.fop.sent_payload_len[slot] = e.ad_len[0];
   }
-  for (std::uint8_t i = 0; i + 1U < e.ad_n; ++i) {
+  for (std::uint8_t i = 0; i + 1U < e.ad_n; ++i)
+  {
     e.ad_q[i] = e.ad_q[i + 1U];
     e.ad_len[i] = e.ad_len[i + 1U];
   }
@@ -744,8 +968,10 @@ void cop1TakeAd(Cop1Endpoint& e, UslpFields& hdr,
 
 void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
                     std::span<const std::byte>& tfdz,
-                    std::array<std::byte, 3>& bc) noexcept {
-  if (kind == Fop1Send::bc_unlock) {
+                    std::array<std::byte, 3>& bc) noexcept
+{
+  if (kind == Fop1Send::bc_unlock)
+  {
     hdr.expedited = true;
     hdr.protocol_control = true;
     hdr.upid = kUslpUpidCop1Control;
@@ -753,7 +979,8 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
     tfdz = std::span<const std::byte>(bc.data(), 1);
     return;
   }
-  if (kind == Fop1Send::bc_set_vr) {
+  if (kind == Fop1Send::bc_set_vr)
+  {
     hdr.expedited = true;
     hdr.protocol_control = true;
     hdr.upid = kUslpUpidCop1Control;
@@ -763,29 +990,35 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
     tfdz = std::span<const std::byte>(bc.data(), 3);
     return;
   }
-  if (kind == Fop1Send::bd) {
+  if (kind == Fop1Send::bd)
+  {
     hdr.expedited = true;
     tfdz = std::span<const std::byte>(e.bd_q.data(), e.bd_len);
     e.bd_full = false;
     e.bd_len = 0;
     return;
   }
-  if (kind == Fop1Send::ad && e.ad_n > 0) {
+  if (kind == Fop1Send::ad && e.ad_n > 0)
+  {
     cop1TakeAd(e, hdr, tfdz);
     return;
   }
-  if (kind == Fop1Send::resend_ad) {
+  if (kind == Fop1Send::resend_ad)
+  {
     const auto ns = e.fop.last_send_ns;
     tfdz = {};
     bool found = false;
     std::uint8_t i = 0;
-    while (i < e.fop.sent_n && !found) {
-      if (e.fop.sent[i] == ns) {
+    while (i < e.fop.sent_n && !found)
+    {
+      if (e.fop.sent[i] == ns)
+      {
         tfdz = std::span<const std::byte>(e.fop.sent_payload[i].data(),
                                           e.fop.sent_payload_len[i]);
         found = true;
       }
-      if (!found) {
+      if (!found)
+      {
         ++i;
       }
     }
@@ -798,9 +1031,11 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
 }  // namespace
 
 [[nodiscard]] Result<std::size_t> cop1BytesToSend(Cop1Endpoint& e,
-                                       std::span<std::byte> out) noexcept {
+                                       std::span<std::byte> out) noexcept
+{
   const Fop1Send kind = fop1NeedFrame(e.fop, e.bd_full, e.ad_n != 0);
-  if (kind == Fop1Send::none && !e.farm.need_clcw) {
+  if (kind == Fop1Send::none && !e.farm.need_clcw)
+  {
     return std::size_t{0};
   }
   UslpFields hdr{};
@@ -811,12 +1046,14 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
   std::array<std::byte, kClcwSize> ocf{};
   const auto on =
       encodeClcw(ocf, farm1Report(e.farm, static_cast<std::uint8_t>(e.vcid)));
-  if (!on) {
+  if (!on)
+  {
     return on;
   }
   e.farm.need_clcw = false;
   const auto vn = encodeUslp(g_cop1TfScratch, hdr, tfdz, ocf);
-  if (!vn) {
+  if (!vn)
+  {
     return vn;
   }
   return encodePltu(out, std::span<const std::byte>(g_cop1TfScratch.data(), *vn));

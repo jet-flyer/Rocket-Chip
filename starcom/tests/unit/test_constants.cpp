@@ -14,7 +14,8 @@
 #include "starcom/ccsds/uslp.hpp"
 #include "starcom/ccsds/v3.hpp"
 
-namespace starcom::ccsds {
+namespace starcom::ccsds
+{
 
 static_assert(kOctetMsb == 7U);
 static_assert(kSeqHalfRange == 127U);
@@ -84,6 +85,7 @@ static_assert(kFopPSentCap == 127U);
 
 }  // namespace starcom::ccsds
 
-int run_constant_tests() {
+int run_constant_tests()
+{
   return 0;
 }
