@@ -622,6 +622,59 @@ void fop1OnClcw(Fop1& f, Clcw32 const& w, bool format_ok) noexcept
   fop1OnClcwLtVs(f, w, nr);
 }
 
+namespace
+{
+
+// Alert or retransmit when the S5 timer expires.
+void fop1TickInitBc(Fop1& f, bool at_limit) noexcept
+{
+  if (at_limit)
+  {
+    fopAlert(f);  // E17/E18 S5 Alert [T1]
+    return;
+  }
+  ++f.transmission_count;
+  f.bc_to_send = true;  // E16/E104 S5 Initiate BC retransmission
+  startT1(f);
+}
+
+// Suspend or alert when the S4 timer expires.
+void fop1TickInitNoBc(Fop1& f, bool tt1) noexcept
+{
+  if (tt1)
+  {
+    fopSuspend(f, 4);  // E104/E18 S4
+    return;
+  }
+  fopAlert(f);  // E16/E17 S4 Alert [T1]
+}
+
+// Suspend or alert when the transmission count is at the limit.
+void fop1TickAtLimit(Fop1& f, bool tt1) noexcept
+{
+  if (tt1)
+  {
+    std::uint8_t ss = 1;
+    if (f.state == Fop1State::s2_retransmit)
+    {
+      ss = 2;
+    }
+    else if (f.state == Fop1State::s3_retransmit_wait)
+    {
+      ss = 3;
+    }
+    else
+    {
+      /* no action: state is not S2 or S3, so the suspend substate stays 1 */
+    }
+    fopSuspend(f, ss);  // E18
+    return;
+  }
+  fopAlert(f);  // E17
+}
+
+}  // namespace
+
 void fop1Tick(Fop1& f, Tick now) noexcept
 {
   if (!f.t1_running || f.mib.t1_initial == 0)
@@ -643,14 +696,7 @@ void fop1Tick(Fop1& f, Tick now) noexcept
   const bool at_limit = f.transmission_count >= f.mib.transmission_limit;
   if (f.state == Fop1State::s5_init_bc)
   {
-    if (at_limit)
-    {
-      fopAlert(f);  // E17/E18 S5 Alert [T1]
-      return;
-    }
-    ++f.transmission_count;
-    f.bc_to_send = true;  // E16/E104 S5 Initiate BC retransmission
-    startT1(f);
+    fop1TickInitBc(f, at_limit);
     return;
   }
   if (f.state == Fop1State::s3_retransmit_wait)
@@ -659,35 +705,12 @@ void fop1Tick(Fop1& f, Tick now) noexcept
   }
   if (f.state == Fop1State::s4_init_no_bc)
   {
-    if (tt1)
-    {
-      fopSuspend(f, 4);  // E104/E18 S4
-      return;
-    }
-    fopAlert(f);  // E16/E17 S4 Alert [T1]
+    fop1TickInitNoBc(f, tt1);
     return;
   }
   if (at_limit)
   {
-    if (tt1)
-    {
-      std::uint8_t ss = 1;
-      if (f.state == Fop1State::s2_retransmit)
-      {
-        ss = 2;
-      }
-      else if (f.state == Fop1State::s3_retransmit_wait)
-      {
-        ss = 3;
-      }
-      else
-      {
-        /* no action: state is not S2 or S3, so the suspend substate stays 1 */
-      }
-      fopSuspend(f, ss);  // E18
-      return;
-    }
-    fopAlert(f);  // E17
+    fop1TickAtLimit(f, tt1);
     return;
   }
   initiateAdRetrans(f);  // E16/E104 S1/S2
@@ -862,6 +885,52 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept
   return n;
 }
 
+namespace
+{
+
+// Pass the frame CLCW to FOP-1 when the OCF field is present.
+void cop1TakeClcw(Cop1Endpoint& e, UslpView const& u) noexcept
+{
+  if (!u.ocf.empty())
+  {
+    const auto clcw = decodeClcw(u.ocf);
+    fop1OnClcw(e.fop, clcw.has_value() ? *clcw : Clcw32{}, clcw.has_value());
+  }
+}
+
+// Apply one BC directive. The caller returns after this call.
+void cop1ApplyBc(Cop1Endpoint& e, UslpView const& u) noexcept
+{
+  if (u.tfdz.size() == 1 && u.tfdz[0] == kCop1Unlock)
+  {
+    farm1OnUnlock(e.farm);
+  }
+  else if (u.tfdz.size() == 3 && u.tfdz[0] == kCop1SetVr0 &&
+             u.tfdz[1] == kCop1SetVr1)
+  {
+    farm1OnSetVr(e.farm, std::to_integer<std::uint8_t>(u.tfdz[2]));
+  }
+  else
+  {
+    farm1OnInvalid(e.farm);
+  }
+}
+
+// Store an accepted frame in the receive queue.
+void cop1QueueAccepted(Cop1Endpoint& e, UslpView const& u) noexcept
+{
+  e.farm_accepted_latched = true;
+  if (e.rx_n >= kCop1SeqSlots || u.tfdz.size() > kCop1Hold)
+  {
+    return;
+  }
+  std::copy(u.tfdz.begin(), u.tfdz.end(), e.rx_q[e.rx_n].begin());
+  e.rx_len[e.rx_n] = u.tfdz.size();
+  ++e.rx_n;
+}
+
+}  // namespace
+
 void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexcept
 {
   const auto pltu = decodePltu(octets);
@@ -876,30 +945,14 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
     farm1OnInvalid(e.farm);
     return;
   }
-  if (!u->ocf.empty())
-  {
-    const auto clcw = decodeClcw(u->ocf);
-    fop1OnClcw(e.fop, clcw.has_value() ? *clcw : Clcw32{}, clcw.has_value());
-  }
+  cop1TakeClcw(e, *u);
   const bool bd = u->fields.expedited && !u->fields.protocol_control;
   const bool bc = u->fields.expedited && u->fields.protocol_control;
   const bool ad = !u->fields.expedited && !u->fields.protocol_control;
   Farm1Disposition d = Farm1Disposition::discarded;
   if (bc)
   {
-    if (u->tfdz.size() == 1 && u->tfdz[0] == kCop1Unlock)
-    {
-      farm1OnUnlock(e.farm);
-    }
-    else if (u->tfdz.size() == 3 && u->tfdz[0] == kCop1SetVr0 &&
-               u->tfdz[1] == kCop1SetVr1)
-    {
-      farm1OnSetVr(e.farm, std::to_integer<std::uint8_t>(u->tfdz[2]));
-    }
-    else
-    {
-      farm1OnInvalid(e.farm);
-    }
+    cop1ApplyBc(e, *u);
     return;
   }
   if (bd)
@@ -919,14 +972,7 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   {
     return;
   }
-  e.farm_accepted_latched = true;
-  if (e.rx_n >= kCop1SeqSlots || u->tfdz.size() > kCop1Hold)
-  {
-    return;
-  }
-  std::copy(u->tfdz.begin(), u->tfdz.end(), e.rx_q[e.rx_n].begin());
-  e.rx_len[e.rx_n] = u->tfdz.size();
-  ++e.rx_n;
+  cop1QueueAccepted(e, *u);
 }
 
 namespace
