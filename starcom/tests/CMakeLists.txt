@@ -62,3 +62,11 @@ else()
   set_property(TEST starcom.tidy_selftest PROPERTY DISABLED TRUE)
   message(STATUS "tidy_selftest disabled: no bash")
 endif()
+
+# Core sources do not include Pico SDK or RP2350 hardware headers.
+# Same interpreter lookup as the Rocket-Chip host Python tests.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME starcom.core_includes
+  COMMAND ${Python3_EXECUTABLE}
+          "${CMAKE_CURRENT_SOURCE_DIR}/check_core_includes.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/..")

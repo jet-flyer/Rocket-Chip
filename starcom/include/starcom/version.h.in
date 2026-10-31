@@ -1,7 +1,7 @@
 #ifndef STARCOM_VERSION_H_
 #define STARCOM_VERSION_H_
 
-// GENERATED. Do not edit. Template: include/starcom/version.hpp.in
+// GENERATED. Do not edit. Template: include/starcom/version.h.in
 // Product numbers: STARCOM_VERSION. Git identity: the build. VERSIONING.md.
 
 #include <cstdint>
