@@ -11,7 +11,7 @@ uint8_t pack_cmd_sdu_user(uint8_t* out, uint8_t out_len,
     if ((out == nullptr) || (out_len < kCmdSduUserBytes)) {
         return 0;
     }
-    out[0] = static_cast<uint8_t>(f.cmd_id & 0xFFu);
+    out[0] = static_cast<uint8_t>(f.cmd_id & 0xFFU);
     out[1] = static_cast<uint8_t>(f.cmd_id >> 8);
     out[2] = f.seq;
     out[3] = 0;

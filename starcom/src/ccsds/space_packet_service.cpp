@@ -6,14 +6,14 @@ namespace starcom::ccsds {
 namespace {
 
 // 4.1.3.4.3.4: the count is continuous modulo-16384.
-constexpr std::uint16_t kSeqMask = 0x3FFFu;
+constexpr std::uint16_t kSeqMask = 0x3FFFU;
 
 constexpr std::size_t apidIndex(Apid apid) noexcept {
-  return static_cast<std::size_t>(static_cast<std::uint16_t>(apid) & 0x7FFu);
+  return static_cast<std::size_t>(static_cast<std::uint16_t>(apid) & 0x7FFU);
 }
 
 constexpr std::uint16_t apidValue(Apid apid) noexcept {
-  return static_cast<std::uint16_t>(static_cast<std::uint16_t>(apid) & 0x7FFu);
+  return static_cast<std::uint16_t>(static_cast<std::uint16_t>(apid) & 0x7FFU);
 }
 
 std::size_t delimitedSize(SpacePacketView const& view) noexcept {
@@ -89,7 +89,7 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
     return tl::unexpected(n.error());
   }
   // 4.1.3.4.3.4: advance only after a packet is generated. Modulo-16384.
-  svc.tx_count[idx] = static_cast<std::uint16_t>((svc.tx_count[idx] + 1u) & kSeqMask);
+  svc.tx_count[idx] = static_cast<std::uint16_t>((svc.tx_count[idx] + 1U) & kSeqMask);
   return n;
 }
 
@@ -115,7 +115,7 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
   // is COP-P (211.0-B-6 2.2.3.2, 7.3.1 RE5).
   const std::size_t idx = apidIndex(view->fields.apid);
   svc.rx_count[idx] =
-      static_cast<std::uint16_t>((view->fields.seq_count + 1u) & kSeqMask);
+      static_cast<std::uint16_t>((view->fields.seq_count + 1U) & kSeqMask);
 
   OctetStringIndication indication{};
   indication.octets = view->data;

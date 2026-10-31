@@ -8,7 +8,7 @@ namespace starcom::ccsds {
 namespace {
 
 bool constructionHasPointer(std::uint8_t rule) noexcept {
-  return rule <= 0b010u;
+  return rule <= 0b010U;
 }
 
 std::size_t primaryHeaderSize(std::uint8_t vcf_len) noexcept {
@@ -16,13 +16,13 @@ std::size_t primaryHeaderSize(std::uint8_t vcf_len) noexcept {
 }
 
 std::size_t tfdfHeaderSize(std::uint8_t rule) noexcept {
-  return constructionHasPointer(rule) ? 3u : 1u;
+  return constructionHasPointer(rule) ? 3U : 1U;
 }
 
 void storeBeN(std::span<std::byte> dest, std::uint64_t value) noexcept {
   for (std::size_t i = 0; i < dest.size(); ++i) {
-    const auto shift = 8u * (dest.size() - 1u - i);
-    dest[i] = std::byte(static_cast<std::uint32_t>(value >> shift) & 0xFFu);
+    const auto shift = 8U * (dest.size() - 1U - i);
+    dest[i] = std::byte(static_cast<std::uint32_t>(value >> shift) & 0xFFU);
   }
 }
 
@@ -35,33 +35,33 @@ std::uint64_t loadBeN(std::span<const std::byte> src) noexcept {
 }
 
 void storeBe16(std::span<std::byte> dest, std::uint16_t value) noexcept {
-  dest[0] = std::byte((value >> 8) & 0xFFu);
-  dest[1] = std::byte(value & 0xFFu);
+  dest[0] = std::byte((value >> 8) & 0xFFU);
+  dest[1] = std::byte(value & 0xFFU);
 }
 
 void fillPrimaryIds(UslpView& view, std::span<const std::byte> frame) noexcept {
   const std::uint32_t b0 = std::to_integer<std::uint32_t>(frame[0]);
   const std::uint32_t b2 = std::to_integer<std::uint32_t>(frame[2]);
   const std::uint32_t b3 = std::to_integer<std::uint32_t>(frame[3]);
-  const std::uint32_t scid = ((b0 & 0x0Fu) << 12) |
+  const std::uint32_t scid = ((b0 & 0x0FU) << 12) |
                         (std::to_integer<std::uint32_t>(frame[1]) << 4) | (b2 >> 4);
   view.fields.scid = UslpScid{static_cast<std::uint16_t>(scid)};
-  view.fields.destination = (b2 & 0x08u) != 0;
-  const std::uint32_t vcid = ((b2 & 0x07u) << 3) | (b3 >> 5);
+  view.fields.destination = (b2 & 0x08U) != 0;
+  const std::uint32_t vcid = ((b2 & 0x07U) << 3) | (b3 >> 5);
   view.fields.vcid = Vcid{static_cast<std::uint8_t>(vcid)};
-  view.fields.map_id = MapId{static_cast<std::uint8_t>((b3 >> 1) & 0x0Fu)};
+  view.fields.map_id = MapId{static_cast<std::uint8_t>((b3 >> 1) & 0x0FU)};
 }
 
 void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
                   bool truncated) noexcept {
   const std::uint32_t scid = static_cast<std::uint32_t>(fields.scid);
-  const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & 0x3Fu;
-  const std::uint32_t map = static_cast<std::uint32_t>(fields.map_id) & 0x0Fu;
-  out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0Fu));
-  out[1] = std::byte((scid >> 4) & 0xFFu);
-  out[2] = std::byte(((scid & 0x0Fu) << 4) | (fields.destination ? 0x08u : 0u) |
-                     ((vcid >> 3) & 0x07u));
-  out[3] = std::byte(((vcid & 0x07u) << 5) | (map << 1) | (truncated ? 0x01u : 0u));
+  const std::uint32_t vcid = static_cast<std::uint32_t>(fields.vcid) & 0x3FU;
+  const std::uint32_t map = static_cast<std::uint32_t>(fields.map_id) & 0x0FU;
+  out[0] = std::byte((kTfvnUslp << 4) | ((scid >> 12) & 0x0FU));
+  out[1] = std::byte((scid >> 4) & 0xFFU);
+  out[2] = std::byte(((scid & 0x0FU) << 4) | (fields.destination ? 0x08U : 0U) |
+                     ((vcid >> 3) & 0x07U));
+  out[3] = std::byte(((vcid & 0x07U) << 5) | (map << 1) | (truncated ? 0x01U : 0U));
 }
 
 [[nodiscard]] Result<UslpView> decodeUslpTruncated(std::span<const std::byte> frame,
@@ -87,7 +87,7 @@ void writeUslpIds(std::span<std::byte> out, UslpFields const& fields,
   const auto tfdf = frame.subspan(kUslpTruncatedHeaderSize, th);
   const std::uint32_t tfdf0 = std::to_integer<std::uint32_t>(tfdf[0]);
   view.fields.tfdz_construction = static_cast<std::uint8_t>(tfdf0 >> 5);
-  view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1Fu);
+  view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1FU);
   view.tfdz = frame.subspan(kUslpTruncatedHeaderSize + th,
                             flen - kUslpTruncatedHeaderSize - th);
   return view;
@@ -99,7 +99,7 @@ bool fillTfdf(UslpView& view, std::span<const std::byte> body) noexcept {
   }
   const std::uint32_t tfdf0 = std::to_integer<std::uint32_t>(body[0]);
   view.fields.tfdz_construction = static_cast<std::uint8_t>(tfdf0 >> 5);
-  view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1Fu);
+  view.fields.upid = static_cast<std::uint8_t>(tfdf0 & 0x1FU);
   const std::size_t th = tfdfHeaderSize(view.fields.tfdz_construction);
   if (body.size() < th) {
     return false;
@@ -129,7 +129,7 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(frame[4]) << 8) |
                             std::to_integer<std::uint32_t>(frame[5]);
-  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
+  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kUslpFrameMin || frame_len > kUslpFrameMax) {
     return tl::unexpected(Error::uslp_length_oob);
   }
@@ -152,10 +152,10 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   const std::uint32_t b6 = std::to_integer<std::uint32_t>(frame[6]);
   UslpView view{};
   fillPrimaryIds(view, frame);
-  view.fields.expedited = (b6 & 0x80u) != 0;
-  view.fields.protocol_control = (b6 & 0x40u) != 0;
-  view.fields.ocf_present = (b6 & 0x08u) != 0;
-  view.fields.vcf_count_len = static_cast<std::uint8_t>(b6 & 0x07u);
+  view.fields.expedited = (b6 & 0x80U) != 0;
+  view.fields.protocol_control = (b6 & 0x40U) != 0;
+  view.fields.ocf_present = (b6 & 0x08U) != 0;
+  view.fields.vcf_count_len = static_cast<std::uint8_t>(b6 & 0x07U);
   const std::size_t ph = primaryHeaderSize(view.fields.vcf_count_len);
   const std::size_t iz = mib.insert_zone_length;
   std::size_t trailer = view.fields.ocf_present ? kUslpOcfSize : 0;
@@ -207,7 +207,7 @@ bool checkFecf(UslpView& view, std::span<const std::byte> frame,
   }
   writeUslpIds(out, fields, true);
   out[4] = std::byte((static_cast<std::uint32_t>(kUslpConstructionNoSeg) << 5) |
-                     (fields.upid & 0x1Fu));
+                     (fields.upid & 0x1FU));
   std::copy(tfdz.begin(), tfdz.end(), out.begin() + 5);
   return frame_len;
 }
@@ -229,13 +229,13 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
                    UslpLayout const& lay, std::span<const std::byte> tfdz,
                    std::span<const std::byte> ocf,
                    std::span<const std::byte> insert) noexcept {
-  const std::uint32_t c = static_cast<std::uint32_t>(lay.frame_len - 1u);
+  const std::uint32_t c = static_cast<std::uint32_t>(lay.frame_len - 1U);
   writeUslpIds(out, fields, false);
-  out[4] = std::byte((c >> 8) & 0xFFu);
-  out[5] = std::byte(c & 0xFFu);
-  out[6] = std::byte((fields.expedited ? 0x80u : 0u) |
-                     (fields.protocol_control ? 0x40u : 0u) |
-                     (lay.want_ocf ? 0x08u : 0u) | (lay.vcf_len & 0x07u));
+  out[4] = std::byte((c >> 8) & 0xFFU);
+  out[5] = std::byte(c & 0xFFU);
+  out[6] = std::byte((fields.expedited ? 0x80U : 0U) |
+                     (fields.protocol_control ? 0x40U : 0U) |
+                     (lay.want_ocf ? 0x08U : 0U) | (lay.vcf_len & 0x07U));
   if (lay.vcf_len != 0) {
     storeBeN(out.subspan(kUslpPrimaryHeaderMin, lay.vcf_len), fields.vcf_count);
   }
@@ -244,10 +244,10 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
               out.begin() + static_cast<std::ptrdiff_t>(lay.ph));
   }
   auto tfdf = out.subspan(lay.ph + lay.iz, lay.th);
-  tfdf[0] = std::byte((static_cast<std::uint32_t>(lay.rule) << 5) | (fields.upid & 0x1Fu));
+  tfdf[0] = std::byte((static_cast<std::uint32_t>(lay.rule) << 5) | (fields.upid & 0x1FU));
   if (lay.th == 3) {
-    tfdf[1] = std::byte((fields.tfdz_pointer >> 8) & 0xFFu);
-    tfdf[2] = std::byte(fields.tfdz_pointer & 0xFFu);
+    tfdf[1] = std::byte((fields.tfdz_pointer >> 8) & 0xFFU);
+    tfdf[2] = std::byte(fields.tfdz_pointer & 0xFFU);
   }
   if (!tfdz.empty()) {
     std::copy(tfdz.begin(), tfdz.end(),
@@ -277,7 +277,7 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
   if ((b0 >> 4) != kTfvnUslp) {
     return tl::unexpected(Error::tfvn_unknown);
   }
-  if ((std::to_integer<std::uint32_t>(frame[3]) & 0x01u) != 0) {
+  if ((std::to_integer<std::uint32_t>(frame[3]) & 0x01U) != 0) {
     return decodeUslpTruncated(frame, mib);
   }
   return decodeUslpNonTruncated(frame, mib);
@@ -295,12 +295,12 @@ void writeUslpBody(std::span<std::byte> out, UslpFields const& fields,
     return encodeUslpTruncated(out, fields, tfdz, mib);
   }
   std::uint8_t vcf_len = fields.vcf_count_len;
-  if (vcf_len > 7u) {
+  if (vcf_len > 7U) {
     vcf_len = 7;
   }
   UslpLayout lay{};
   lay.vcf_len = vcf_len;
-  lay.rule = static_cast<std::uint8_t>(fields.tfdz_construction & 0x07u);
+  lay.rule = static_cast<std::uint8_t>(fields.tfdz_construction & 0x07U);
   lay.ph = primaryHeaderSize(lay.vcf_len);
   lay.th = tfdfHeaderSize(lay.rule);
   lay.want_ocf = fields.ocf_present;

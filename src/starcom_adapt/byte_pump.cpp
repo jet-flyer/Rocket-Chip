@@ -86,7 +86,7 @@ starcom::ccsds::Result<std::size_t> wrap_mac_p_frame(
   hdr.pcid = kSoakPcid;
   hdr.scid = p.remote_scid;
   hdr.destination = true;
-  std::array<std::byte, 5u + starcom::ccsds::kMacQueueCap> frame{};
+  std::array<std::byte, 5U + starcom::ccsds::kMacQueueCap> frame{};
   const auto vn = starcom::ccsds::encodeV3(frame, hdr, spdu);
   if (!vn) {
     return vn;
@@ -96,14 +96,14 @@ starcom::ccsds::Result<std::size_t> wrap_mac_p_frame(
 }
 
 std::uint8_t catalog_from_pl(starcom::ccsds::MacPlExt const& pl) noexcept {
-  return static_cast<std::uint8_t>((pl.mode_select & 0x03u) |
-                                   ((pl.scrambler & 0x03u) << 2));
+  return static_cast<std::uint8_t>((pl.mode_select & 0x03U) |
+                                   ((pl.scrambler & 0x03U) << 2));
 }
 
 starcom::ccsds::MacPlExt pl_from_catalog(std::uint8_t idx) noexcept {
   starcom::ccsds::MacPlExt pl{};
-  pl.mode_select = static_cast<std::uint8_t>(idx & 0x03u);
-  pl.scrambler = static_cast<std::uint8_t>((idx >> 2) & 0x03u);
+  pl.mode_select = static_cast<std::uint8_t>(idx & 0x03U);
+  pl.scrambler = static_cast<std::uint8_t>((idx >> 2) & 0x03U);
   return pl;
 }
 
@@ -167,7 +167,7 @@ bool p_frame_is_mac_spdu(std::span<const std::byte> data) noexcept {
   // is PLCW. V(R)=0 looks like SET TX (type 0); V(R)=1 looks like SET
   // CONTROL (type 001). Annex B Type-1 SET PL/RX also use bit7 as a
   // field (mode_select / modulation) — those stay MAC.
-  const bool format1 = (hi & 0x80u) != 0u;
+  const bool format1 = (hi & 0x80U) != 0U;
   // 211.0 Fig 3-5 PLCW: V(R) is octet[1], so V(R)&7 collides with Type-1
   // 0/1/2 (SET TX / CONTROL / RX). SET PL (type 6) stays MAC.
   if (format1 &&
@@ -316,7 +316,7 @@ void commit_tx_seq(BytePump& p, starcom::ccsds::Apid apid) noexcept {
     return;
   }
   lane->tx = static_cast<std::uint16_t>(
-      (static_cast<unsigned>(lane->tx) + 1u) & kSpaceSeqMask);
+      (static_cast<unsigned>(lane->tx) + 1U) & kSpaceSeqMask);
 }
 
 }  // namespace
@@ -331,11 +331,11 @@ void pump_note_rx_seq(BytePump& p, starcom::ccsds::Apid apid,
       static_cast<std::uint16_t>(seq_count & kSpaceSeqMask);
   const std::uint16_t gap = static_cast<std::uint16_t>(
       (static_cast<unsigned>(got) - lane->rx_expect) & kSpaceSeqMask);
-  if (gap != 0u) {
+  if (gap != 0U) {
     lane->rx_lost += gap;
   }
   lane->rx_expect = static_cast<std::uint16_t>(
-      (static_cast<unsigned>(got) + 1u) & kSpaceSeqMask);
+      (static_cast<unsigned>(got) + 1U) & kSpaceSeqMask);
 }
 
 starcom::ccsds::Result<std::size_t> pump_pack_nav_packet(
@@ -400,7 +400,7 @@ starcom::ccsds::Result<std::size_t> pump_pack_ack_packet(
 starcom::ccsds::Result<std::size_t> pump_encode_nav(
     BytePump& p, std::span<std::byte> out,
     const TelemetryState& telem) noexcept {
-  std::array<std::byte, 6u + kNavSduUserBytes> packet{};
+  std::array<std::byte, 6U + kNavSduUserBytes> packet{};
   const auto pn = pump_pack_nav_packet(p, packet, telem);
   if (!pn) {
     return pn;
@@ -408,7 +408,7 @@ starcom::ccsds::Result<std::size_t> pump_encode_nav(
 
   starcom::ccsds::V3Fields v3{};
   v3.scid = p.local_scid;
-  std::array<std::byte, 5u + 6u + kNavSduUserBytes> frame{};
+  std::array<std::byte, 5U + 6U + kNavSduUserBytes> frame{};
   const auto fn = starcom::ccsds::encodeV3(
       frame, v3, std::span<const std::byte>(packet.data(), *pn));
   if (!fn) {

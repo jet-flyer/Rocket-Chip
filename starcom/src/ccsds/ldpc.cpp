@@ -124,21 +124,21 @@ constexpr std::size_t kCircOctets = 16;
 constexpr std::size_t kBlocks = 8;
 
 std::uint32_t bitAt(std::uint8_t const* oct, std::size_t i) noexcept {
-  return (static_cast<std::uint32_t>(oct[i / 8]) >> (7u - (i % 8u))) & 1u;
+  return (static_cast<std::uint32_t>(oct[i / 8]) >> (7U - (i % 8U))) & 1U;
 }
 
 void xorBit(std::uint8_t* oct, std::size_t i) noexcept {
   oct[i / 8] = static_cast<std::uint8_t>(
-      oct[i / 8] ^ static_cast<std::uint8_t>(1u << (7u - (i % 8u))));
+      oct[i / 8] ^ static_cast<std::uint8_t>(1U << (7U - (i % 8U))));
 }
 
 // Right-circulant C[row,col] = r[(col-row) mod 128].
 void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noexcept {
   for (std::size_t i = 0; i < kCirc; ++i) {
-    if (bitAt(u, i) != 0u) {
+    if (bitAt(u, i) != 0U) {
       for (std::size_t j = 0; j < kCirc; ++j) {
-        const std::size_t src = (j - i) & (kCirc - 1u);
-        if (bitAt(r, src) != 0u) {
+        const std::size_t src = (j - i) & (kCirc - 1U);
+        if (bitAt(r, src) != 0U) {
           xorBit(p, j);
         }
       }
@@ -154,8 +154,8 @@ void pnXor(std::span<std::byte> octets) noexcept {
     std::uint32_t v = std::to_integer<std::uint32_t>(o);
     std::uint32_t acc = 0;
     for (std::int32_t b = 7; b >= 0; --b) {
-      const std::uint32_t out = r & 1u;
-      const std::uint32_t fb = static_cast<std::uint32_t>(std::popcount(r & 0x5Fu)) & 1u;
+      const std::uint32_t out = r & 1U;
+      const std::uint32_t fb = static_cast<std::uint32_t>(std::popcount(r & 0x5FU)) & 1U;
       r = static_cast<std::uint8_t>((r >> 1) | (fb << 7));
       acc |= out << b;
     }

@@ -82,12 +82,12 @@ FarmPDisposition farmPOnFrame(FarmP& f, bool valid, bool expedited,
   }
   if (expedited) {
     f.expedited_frame_counter =
-        static_cast<std::uint8_t>((f.expedited_frame_counter + 1u) & 0x07u);
+        static_cast<std::uint8_t>((f.expedited_frame_counter + 1U) & 0x07U);
     return FarmPDisposition::accepted;  // RE3
   }
   if (seqEq(n_s, f.v_r)) {
     f.r_s = false;
-    f.v_r = static_cast<std::uint8_t>(f.v_r + 1u);
+    f.v_r = static_cast<std::uint8_t>(f.v_r + 1U);
     f.need_plcw = true;
     return FarmPDisposition::accepted;  // RE4
   }
@@ -118,10 +118,10 @@ void fopPInit(FopP& f, CoppMib const& mib) noexcept {
   CoppMib keep = mib;
   std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = keep;
-  if (f.mib.transmission_window > 127u) {
+  if (f.mib.transmission_window > 127U) {
     f.mib.transmission_window = 127;
   }
-  if (f.mib.transmission_window == 0u) {
+  if (f.mib.transmission_window == 0U) {
     f.mib.transmission_window = 1;
   }
   f.state = FopPState::s1_active;
@@ -139,12 +139,12 @@ FopPSend fopPNeedFrame(FopP& f, bool exp_available, bool seq_available) noexcept
   }
   if (exp_available) {
     f.last_send_fsn = f.ve_s;
-    f.ve_s = static_cast<std::uint8_t>(f.ve_s + 1u);
+    f.ve_s = static_cast<std::uint8_t>(f.ve_s + 1U);
     return FopPSend::expedited;
   }
   if (seqLt(f.vv_s, f.v_s)) {
     f.last_send_fsn = f.vv_s;
-    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1U);
     return FopPSend::resend_seq;
   }
   const std::uint8_t unacked = seqDelta(f.v_s, f.nn_r);
@@ -152,14 +152,14 @@ FopPSend fopPNeedFrame(FopP& f, bool exp_available, bool seq_available) noexcept
       f.sent_n < kFopPSentCap) {
     f.last_send_fsn = f.v_s;
     sentPush(f, f.v_s);
-    f.v_s = static_cast<std::uint8_t>(f.v_s + 1u);
-    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+    f.v_s = static_cast<std::uint8_t>(f.v_s + 1U);
+    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1U);
     return FopPSend::new_seq;
   }
   if (seqLt(f.nn_r, f.v_s)) {
     f.vv_s = f.nn_r;
     f.last_send_fsn = f.vv_s;
-    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1u);
+    f.vv_s = static_cast<std::uint8_t>(f.vv_s + 1U);
     return FopPSend::resend_seq;
   }
   return FopPSend::none;
@@ -287,9 +287,9 @@ CoppEvent coppPollEvent(CoppEndpoint& e) noexcept {
   }
   std::copy(e.rx_q[0].begin(), e.rx_q[0].begin() + static_cast<std::ptrdiff_t>(n),
             out.begin());
-  for (std::uint8_t i = 0; i + 1u < e.rx_n; ++i) {
-    e.rx_q[i] = e.rx_q[i + 1u];
-    e.rx_len[i] = e.rx_len[i + 1u];
+  for (std::uint8_t i = 0; i + 1U < e.rx_n; ++i) {
+    e.rx_q[i] = e.rx_q[i + 1U];
+    e.rx_len[i] = e.rx_len[i + 1U];
   }
   --e.rx_n;
   return n;
@@ -387,7 +387,7 @@ void coppReceiveUslp(CoppEndpoint& e, PltuView const& pltu) noexcept {
     fopPOnPlcw(e.fop, plcw.has_value() ? *plcw : Plcw16{}, plcw.has_value());
     return;
   }
-  const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+  const auto fsn = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFU);
   if (farmPOnFrame(e.farm, true, u->fields.expedited, fsn) !=
       FarmPDisposition::accepted) {
     return;
@@ -514,7 +514,7 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
       payload = {};
       return;
     }
-    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1u);
+    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1U);
     if (n != 0) {
       std::copy(e.seq_q[0].begin(),
                 e.seq_q[0].begin() + static_cast<std::ptrdiff_t>(n),
@@ -523,10 +523,10 @@ void coppTakePayload(CoppEndpoint& e, FopPSend kind, V3Fields& hdr,
     e.fop.sent_payload_len[slot] = n;
     e.fop.sent_payload_ud[slot] = user_defined;
     payload = std::span<const std::byte>(e.fop.sent_payload[slot].data(), n);
-    for (std::uint8_t i = 0; i + 1u < e.seq_n; ++i) {
-      e.seq_q[i] = e.seq_q[i + 1u];
-      e.seq_len[i] = e.seq_len[i + 1u];
-      e.seq_user_defined[i] = e.seq_user_defined[i + 1u];
+    for (std::uint8_t i = 0; i + 1U < e.seq_n; ++i) {
+      e.seq_q[i] = e.seq_q[i + 1U];
+      e.seq_len[i] = e.seq_len[i + 1U];
+      e.seq_user_defined[i] = e.seq_user_defined[i + 1U];
     }
     --e.seq_n;
     return;

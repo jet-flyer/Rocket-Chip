@@ -18,7 +18,7 @@ inline constexpr std::uint8_t cop1SeqDelta(std::uint8_t a, std::uint8_t b) noexc
 }
 inline constexpr bool cop1SeqLt(std::uint8_t b, std::uint8_t a) noexcept {
   const std::uint8_t d = cop1SeqDelta(a, b);
-  return d >= 1u && d <= 127u;
+  return d >= 1U && d <= 127U;
 }
 
 using Tick = std::uint32_t;

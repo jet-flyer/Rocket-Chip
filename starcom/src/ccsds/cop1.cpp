@@ -12,7 +12,7 @@ namespace {
 std::array<std::byte, kTransferFrameMax> g_cop1TfScratch{};
 
 std::uint8_t farmPw(Farm1 const& f) noexcept {
-  return static_cast<std::uint8_t>(f.mib.w / 2u);
+  return static_cast<std::uint8_t>(f.mib.w / 2U);
 }
 
 std::uint8_t farmNw(Farm1 const& f) noexcept {
@@ -109,13 +109,13 @@ bool nrInRange(Fop1 const& f, std::uint8_t nr) noexcept {
 void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept {
   f = Farm1{};
   f.mib = mib;
-  if (f.mib.w < 2u) {
+  if (f.mib.w < 2U) {
     f.mib.w = 2;
   }
-  if (f.mib.w > 254u) {
+  if (f.mib.w > 254U) {
     f.mib.w = 254;
   }
-  if ((f.mib.w % 2u) != 0) {
+  if ((f.mib.w % 2U) != 0) {
     --f.mib.w;
   }
   farmEnterOpen(f);
@@ -124,7 +124,7 @@ void farm1Init(Farm1& f, Farm1Mib const& mib) noexcept {
 Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept {
   if (n_s == f.v_r) {
     if (f.state == Farm1State::s1_open && buffer_ok) {
-      f.v_r = static_cast<std::uint8_t>(f.v_r + 1u);
+      f.v_r = static_cast<std::uint8_t>(f.v_r + 1U);
       f.retransmit_flag = false;
       f.need_clcw = true;
       return Farm1Disposition::accepted;  // E1
@@ -144,13 +144,13 @@ Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept 
   const std::uint8_t pw = farmPw(f);
   const std::uint8_t nw = farmNw(f);
   const std::uint8_t dpos = cop1SeqDelta(n_s, f.v_r);
-  if (dpos >= 1u && pw > 1u && dpos <= static_cast<std::uint8_t>(pw - 1u)) {
+  if (dpos >= 1U && pw > 1U && dpos <= static_cast<std::uint8_t>(pw - 1U)) {
     f.retransmit_flag = true;
     f.need_clcw = true;
     return Farm1Disposition::discarded;  // E3
   }
   const std::uint8_t dneg = cop1SeqDelta(f.v_r, n_s);
-  if (dneg >= 1u && dneg <= nw) {
+  if (dneg >= 1U && dneg <= nw) {
     return Farm1Disposition::discarded;  // E4
   }
   f.lockout_flag = true;
@@ -160,13 +160,13 @@ Farm1Disposition farm1OnAd(Farm1& f, std::uint8_t n_s, bool buffer_ok) noexcept 
 }
 
 Farm1Disposition farm1OnBd(Farm1& f) noexcept {
-  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
   f.need_clcw = true;
   return Farm1Disposition::accepted;  // E6 all states
 }
 
 void farm1OnUnlock(Farm1& f) noexcept {
-  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
   f.retransmit_flag = false;
   f.wait_flag = false;
   f.lockout_flag = false;
@@ -175,7 +175,7 @@ void farm1OnUnlock(Farm1& f) noexcept {
 }
 
 void farm1OnSetVr(Farm1& f, std::uint8_t v_star) noexcept {
-  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1u) & 0x03u);
+  f.farm_b_counter = static_cast<std::uint8_t>((f.farm_b_counter + 1U) & 0x03U);
   if (f.state == Farm1State::s3_lockout) {
     f.need_clcw = true;
     return;  // E8 S3: count only
@@ -200,11 +200,11 @@ void farm1BufferRelease(Farm1& f) noexcept {
 Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
   Clcw32 w{};
   w.cop_in_effect = 0b01;
-  w.vcid = static_cast<std::uint8_t>(vcid & 0x3Fu);
+  w.vcid = static_cast<std::uint8_t>(vcid & 0x3FU);
   w.lockout = f.lockout_flag;
   w.wait = f.wait_flag;
   w.retransmit = f.retransmit_flag;
-  w.farm_b_counter = static_cast<std::uint8_t>(f.farm_b_counter & 0x03u);
+  w.farm_b_counter = static_cast<std::uint8_t>(f.farm_b_counter & 0x03U);
   w.report_value = f.v_r;
   return w;
 }
@@ -212,10 +212,10 @@ Clcw32 farm1Report(Farm1 const& f, std::uint8_t vcid) noexcept {
 void fop1Init(Fop1& f, Cop1Mib const& mib) noexcept {
   std::memset(static_cast<void*>(&f), 0, sizeof(f));
   f.mib = mib;
-  if (f.mib.k == 0u) {
+  if (f.mib.k == 0U) {
     f.mib.k = 1;
   }
-  if (f.mib.transmission_limit == 0u) {
+  if (f.mib.transmission_limit == 0U) {
     f.mib.transmission_limit = 1;
   }
   f.state = Fop1State::s6_initial;
@@ -285,15 +285,15 @@ void fop1TerminateAd(Fop1& f) noexcept {
 }
 
 bool fop1ResumeAd(Fop1& f) noexcept {
-  if (f.ss == 0u || f.state != Fop1State::s6_initial) {
+  if (f.ss == 0U || f.state != Fop1State::s6_initial) {
     return false;  // E30
   }
   Fop1State dest = Fop1State::s1_active;
-  if (f.ss == 2u) {
+  if (f.ss == 2U) {
     dest = Fop1State::s2_retransmit;
-  } else if (f.ss == 3u) {
+  } else if (f.ss == 3U) {
     dest = Fop1State::s3_retransmit_wait;
-  } else if (f.ss == 4u) {
+  } else if (f.ss == 4U) {
     dest = Fop1State::s4_init_no_bc;
   }
   f.ss = 0;
@@ -303,7 +303,7 @@ bool fop1ResumeAd(Fop1& f) noexcept {
 }
 
 bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
-  if (f.state != Fop1State::s6_initial || f.ss != 0u) {
+  if (f.state != Fop1State::s6_initial || f.ss != 0U) {
     return false;  // E35
   }
   f.v_s = v_star;
@@ -312,17 +312,17 @@ bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept {
 }
 
 void fop1SetK(Fop1& f, std::uint8_t k) noexcept {
-  f.mib.k = (k == 0u) ? 1u : k;  // E36; 232.1 §5.1.12 1 ≤ K < 256
+  f.mib.k = (k == 0U) ? 1U : k;  // E36; 232.1 §5.1.12 1 ≤ K < 256
 }
 
 void fop1SetT1Initial(Fop1& f, Tick t1) noexcept { f.mib.t1_initial = t1; }
 
 void fop1SetTransmissionLimit(Fop1& f, std::uint8_t n) noexcept {
-  f.mib.transmission_limit = (n == 0u) ? 1u : n;
+  f.mib.transmission_limit = (n == 0U) ? 1U : n;
 }
 
 void fop1SetTimeoutType(Fop1& f, std::uint8_t tt) noexcept {
-  f.mib.timeout_type = (tt == 0u) ? 0u : 1u;
+  f.mib.timeout_type = (tt == 0U) ? 0U : 1U;
 }
 
 void fop1AdAccept(Fop1& f) noexcept { f.ad_out_ready = true; }
@@ -366,7 +366,7 @@ Fop1Send fop1NeedFrame(Fop1& f, bool bd_available, bool ad_available) noexcept {
     f.sent[f.sent_n] = f.v_s;
     f.to_retransmit[f.sent_n] = false;
     ++f.sent_n;
-    f.v_s = static_cast<std::uint8_t>(f.v_s + 1u);
+    f.v_s = static_cast<std::uint8_t>(f.v_s + 1U);
     if (f.sent_n == 1) {
       f.transmission_count = 1;
     }
@@ -422,7 +422,7 @@ void fop1OnClcwEqVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
 
 void fop1OnClcwLtVs(Fop1& f, Clcw32 const& w, std::uint8_t nr) noexcept {
   if (w.retransmit) {
-    if (f.mib.transmission_limit <= 1u) {
+    if (f.mib.transmission_limit <= 1U) {
       fopAlert(f);  // E101/E102
       return;
     }
@@ -495,7 +495,7 @@ void fop1Tick(Fop1& f, Tick now) noexcept {
   }
   f.t1_expired_latched = true;
   cancelT1(f);
-  const bool tt1 = f.mib.timeout_type == 1u;
+  const bool tt1 = f.mib.timeout_type == 1U;
   const bool at_limit = f.transmission_count >= f.mib.transmission_limit;
   if (f.state == Fop1State::s5_init_bc) {
     if (at_limit) {
@@ -641,9 +641,9 @@ Cop1Event cop1PollEvent(Cop1Endpoint& e) noexcept {
   }
   std::copy(e.rx_q[0].begin(), e.rx_q[0].begin() + static_cast<std::ptrdiff_t>(n),
             out.begin());
-  for (std::uint8_t i = 0; i + 1u < e.rx_n; ++i) {
-    e.rx_q[i] = e.rx_q[i + 1u];
-    e.rx_len[i] = e.rx_len[i + 1u];
+  for (std::uint8_t i = 0; i + 1U < e.rx_n; ++i) {
+    e.rx_q[i] = e.rx_q[i + 1U];
+    e.rx_len[i] = e.rx_len[i + 1U];
   }
   --e.rx_n;
   return n;
@@ -682,7 +682,7 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   if (bd) {
     d = farm1OnBd(e.farm);
   } else if (ad) {
-    const std::uint8_t ns = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFu);
+    const std::uint8_t ns = static_cast<std::uint8_t>(u->fields.vcf_count & 0xFFU);
     d = farm1OnAd(e.farm, ns, e.rx_n < kCop1SeqSlots);
   }
   if (d != Farm1Disposition::accepted) {
@@ -715,15 +715,15 @@ void cop1TakeAd(Cop1Endpoint& e, UslpFields& hdr,
   const auto ns = e.fop.last_send_ns;
   tfdz = std::span<const std::byte>(e.ad_q[0].data(), e.ad_len[0]);
   if (e.fop.sent_n > 0) {
-    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1u);
+    const auto slot = static_cast<std::uint8_t>(e.fop.sent_n - 1U);
     std::copy(e.ad_q[0].begin(),
               e.ad_q[0].begin() + static_cast<std::ptrdiff_t>(e.ad_len[0]),
               e.fop.sent_payload[slot].begin());
     e.fop.sent_payload_len[slot] = e.ad_len[0];
   }
-  for (std::uint8_t i = 0; i + 1u < e.ad_n; ++i) {
-    e.ad_q[i] = e.ad_q[i + 1u];
-    e.ad_len[i] = e.ad_len[i + 1u];
+  for (std::uint8_t i = 0; i + 1U < e.ad_n; ++i) {
+    e.ad_q[i] = e.ad_q[i + 1U];
+    e.ad_len[i] = e.ad_len[i + 1U];
   }
   --e.ad_n;
   hdr.vcf_count = ns;

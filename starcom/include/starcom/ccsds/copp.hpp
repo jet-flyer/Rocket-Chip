@@ -21,10 +21,10 @@ inline constexpr std::uint8_t seqDelta(std::uint8_t a, std::uint8_t b) noexcept 
 }
 inline constexpr bool seqLt(std::uint8_t b, std::uint8_t a) noexcept {
   const std::uint8_t d = seqDelta(a, b);
-  return d >= 1u && d <= 127u;
+  return d >= 1U && d <= 127U;
 }
 inline constexpr bool seqEq(std::uint8_t b, std::uint8_t a) noexcept {
-  return seqDelta(a, b) == 0u;
+  return seqDelta(a, b) == 0U;
 }
 
 struct CoppMib {

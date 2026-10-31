@@ -16,10 +16,10 @@ std::uint32_t loadBe32(std::span<const std::byte, kPltuCrcSize> bytes) noexcept 
 }
 
 void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
-  dest[0] = std::byte((value >> 24) & 0xFFu);
-  dest[1] = std::byte((value >> 16) & 0xFFu);
-  dest[2] = std::byte((value >> 8) & 0xFFu);
-  dest[3] = std::byte(value & 0xFFu);
+  dest[0] = std::byte((value >> 24) & 0xFFU);
+  dest[1] = std::byte((value >> 16) & 0xFFU);
+  dest[2] = std::byte((value >> 8) & 0xFFU);
+  dest[3] = std::byte(value & 0xFFU);
 }
 
 [[nodiscard]] Result<std::size_t> v3FrameLen(std::span<const std::byte> rest) noexcept {
@@ -27,9 +27,9 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t length_c =
-      ((std::to_integer<std::uint32_t>(rest[2]) & 0x07u) << 8) |
+      ((std::to_integer<std::uint32_t>(rest[2]) & 0x07U) << 8) |
       std::to_integer<std::uint32_t>(rest[3]);
-  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
+  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
   }
@@ -39,17 +39,17 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
 [[nodiscard]] Result<std::size_t> uslpFrameLen(std::span<const std::byte> rest,
                                    std::size_t uslp_truncated_len) noexcept {
   const std::uint32_t tfvn4 = std::to_integer<std::uint32_t>(rest[0]) >> 4;
-  if (tfvn4 != 0b1100u) {
+  if (tfvn4 != 0b1100U) {
     return tl::unexpected(Error::tfvn_unknown);
   }
   if (rest.size() < 4) {
     return tl::unexpected(Error::truncated);
   }
-  if ((std::to_integer<std::uint32_t>(rest[3]) & 0x01u) != 0) {
+  if ((std::to_integer<std::uint32_t>(rest[3]) & 0x01U) != 0) {
     if (uslp_truncated_len == 0) {
       return tl::unexpected(Error::uslp_truncated);
     }
-    if (uslp_truncated_len < 6u || uslp_truncated_len > 32u) {
+    if (uslp_truncated_len < 6U || uslp_truncated_len > 32U) {
       return tl::unexpected(Error::uslp_length_oob);
     }
     return uslp_truncated_len;
@@ -59,7 +59,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
   }
   const std::uint32_t length_c = (std::to_integer<std::uint32_t>(rest[4]) << 8) |
                             std::to_integer<std::uint32_t>(rest[5]);
-  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1u;
+  const std::size_t frame_len = static_cast<std::size_t>(length_c) + 1U;
   if (frame_len < kTransferFrameMin || frame_len > kTransferFrameMax) {
     return tl::unexpected(Error::v3_length_oob);
   }
@@ -80,8 +80,8 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
     return tl::unexpected(Error::truncated);
   }
   const std::uint32_t tfvn2 = std::to_integer<std::uint32_t>(rest[0]) >> 6;
-  const auto frame_len = (tfvn2 == 0b10u) ? v3FrameLen(rest)
-                       : (tfvn2 == 0b11u) ? uslpFrameLen(rest, uslp_truncated_len)
+  const auto frame_len = (tfvn2 == 0b10U) ? v3FrameLen(rest)
+                       : (tfvn2 == 0b11U) ? uslpFrameLen(rest, uslp_truncated_len)
                        : Result<std::size_t>{tl::unexpect, Error::tfvn_unknown};
   if (!frame_len) {
     return frame_len;
@@ -95,7 +95,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept {
 
 std::size_t asmPrefixKeep(std::span<const std::byte> octets) noexcept {
   const std::size_t n = octets.size();
-  const std::size_t max_keep = n < (kPltuAsmSize - 1u) ? n : (kPltuAsmSize - 1u);
+  const std::size_t max_keep = n < (kPltuAsmSize - 1U) ? n : (kPltuAsmSize - 1U);
   for (std::size_t k = max_keep; k > 0; --k) {
     if (std::equal(kPltuAsm.begin(),
                    kPltuAsm.begin() + static_cast<std::ptrdiff_t>(k),
@@ -251,7 +251,7 @@ std::uint64_t repeatSeq(PltuView const& view) noexcept {
   const std::size_t n = slot.len;
   slot.len = 0;
   slot.seq = 0;
-  q.head = (q.head + 1u) % q.slots.size();
+  q.head = (q.head + 1U) % q.slots.size();
   --q.count;
   return n;
 }

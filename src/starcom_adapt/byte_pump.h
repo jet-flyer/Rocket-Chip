@@ -34,7 +34,7 @@ inline constexpr starcom::ccsds::Apid kNavApid{0x001};
 // RC kApidCmdAck (include/rocketchip/telemetry_encoder.h). TC=command, TM=ACK.
 inline constexpr starcom::ccsds::Apid kCmdApid{0x003};
 // 133.0-B-2 §4.1.3.4.3.4: Packet Sequence Count is continuous modulo 16384.
-inline constexpr std::uint16_t kSpaceSeqMask = 0x3FFFu;
+inline constexpr std::uint16_t kSpaceSeqMask = 0x3FFFU;
 inline constexpr starcom::ccsds::Pcid kSoakPcid{0};
 inline constexpr starcom::ccsds::PortId kSoakPort{1};
 
