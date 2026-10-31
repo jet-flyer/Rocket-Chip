@@ -14,7 +14,6 @@
 
 using starcom::adapters::pioShiftIn;
 using starcom::adapters::pioShiftOut;
-using starcom::adapters::PioOps;
 using starcom::ccsds::decodePltu;
 using starcom::ccsds::encodePltu;
 using starcom::ccsds::Error;
@@ -41,27 +40,16 @@ constexpr std::array<std::byte, 5> kV3HeaderOnly{
 struct FakePio {
   std::vector<bool> bits;
   std::size_t rd = 0;
-};
 
-void fakePut(void* ctx, bool bit) noexcept {
-  static_cast<FakePio*>(ctx)->bits.push_back(bit);
-}
+  void putBit(bool bit) noexcept { bits.push_back(bit); }
 
-bool fakeGet(void* ctx) noexcept {
-  auto* f = static_cast<FakePio*>(ctx);
-  if (f->rd >= f->bits.size()) {
-    return false;
+  bool getBit() noexcept {
+    if (rd >= bits.size()) {
+      return false;
+    }
+    return bits[rd++];
   }
-  return f->bits[f->rd++];
-}
-
-void test_null_ops() {
-  PioOps empty{};
-  const std::array<std::byte, 1> one{std::byte{1}};
-  std::array<std::byte, 1> out{};
-  CHECK(pioShiftOut(empty, one).error() == Error::truncated);
-  CHECK(pioShiftIn(empty, out, 1).error() == Error::truncated);
-}
+};
 
 void test_v3_header_only_roundtrip() {
   std::array<std::byte, 32> pltu{};
@@ -70,15 +58,11 @@ void test_v3_header_only_roundtrip() {
   CHECK(*n == kPltuAsmSize + kV3HeaderOnly.size() + kPltuCrcSize);
   CHECK(pltu[0] == kPltuAsm[0]);
 
-  FakePio fake{};
-  PioOps ops{};
-  ops.ctx = &fake;
-  ops.putBit = fakePut;
-  ops.getBit = fakeGet;
+  FakePio ops{};
 
   CHECK(pioShiftOut(ops, std::span<const std::byte>(pltu.data(), *n)).value() ==
         *n);
-  CHECK(fake.bits.size() == *n * 8u);
+  CHECK(ops.bits.size() == *n * 8u);
 
   std::array<std::byte, 32> got{};
   CHECK(pioShiftIn(ops, got, *n).value() == *n);
@@ -88,10 +72,7 @@ void test_v3_header_only_roundtrip() {
 }
 
 void test_shift_in_too_small() {
-  FakePio fake{};
-  PioOps ops{};
-  ops.ctx = &fake;
-  ops.getBit = fakeGet;
+  FakePio ops{};
   std::array<std::byte, 2> tiny{};
   CHECK(pioShiftIn(ops, tiny, 4).error() == Error::buffer_too_small);
 }
@@ -99,7 +80,6 @@ void test_shift_in_too_small() {
 }  // namespace
 
 int run_pio_port_tests() {
-  test_null_ops();
   test_v3_header_only_roundtrip();
   test_shift_in_too_small();
   return g_fails;

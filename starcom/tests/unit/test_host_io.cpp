@@ -59,51 +59,49 @@ struct Collected {
   std::array<std::array<std::byte, kAdapterFrameMax>, 4> units{};
   std::array<std::size_t, 4> lens{};
   std::size_t n = 0;
-};
 
-starcom::ccsds::Result<std::size_t> collectSink(
-    void* ctx, std::span<const std::byte> pltu) {
-  auto* c = static_cast<Collected*>(ctx);
-  if (c->n >= c->units.size() || pltu.size() > kAdapterFrameMax) {
-    return tl::unexpected(Error::buffer_too_small);
+  starcom::ccsds::Result<std::size_t> operator()(
+      std::span<const std::byte> pltu) {
+    if (n >= units.size() || pltu.size() > kAdapterFrameMax) {
+      return tl::unexpected(Error::buffer_too_small);
+    }
+    std::copy(pltu.begin(), pltu.end(), units[n].begin());
+    lens[n] = pltu.size();
+    ++n;
+    return pltu.size();
   }
-  std::copy(pltu.begin(), pltu.end(), c->units[c->n].begin());
-  c->lens[c->n] = pltu.size();
-  ++c->n;
-  return pltu.size();
-}
+};
 
 struct RepeatCtx {
   std::array<std::byte, kAdapterFrameMax> out{};
   std::size_t n = 0;
-};
 
-starcom::ccsds::Result<std::size_t> repeatSink(
-    void* ctx, std::span<const std::byte> pltu) {
-  auto* r = static_cast<RepeatCtx*>(ctx);
-  const auto n = repeatPltu(r->out, pltu);
-  if (!n) {
-    return tl::unexpected(n.error());
+  starcom::ccsds::Result<std::size_t> operator()(
+      std::span<const std::byte> pltu) {
+    const auto got = repeatPltu(out, pltu);
+    if (!got) {
+      return tl::unexpected(got.error());
+    }
+    n = *got;
+    return *got;
   }
-  r->n = *n;
-  return *n;
-}
+};
 
 struct CoppSinkCtx {
   CoppEndpoint* e = nullptr;
+
+  starcom::ccsds::Result<std::size_t> operator()(
+      std::span<const std::byte> pltu) {
+    coppReceiveBytes(*e, pltu);
+    return pltu.size();
+  }
 };
 
-starcom::ccsds::Result<std::size_t> coppSink(
-    void* ctx, std::span<const std::byte> pltu) {
-  auto* c = static_cast<CoppSinkCtx*>(ctx);
-  coppReceiveBytes(*c->e, pltu);
-  return pltu.size();
-}
-
-starcom::ccsds::Result<std::size_t> failSink(void*,
-                                              std::span<const std::byte>) {
-  return tl::unexpected(Error::bad_crc);
-}
+struct FailSink {
+  starcom::ccsds::Result<std::size_t> operator()(std::span<const std::byte>) {
+    return tl::unexpected(Error::bad_crc);
+  }
+};
 
 bool writeTwoPltus(char const* path, std::span<const std::byte> a,
                      std::span<const std::byte> b) {
@@ -153,7 +151,7 @@ void test_replay_two_pltus() {
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
   Collected col{};
-  const auto n = replayPltuFile(path, scratch, collectSink, &col);
+  const auto n = replayPltuFile(path, scratch, col);
   CHECK(n.has_value());
   CHECK(*n == 2u);
   CHECK(col.n == 2u);
@@ -190,7 +188,7 @@ void test_replay_into_repeat_pltu() {
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
   RepeatCtx ctx{};
-  const auto n = replayPltuFile(path, scratch, repeatSink, &ctx);
+  const auto n = replayPltuFile(path, scratch, ctx);
   CHECK(n.has_value());
   CHECK(*n == 1u);
   CHECK(ctx.n == na);
@@ -214,7 +212,7 @@ void test_replay_into_copp() {
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
   CoppSinkCtx ctx{&rx};
-  const auto n = replayPltuFile(path, scratch, coppSink, &ctx);
+  const auto n = replayPltuFile(path, scratch, ctx);
   CHECK(n.has_value());
   CHECK(*n == 1u);
   CHECK(coppPollEvent(rx) == CoppEvent::farm_accepted);
@@ -230,17 +228,14 @@ void test_replay_into_copp() {
 void test_replay_errors() {
   std::array<std::byte, kAdapterFrameMax> scratch{};
   Collected col{};
-  CHECK(replayPltuFile(nullptr, scratch, collectSink, &col).error() ==
+  CHECK(replayPltuFile(nullptr, scratch, col).error() == Error::truncated);
+  CHECK(replayPltuFile("", scratch, col).error() == Error::truncated);
+  CHECK(replayPltuFile("starcom_ivp15_missing.bin", scratch, col).error() ==
         Error::truncated);
-  CHECK(replayPltuFile("", scratch, collectSink, &col).error() ==
-        Error::truncated);
-  CHECK(replayPltuFile("starcom_ivp15_missing.bin", scratch, collectSink,
-                         &col)
-            .error() == Error::truncated);
 
   std::array<std::byte, 16> tiny{};
-  CHECK(replayPltuFile("starcom_ivp15_missing.bin", tiny, collectSink, &col)
-            .error() == Error::buffer_too_small);
+  CHECK(replayPltuFile("starcom_ivp15_missing.bin", tiny, col).error() ==
+        Error::buffer_too_small);
 }
 
 void test_replay_split_short_read() {
@@ -259,7 +254,7 @@ void test_replay_split_short_read() {
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
   Collected col{};
-  const auto got = replayPltuFile(path, scratch, collectSink, &col);
+  const auto got = replayPltuFile(path, scratch, col);
   CHECK(got.has_value());
   CHECK(*got == 1u);
   CHECK(col.n == 1u);
@@ -279,7 +274,8 @@ void test_replay_sink_error() {
                         std::span<const std::byte>()));
 
   std::array<std::byte, kAdapterFrameMax> scratch{};
-  const auto got = replayPltuFile(path, scratch, failSink, nullptr);
+  FailSink fail{};
+  const auto got = replayPltuFile(path, scratch, fail);
   CHECK(!got.has_value());
   CHECK(got.error() == Error::bad_crc);
   std::remove(path);
