@@ -1012,36 +1012,78 @@ void cop1TakeAd(Cop1Endpoint& e, UslpFields& hdr,
   hdr.vcf_count = ns;
 }
 
+void cop1SelectUnlock(UslpFields& hdr, std::span<const std::byte>& tfdz,
+                      std::array<std::byte, 3>& bc) noexcept
+{
+  hdr.expedited = true;
+  hdr.protocol_control = true;
+  hdr.upid = kUslpUpidCop1Control;
+  bc[0] = kCop1Unlock;
+  tfdz = std::span<const std::byte>(bc.data(), 1);
+}
+
+void cop1SelectSetVr(Cop1Endpoint const& e, UslpFields& hdr,
+                     std::span<const std::byte>& tfdz,
+                     std::array<std::byte, 3>& bc) noexcept
+{
+  hdr.expedited = true;
+  hdr.protocol_control = true;
+  hdr.upid = kUslpUpidCop1Control;
+  bc[0] = kCop1SetVr0;
+  bc[1] = kCop1SetVr1;
+  bc[2] = std::byte{e.fop.set_vr_value};
+  tfdz = std::span<const std::byte>(bc.data(), 3);
+}
+
+void cop1SelectBd(Cop1Endpoint& e, UslpFields& hdr,
+                  std::span<const std::byte>& tfdz) noexcept
+{
+  hdr.expedited = true;
+  tfdz = std::span<const std::byte>(e.bd_q.data(), e.bd_len);
+  e.bd_full = false;
+  e.bd_len = 0;
+}
+
+void cop1SelectResendAd(Cop1Endpoint const& e, UslpFields& hdr,
+                        std::span<const std::byte>& tfdz) noexcept
+{
+  const auto ns = e.fop.last_send_ns;
+  tfdz = {};
+  bool found = false;
+  std::uint8_t i = 0;
+  while (i < e.fop.sent_n && !found)
+  {
+    if (e.fop.sent[i] == ns)
+    {
+      tfdz = std::span<const std::byte>(e.fop.sent_payload[i].data(),
+                                        e.fop.sent_payload_len[i]);
+      found = true;
+    }
+    if (!found)
+    {
+      ++i;
+    }
+  }
+  hdr.vcf_count = ns;
+}
+
 void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
                     std::span<const std::byte>& tfdz,
                     std::array<std::byte, 3>& bc) noexcept
 {
   if (kind == Fop1Send::bc_unlock)
   {
-    hdr.expedited = true;
-    hdr.protocol_control = true;
-    hdr.upid = kUslpUpidCop1Control;
-    bc[0] = kCop1Unlock;
-    tfdz = std::span<const std::byte>(bc.data(), 1);
+    cop1SelectUnlock(hdr, tfdz, bc);
     return;
   }
   if (kind == Fop1Send::bc_set_vr)
   {
-    hdr.expedited = true;
-    hdr.protocol_control = true;
-    hdr.upid = kUslpUpidCop1Control;
-    bc[0] = kCop1SetVr0;
-    bc[1] = kCop1SetVr1;
-    bc[2] = std::byte{e.fop.set_vr_value};
-    tfdz = std::span<const std::byte>(bc.data(), 3);
+    cop1SelectSetVr(e, hdr, tfdz, bc);
     return;
   }
   if (kind == Fop1Send::bd)
   {
-    hdr.expedited = true;
-    tfdz = std::span<const std::byte>(e.bd_q.data(), e.bd_len);
-    e.bd_full = false;
-    e.bd_len = 0;
+    cop1SelectBd(e, hdr, tfdz);
     return;
   }
   if (kind == Fop1Send::ad && e.ad_n > 0)
@@ -1051,24 +1093,7 @@ void cop1SelectTfdz(Cop1Endpoint& e, Fop1Send kind, UslpFields& hdr,
   }
   if (kind == Fop1Send::resend_ad)
   {
-    const auto ns = e.fop.last_send_ns;
-    tfdz = {};
-    bool found = false;
-    std::uint8_t i = 0;
-    while (i < e.fop.sent_n && !found)
-    {
-      if (e.fop.sent[i] == ns)
-      {
-        tfdz = std::span<const std::byte>(e.fop.sent_payload[i].data(),
-                                          e.fop.sent_payload_len[i]);
-        found = true;
-      }
-      if (!found)
-      {
-        ++i;
-      }
-    }
-    hdr.vcf_count = ns;
+    cop1SelectResendAd(e, hdr, tfdz);
     return;
   }
   hdr.expedited = true;  // CLCW-only: BD empty TFDZ

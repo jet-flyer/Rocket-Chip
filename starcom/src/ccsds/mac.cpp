@@ -192,64 +192,35 @@ void clearMacQueue(MacSession& m) noexcept
   m.fifo_empty = true;
 }
 
+void appendEncoded(MacSession& m, std::array<std::byte, 2> const& buf,
+                   Result<std::size_t> const n) noexcept
+{
+  if (n)
+  {
+    if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
+    {
+      /* No action. queueFromCv starts at length 0. Each directive is
+         2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+         B1.1.2 names concatenation. It does not name a local-buffer
+         failure. */
+    }
+  }
+}
+
 void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept
 {
   m.mac_queue_len = 0;
   std::array<std::byte, 2> buf{};
   if (cv.has_pl_tx)
   {
-    const auto n = encodeSetPlExt(buf, cv.pl_tx);
-    if (n)
-    {
-      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
-      {
-        /* No action. queueFromCv starts at length 0. Each directive is
-           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
-           B1.1.2 names concatenation. It does not name a local-buffer
-           failure. */
-      }
-    }
+    appendEncoded(m, buf, encodeSetPlExt(buf, cv.pl_tx));
   }
-  {
-    const auto n = encodeSetPhy(buf, cv.tx, true);
-    if (n)
-    {
-      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
-      {
-        /* No action. queueFromCv starts at length 0. Each directive is
-           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
-           B1.1.2 names concatenation. It does not name a local-buffer
-           failure. */
-      }
-    }
-  }
+  appendEncoded(m, buf, encodeSetPhy(buf, cv.tx, true));
   if (cv.has_pl_rx)
   {
-    const auto n = encodeSetPlExt(buf, cv.pl_rx);
-    if (n)
-    {
-      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
-      {
-        /* No action. queueFromCv starts at length 0. Each directive is
-           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
-           B1.1.2 names concatenation. It does not name a local-buffer
-           failure. */
-      }
-    }
+    appendEncoded(m, buf, encodeSetPlExt(buf, cv.pl_rx));
   }
-  {
-    const auto n = encodeSetPhy(buf, cv.rx, false);
-    if (n)
-    {
-      if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
-      {
-        /* No action. queueFromCv starts at length 0. Each directive is
-           2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
-           B1.1.2 names concatenation. It does not name a local-buffer
-           failure. */
-      }
-    }
-  }
+  appendEncoded(m, buf, encodeSetPhy(buf, cv.rx, false));
   m.mac_frame_pending = m.mac_queue_len > 0;
   m.fifo_empty = !m.mac_frame_pending;
 }
@@ -680,6 +651,32 @@ void macOnWaitExpired(MacSession& m, Tick now) noexcept
   }
 }
 
+void macOnValidS48(MacSession& m) noexcept
+{
+  // E17
+  m.y = 0;
+  m.z = 0;
+  m.persistence = false;
+  m.modulation = false;
+  applyState(m, MacState::s41);
+  loadWait(m, m.mib.carrier_only_duration);
+  notify(m, MacNotify::comm_change_ok);
+}
+
+void macOnValidCommChange(MacSession& m) noexcept
+{
+  // E68. S62 is the receive wait after E67.
+  m.y = 0;
+  m.persistence = false;
+  applyState(m, MacState::s60);
+  if (m.pending_cv_valid)
+  {
+    m.hail_cv = m.pending_cv;
+    m.pending_cv_valid = false;
+  }
+  notify(m, MacNotify::comm_change_ok);
+}
+
 }  // namespace
 
 void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
@@ -834,13 +831,7 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept
   }
   if (m.state == MacState::s48 && m.z == 1)
   {  // E17
-    m.y = 0;
-    m.z = 0;
-    m.persistence = false;
-    m.modulation = false;
-    applyState(m, MacState::s41);
-    loadWait(m, m.mib.carrier_only_duration);
-    notify(m, MacNotify::comm_change_ok);
+    macOnValidS48(m);
     return;
   }
   if (m.state == MacState::s61 && m.y != 3)
@@ -850,16 +841,8 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept
   }
   if ((m.state == MacState::s61 || m.state == MacState::s62) &&
       m.y == 3)
-  {  // E68 - S62 is the receive wait after E67
-    m.y = 0;
-    m.persistence = false;
-    applyState(m, MacState::s60);
-    if (m.pending_cv_valid)
-    {
-      m.hail_cv = m.pending_cv;
-      m.pending_cv_valid = false;
-    }
-    notify(m, MacNotify::comm_change_ok);
+  {  // E68
+    macOnValidCommChange(m);
     return;
   }
   if (m.state == MacState::s62)
