@@ -1,4 +1,4 @@
-# R3 final recount, 2026-11-01
+# R3 final recount, 2026-10-31
 
 This is the final count for the Starcom code fixes (`STARCOM_AUDIT_2026-10-29.md`, Section 2, row R3). It follows the R2 method (`CLANG_TIDY_R2_2026-10-31.md`). Each row was counted again from the tree. No R2 number was copied.
 

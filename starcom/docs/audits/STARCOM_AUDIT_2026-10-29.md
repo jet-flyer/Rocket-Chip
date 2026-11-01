@@ -405,7 +405,7 @@ The cycle stopped at Tier 1. The counts come from the PC clang-tidy 21.1.8 logs 
 
 **Population.** All 233 JSF AV rule IDs: 221 rules with numbers (rules 161 and 172 are not in the standard) and 14 sub-rules. All 10 P10 rules. All 31 JPL LOC-1 to LOC-4 rules. D.1 to D.8. AK guidelines sections 1 to 4. The walk includes all of each population (`AUDIT_GUIDANCE.md:92-94`).
 
-#### Section A: JSF AV C++ (221 rules) — FAIL (30 FAIL / 13 PARTIAL / 127 PASS / 63 N/A of 233 IDs; JSF 130 regraded 2026-11-01)
+#### Section A: JSF AV C++ (221 rules) — FAIL (30 FAIL / 13 PARTIAL / 127 PASS / 63 N/A of 233 IDs; JSF 130 regraded 2026-10-31)
 
 ##### A.1 C files
 
@@ -568,7 +568,7 @@ The "App" column gives the rule type: M (mandatory), R (recommended) or "Process
 | 127 | Code that is not used (commented out) shall be deleted. | M | PASS | No commented-out code found (grep heuristic: 1 candidate, `space_packet_service.cpp:113`, is prose). |
 | 128 | Comments that document actions or sources (e.g. | M | PASS | Book clause citations by name (e.g. `space_packet.cpp:51` "133.0-B-2 §4.1.3.3.3.4"), as in 2026-02-07 precedent. |
 | 129 | Comments in header files should describe the externally visible behavior of the functions  | R | PARTIAL | Header comments present on some declarations (e.g. `include/starcom/ccsds/clcw.hpp:13`), none on most adapter headers (read). |
-| 130 | The purpose of every line of executable code should be explained by a comment, although on | R | PASS (regraded 2026-11-01; was FAIL) | Graded by purpose, not density (see "JSF 130 reading settled" in Noted for later). R3: `scripts/ci/comment_coverage.py` listed 165 functions with no comment; a full read found 10 definitions (8 names) with no purpose comment and an unclear name, and 20 wrong cite lines (plus 1 repeat line, cut). All fixed in R3. Density at the audit was 3.2% core (118/3672), record only. |
+| 130 | The purpose of every line of executable code should be explained by a comment, although on | R | PASS (regraded 2026-10-31; was FAIL) | Graded by purpose, not density (see "JSF 130 reading settled" in Noted for later). R3: `scripts/ci/comment_coverage.py` listed 165 functions with no comment; a full read found 10 definitions (8 names) with no purpose comment and an unclear name, and 20 wrong cite lines (plus 1 repeat line, cut). All fixed in R3. Density at the audit was 3.2% core (118/3672), record only. |
 | 131 | One should avoid stating in comments what is better stated in code (i.e. | R | PASS | Comments that exist explain book provenance, not code restatement (read). |
 | 132 | Each variable declaration, typedef, enumeration value, and structure member will be commen | M | PARTIAL | Struct members partly commented (`include/starcom/ccsds/clcw.hpp:16`); many uncommented (read). |
 | 133 | Every source file will be documented with an introductory comment that provides informatio | M | FAIL | No introductory file comment in any Starcom `.cpp` (13 core + 6 adapters start with `#include`, e.g. `src/ccsds/clcw.cpp:1`) or `.hpp` (23/23 begin `#pragma once` then `#include`). RC adapter files PASS. |
@@ -856,6 +856,8 @@ The ledger is the main task of this section. It checks claims in the docs agains
 
 ## 2. Triage and code-fix plan
 
+**Fix record.** What each step did, its commits, and how it was verified: [`STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md`](STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md).
+
 **A FAIL gets a correction.** The owner rule (2026-10-29) is: "if something fails you fix it, you don't consider it not a fail because it gets fixed eventually." Thus each FAIL in Section 1 is a REMEDIATE item below. No FAIL gets ACCEPT or DEFER. `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` has no Starcom row (`IVP23_REPORT.md:13`). Thus that register lets no FAIL stay. The items with "NO ACTION", "NO FINDING" or "DEFER" are not FAIL items. Each item tells the cause.
 
 **Order.** The order follows `AUDIT_GUIDANCE.md` Appendix C: Category 1 (gate integrity), then Category 2 (claims), then Category 3 (code). In a category, the order is by dependency, then by risk.
@@ -962,7 +964,7 @@ Nathan decided on 2026-10-30: if the standards make a change necessary and it is
 These items were found during the fix work. They are not regressions from this plan, so this plan does not fix them (Nathan, 2026-10-30: only regression fixes are in scope).
 
 - **Station dashboard drops the `D` key.** Commit `1ddef176` (2026-09-19, USB handshake) moved `rc_os_update()` before `cli_dispatch()` in the station tick (`src/active_objects/ao_rcos.cpp`). In dashboard mode, `rc_os_update()` reads the key and gives it to the menu, which ignores `D`. The dashboard does not see it, so DISARM from the station does not work. Confirmed on the boards (Buzz, 2026-10-31). Moved into this plan as PR-41 and step U1 (Nathan, 2026-10-31), because it blocks verification. Fixed in the U1 commit; see PR-41.
-- **Old book issue in existing comments.** Comments in `src/ccsds/conv.cpp`, `src/ccsds/ldpc.cpp` and `tests/unit/test_coding.cpp` cite the replaced issue 131.0-B-5 (section 3.3 for the convolutional code; Annex B and Tables 7-3 and 7-4 for LDPC). The current issue is 131.0-B-6, where the convolutional code is section 4.3 and LDPC is section 8.4. The new file intros cite B-6. Note: 211.2-B-3 itself still points to 131.0-B-3, so a comment must not say that 211.2 points to B-6. Status 2026-11-01: `conv.cpp` fixed in F3; `ldpc.cpp`, `ldpc.h` and `conv.h` fixed in R3. `tests/unit/test_coding.cpp` still cites B-5 (tests were outside R3).
+- **Old book issue in existing comments.** Comments in `src/ccsds/conv.cpp`, `src/ccsds/ldpc.cpp` and `tests/unit/test_coding.cpp` cite the replaced issue 131.0-B-5 (section 3.3 for the convolutional code; Annex B and Tables 7-3 and 7-4 for LDPC). The current issue is 131.0-B-6, where the convolutional code is section 4.3 and LDPC is section 8.4. The new file intros cite B-6. Note: 211.2-B-3 itself still points to 131.0-B-3, so a comment must not say that 211.2 points to B-6. Status 2026-10-31: `conv.cpp` fixed in F3; `ldpc.cpp`, `ldpc.h` and `conv.h` fixed in R3. `tests/unit/test_coding.cpp` still cites B-5 (tests were outside R3).
 - **Two host UDP helpers do not warn on an ignored result.** `osSendTo` and `osRecv` in `adapters/host/udp.cpp` are file-local and have no `[[nodiscard]]`.
 - **Lunar drafts and the FSK pivot (Duke, 2026-10-31).** Starcom conforms only to the published Blue Books. The lunar Pink Book drafts (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) and the Red draft 235.1-R-1 guided the FSK design. The FSK plan cites them as draft references, not as requirements. No code on main follows draft text. If the drafts become Blue Books as written, these items change:
   - The coding draft 211.2-P-3.2 section 3.4.2.2, Note 1, permits no coding only with Bi-Phase-L modulation. The FSK plan uses uncoded NRZ FSK. This is correct under 211.2-B-3 but not under the draft.
@@ -1010,18 +1012,18 @@ These items were found during the fix work. They are not regressions from this p
   - Sources (Goddard): the JSF 130 rationale; the intro to the JSF comment section ("primarily strategic"); JSF 131; C++ Core Guidelines, naming and layout (https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-naming); the WG23 cross-reference (https://www.open-std.org/JTC1/SC22/WG23/docs/ISO-IECJTC1-SC22-WG23_N0564-TR24772-cross-reference-JSF-rules-post-mtg-36-20150627.pdf), which labels rules 129-134 "Style issue". MISRA C++ and Power of 10 have no comment-coverage rule. We found no commercial checker with a JSF 130 check.
   - Check method: `scripts/ci/comment_coverage.py` lists candidates only. A full human read decides. A changes-only check (`--since`) is valid only from a commit where a person did a full read of that file. A later read covers the comments over each changed function body. It also covers claim comments ("only caller", "No state") when the code they describe changes. Each master audit still does a full read.
   - Optional: run the script on a probe file with known bad comments as a self-test. Book cites can be checked by a script (Duke).
-  - R3 (2026-11-01) did the first full read. The R3 files are the full-read base for a later `--since` check after they are committed.
+  - R3 (2026-10-31) did the first full read. The R3 files are the full-read base for a later `--since` check after they are committed.
 
-- **F3 is pushed (2026-11-01).** `origin/main` = `c6887533`. R3 started from that commit.
-- **`coppReset` zeroes the MIB (R3, 2026-11-01).** `coppReset` passes `e.fop.mib` by reference to `coppInit`. `coppClear` clears it with `memset` before `fopPInit` copies it. The result: window 1, `synch_timeout` 0, `resync_local` false. USLP mode is also lost, because the reset calls `coppInit`, not `coppInitUslp`. Rocket-Chip calls it at `byte_pump.cpp:518`. The test checks only the counts.
+- **F3 is pushed (2026-10-31).** `origin/main` = `c6887533`. R3 started from that commit.
+- **`coppReset` zeroes the MIB (R3, 2026-10-31).** `coppReset` passes `e.fop.mib` by reference to `coppInit`. `coppClear` clears it with `memset` before `fopPInit` copies it. The result: window 1, `synch_timeout` 0, `resync_local` false. USLP mode is also lost, because the reset calls `coppInit`, not `coppInitUslp`. Rocket-Chip calls it at `byte_pump.cpp:518`. The test checks only the counts.
 - **`hail_fail` is never seen (R3).** `macTickHail` calls `notify(hail_fail)`. Then `enterS1` writes `end_session` into the same single slot. No test covers this.
 - **`coppPushRx` drops data after FARM accepts it (R3).** When the receive queue is full, it sets `farm_accepted_latched` and drops the data with no report.
 - **Type-1 SPDU bit order of octet 0 (R3).** `writeBook16` and `mac.h:136-137` ("0x01 = bit 0") put book bit 0 in the LSB. 211.0 B1.2.1 makes bit 0 the MSB, sent first. Only round-trip tests exist, with no golden bytes from the book. Check against the rev8 masks or a bench capture. See also the first Duke item below.
-- **FSN bit order in `encodeSetVr` (Duke 2026-11-01).** `mac.h:136-137` says octet 0 bit 0x01 is book bit 0, and `encodeSetVr` (`mac.cpp`) stores `seq_ctrl_fsn` into `out[0]` as is. Book bit 0 is the FSN MSB (B1.5.4, 211.2 1.6.3). Check the bit order on the wire against the rev8 masks or a bench capture.
-- **USLP pointer always expected (Duke 2026-11-01).** `constructionHasPointer` (`uslp.cpp`) always expects the 16-bit pointer for rules 000-010. 732.1 4.1.4.2.4.1 makes it optional. This is an interop question if a peer omits it.
-- **`fop1SetK` does not clamp K to PW (Duke 2026-11-01).** 232.1 5.1.12 and the Table 7-1 note.
-- **`ldpc.h:26` wording (Duke 2026-11-01).** "211.2 section 3.4.4. Not randomized" can be read as a claim about the clause. 3.4.4.4 requires randomization. The words are correct only as a description of the function output.
-- **Limits of the R3 cite check (Duke 2026-11-01).** Figures that are images in the PDF (211.2 Figure 3-4, 211.0 Figures B-x) were checked from their extracted labels only. The Prox-1 Pink reviews (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) closed 2026-09-25. Before the next audit, check for new 211.x issues (211.0-B-7, 211.1-B-5, 211.2-B-4).
+- **FSN bit order in `encodeSetVr` (Duke 2026-10-31).** `mac.h:136-137` says octet 0 bit 0x01 is book bit 0, and `encodeSetVr` (`mac.cpp`) stores `seq_ctrl_fsn` into `out[0]` as is. Book bit 0 is the FSN MSB (B1.5.4, 211.2 1.6.3). Check the bit order on the wire against the rev8 masks or a bench capture.
+- **USLP pointer always expected (Duke 2026-10-31).** `constructionHasPointer` (`uslp.cpp`) always expects the 16-bit pointer for rules 000-010. 732.1 4.1.4.2.4.1 makes it optional. This is an interop question if a peer omits it.
+- **`fop1SetK` does not clamp K to PW (Duke 2026-10-31).** 232.1 5.1.12 and the Table 7-1 note.
+- **`ldpc.h:26` wording (Duke 2026-10-31).** "211.2 section 3.4.4. Not randomized" can be read as a claim about the clause. 3.4.4.4 requires randomization. The words are correct only as a description of the function output.
+- **Limits of the R3 cite check (Duke 2026-10-31).** Figures that are images in the PDF (211.2 Figure 3-4, 211.0 Figures B-x) were checked from their extracted labels only. The Prox-1 Pink reviews (211.0-P-6.2, 211.1-P-4.2, 211.2-P-3.2) closed 2026-09-25. Before the next audit, check for new 211.x issues (211.0-B-7, 211.1-B-5, 211.2-B-4).
 
 #### Findings from the dropped F5 comment drafts (Duke, 2026-10-31)
 
@@ -1098,7 +1100,7 @@ Two more items from the 2026-10-31 chat (Duke, not in the files above): E83 send
 
 W2 changes Starcom to JSF 60/61 now (Nathan, 2026-10-30). `src/starcom_adapt/` is Rocket-Chip code, so it waits for the dedicated Rocket-Chip pass (Nathan, 2026-10-31). The RC-wide change, and the `CODING_STANDARDS.md:63` naming override, stay on the main `AGENT_WHITEBOARD.md` row "Two JSF rules broken with no stated reason: braces and names". Until the RC-wide change lands, Starcom uses a different brace style from Rocket-Chip, `src/starcom_adapt/` included. That row tracks this known mismatch.
 
-### Code-fix plan (in order; not done)
+### Code-fix plan (in order; done 2026-10-31, see the fix record)
 
 This commit does not do these steps. The owner rule is that Grok Build writes code on the owner's PC. These steps change the firmware tree (the Rocket-Chip root `.clang-tidy` and `src/starcom_adapt/`). Thus the pre-push gate will make the bench test necessary at push.
 
@@ -1109,7 +1111,7 @@ This commit does not do these steps. The owner rule is that Grok Build writes co
 
 **Review items in this section:** RV-2 (the whiteboard has a row for PR-2), RV-3 (PR-33) and RV-4 (PR-34).
 
-### Batch plan (proposed, 2026-10-29; not done)
+### Batch plan (proposed 2026-10-29; done 2026-10-31, see the fix record)
 
 This plan is a proposal for the owner to check. It makes no change to code or configuration. Each row is one local commit. Each REMEDIATE item from PR-1 to PR-36 is in a batch. PR-19 and PR-32 each have two batches, because one commit for each is too large to examine (see "PR coverage" below).
 
@@ -1217,7 +1219,7 @@ NB = no bench (no path in `firmware_paths.txt`). V-air = the on-air check above.
 | F3 | JSF 26, 28, 31, 207, 209; LOC-17 | `starcom/adapters/host/udp.cpp`: `#if defined(_WIN32)` at 10, 30, 101, 136, 145, 154, 186, 219; `#ifndef`/`#define WIN32_LEAN_AND_MEAN` at 11-12; `g_wsa` at 32; plain `int` at 12 lines | Move each platform branch into one OS-edge file per platform chosen by CMake, so the source has no `#if`. Fixed-width types where the OS API allows. Each site that the OS API makes necessary is listed in the commit message as a remaining site | `udp.cpp`, new per-platform files, `starcom/adapters/host/CMakeLists.txt` | NB | no | grep: 0 non-guard `#if`, `#ifndef`, `#define`; V-all; `test_host_io.cpp` passes on MinGW and WSL; V-hook | Grok Build | R2 |
 | F4 | JSF 9, 13, 151, 209, 215; LOC-17. Moved to the dedicated Rocket-Chip pass (the main `AGENT_WHITEBOARD.md` row), the same as the W2 scope change: `src/starcom_adapt/` is Rocket-Chip code. These rows stay FAIL until that pass | `src/starcom_adapt`: 12 non-ASCII comment lines; `nav_sdu.h:20,22` (40, 44); `byte_pump.cpp:43,168,329,343,348` `unsigned`; `cmd_sdu.h:26` `float`; `cmd_sdu.cpp:18-22,33-37` pointer arithmetic | ASCII equivalents; named constants with their source; fixed-width types; `std::span::subspan` for the pointer sites. `float` stays only if a deviation note names the reason (the command parameters are IEEE-754 on the wire) | `src/starcom_adapt/*` | B, R, A | yes (`byte_pump.cpp`, SDU bytes) | the five counts = 0 or a listed deviation; test pins the packed command bytes; V-all; V-hook; V-bench; V-air | Grok Build | R2 |
 | F5 | JSF 130, D.8 | Dropped (Nathan, 2026-10-31). The 15% to 25% band is an upper cap, not a floor, so low density needs no fix. No comments were added. See "Comment density misread" in Noted for later | No change | none | NB | no | none | none | none |
-| R3 | PR-35 (JSF 6) | All FAILs in Section 1 | Done 2026-11-01, not yet committed: `CLANG_TIDY_R3_2026-11-01.md`. Every Section 1 FAIL row closes, except the F4 rows (Rocket-Chip pass). JSF 130 graded by a full read and fixed (20 cite fixes, 1 repeat cut, 7 new purpose comments). Steps done: 39 of 39. Same as R2 after F1, F2 and F3. Comment density is reported for the record only, with no target. The F4 rows are reported as FAIL, owned by the Rocket-Chip pass | `starcom/docs/audits/` | NB | no | Goddard gets the same counts | Hamilton | F1, F2, F3 |
+| R3 | PR-35 (JSF 6) | All FAILs in Section 1 | Done 2026-10-31, committed `3b110368`: `CLANG_TIDY_R3_2026-10-31.md`. Every Section 1 FAIL row closes, except the F4 rows (Rocket-Chip pass). JSF 130 graded by a full read and fixed (20 cite fixes, 1 repeat cut, 7 new purpose comments). Steps done: 39 of 39. Same as R2 after F1, F2 and F3. Comment density is reported for the record only, with no target. The F4 rows are reported as FAIL, owned by the Rocket-Chip pass | `starcom/docs/audits/` | NB | no | Goddard gets the same counts | Hamilton | F1, F2, F3 |
 
 **V-all (added 2026-10-31 after R2).** Each fix step from F1 on runs V-tidy, V-gcc and lizard before its commit, not only the tool for that step. R2 found two regressions that got past because the GCC flags ran only at C1 and C2, and lizard only at the split steps: C17 added 9 useless casts, and W2 made three functions 61 lines. Clang-tidy reports neither.
 

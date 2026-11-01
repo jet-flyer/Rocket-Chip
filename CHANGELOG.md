@@ -18,6 +18,8 @@ Files affected in parentheses if relevant.
 
 **Conciseness is the default.** An entry is **one brief paragraph** - what changed and why it matters, no more. **Do not restate information that already lives in another document** (design docs, decision records, usage guides, lessons-learned). Instead **point to it**: name the file/section that carries the detail and let the reader follow the link. The changelog is an index of *what happened*, not a place to re-explain *how it works*.
 
+**Large uniform work.** When one piece of work makes many uniform changes over many commits, put one row for each step (commits, what changed, how it was verified) in a separate record file, and keep the entry to a short summary that points to it. Example: `starcom/docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md`.
+
 **Numbers stay in reports.** An entry says what changed, what was verified, and where the logs or report are (Nathan, 2026-10-21).
 
 **Rationale sections are rare.** Only add an italicized rationale block when:

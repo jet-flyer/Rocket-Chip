@@ -2,9 +2,22 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/) + SemVer. See [`VERSIONING.md`](VERSIONING.md).
 
-> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only, and only on **major pushes** (first tagged cut, public extract, supported-API change). Ordinary codec sittings and graph snapshots do not mint a row. Work that stays entirely under `starcom/` is recorded **here only** when a row is warranted. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting. **Rocket-Chip firmware and integration** belong in the root changelog, not here.
+> **Scope (while incubating inside Rocket-Chip):** This file logs **Starcom library** changes only, and only on **major pushes** (first tagged cut, public extract, supported-API change). Ordinary codec sittings and graph snapshots do not mint a row. Work that stays entirely under `starcom/` is recorded **here only** when a row is warranted. Do not add a repo-root [`CHANGELOG.md`](../CHANGELOG.md) row for a Starcom-only sitting. **Rocket-Chip firmware and integration** belong in the root changelog, not here. For large uniform work over many commits, put the step rows (commits, what changed, how it was verified) in a separate record file, and keep the entry to a short summary that points to it, for example [`docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md`](docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md).
 
 ## Unreleased
+
+### 2026-10-31-001 | Grok Hamilton (Grok Bot) | audit
+
+**Coding-standards audit and fixes, 2026-10-29 to 2026-10-31.**
+
+- The audit found 42 FAIL rows in Section 1: 2 Tier 1 gate rows (clang-tidy config defects turned checks off and hid findings), 39 rule rows in the code, and D.8 (later regraded PASS).
+- All fix steps are committed. Each plan step has its own commit. 39 of 39 steps are done.
+- 7 rows still fail. All 7 are in the Rocket-Chip adapter `src/starcom_adapt/` and wait for the Rocket-Chip pass (step F4).
+- Also open: the "Noted for later" list, and the rework of the JSF 130 and comment density rule text.
+
+What each step did, its commits, and how it was verified: [`docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md`](docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md). Findings and dispositions: [`docs/audits/STARCOM_AUDIT_2026-10-29.md`](docs/audits/STARCOM_AUDIT_2026-10-29.md). No version bump. No tag.
+
+Verified: final recount R3 (`docs/audits/CLANG_TIDY_R3_2026-10-31.md`); host ctest 1044/1044; Starcom tests 3/3 on MinGW and WSL; all 25 bench gates passed, vehicle 2/2 and station 3/3 (see the fix record).
 
 ### 2026-10-13-001 | Grok Hamilton (Grok Bot) | documentation
 
