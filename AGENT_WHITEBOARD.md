@@ -68,7 +68,7 @@ Modules to rewrite from scratch rather than patch. Add rows as they turn up.
 
 ### Power SET reject codes on hardware (2026-10-21)
 
-Two-board soak of `7abfea14` done (baseline report, "Push-gate soaks (2026-10-21)"). The SET replies (2-17 accept, reject codes, +20 opt-in) cannot be benched on this firmware: the station only steps 2 dBm presets, and MAVLink returns UNSUPPORTED. Needs Nathan's pick: a station power SET command, or a test build with a non-2 dBm preset. `scripts/power_set_check.py` exists, uncommitted (dry run OK).
+Two-board soak of `7abfea14` done (baseline report, "Push-gate soaks (2026-10-21)"). The SET replies (2-17 accept, reject codes, +20 opt-in) cannot be benched on this firmware: the station only steps 2 dBm presets, and MAVLink returns UNSUPPORTED. Needs Nathan's pick: a station power SET command, or a test build with a non-2 dBm preset. The test script for the SET command (`scripts/power_set_check.py`) was never committed and was deleted 2026-10-31; rewrite it if the SET command is picked.
 
 ## Next (before FSK work / before first flight)
 
