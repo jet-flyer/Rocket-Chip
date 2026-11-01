@@ -28,7 +28,7 @@ inline constexpr std::uint32_t kV3PortMask = 0x07U;
 // CCSDS 211.0-B-6 3.2.2.10.1. Frame Length is bits 21-31.
 inline constexpr std::uint32_t kV3LengthHighMask = 0x07U;
 
-// 211.0-B-6 Table 3-1 / 3.2.3. Data field 0..2043 octets (3.2.3 c).
+// 211.0-B-6 Table 3-1 / 3.2.3. Data field 0..2043 octets (3.2.3.1 c).
 inline constexpr std::uint8_t kDfcPackets = 0;       // 3.2.3.2
 inline constexpr std::uint8_t kDfcSegment = 1;       // 3.2.3.3 (not this increment)
 inline constexpr std::uint8_t kDfcReserved = 2;      // Table 3-1 reserved

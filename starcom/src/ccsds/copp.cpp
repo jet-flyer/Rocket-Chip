@@ -361,6 +361,7 @@ CoppEvent coppPollEvent(CoppEndpoint& e) noexcept
 namespace
 {
 
+// Copies one SDU into the expedited slot or the next sequence slot.
 [[nodiscard]] Result<std::size_t> coppHoldSubmit(CoppEndpoint& e,
                                     std::span<const std::byte> octets,
                                     bool expedited, bool user_defined) noexcept

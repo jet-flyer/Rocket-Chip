@@ -391,7 +391,8 @@ bool fop1SetVs(Fop1& f, std::uint8_t v_star) noexcept
 
 void fop1SetK(Fop1& f, std::uint8_t k) noexcept
 {
-  f.mib.k = (k == 0U) ? 1U : k;  // E36; 232.1 section 5.1.12 1 <= K < 256
+  // 232.1 5.1.12: 1 <= K <= PW and K < 256 (only K >= 1 enforced here)
+  f.mib.k = (k == 0U) ? 1U : k;  // E36
 }
 
 void fop1SetT1Initial(Fop1& f, Tick t1) noexcept
@@ -966,7 +967,7 @@ void cop1ReceiveBytes(Cop1Endpoint& e, std::span<const std::byte> octets) noexce
   }
   else
   {
-    /* no action: bypass 0 with control 1 is reserved (232.0 Table 4-1), so the frame is discarded */
+    /* bypass 0 / control 1 is reserved (732.1-B-3 Table 4-1): discard */
   }
   if (d != Farm1Disposition::accepted)
   {

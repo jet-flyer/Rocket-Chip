@@ -15,7 +15,7 @@
 namespace starcom::ccsds
 {
 
-// 211.2 section 3.4.3 -> 131.0-B-5 section 3.3. Rate 1/2, K=7, non-punctured.
+// 211.2 section 3.4.3 -> 131.0-B-6 section 4.3. Rate 1/2, K=7, non-punctured.
 // G1 = 171 octal, G2 = 133 octal, G2 inverted. C1 then C2. MSB-first.
 // Encodes the whole C&S stream (ASM and Idle included). Decode is not this
 // increment (GCS/Pi).

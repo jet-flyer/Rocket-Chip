@@ -18,7 +18,7 @@ namespace
 // Rules 0, 1 and 2 (binary 000 to 010) carry a 16-bit pointer: a First Header
 // Pointer for 000, a Last Valid Octet Pointer for 001 and 010. The TFDF header
 // is then 3 octets. Other rules use a 1-octet header (732.1-B-3 4.1.4.2.1.2,
-// 4.1.4.2.4).
+// 4.1.4.2.4). The pointer is optional (4.1.4.2.4.1); Starcom always uses it.
 bool constructionHasPointer(std::uint8_t rule) noexcept
 {
   return rule <= 0b010U;

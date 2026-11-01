@@ -51,7 +51,7 @@ inline constexpr std::uint8_t kUslpVcfLenMax = 7U;
 inline constexpr std::size_t kUslpLengthHeaderOctets = 6;
 
 // Caller-owned. 0 length = absent / not supplied. No Starcom default milliseconds
-// or invented insert depth (732.1 section 5 / table 5-1).
+// or invented insert depth (732.1 section 5, tables 5-1 and 5-3).
 struct UslpMib
 {
   std::size_t truncated_frame_length = 0;  // D1.3.2; 0 = not supplied

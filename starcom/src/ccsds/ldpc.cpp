@@ -14,9 +14,9 @@ namespace starcom::ccsds
 namespace
 {
 
-// 131.0-B-5 annex B notes US Patent 7,343,539; encode is still required.
+// 131.0-B-6 B3.2 notes US Patent 7,343,539; encode is still required.
 
-// 131.0-B-5 Tables 7-3 / 7-4 (7-tuples M = {128,256,512,1024,2048,4096,8192}).
+// 131.0-B-6 Tables 8-3 / 8-4 (7-tuples M = {128,256,512,1024,2048,4096,8192}).
 // theta_k for k=1..8: 3,0,1,2,2,3,0,1
 // phiK(j, M=512) is column index 2 of:
 // k=1: (0: 1,59,16,160,108,226,1148) (1: 0,0,0,0,0,0,0)
@@ -39,11 +39,10 @@ namespace
 // piK(i) = (M/4)*((theta_k + j) mod 4) + ((phiK(j,M) + i) mod (M/4)),
 // j = floor(4*i/M). Typesetting is (phi+i) mod M/4.
 // G = [I_MK | W], W = (P^{-1} Q)^T, last M columns punctured. W is a matrix
-// of circulants (131.0 section 7.4.3); AR4JA pi sections make the period M/4 = 128
+// of circulants (131.0-B-6 8.4.3.4); AR4JA pi sections make period M/4 = 128
 // (not 512). First-rows below were generated from that H and checked H*[u|uW]==0.
 
 // W first-rows: 8x8 right-circulants of size 128 (M/4).
-// 131.0 W is a matrix of circulants; AR4JA pi structure => period M/4, not M.
 static constexpr std::uint8_t kWFirstRow[8][8][16] = {
   {
     {0xCF, 0xA7, 0x94, 0xF4, 0x9F, 0xA5, 0xA0, 0xD8, 0x8B, 0xB3, 0x1D, 0x8F, 0xCA, 0x7E, 0xA8, 0xBB},
@@ -163,7 +162,7 @@ void xorCirc(std::uint8_t* p, std::uint8_t const* u, std::uint8_t const* r) noex
 
 // 211.2 section 3.4.5: h(x)=x^8+x^6+x^4+x^3+x^2+x+1, init all-ones, period 255.
 // Fibonacci LFSR: output r[0], taps 0,1,2,3,4,6 (mask 0x5F).
-// 211.2 A3.4.5: h(x) has degree 8, so the PN register has 8 stages. The
+// 211.2 3.4.5.2.8: h(x) has degree 8, so the PN register has 8 stages. The
 // feedback bit goes into the top stage, bit 7.
 constexpr std::uint32_t kPnRegMsb = 7U;
 

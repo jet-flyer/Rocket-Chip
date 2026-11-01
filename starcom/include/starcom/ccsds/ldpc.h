@@ -15,7 +15,7 @@
 namespace starcom::ccsds
 {
 
-// 211.2 section 3.4.4-3.4.5 -> 131.0-B-5 section 7.4 rate 1/2 (n=2048, k=1024). Encode only.
+// 211.2 3.4.4-3.4.5 -> 131.0-B-6 8.4, rate 1/2 (n=2048, k=1024). Encode only.
 // CSM is not randomized. Decode is not this increment (GCS/Pi).
 
 inline constexpr std::size_t kLdpcMessageOctets = 128;

@@ -119,6 +119,7 @@ void storeBe32(std::span<std::byte> dest, std::uint32_t value) noexcept
   return need;
 }
 
+// Tail octets that may start a split ASM; the hunt keeps them.
 std::size_t asmPrefixKeep(std::span<const std::byte> octets) noexcept
 {
   const std::size_t n = octets.size();
@@ -234,6 +235,7 @@ PltuHunt huntPltu(std::span<const std::byte> octets,
 namespace
 {
 
+// Dedup key: V-3 FSN or USLP VCF Count, else 0.
 std::uint64_t repeatSeq(PltuView const& view) noexcept
 {
   const auto v3 = decodeV3(view.frame);

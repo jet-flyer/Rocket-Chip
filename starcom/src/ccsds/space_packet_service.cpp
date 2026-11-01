@@ -25,6 +25,7 @@ constexpr std::uint16_t apidValue(Apid apid) noexcept
   return static_cast<std::uint16_t>(static_cast<std::uint16_t>(apid) & kSpApidMask);
 }
 
+// Octets in the whole packet: primary header plus Packet Data Field.
 std::size_t delimitedSize(SpacePacketView const& view) noexcept
 {
   return kSpacePacketHeaderSize + view.data.size();
@@ -34,7 +35,7 @@ std::size_t delimitedSize(SpacePacketView const& view) noexcept
 
 void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noexcept
 {
-  // 133.0-B-2 2.2.1 and 4.3.3.3: the SPP user for this APID is Packet or
+  // 133.0-B-2 2.2.2.1 and 4.3.3.3: the SPP user for this APID is Packet or
   // Octet String. 211.0-B-6 3.2.2.5 DFC ID is the frame's own packet or
   // user-defined choice.
   svc.receive_service[apidIndex(apid)] = type;
@@ -71,7 +72,7 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
   // 133.0-B-2 3.3.3.2.4 transfers the Space Packet. 3.3.1 leaves the octets,
   // including the header APID, as the user formatted them. 211.0-B-6 2.2.2.2
   // carries that packet in the frame; 3.2.2.8.3 names the output port there.
-  // 2.2.2.2: the assembly counter is not used on this path.
+  // 133.0 4.2.2.1: Packet Service skips Packet Assembly and its counter.
   const auto view = decodeSpacePacket(packet);
   if (!view)
   {
@@ -85,8 +86,9 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
                                    OctetStringRequest const& request) noexcept
 {
   // 4.2.2.2: build one Space Packet by generating the Packet Primary Header.
-  // 3.4.3.2.1.2: one request creates one packet. 3.2.3.3: the Octet String is
-  // the Packet Data Field of that packet.
+  // 3.4.3.2.1.2: one request creates one packet. 133.0-B-2 3.2.3.3 /
+  // 4.2.2.3: the Octet String (with any secondary header at its start)
+  // fills the Packet Data Field.
   const std::size_t idx = apidIndex(request.apid);
   const std::uint32_t apid = apidValue(request.apid);
   SpacePacketFields fields{};
@@ -133,7 +135,7 @@ void setReceiveService(SpacePacketService& svc, Apid apid, ServiceType type) noe
   // 133.0-B-2 4.3.2.2 reads the Packet Sequence Count. The receive-path counter
   // for this APID becomes the next count modulo-16384 (4.1.3.4.3.4). The
   // optional Data Loss Indicator (3.4.2.4) is not generated. Frame acceptance
-  // is COP-P (211.0-B-6 2.2.3.2, 7.3.1 RE5).
+  // is COP-P (211.0-B-6 2.2.3.2, 7.3.1 RE3-RE6).
   const std::size_t idx = apidIndex(view->fields.apid);
   svc.rx_count[idx] =
       static_cast<std::uint16_t>((view->fields.seq_count + 1U) & kSeqMask);

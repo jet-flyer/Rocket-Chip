@@ -15,6 +15,7 @@
 namespace starcom::adapters::os
 {
 
+// acquire/release start and stop the OS socket library (no-op on POSIX).
 [[nodiscard]] bool acquire() noexcept;
 void release() noexcept;
 [[nodiscard]] bool openUdp(std::uintptr_t& native) noexcept;

@@ -149,6 +149,7 @@ std::uint8_t rev8(std::uint8_t x) noexcept
   return x;
 }
 
+// Book bits 0-7 go to octet 0 as is; bits 8-15 to octet 1 bit-reversed.
 [[nodiscard]] Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept
 {
   if (out.size() < 2)
@@ -266,6 +267,7 @@ void enterS1(MacSession& m, Tick /*now*/, bool end) noexcept
   }
 }
 
+// Counts t down by dt. True only on the call that takes t to 0.
 bool tickDec(Tick& t, Tick dt) noexcept
 {
   if (t == 0 || dt == 0)
@@ -352,7 +354,7 @@ bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept
     m.transmit_on = false;
     return true;
   }
-  // 211.0 table 6-12 E85 is the *responder's* carrier-loss, S60->S2.
+  // 211.0 table 6-10 E85 is the *responder's* carrier-loss, S60->S2.
   // Caller in S60 must not become connecting-L (both listen, no hail).
   if (m.duplex == MacDuplex::half && m.state == MacState::s60 &&
       m.role == MacRole::responder)
@@ -576,7 +578,7 @@ void halfExpiredS61(MacSession& m) noexcept
     notify(m, MacNotify::no_data_this_contact);
   }
   else
-  {  // E50. Annex C: one S62/S61 miss toward E83.
+  {  // E50 (S62/S61). Annex C counts the S62->E50 cycle toward E83.
     halfExpiredMiss(m, MacNotify::no_data_this_contact);
   }
 }
@@ -771,7 +773,8 @@ void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept
 void macOnHailReceived(MacSession& m, Tick now) noexcept
 {
   (void)now;
-  // 211.0 table 6-12 E85/E82: responder returns to S2 on peer loss, then
+  // 211.0 E85 (table 6-10) / E82 (table 6-7): on carrier loss the
+  // responder goes to S2, then
   // E30 (table 6-10) accepts hail. Station reboot re-hails with the same
   // catalog while the vehicle is still S50-S62; that is a new hail, not
   // E69 COMM_CHANGE (same SET TX/RX as the first hail).
@@ -864,7 +867,7 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept
   }
   if (m.state == MacState::s13)
   {  // E34
-    // 6.3.2.3: FIFO empty + hail SPDUs radiated. Leaving mac_frame_pending
+    // 6.3.2.2: FIFO empty + hail SPDUs radiated. Leaving mac_frame_pending
     // re-sends SET TX/RX/PL on the first data-services send contact, which
     // the peer (S60/S61) treats as E69 COMM_CHANGE (table 6-11).
     clearMacQueue(m);
