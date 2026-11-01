@@ -308,6 +308,10 @@ Cookbook scan-row Download for Devstral hits **official** `mistralai/Devstral-Sm
 
 IEEE Std 1028-2008 recorded as a **review/audit-process** reference in `standards/AUDIT_GUIDANCE.md` Appendix B.5, kept deliberately distinct from the JSF/P10/JPL **coding** standards (how we review ≠ how we write). **Provisional, not a sole standard:** useful but broad, lightly vetted so far - complementary review standards may join it later; this is a starting point, not a settled adoption. **Open rework:** the "When to Do What" decision table in AUDIT_GUIDANCE.md sets review *scope* per trigger but leaves review *depth* implicit. IEEE 1028 names five review levels - management review, technical review, **inspection**, walk-through, audit. Map those onto the 7-tier procedure so each trigger states which depth applies (e.g. the L2-P5 manual walk = an **inspection** per Appendix B.4 "Phase 9"; a small change = a walk-through). Deferred - do when the audit procedure is next reworked. Owner decision on priority.
 
+### Re-evaluate the comment density rule (LATER) (Nathan, 2026-10-31)
+
+The 15-25% band in `standards/CODING_STANDARDS.md` was meant as an upper cap, to stop long-winded agent comments. The Oct 29 audit read 15% as a floor, and agents wrote comments to reach it. Nathan had those additions reverted. When this row is scheduled: reword the rule as a cap for all code, flight code included, and say how to measure it. Consider a pre-commit check for long comment blocks, repeated comments, and book cites that are not the current issue. Until then, low density is not a FAIL. Do not add comments to reach a number.
+
 ### ASD-STE100 for documents (LATER) (2026-10-04)
 
 Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting. Do not start a wide rewrite from this row.

@@ -34,8 +34,8 @@
 # ═══════════════════════════════════════════════════════════════
 # SKIPPED: cppcoreguidelines-avoid-c-arrays — frame / PLTU buffers are fixed arrays
 # SKIPPED: cppcoreguidelines-pro-bounds-* — codec octet walks (pointer+length), not Pico SDK
-#   cppcoreguidelines-pro-type-reinterpret-cast: enabled. 0 hits in core. It reports the casts in the host adapters (file_replay.cpp, udp.cpp).
-#   cppcoreguidelines-avoid-non-const-global-variables: enabled. It reports the g_ scratch buffers in core (copp.cpp, cop1.cpp) and g_wsa in udp.cpp.
+#   cppcoreguidelines-pro-type-reinterpret-cast: enabled. 0 hits in core. It reports the casts in the host adapters (file_replay.cpp, udp_win32.cpp, udp_posix.cpp).
+#   cppcoreguidelines-avoid-non-const-global-variables: enabled. It reports the g_ scratch buffers in core (copp.cpp, cop1.cpp).
 # SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner
 # ═══════════════════════════════════════════════════════════════
 # GOOGLE

@@ -15,7 +15,7 @@ This audit is for the Starcom library only. It is not the Rocket-Chip master aud
 - JSF AV: 31 FAIL, 13 PARTIAL, 126 PASS, 63 N/A, of 233 rule IDs.
 - Power of 10: 3 FAIL, 4 PARTIAL, 2 PASS, 1 N/A (Aspirational), of 10 rules.
 - JPL LOC-1 to LOC-4: 5 FAIL, 8 PARTIAL, 14 PASS, 4 N/A, of 31 rules.
-- Project rules D.1 to D.8: 1 FAIL, 2 PARTIAL, 3 PASS, 2 N/A, of 8 rules.
+- Project rules D.1 to D.8: 0 FAIL, 2 PARTIAL, 4 PASS, 2 N/A, of 8 rules (D.8 regraded 2026-10-31).
 - Agent guidelines: 0 FAIL, 2 PARTIAL, 2 PASS, 0 N/A, of 4 rules.
 - CCSDS (parked): 10 claimed books. The walk graded 4 books shall by shall (549 shall clauses) and 6 books at row level only. In the 549 clauses: 196 PASS, 27 PASS (doc), 58 DEVIATION-STATED, 67 FAIL (gap), 43 N/A, 158 UNVERIFIED.
 
@@ -718,7 +718,7 @@ LOC-5 and LOC-6 are DEFERRED-WITH-RATIONALE (`AUDIT_GUIDANCE.md:81`, `CODING_STA
 | LOC-30 | No fn-ptr ↔ integral conversion | M | PASS | None (grep `reinterpret_cast` sites are sockaddr/char only). |
 | LOC-31 | #include placement | M | PASS | Includes precede code; only preprocessor/comments before them. |
 
-#### Section D: project rules — FAIL (1 FAIL / 2 PARTIAL / 3 PASS / 2 N/A of 8)
+#### Section D: project rules — PARTIAL (0 FAIL / 2 PARTIAL / 4 PASS / 2 N/A of 8; D.8 regraded 2026-10-31)
 
 Commit 918b1219 corrected this count. The previous heading was "2 PASS / 3 N/A". The rows are D.1, D.3 and D.4 PASS, and D.2 and D.5 N/A.
 
@@ -731,7 +731,7 @@ Commit 918b1219 corrected this count. The previous heading was "2 PASS / 3 N/A".
 | D.5 | Safety & regulatory | N/A | Starcom carries no flight-safety function; RF/regulatory conformance is the CCSDS side (Duke's audit), not repeated. |
 | D.6 | Git workflow | PARTIAL | 6/6 commits `[agent]`-prefixed with `Verified:` lines. But `starcom/scripts/run_clang_tidy.sh` is committed with mixed line endings (`git ls-files --eol`: `i/mixed`) and the gate it runs is defective (Tier 1). |
 | D.7 | Session management | PARTIAL | Process rule; evidence is commit conduct. `8a80734d` added process globals contrary to the D-2 caller-owned design (`docs/DESIGN.md:94`) without a design note (see E). |
-| D.8 | Comment density (15-25%, `CODING_STANDARDS.md:306-309`, `.cpp` only) | FAIL | Core 3.2% (118/3672; `uslp.cpp` 0.0, `v3.cpp` 0.0, `cop1.cpp` 0.3), host/rp2350 adapters 0.0% (0/459), `src/starcom_adapt/` 5.5%. 2026-05-13 RC was 21.8%. |
+| D.8 | Comment density (15-25%, `CODING_STANDARDS.md:306-309`, `.cpp` only) | PASS (regraded 2026-10-31; was FAIL) | The band is an upper cap (Nathan, 2026-10-31), and no file is over it, so low density is not a FAIL. See "Comment density misread" in Noted for later. At the audit: Core 3.2% (118/3672; `uslp.cpp` 0.0, `v3.cpp` 0.0, `cop1.cpp` 0.3), host/rp2350 adapters 0.0% (0/459), `src/starcom_adapt/` 5.5%. 2026-05-13 RC was 21.8%. |
 
 #### Section E: agent guidelines — PARTIAL
 
@@ -794,7 +794,7 @@ The population is only the standards-document statements that this audit used. I
 - JSF 162: 4 signed and unsigned conversions (`g++ -Wsign-conversion`).
 - JSF 27 and 35: `#pragma once` in 23 of 23 headers.
 - JSF 133: no comment at the start of the file (13 core and 6 adapter `.cpp` files, 23 `.hpp` files).
-- D.8: comment density 3.2% in the core.
+- D.8: comment density 3.2% in the core. Regraded PASS on 2026-10-31, because the band is an upper cap.
 - JSF 190: `continue` ×10 (`src/ccsds/ldpc.cpp:139`, `pltu.cpp:164,183`, and others).
 - P10-9: function-pointer seams in `include/starcom/adapters/radio_bus.hpp:15-18` and `pio_port.hpp:15-16`.
 - P10-4 and JSF 3: `src/ccsds/mac.cpp:396`.
@@ -1005,6 +1005,79 @@ These items were found during the fix work. They are not regressions from this p
 - **Branches that cannot be reached (F2, 2026-10-31).** `appendEncoded` has an encode-error path and a queue-full path, but the encoders fail only when the output buffer is too small, and `buf` is always 2 octets. The miss exit of `cop1SelectResendAd` cannot run, because `last_send_ns` always comes from the sent list. The AD arm with `ad_n == 0` cannot run either. No code change; Goddard checked each claim.
 - **MAC rows with no book source (Duke, 2026-10-31).** E68 also starts from S62 with Y=3, but 211.0-B-6 Table 6-11 starts it only from S61 (the code comment says this). A valid frame in S62 with Y not 3 goes to S60, and the book has no row for it. This is older code, not caused by F2. `test_valid_frame_s62_y0` labels it as project behavior.
 - **`docs/DESIGN.md` "What applies here" wording.** The note says that Starcom claims the published books. It should also say that the lunar drafts guided the FSK design as draft references. Change it with the FSK pivot work.
+- **Comment density misread (root cause, 2026-10-31).** `CODING_STANDARDS.md` gives a 15-25% "target band" and does not say which end binds. Its first reason is a Polyspace lower limit of 20%, and it says flight code has no codified upper limit. Only its examples (the 41% fault handler, the cut-down steps) show that the rule is a cap. This audit graded the low side as a FAIL without a check of the intent, and C14, R2 and F5 kept that reading. Agents then wrote comments to reach 15%. Nathan (2026-10-31): the band was always an upper cap, to stop long agent comments. The F5 drafts were dropped before they reached the repo, and D.8 is regraded PASS. The C14 file intros (JSF 133) and the final-`else` comments (JSF 192) stay, because other rules require them. The rule rewording is a whiteboard row ("Re-evaluate the comment density rule").
+- **JSF 130 grade is open (2026-10-31).** JSF 130 asks that the purpose of executable code be explained by a comment. It is not a density rule, but this audit graded it from density. It stays FAIL until Nathan decides how it reads next to the minimal-comment policy.
+
+#### Findings from the dropped F5 comment drafts (Duke, 2026-10-31)
+
+The F5 drafts were dropped. These items came out of them. Only part 1 row 22 was checked by hand (Duke). Every other row was traced from the code by the drafting agent and is not confirmed. Base `5abd32b9`.
+
+Part 1 (`mac.cpp`, `cop1.cpp`). The text is the removed comment, verbatim.
+
+| # | File | Function (anchor) | Removed text (verbatim) | Status |
+|---|---|---|---|---|
+| 1 | mac.cpp | `tickDec` | 211.0-B-6 6.3.1.1.2 fires the event when the timer equals 1. Project timing: here the event fires on the tick that brings the count to zero. | traced from code |
+| 2 | mac.cpp | `macTickPlcw` | Project behavior: 6.3.1.4.3 reloads the timer when a PLCW is sent. This code reloads it on expiry, so the interval is a fixed period, not a gap since the last PLCW. | traced from code |
+| 3 | mac.cpp | `macTickCarrierLoss` | E80 loads WT with Reconnect_Wait_Duration. Annex C has no such MIB parameter, so the project uses Drop_Carrier_Duration, the S80 time of Table 6-2. | traced from code |
+| 4 | mac.cpp | `macTickCarrierLoss` | The reconfigure-to-hail-settings action of E80 and E82 is not done here. | traced from code |
+| 5 | mac.cpp | `macWaitExpiredConnect` | Project behavior: E8 and E36 notify hail_repeat on every repeat. The book sends a carrier received notification only "If CARRIER ONLY RECEIVED". | traced from code |
+| 6 | mac.cpp | `macWaitExpiredFull` | E20 also loads the Comm Value Buffer. That action is not in this function. | traced from code |
+| 7 | mac.cpp | `halfExpiredS50` | Project behavior: the responder goes to S2 and waits for a new Hail. | traced from code |
+| 8 | mac.cpp | `macOnValidS48` | The row also sets the transmitter from the Comm Value Buffer. That step is not in this function (noted for later). | traced from code |
+| 9 | mac.cpp | `macLocalNoMoreData` | and E24 (X=4 to 5) send RNMD. | traced from code |
+| 10 | mac.cpp | `macSetSymbolInlock` | The row also sets the receiver from the Comm Value Buffer. That step is not in this function. | traced from code |
+| 11 | mac.cpp | `macTick` | Project behavior: the responder goes to S2, as in halfExpiredS50. | traced from code |
+| 12 | mac.cpp | `macFifoSource` | SS 0, 3 or 6 picks, in order: SPDU, IDLE if PERSISTENCE, PLCW or status, SDU, else IDLE. | traced from code |
+| 13 | mac.cpp | `macFifoSource` | Project behavior: NEED_PLCW is checked before PERSISTENCE so that Table 6-10 E39 can complete (see the comment inside). | traced from code |
+| 14 | cop1.cpp | `sentPopFront` | Project behavior: no Positive Confirm Response is sent to the Higher Procedures. | traced from code |
+| 15 | cop1.cpp | `startT1` | Not yet triaged (F5): 5.1.9.1 restarts the Timer on each AD or BC transmission. A running timer is not restarted here. | traced from code |
+| 16 | cop1.cpp | `farm1BufferRelease` | Not yet triaged (F5): in Lockout (S3) the book also clears Wait_Flag. This code does nothing in S3. | traced from code |
+| 17 | cop1.cpp | `fop1OnClcwInit` | E14 Lockout: Alert in S4, Ignore in S5. E3 Wait: Alert. E4 Retransmit: Alert in S4, Ignore in S5. E1 N(R) = V(S): Cancel Timer, then S1. | traced from code |
+| 18 | cop1.cpp | `fop1OnClcwInit` | Not yet triaged (F5): E13 Invalid N(R) alerts in S4 but is ignored here. | traced from code |
+| 19 | cop1.cpp | `fop1OnClcwInit` | With both Retransmit and Wait set in S5, the book row is E4 (Ignore). Here the Wait test runs first and alerts. | traced from code |
+| 20 | cop1.cpp | `fop1OnClcwEqVs` | E2 (N(R) not NN(R)) removes the acked frames, sets the count to 1 and cancels the Timer. | traced from code |
+| 21 | cop1.cpp | `fop1OnClcwEqVs` | Not yet triaged (F5): E2 also goes to S1, but S3 stays S3 here. | traced from code |
+| 22 | cop1.cpp | `fop1OnClcwEqVs` | E1 (N(R) = NN(R)) is Ignore in S1 but Alert [synch] in S2 and S3. Here it is ignored. | checked by hand (Duke) |
+| 23 | cop1.cpp | `fop1OnClcwLtVs` | Else remove the acked frames, then Wait gives S3 (E9/E11/E103) or retransmission gives S2 (E8/E10). | traced from code |
+| 24 | cop1.cpp | `fop1OnClcwLtVs` | else E6 removes the acked frames. | traced from code |
+| 25 | cop1.cpp | `fop1OnClcwLtVs` | Not yet triaged (F5): E5 and E6 rules for S2 and S3 are not applied (E5 alerts, E6 goes to S1). | traced from code |
+| 26 | cop1.cpp | `fop1OnClcwLtVs` | E10 in S2 and E12 at the limit are Ignore in the book, but here they retransmit. | traced from code |
+| 27 | cop1.cpp | `fop1OnClcwLtVs` | In E8 and E9, 5.2.8 c) resets the count to 1 first. Here it is not reset. | traced from code |
+| 28 | cop1.cpp | `cop1SubmitSdu` | Project behavior: the book Wait_Queue holds one FDU (5.1.4). Here ad_q holds kCop1SeqSlots FDUs, and the FOP state is not checked (E19 rejects in S4 to S6). | traced from code |
+
+Part 1 open question: writeBook16 writes code bits 0-7 to out[0] with no bit reversal but reverses the second octet with rev8, while encodeSetVr writes SEQ_CTRL_FSN to out[0] as a plain MSB-first byte. Under 211.0-B-6 1.5.3 (Bit 0 is sent first and is the MSB) the two conventions for octet 0 look different. Check against Figure B-2 with real hail bytes. Traced from code.
+
+Part 2 (`copp.cpp`, `uslp.cpp`, `pltu.cpp`, `plcw.cpp`). "Open" means the agent could not settle it from the files read.
+
+| # | File / function | Finding | Book text | Status |
+|---|---|---|---|---|
+| 1 | copp.cpp `fopPOnPlcw` | A valid PLCW in S2 also runs the S1-column SE2 actions (remove acked frames, VV(S) update, Store this PLCW, Clear SYNCH_TIMER). The S2 column of SE2 has only the Resync_Response test. | 211.0-B-6 7.2.3.3 SE2, S2 column (read across the table layout): If R(R) = false and N(R) = NN(R): Resync = false, Persistence = false, State = S1 | traced from code |
+| 2 | copp.cpp `farmPInit` / copp.h `FarmP` | RE0 also sets NEED_STATUS_REPORT true. FarmP has no such flag (only FopP does). | 7.3.1 RE0: "NEED_PLCW AND NEED_STATUS_REPORT = true" | traced from code |
+| 3 | copp.cpp `fopPReset` | SE7 Initialize includes CLEAR QUEUE (Seq queue). fopPReset alone leaves the endpoint seq_q. coppReset does clear it, through coppInit. | 7.2.3.1.1 d) "CLEAR QUEUE (Sent queue); CLEAR QUEUE (Seq queue)." | traced from code |
+| 4 | copp.cpp `fopPNeedFrame` / `coppTakePayload` | "report VE(S) / V(S) to the I/O Sublayer" is not done in copp.cpp. It may be done elsewhere; not checked. | 7.2.3.1.6 d), 7.2.3.1.8 f) | open |
+| 5 | copp.cpp `coppPushRx` | The frame is accepted (V(R)+1, acked in the next PLCW, farm_accepted latched) before the rx-queue and size tests. With the queue full or data over kCoppHold (64), the accepted data is dropped. Same shape as the COP-1 known deviation, but not on the list for COP-P. | 7.3.1 RE4 "Accept/Pass the frame to I/O Sublayer"; 7.3.3 | traced from code |
+| 6 | copp.cpp `coppReceiveUslp` | No SCID, Source-or-Destination, VCID or MAP ID check on received USLP frames. The V-3 path has dest_is_local (audit F-6). | 211.0-B-6 6.2.4.2; 732.1-B-3 4.1.2.3 | traced from code |
+| 7 | copp.cpp `coppBytesToSend` | fopPNeedFrame moves VE(S)/V(S)/VV(S) and the payload before encoding. If encodeV3, encodeUslp or encodePltu fails, the frame counts as sent but nothing leaves. | 7.2.3.1.6 e), 7.2.3.1.8 g) "transfer this frame to the Frame Sublayer" | traced from code |
+| 8 | copp.cpp `coppReceiveUslp` | Only the Protocol Control Command Flag is tested. Flag pair 0/1 is "Reserved for future application" and is taken as an SPDU. | 732.1-B-3 table 4-1 | traced from code |
+| 9 | copp.cpp `coppEncodeUslp` | PLCW and SPDU frames carry UPID = Space Packet (kUslpUpidSpacePacket). The UPID for COP-P SPDUs was not checked against SANA. | 732.1-B-3 4.1.4.2.3.3 | open |
+| 10 | pltu.cpp `uslpFrameLen` | A USLP Frame Length is range-checked against kTransferFrameMin/Max (5..2048, the V-3 limits) and fails as v3_length_oob. USLP allows up to 65536 octets. | 211.0-B-6 3.2.2.10 NOTE; 732.1-B-3 4.1.2.7 NOTE 4 | traced from code |
+| 11 | plcw.cpp `decodePlcw` / copp.cpp | Format ID, Type ID and the spare bit are not checked on receive. copp passes format_ok = "decode succeeded", which is true for any 2 octets. So note 5 a) never marks a PLCW invalid. | 7.2.3.3 note 5 a) "PLCW does not match PLCW format"; 3.2.4.3.1 | traced from code |
+| 12 | uslp.cpp `decodeUslpNonTruncated` | Reserve Spares (bits 50-51) are not checked on receive. | 732.1-B-3 4.1.2.9.2 | traced from code |
+| 13 | uslp.cpp `encodeUslpTruncated` / `encodeUslp` | The truncated TFDF UPID comes from fields.upid. The D1.4.1.2 b) note gives "Mission Specific Information-1". A VCF Count Length over 7 is silently clamped. | 732.1-B-3 D1.4.1.2 b) NOTE | traced from code |
+| 14 | copp.cpp `fopPTick` | Expiry is at now >= deadline. The book timer expires when it counts down to 1. Same shape as the MAC tickDec item in part 1. | 211.0-B-6 7.2.2 i) | traced from code |
+| 15 | copp.cpp `coppReceiveV3` / `coppReceiveUslp`, mac.cpp `queueSetVr` | SET V(R) and PLCW are read from the first two data octets with no variable-length SPDU header. queueSetVr also queues the bare 2-octet directive. Whether a Type 1 SPDU header is expected around SET V(R) was not settled. This may interact with the noted ACK-3 collision. | 211.0-B-6 3.2.4.4, Table 3-6, B1.1 | open |
+
+Part 3 (`clcw.cpp`, `conv.cpp`, `crc32.cpp`, `ldpc.cpp`, `space_packet.cpp`, `v3.cpp`).
+
+| # | File / function | Finding | Book text | Status |
+|---|---|---|---|---|
+| 1 | v3.cpp decodeV3 | A U-frame with the reserved DFC ID '10' is accepted. A P-frame with DFC ID not '00' or Port ID not '0' is also accepted; only the TFVN and the length are checked. | 211.0-B-6 3.2.3.4 "In a U-frame, the binary value '10' for the DFC ID field is reserved by CCSDS and shall not be used."; 3.2.2.5.2; 3.2.2.8.2 | traced from code |
+| 2 | space_packet.cpp decodeSpacePacket | An Idle Packet (APID all ones) with the Secondary Header Flag '1' is accepted. encodeSpacePacket forces the flag to 0, but decode does not check it. | 133.0-B-2 4.1.3.3.3.4 "The Secondary Header Flag shall be set to '0' for Idle Packets." | traced from code |
+| 3 | space_packet.cpp encodeSpacePacket | Data over 65536 octets returns Error::sp_too_short (the error for an empty field), not a length or too-long error. | 133.0-B-2 4.1.3.5.2 (C is 16 bits, so at most 65536 data octets) | traced from code |
+| 4 | v3.cpp encodeV3 | Open: only the 2043-octet limit is applied. The limit "the MIB parameter Maximum_Frame_Length less 5 octets" is not checked here; it may be applied by a caller (not checked). | 211.0-B-6 3.2.3.1 c) 2) | open |
+
+Two more items from the 2026-10-31 chat (Duke, not in the files above): E83 sends the responder to S2, not S80; and the USLP receive path ignores the user-defined flag.
+
 
 ### Brace and naming rules
 
@@ -1128,8 +1201,8 @@ NB = no bench (no path in `firmware_paths.txt`). V-air = the on-air check above.
 | F2 | P10-4, LOC-25 (regression from W2) | `cop1SelectTfdz`, `queueFromCv`, `macOnValidFrame`: 61 lines each after `47076843` (50 and 52 before) | Split each function into named helpers of 60 lines or less. Test first where a branch has no test | `cop1.cpp`, `mac.cpp`, their tests | B, R, T | yes | lizard: 0 functions over 60 lines, CCN 20 or less; V-all; V-unit; V-hook; V-bench | Grok Build | R2 |
 | F3 | JSF 26, 28, 31, 207, 209; LOC-17 | `starcom/adapters/host/udp.cpp`: `#if defined(_WIN32)` at 10, 30, 101, 136, 145, 154, 186, 219; `#ifndef`/`#define WIN32_LEAN_AND_MEAN` at 11-12; `g_wsa` at 32; plain `int` at 12 lines | Move each platform branch into one OS-edge file per platform chosen by CMake, so the source has no `#if`. Fixed-width types where the OS API allows. Each site that the OS API makes necessary is listed in the commit message as a remaining site | `udp.cpp`, new per-platform files, `starcom/adapters/host/CMakeLists.txt` | NB | no | grep: 0 non-guard `#if`, `#ifndef`, `#define`; V-all; `test_host_io.cpp` passes on MinGW and WSL; V-hook | Grok Build | R2 |
 | F4 | JSF 9, 13, 151, 209, 215; LOC-17. Moved to the dedicated Rocket-Chip pass (the main `AGENT_WHITEBOARD.md` row), the same as the W2 scope change: `src/starcom_adapt/` is Rocket-Chip code. These rows stay FAIL until that pass | `src/starcom_adapt`: 12 non-ASCII comment lines; `nav_sdu.h:20,22` (40, 44); `byte_pump.cpp:43,168,329,343,348` `unsigned`; `cmd_sdu.h:26` `float`; `cmd_sdu.cpp:18-22,33-37` pointer arithmetic | ASCII equivalents; named constants with their source; fixed-width types; `std::span::subspan` for the pointer sites. `float` stays only if a deviation note names the reason (the command parameters are IEEE-754 on the wire) | `src/starcom_adapt/*` | B, R, A | yes (`byte_pump.cpp`, SDU bytes) | the five counts = 0 or a listed deviation; test pins the packed command bytes; V-all; V-hook; V-bench; V-air | Grok Build | R2 |
-| F5 | JSF 130, D.8 | Comment density: core `.cpp` 4.4%, adapters 6.2%, `src/starcom_adapt` 6.1%; band 15% to 25% | Add "why" comments where the code needs a reason: book clause, design choice, limit, error path. No filler and no "what" comments (`CODING_STANDARDS.md:314,317-319`). Work one file at a time | All `.cpp` files under 15% | B, R, T | yes (comments only) | density script per file; Goddard reads every new comment against the code; V-obj (must be the same); V-hook; V-bench | Grok Build (Hamilton prompt) | R2 |
-| R3 | PR-35 (JSF 6) | All FAILs in Section 1 | Same as R2 after F1, F2, F3 and F5. The F4 rows are reported as FAIL, owned by the Rocket-Chip pass | `starcom/docs/audits/` | NB | no | Goddard gets the same counts | Hamilton | F1, F2, F3, F5 |
+| F5 | JSF 130, D.8 | Dropped (Nathan, 2026-10-31). The 15% to 25% band is an upper cap, not a floor, so low density needs no fix. No comments were added. See "Comment density misread" in Noted for later | No change | none | NB | no | none | none | none |
+| R3 | PR-35 (JSF 6) | All FAILs in Section 1 | Same as R2 after F1, F2 and F3. Comment density is reported for the record only, with no target. The F4 rows are reported as FAIL, owned by the Rocket-Chip pass | `starcom/docs/audits/` | NB | no | Goddard gets the same counts | Hamilton | F1, F2, F3 |
 
 **V-all (added 2026-10-31 after R2).** Each fix step from F1 on runs V-tidy, V-gcc and lizard before its commit, not only the tool for that step. R2 found two regressions that got past because the GCC flags ran only at C1 and C2, and lizard only at the split steps: C17 added 9 useless casts, and W2 made three functions 61 lines. Clang-tidy reports neither.
 
