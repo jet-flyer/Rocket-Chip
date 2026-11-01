@@ -1418,10 +1418,10 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept
 {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.mode & kPhyModeMask);
-  book |= static_cast<std::uint32_t>(p.data_rate & kPhyRateMask) << 3U;
-  book |= static_cast<std::uint32_t>(p.modulation & 0x01U) << kPhyModBit;
-  book |= static_cast<std::uint32_t>(p.encoding & 0x03U) << 8U;
-  book |= static_cast<std::uint32_t>(p.frequency & kPhyFreqMask) << kPhyFreqShift;
+  book |= (p.data_rate & kPhyRateMask) << 3U;
+  book |= (p.modulation & 0x01U) << kPhyModBit;
+  book |= (p.encoding & 0x03U) << 8U;
+  book |= (p.frequency & kPhyFreqMask) << kPhyFreqShift;
   if (!transmitter)
   {
     book |= static_cast<std::uint16_t>(1U << kDirTypeMid);  // type 010, LSB at bit 15
@@ -1463,7 +1463,7 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept
 {
   std::uint16_t book = 0;
   book |= static_cast<std::uint16_t>(p.time_sample & kCtrlTimeMask);
-  book |= static_cast<std::uint32_t>(p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
+  book |= (p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
   if (p.rnmd)
   {
     book |= static_cast<std::uint16_t>(1U << kCtrlRnmdBit);
@@ -1514,10 +1514,10 @@ std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept
   {
     book |= static_cast<std::uint16_t>(1U << 2U);
   }
-  book |= static_cast<std::uint32_t>(p.carrier_mod & 0x03U) << 3U;
-  book |= static_cast<std::uint32_t>(p.data_mod & 0x03U) << kPlExtDataShift;
-  book |= static_cast<std::uint32_t>(p.mode_select & 0x03U) << kPlExtModeShift;
-  book |= static_cast<std::uint32_t>(p.scrambler & 0x03U) << kPlExtScramShift;
+  book |= (p.carrier_mod & 0x03U) << 3U;
+  book |= (p.data_mod & 0x03U) << kPlExtDataShift;
+  book |= (p.mode_select & 0x03U) << kPlExtModeShift;
+  book |= (p.scrambler & 0x03U) << kPlExtScramShift;
   if (p.diff_mark)
   {
     book |= static_cast<std::uint16_t>(1U << kPlExtDiffBit);
