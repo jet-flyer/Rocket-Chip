@@ -1014,6 +1014,79 @@ void test_cop1_rx_wait_no_release()
   CHECK(!e.farm.wait_flag);
 }
 
+// SET V(R) BC: three control octets, expedited, protocol control.
+void test_select_set_vr_bytes()
+{
+  Cop1Mib mib{};
+  mib.k = 4;
+  Cop1Endpoint tx{};
+  cop1Init(tx, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+  CHECK(cop1InitiateAdSetVr(tx, 0x2A));
+  std::array<std::byte, 256> wire{};
+  const auto n = cop1BytesToSend(tx, wire);
+  CHECK(n.has_value());
+  CHECK(*n > 0);
+  const auto view = decodePltu(std::span<const std::byte>(wire.data(), *n));
+  CHECK(view.has_value());
+  const auto u = decodeUslp(view->frame);
+  CHECK(u.has_value());
+  CHECK(u->fields.expedited);
+  CHECK(u->fields.protocol_control);
+  CHECK(u->fields.upid == kUslpUpidCop1Control);
+  CHECK(u->tfdz.size() == 3);
+  CHECK(u->tfdz[0] == kCop1SetVr0);
+  CHECK(u->tfdz[1] == kCop1SetVr1);
+  CHECK(u->tfdz[2] == std::byte{0x2A});
+}
+
+// Only a Type-BD frame is queued. It is taken, and its queue slot is cleared.
+void test_select_bd_bytes()
+{
+  Cop1Mib mib{};
+  mib.k = 4;
+  Cop1Endpoint tx{};
+  cop1Init(tx, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+  const std::array<std::byte, 1> user{std::byte{0x5C}};
+  CHECK(cop1SubmitSdu(tx, user, true).has_value());
+  CHECK(tx.bd_full);
+  std::array<std::byte, 256> wire{};
+  const auto n = cop1BytesToSend(tx, wire);
+  CHECK(n.has_value());
+  CHECK(*n > 0);
+  const auto view = decodePltu(std::span<const std::byte>(wire.data(), *n));
+  CHECK(view.has_value());
+  const auto u = decodeUslp(view->frame);
+  CHECK(u.has_value());
+  CHECK(u->fields.expedited);
+  CHECK(!u->fields.protocol_control);
+  CHECK(u->tfdz.size() == 1);
+  CHECK(u->tfdz[0] == user[0]);
+  CHECK(!tx.bd_full);
+  CHECK(tx.bd_len == 0);
+}
+
+// No FOP-1 frame and NEED_CLCW: expedited frame, empty TFDZ, OCF present.
+void test_select_clcw_only_empty_tfdz()
+{
+  Cop1Mib mib{};
+  Cop1Endpoint e{};
+  cop1Init(e, mib, UslpScid{1}, UslpScid{2}, Vcid{1}, MapId{0});
+  e.farm.need_clcw = true;
+  std::array<std::byte, 256> wire{};
+  const auto n = cop1BytesToSend(e, wire);
+  CHECK(n.has_value());
+  CHECK(*n > 0);
+  CHECK(!e.farm.need_clcw);
+  const auto view = decodePltu(std::span<const std::byte>(wire.data(), *n));
+  CHECK(view.has_value());
+  const auto u = decodeUslp(view->frame);
+  CHECK(u.has_value());
+  CHECK(u->fields.expedited);
+  CHECK(!u->fields.protocol_control);
+  CHECK(u->tfdz.empty());
+  CHECK(!u->ocf.empty());
+}
+
 void test_heap()
 {
   Cop1Mib mib{};
@@ -1075,6 +1148,9 @@ int run_cop1_tests()
   test_cop1_rx_queue_full();
   test_cop1_rx_oversize();
   test_cop1_rx_wait_no_release();
+  test_select_set_vr_bytes();
+  test_select_bd_bytes();
+  test_select_clcw_only_empty_tfdz();
   test_heap();
   return g_fails;
 }

@@ -1282,6 +1282,211 @@ void test_plcw_repeat_arms()
   CHECK(s.plcw_left == 4);
 }
 
+// Pins the four queueFromCv arms. PL flags add a SET PL EXTENSIONS
+// directive before the matching SET TX or SET RX. 211.0-B-6 B1.1.2.
+void test_hail_queue_pl_extensions()
+{
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  cv.tx.frequency = 3;
+  cv.rx.frequency = 4;
+  cv.has_pl_tx = true;
+  cv.has_pl_rx = true;
+  cv.pl_tx.direction = true;
+  cv.pl_tx.rate_table = true;
+  cv.pl_rx.freq_table = true;
+  macLoadHailCommValue(s, cv);
+  macSetMode(s, MacMode::connecting_t, 0);
+  Tick now = s.mib.carrier_only_duration;
+  macTick(s, now);
+  now += s.mib.acquisition_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s13);
+  CHECK(s.mac_queue_len == 8);
+  const std::span<const std::byte> q(s.mac_queue.data(), s.mac_queue_len);
+  CHECK(spduDirectiveType(q.subspan(0, 2)) == kSetPlExtDirectiveType);
+  CHECK(spduDirectiveType(q.subspan(2, 2)) == kSetTxDirectiveType);
+  CHECK(spduDirectiveType(q.subspan(4, 2)) == kSetPlExtDirectiveType);
+  CHECK(spduDirectiveType(q.subspan(6, 2)) == kSetRxDirectiveType);
+  auto pl_tx = decodeSetPlExt(q.subspan(0, 2));
+  CHECK(pl_tx.has_value());
+  CHECK(pl_tx->direction);
+  CHECK(pl_tx->rate_table);
+  bool is_tx = false;
+  auto phy_tx = decodeSetPhy(q.subspan(2, 2), &is_tx);
+  CHECK(phy_tx.has_value());
+  CHECK(is_tx);
+  CHECK(phy_tx->frequency == 3);
+  auto pl_rx = decodeSetPlExt(q.subspan(4, 2));
+  CHECK(pl_rx.has_value());
+  CHECK(!pl_rx->direction);
+  CHECK(pl_rx->freq_table);
+  auto phy_rx = decodeSetPhy(q.subspan(6, 2), &is_tx);
+  CHECK(phy_rx.has_value());
+  CHECK(!is_tx);
+  CHECK(phy_rx->frequency == 4);
+}
+
+// Active, and no state arm matches. A valid frame clears token_fail_n.
+void test_valid_frame_active_clears_token()
+{
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  Tick now = s.mib.carrier_only_duration;
+  macTick(s, now);
+  now += s.mib.acquisition_idle_duration;
+  macTick(s, now);
+  macOnFifoEmpty(s, now);
+  now += s.mib.tail_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s36);
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.mode == MacMode::active);
+  (void)macPollNotify(s);
+  s.token_fail_n = 4;
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.token_fail_n == 0);
+  CHECK(macPollNotify(s) == MacNotify::none);
+}
+
+// Full-duplex E12, then E16 (Z=1), then E17 on a valid frame.
+void test_valid_frame_s48_e17()
+{
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::full, nullptr);
+  macSetMode(s, MacMode::connecting_t, 0);
+  Tick now = s.mib.carrier_only_duration;
+  macTick(s, now);
+  now += s.mib.acquisition_idle_duration;
+  macTick(s, now);
+  macOnFifoEmpty(s, now);
+  now += s.mib.tail_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s35);
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s41);
+  now += s.mib.carrier_only_duration;
+  macTick(s, now);
+  now += s.mib.acquisition_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s40);
+  (void)macPollNotify(s);
+  macLocalCommChange(s, now);
+  CHECK(s.state == MacState::s48);
+  CHECK(s.y == 1);
+  CHECK(s.persistence);
+  macSetSymbolInlock(s, false, now);
+  CHECK(s.z == 1);
+  s.modulation = true;
+  s.token_fail_n = 3;
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s41);
+  CHECK(s.y == 0);
+  CHECK(s.z == 0);
+  CHECK(!s.persistence);
+  CHECK(!s.modulation);
+  CHECK(s.token_fail_n == 0);
+  CHECK(s.wait_armed);
+  CHECK(s.wait_left == s.mib.carrier_only_duration);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_ok);
+}
+
+// E46: valid frame in S61 while Y is not 3.
+void test_valid_frame_s61_e46()
+{
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  Tick now = half_responder_to_s58(s);
+  (void)macPollNotify(s);
+  now += s.mib.tail_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 0);
+  macSetCarrierAcquired(s, true, now);
+  CHECK(s.state == MacState::s61);
+  s.token_fail_n = 2;
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.y == 0);
+  CHECK(s.token_fail_n == 0);
+  CHECK(macPollNotify(s) == MacNotify::none);
+}
+
+// E68 from S61 with Y=3. One case copies the pending COMM value.
+// The other leaves hail_cv alone when pending_cv_valid is clear.
+void test_valid_frame_s61_e68()
+{
+  {
+    MacSession s{};
+    macInit(s, test_mib(), MacDuplex::half, nullptr);
+    Tick now = half_responder_comm_to_s58(s);
+    const MacCommValue pending = s.pending_cv;
+    (void)macPollNotify(s);
+    now += s.mib.tail_idle_duration;
+    macTick(s, now);
+    CHECK(s.state == MacState::s62);
+    CHECK(s.y == 3);
+    macSetCarrierAcquired(s, true, now);
+    CHECK(s.state == MacState::s61);
+    CHECK(s.y == 3);
+    s.token_fail_n = 2;
+    macOnValidFrame(s, now);
+    CHECK(s.state == MacState::s60);
+    CHECK(s.y == 0);
+    CHECK(!s.persistence);
+    CHECK(!s.pending_cv_valid);
+    CHECK(s.hail_cv.tx.encoding == pending.tx.encoding);
+    CHECK(s.hail_cv.rx.encoding == pending.rx.encoding);
+    CHECK(s.token_fail_n == 0);
+    CHECK(macPollNotify(s) == MacNotify::comm_change_ok);
+  }
+  {
+    MacSession s{};
+    macInit(s, test_mib(), MacDuplex::half, nullptr);
+    Tick now = half_responder_comm_to_s58(s);
+    (void)macPollNotify(s);
+    now += s.mib.tail_idle_duration;
+    macTick(s, now);
+    macSetCarrierAcquired(s, true, now);
+    CHECK(s.state == MacState::s61);
+    CHECK(s.y == 3);
+    s.pending_cv_valid = false;
+    s.hail_cv.tx.frequency = 7;
+    macOnValidFrame(s, now);
+    CHECK(s.state == MacState::s60);
+    CHECK(s.y == 0);
+    CHECK(!s.pending_cv_valid);
+    CHECK(s.hail_cv.tx.frequency == 7);
+    CHECK(macPollNotify(s) == MacNotify::comm_change_ok);
+  }
+}
+
+// S62 with Y not 3. A valid frame goes to S60 and does not notify.
+// Project behavior: 211.0-B-6 has no row for a valid frame in S62 with Y not 3.
+void test_valid_frame_s62_y0()
+{
+  MacSession s{};
+  macInit(s, test_mib(), MacDuplex::half, nullptr);
+  Tick now = half_responder_to_s58(s);
+  (void)macPollNotify(s);
+  now += s.mib.tail_idle_duration;
+  macTick(s, now);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 0);
+  s.token_fail_n = 2;
+  macOnValidFrame(s, now);
+  CHECK(s.state == MacState::s60);
+  CHECK(s.y == 0);
+  CHECK(s.token_fail_n == 0);
+  CHECK(macPollNotify(s) == MacNotify::none);
+}
+
 void test_heap()
 {
   MacSession s{};
@@ -1338,6 +1543,12 @@ int run_mac_tests()
   test_half_s62_e50_y3_full();
   test_half_s62_e50_y0_full();
   test_plcw_repeat_arms();
+  test_hail_queue_pl_extensions();
+  test_valid_frame_active_clears_token();
+  test_valid_frame_s48_e17();
+  test_valid_frame_s61_e46();
+  test_valid_frame_s61_e68();
+  test_valid_frame_s62_y0();
   test_heap();
   return g_fails;
 }
