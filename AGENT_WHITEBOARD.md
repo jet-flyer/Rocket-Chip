@@ -17,24 +17,17 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## Handover 2026-10-21 (Hamilton)
+**Use cases:**
 
-- **State:** LINK counters and the three-run LoRa baseline are on `main` (`8a80734d`, `c71fcbcf`, `06c398aa`; `docs/reports/2026-10-20_buzz_lora_baseline.md`). TX power clamp `7abfea14` (2-17 dBm, +20 dBm opt-in) pushed to `main` 2026-10-22 (`c497b833..7abfea14`); push gate PASS 2026-10-21 (2 dBm link check only, note in `refs/notes/rc-bench`). FSK work has not started.
-- **Plan:** `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` is WIP and unreviewed; its open questions are in its status block.
-- **Next bench, in order:** (1) Standby-before-write patch (not written yet; see the RFM95/SX1276 driver row), then re-bench (Now: AO / QEP); (2) soak/baseline script fixes (baseline report, "Open follow-ups"); (3) station stuck at ABORT (seen again after the 2026-10-21 bench) and DISARM with no ack; (4) watch whether push 3's 15 station CRC errors come back; (5) DIO soldering; (6) H6 part 1 and P36 part 1 (Next).
-- **Off-repo files:** `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md), `rc-bench-archive\plan_reorg_draft\CHANGES.md`, `rc-bench-archive\pushgate_8a80734d_2026-10-21\`, `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
+1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
+2. **Cross-context handoff** - Notes for future Claude sessions when context is lost
+3. **Work-in-progress tracking** - Track incomplete tasks spanning multiple sessions
+4. **Hardware decisions pending** - Flag items needing user input before code changes
+5. **Deferred items** - Active intent kept visible until acted on (and then erased - see header rule)
 
-## Now (this sitting, before the next push)
+## Open
 
-### Station-only wiring checks before soldering (2026-10-21)
-
-Breadboard jumpers first; test before any soldering (Nathan). Owner: Buzz.
-1. SWD: OpenOCD chip ID, plus a memory read while the firmware runs.
-2. RFM95 SPI/CS: RegVersion = 0x12; Standby write and read-back of a config register.
-3. DIO: RX-done/CRC flags while receiving; TX-done via an `r` preset step.
-4. GPS I2C: `g` reads climbing, no errors.
-
-Link-quality checks (RSSI, CRC rate, soak) still need the vehicle.
+Active work before FSK and before first flight. The AO / QEP row sets the run order.
 
 ### AO / QEP order: settle before FSK work (2026-10-11, Council 2026-10-21)
 
@@ -55,13 +48,12 @@ Modules to rewrite from scratch rather than patch. Add rows as they turn up.
 ### COP-P open checks from the LoRa baseline (unverified) (2026-10-21)
 
 1. **PLCW repeat:** confirm the firmware re-sends the PLCW on a timer per PLCW_Repeat_Interval (CCSDS 211.0-B-6 Annex C). Lost ACKs depend on it.
-2. **SYNCH_TIMER = 0** (`copp.hpp:32`, never expires): `copp_sync_loss` is unmeasured, and lost Sequence Controlled frames are resent with no backoff.
-3. **Command resend untested:** the baseline sent only Expedited traffic, so `copp_rtx=0` does not prove resend works. Folds in: DISARM got no ack in the push-gate soaks, plus Duke's note on it (unchecked).
+2. **SYNCH_TIMER = 0** (`starcom/include/starcom/ccsds/copp.h:43`, never expires): `copp_sync_loss` is unmeasured, and lost Sequence Controlled frames are resent with no backoff.
+3. **Command resend untested:** the baseline sent only Expedited traffic, so `copp_rtx=0` does not prove resend works. Folds in: DISARM got no ack in the push-gate soaks, plus Duke's note on it (unchecked); station stuck at ABORT (seen again after the 2026-10-21 bench).
 4. **"Lock" never goes stale (code-read, 2026-10-19):** every "lock" is `fop.plcw_heard && mac_mode == active` (`ao_telemetry.cpp` `peer_plcw`); `synch_timeout = 0` in `src/starcom_adapt/byte_pump.cpp`; vehicle `t` and RC_OS text (`rc_os_commands.cpp`, `ao_rcos.cpp`) print "lock" with no freshness check (only the pad RF Link row adds `rf_live`). Seen 2026-10-19: station USB died, vehicle TX froze, vehicle still said lock. To do: rename to "COP-P sync", nonzero `synch_timeout` (a multiple of station PLCW_Repeat_Interval), start the timer on silence too, drop the indicator on expiry. Prox-1 reading (Duke): `starcom/AGENT_WHITEBOARD.md`, "COP-P sync indication".
 
 ### Small firmware / script fixes (Buzz) (2026-10-19..21)
 
-- **`b` beacon (vehicle CLI):** main-menu `b` turns the find-me beacon on; a second `b` does not turn it off (stays on until the next state change). Seen on the board 2026-10-21.
 - **Debug HW line always prints `20dBm`** (`rc_os_commands.cpp` about line 813, re-checked 2026-10-21).
 - **`pre_push_gate.py --help`** does not act as a help call (deferred from the 2026-10-21 wrap; details not written down, re-check first).
 - **`pre_push_gate.py` role table** (about line 125) still marks the vehicle as the SWD board; the station is never offered Path 2 (SWD) flash steps. Harmless (code-read 2026-10-19).
@@ -70,17 +62,14 @@ Modules to rewrite from scratch rather than patch. Add rows as they turn up.
 
 Two-board soak of `7abfea14` done (baseline report, "Push-gate soaks (2026-10-21)"). The SET replies (2-17 accept, reject codes, +20 opt-in) cannot be benched on this firmware: the station only steps 2 dBm presets, and MAVLink returns UNSUPPORTED. Needs Nathan's pick: a station power SET command, or a test build with a non-2 dBm preset. The test script for the SET command (`scripts/power_set_check.py`) was never committed and was deleted 2026-10-31; rewrite it if the SET command is picked.
 
-## Next (before FSK work / before first flight)
+### Bench items waiting on Nathan
 
-### Bench items waiting on Nathan (2026-10-08)
+Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
 
-Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md` (line refs may be stale after the 10-20 reorg).
-
-- H6 part 1 (never ran): desk RSSI baseline, both boards at 2 dBm, fixed distance (plan l.336 check 2; desk power l.135). Part 2 (antenna in airframe) waits for the airframe. Needs Nathan's go.
-- P36 part 1: Nathan holds KB2040 BOOT while the gusmanb v6.0.0.1 UF2 enumerates (plan l.145, l.313); needed before any capture.
-- IVP 21 (stale): `783a994` reset-looped, no second flash. Buzz suggests closing unless Nathan wants that branch.
-- Commit `scripts/radio_link_bench.py` (makes radio pushes blocking) after Nathan's bench run of it. Still untracked (2026-10-21).
-- Fruit Jam full-station freeze: open PR, `docs/PROBLEM_REPORTS.md` R-34.
+- H6 part 1 (never ran): plan §9.4 check 2 — boards at a fixed distance at desk power (§5, 2 dBm), log RSSI with the antenna outside and inside the airframe. This cannot tell detuning from blockage and does not measure VSWR. §9.4 check 1 (NanoVNA sweep with the antenna in the airframe) waits for a VNA and the airframe. Needs Nathan's go.
+- P36 part 1 (never ran): Nathan holds KB2040 BOOT while the gusmanb v6.0.0.1 UF2 enumerates (plan §6, §9.3 P36; analyzer pick is D11, Appendix B.3.1). Needed before any capture.
+- H1 DIO-state test (never ran): analyzer capture of DIO1 / DIO2 / DIO5 through reset, setup and each mode (plan §7.3, §9.3 H1, Appendix B.6 S7). Tests whether the SX1276 drives DIO1 and DIO2 in every mode. Needs the DIO wires and P36 part 1. Needs Nathan's go.
+- Fruit Jam full-station freeze: `docs/PROBLEM_REPORTS.md` R-34.
 
 ### clang-tidy config defects (PR-2 / PR-1b) (2026-10-29)
 
@@ -98,7 +87,7 @@ JSF 60/61 (braces on own lines) are mandatory "will" rules with no exception (JS
 
 ### Starcom coding tests and citations: notes from the sign-conversion fix (2026-10-30, Duke)
 
-- `starcom/src/ccsds/conv.cpp` and `starcom/tests/unit/test_coding.cpp` header comments cite `131.0-B-5 §3.3`. B-5 is superseded. The current issue is 131.0-B-6 (code in section 4.3), and 211.2-B-3 refers to 131.0-B-3. The values are the same in all three, so nothing on air changes. Fix with the comments group.
+- `starcom/src/ccsds/conv.cpp` already cites `131.0-B-6 §4.3`. `starcom/tests/unit/test_coding.cpp` cites `131.0-B-6` section 4.3 / section 8.4 (B-5 3.3→B-6 4.3 convolutional; B-5 7.4→B-6 8.4 LDPC family, checked in 131.0-B-6 EC1). B-5 is superseded. 211.2-B-3 refers to 131.0-B-3. The values are the same in all three, so nothing on air changes.
 - `test_conv_single_one` checks only the first output pair. The full 7-pair response would check both connection vectors (G1, inverted G2).
 - No test checks that the PN sequence starts again after 255 bits (211.2-B-3 clause 3.4.5.2.9).
 - Not a FAIL. Noted, not changed.
@@ -115,11 +104,13 @@ Hook still works; no change now. Gaps found in a read-only inventory:
 
 Plan: scratch `git worktree add` at HEAD in a temp folder, configure the build dirs there, then one known-bad change per check (host-only; no boards).
 
-### Bench script fixes (2026-10-21)
+### Bench script fixes
 
-`baseline_lora.py` / `soak_two_board.py` bugs: `docs/reports/2026-10-20_buzz_lora_baseline.md`, "Open follow-ups". Scripts still usable via the raw logs.
+`baseline_lora.py` / `soak_two_board.py` bugs: `docs/reports/2026-10-20_buzz_lora_baseline.md`, "Open follow-ups". Scripts still usable via the raw logs. Off-repo bench files: `rc-bench-archive\baseline_lora_2026-10-20\` (bench_layout.jpg, T1-0_PROMPT.md, FLASH_PROMPT.md), `rc-bench-archive\plan_reorg_draft\CHANGES.md`, `rc-bench-archive\pushgate_8a80734d_2026-10-21\`, `rc-bench-archive\pushgate_41a304f5_2026-10-21\`.
 
 `soak_two_board.py` run window (2026-10-30, Goddard): `delta_window_s` starts after the vehicle answers the start `t` and stops after the end key sequence, so it is about 1 s shorter than the span the counts cover. Take both marks at the same point (key sent, or answer seen).
+
+`scripts/radio_link_bench.py` is gone (never committed; not on disk). The FSK plan still cites it (GI8, FC-I5). Nathan decides whether to restore the script or drop that intent.
 
 ### Bench power and the RSSI LED (Nathan, 2026-10-31)
 
@@ -127,25 +118,26 @@ At 2 dBm the station RSSI LED stays yellow, and run-to-run spread is wide on the
 
 **Indoor weak-link test idea (Nathan, 2026-10-31).** The blocked run suggests a cheap repeatable way to test a worse link indoors: a Mylar anti-static bag (plus a tub of PCBs) near the vehicle antenna cost about 25 dB (-57 vs -82 dBm). Before using it on purpose, check it is safe: (1) a detuned or shielded antenna reflects transmit power back into the RFM95/SX1276 PA; check the Semtech datasheet for its VSWR/mismatch limit, and only do it at 2 dBm until that is settled, never at high power; (2) the bag's metal layer conducts, so it must not touch the antenna, the u.FL/SMA joint or any pins; (3) make the setup repeatable (same bag, same spot, measured RSSI drop) so runs can be compared. Not now (no new hardware at this stage, Nathan 2026-10-31), but for the list when more hardware is considered: fixed in-line SMA attenuator pads (10 or 20 dB) on either antenna would give a known, repeatable loss every time (Goddard). Both boards transmit on the antenna they receive on (vehicle telemetry, station PLCWs and commands), so the reflected-power check and the 2 dBm-only limit apply to both boards, and a pad must be rated above the radio's output power.
 
-### Soldering to-do (can be done today) (2026-10-08)
+### DIO wiring and soldering
 
-Prerequisite: Now, "Station-only wiring checks before soldering" (breadboard first).
+Order (Nathan, 2026-10-26; plan decision 1): no breadboard first. Station DIO1/DIO2 soldered directly, then H2 continuity, then the `j`/`n` station tests. Vehicle flight wiring should be soldered. The Fruit Jam A1/A2 header can take push-on jumpers. Each board test after wiring still needs Nathan's go. Owner: Buzz. Pins: Buzz, 2026-10-08 (schematic-checked, not measured). Plan: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
 
-Soldering only. Each board test after it still needs Nathan's go. Pins: Buzz, 2026-10-08 (schematic-checked, not measured). Plan = `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
+- **Vehicle RFM95 DIO to the Feather RP2350.** Solder DIO1 -> A0 (GPIO26) and DIO2 -> A1 (GPIO27). DIO5: no wire (no plan pin; Manchester is not adopted, plan §8.1). S7 only clips the analyzer on the DIO5 pad. Sources: plan §7.1 (pin row), §7.3 and §9.3 (H1), §9.3 and §7.1 (H2 continuity after the wire). E9: the internal pull-up is chosen (Nathan, 2026-10-08), so no resistor (plan §7.2).
+- **Station RFM95 DIO to the Fruit Jam.** DIO1 -> A1 (GPIO41). DIO2 -> A2 (GPIO42). DIO5: no wire. Fruit Jam A0 is not on the header (plan §7.1). No E9 resistor: the Fruit Jam is A4 (plan §7.2).
+- **H2:** continuity check that the §7.1 pins are free on the real boards (plan §9.3; schematic-checked, not measured). After the wires, before the `j`/`n` station tests.
+- **KB2040 logic analyzer.** Solder the header pins. Add the trigger jumper TX (GPIO0) -> RX (GPIO1) and the D2 PWM self-check jumper (P36 part 2, plan §6). Channels 1-8 are D2-D9 (GPIO2-9). Sources: plan §6, §9.3 (P36). The plan does not give the other end of the D2 self-check jumper; Buzz to confirm before soldering.
+- **Pico 2 W "probe" (spare board, plan §5). Job: spare (Nathan, 2026-10-11/12; plan Appendix B.3.1, D11).** Not the logic analyzer (KB2040 is) and not a second SWD probe for now.
+  - Logic analyzer: Buzz chose the KB2040, because the gusmanb README says E9 locks bare Pico 2 inputs under PIO (plan §6, P32). For SWD, E9 does not matter.
+  - Before soldering, Buzz reads the Pico 2 W chip revision with picotool. A4 has no E9 (plan §7.2: A2 by ship date, not measured).
+  - Repo docs give no wiring for a second SWD probe. The current probe is the Adafruit #5699 (`docs/hardware/HARDWARE.md`); the Feather has SWD and the Fruit Jam has no SWD (`docs/FLASHING.md`).
 
-- **Vehicle RFM95 DIO jumpers to the Feather RP2350.** DIO1 -> A0 (GPIO26). DIO2 -> A1 (GPIO27). DIO5: no wire (no plan pin; Manchester is not adopted, rev 1 8.1). S7 only clips the analyzer on the DIO5 pad. Sources: plan l.157 (pin row), plan l.234 and l.317 (H1), plan l.318 (H2 continuity check after the jumper). E9: the internal pull-up is chosen (Nathan, 2026-10-08), so no resistor (plan §7.2).
-- **Station RFM95 DIO jumpers to the Fruit Jam.** DIO1 -> A1 (GPIO41). DIO2 -> A2 (GPIO42). DIO5: no wire. Fruit Jam A0 is not on the header (plan l.158, l.161). No E9 resistor: the Fruit Jam is A4 (plan l.201).
-- **KB2040 logic analyzer.** Solder the header pins. Add the trigger jumper TX (GPIO0) -> RX (GPIO1) and the D2 PWM self-check jumper (P36 part 2). Channels 1-8 are D2-D9 (GPIO2-9). Sources: plan l.144-145, l.313 (P36). The plan does not give the other end of the D2 self-check jumper; Buzz to confirm before soldering.
-- **Pico 2 W "probe" (spare board, plan l.134). Job: spare (Nathan, 2026-10-11/12; plan Appendix B.3.1, D11).** Not the logic analyzer (KB2040 is) and not a second SWD probe for now.
-  - Logic analyzer: Buzz chose the KB2040, because the gusmanb README says E9 locks bare Pico 2 inputs under PIO (plan l.146, P32). For SWD, E9 does not matter.
-  - Before soldering, Buzz reads the Pico 2 W chip revision with picotool. A4 has no E9 (plan l.220: A2 by ship date, not measured).
-  - Repo docs give no wiring for a second SWD probe. The current probe is the Adafruit #5699 (`docs/hardware/HARDWARE.md` l.58); the Feather has SWD and the Fruit Jam has no SWD (`docs/FLASHING.md` l.58, l.158).
+Checks that do not need the DIO wires (station): SWD (OpenOCD chip ID, plus a memory read while the firmware runs); RFM95 SPI/CS (RegVersion = 0x12; Standby write and read-back of a config register); GPS I2C (`g` reads climbing, no errors). Link-quality checks (RSSI, CRC rate, soak) still need the vehicle.
 
 ### Station pad: link numbers from Starcom state, not raw radio counters (2026-10-19)
 
 **Station Pkts/RSSI line and LED bar (Buzz, code-read).** The RSSI, Pkts/CRC counts and bar length still come from the raw radio counters (`rx_count`, `last_rx_rssi`). Only the colour/mode reads Starcom state. Move them onto the Starcom and rate counters, like the RX window, so they can't disagree with the RF Link row. Earlier code for this: stash 2 (2026-09-02, not on main), archived at `Documents\rc-stash-archive\stash2.patch` (CHANGELOG 2026-10-13-001). Bench check (Buzz): station `status` count/RSSI/LED bar vs vehicle TX count and a direct radio RSSI read.
 
-Lock freshness: Now, COP-P open checks item 4.
+Lock freshness: Open, COP-P open checks item 4.
 
 ### Opening-shock detector parked on `wip/opening-shock` (2026-10-19)
 
@@ -177,17 +169,13 @@ Untethered vehicle on battery. Live view is the station pad phase. Afterward, pl
 
 **Unverified by Hamilton:** live station mode in the standalone app; plots with the facsimile feed after the Real-Time default; Real-Time showing on screen; taskbar icon and title.
 
-**CONFORMANCE gap cleanup:** the seq count is board-verified (2026-10-20, baseline report), so the `starcom/docs/CONFORMANCE.md` Known gaps entries for seq count / rx gap can be re-checked and removed (Nathan's full-compliance policy, 2026-10-01; prompt files in `docs/decisions/prompts/`).
+**CONFORMANCE / seq-count:** `starcom/docs/CONFORMANCE.md` already records per-APID counts (corrected 2026-10-29) and adapter-side gap detection. The seq count is board-verified (2026-10-20, baseline report). Prompt files in `docs/decisions/prompts/`.
 
 **Parked:** grey no-data look for gauges/LAD; RF page; FDAI 8-ball; GPS-present flag; MAVLink toggle-only; custom Leaflet map spike; phone/responsive support; Yamcs (judged overkill for now).
 
 ### FSK constraints and byte_pump split (2026-09-29, 2026-10-01)
 
-**FSK constraints (still hold):** both SX1276s stay in FSK for a session; no mode change inside a turn. LoRa stays the long-range preset. Convolutional and LDPC encoders stay off the LoRa payload. Do not retune N or vehicle Send_Duration. Simplex and a second radio stay deferred.
-
-**byte_pump surgery (2026-10-01; own sitting between the driver rewrite and FSK per the 2026-10-21 Council, AO / QEP row):** `src/starcom_adapt/byte_pump.cpp` is the air adapter and it has turned into a bucket: MIB timers, the LoRa catalog and COMM_CHANGE, the nav/cmd/ack packers, the two sequence lanes, and the send/receive drain. Split that file in the FSK sitting. Where the pump reimplemented a Blue Book procedure that `starcom/src/ccsds/` already provides, use the book path. Known overlap: the three packers and the two sequence lanes versus 133.0 assembly and extraction (`space_packet_service` is host-only and is not called on the air; root `CHANGELOG.md` 2026-10-01-003). COP-P, the MAC, Version-3, and the PLTU codec are already the library. Keep the product pieces in the adapter: the SX1276 bearer, the nav/cmd/ack payloads, the product APIDs, `flight_mac_mib`, and the catalog. `rx_lost` stays on the pump. The service object is about 10 KiB and stays off the 4 KiB stack. Inventory any other home-grown book procedure in that file the same way before removing it. Starcom row: `starcom/AGENT_WHITEBOARD.md` FSK bitstream bearer.
-
-FSK coding-option question (211.2-B-3): `starcom/AGENT_WHITEBOARD.md`, FSK bitstream bearer. Earlier hitch measurements: CHANGELOG 2026-09-29 entries.
+Pointer: `starcom/AGENT_WHITEBOARD.md`, FSK bitstream bearer (constraints, the `byte_pump` split, and the coding-option question). Hitch measurements: CHANGELOG 2026-09-29 entries.
 
 ### First-flight prod strip of test/inject (2026-08-23)
 
@@ -201,7 +189,7 @@ Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Debug `o` (2026-10-08):** `f142a4db` force-one-TX-timeout is inside `#if ROCKETCHIP_DEV_MODE`, but that option defaults ON, and the case does not call `inject_allowed()`, so it runs with runtime DEV MODE off (help only hides it). Compile it out of field images or refuse it when DEV MODE is off. Needs Nathan.
 
-## Later / Wanted
+## Later
 
 ### RC side of Space Packet as the core unit (2026-10-19)
 
@@ -228,7 +216,7 @@ Design and ground-path options (Yamcs, network forwarding, SLE, XTCE): `starcom/
 
 **Still to work out (not done):** field mapping / which gauges light from station vs vehicle; RSSI/LQ/SNR on glass when only MAVLink USB (no RADIO_STATUS yet); ANSI `stream_station.py` path vs MAVLink path; layout tweaks Nathan noted.
 
-**Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`. Not a license this wrap.
+**Parked firmware:** auto first-STX (0xFD/0xFE) lock into exclusive MAVLink CDC fights ANSI dash / oMCT scrape — make MAVLink toggle-only, off by default (boot stays ANSI). See `src/cli/rc_os.cpp` sniff + `StationOutputMode`.
 
 ### GCS glass: LCARS skin (WANTED) (2026-09-05)
 
@@ -238,15 +226,15 @@ Desk Open MCT hello-world is on Espresso with stacked RSSI/SNR/Baro + radio over
 
 Station pad is the Fruit Jam ANSI dashboard (`src/cli/rc_os_dashboard.cpp`); console after `x` is `cli_menus.h`. Not Open MCT.
 
-**Dashboard configurator.** Host tool so the user can lay out the pad (which rows, order) without a firmware sitting each time. **Drag-and-drop belongs on the configurator**, not the USB ANSI pad; the pad just consumes a saved layout. Default **operator pad stays one layout.** Not a license this sitting.
+**Dashboard configurator.** Host tool so the user can lay out the pad (which rows, order) without a firmware sitting each time. **Drag-and-drop belongs on the configurator**, not the USB ANSI pad; the pad just consumes a saved layout. Default **operator pad stays one layout.**
 
 **Named views** (configurator presets, not extra firmware products): flight-only, RF-only, IMU, and a **raw-data / workbench lab** dash (full counters, unscaled fields, RATE-class dumps). Lab view is for the bench, not the range pad.
 
-**ASCII attitude indicator.** Wanted if USB CDC + redraw latency stay acceptable (pad is 1 Hz idle / per-RX). 80-col / ~18-row glass may be the limiter, not the quaternion. Gate on a desk latency/readability check before keeping it. Not a license this sitting.
+**ASCII attitude indicator.** Wanted if USB CDC + redraw latency stay acceptable (pad is 1 Hz idle / per-RX). 80-col / ~18-row glass may be the limiter, not the quaternion. Gate on a desk latency/readability check before keeping it.
 
 ### Hobby secondary link (BT / Wi‑Fi) (WANTED) (2026-09-18)
 
-CCSDS-style split: high-rate TM stays on the Prox-1 LoRa air; a **second physical path** for low-latency ground commands (pad ARM/DISARM, settings) and other short important traffic. Hobby-grade Bluetooth or Wi‑Fi, not a second Starcom MAC. FTS/abort stays onboard. LoRa remains the book range link. Not a license this sitting; PHY/chip TBD.
+CCSDS-style split: high-rate TM stays on the Prox-1 LoRa air; a **second physical path** for low-latency ground commands (pad ARM/DISARM, settings) and other short important traffic. Hobby-grade Bluetooth or Wi‑Fi, not a second Starcom MAC. FTS/abort stays onboard. LoRa remains the book range link. PHY/chip TBD.
 
 ### HD token N: user-facing preset (WANTED) (2026-09-18)
 
@@ -262,11 +250,11 @@ Stashed as `wip phy-scan leds docs` with both in one Starcom row - split: **scan
 
 **Dual-use (list stays small):** station tool = (1) find *our* vehicle (valid PLTU) (2) show which cells are occupied (RSSI/CAD) like goggles. Prior art: Hertz-Hunter, MikyM0use OLED-scanner / JAFaR (RX5808 RSSI sweep + autoscan), PortaPack FPV Detect (40-ch AutoScan). Pattern: finite table, RSSI bar per cell, lock strongest / first match. Extra vs analog FPV: CRC’d PLTU vs raw energy. **RX-only while sweeping.**
 
-WIP files are gone from the tree; the 2026-09-02 stashes were triaged and archived (CHANGELOG 2026-10-13-001). Not a license to implement this sitting.
+WIP files are gone from the tree; the 2026-09-02 stashes were triaged and archived (CHANGELOG 2026-10-13-001).
 
 ### Class D outdoor BW rank (WANTED) (2026-09-03)
 
-125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank. Desk stays 2 dBm. Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Report: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`. Not a license this sitting.
+125 vs 250 vs 500 at +20 dBm, then step down. Only BW-for-range rank. Desk stays 2 dBm. Procedure: `starcom/docs/integration/TWO_BOARD_SOAK.md`. Report: `docs/RADIO_SOAK_PASS_AB_2026-09-03.md`.
 
 ### Adaptive TX power (WANTED) (2026-09-03)
 
@@ -274,11 +262,11 @@ Owner-wanted after LoRa Pass A. Not hail. Boot is 2 dBm on both boards now; wait
 
 ### Fault beacon last-gasp (HELD)
 
-Held until FPGA PHY work is done. Then **PIO beacon + SPI fallback in one session** — do not SPI-from-fault-handler alone. PIO2 = safety; PIO0 = WS2812; **PIO1 empty on purpose** until this sitting (or a later FSK timing need). `docs/hardware/PIO_BUDGET.md`. Council B.5 / round 3: `docs/decisions/FAULT_RECOVERY_2026-05-14.md`. Not a license this sitting.
+Held until FPGA PHY work is done. Then **PIO beacon + SPI fallback in one session** — do not SPI-from-fault-handler alone. PIO2 = safety; PIO0 = WS2812; **PIO1 empty on purpose** until that beacon session (or a later FSK timing need). `docs/hardware/PIO_BUDGET.md`. Council B.5 / round 3: `docs/decisions/FAULT_RECOVERY_2026-05-14.md`.
 
 ### Skills to add (OPEN)
 
-Wanted skills - not written yet. Not a license to author them until scheduled.
+Wanted skills - not written yet.
 
 - **Session-checklist skill** - grant add-only cadence writes (`CHANGELOG.md`, `PROJECT_STATUS.md`) only when that checklist scope is actually running (commit / push / wrap). Stops jumping the gun on a changelog because the list was *read*. If the protected-file hook is revived on Claude Code, this skill drives that gating. (Moved here from the graphify/hook note.)
 - **Council skill** - when the user says “council review” / “panel check,” load `COUNCIL_PROCESS.md` (panel, stop conditions, incomplete-review offer) instead of relying on the agent to remember the file.
@@ -314,33 +302,13 @@ The 15-25% band in `standards/CODING_STANDARDS.md` was meant as an upper cap, to
 
 ### ASD-STE100 for documents (LATER) (2026-10-04)
 
-Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Not this sitting. Do not start a wide rewrite from this row.
+Owner will make ASD-STE100 the wording standard for Rocket-Chip documents and Starcom documents. Do not start a wide rewrite from this row.
 
 **Already written, do not rewrite:** `starcom/docs/USER_GUIDE.md`. That guide helps a reader who does not know CCSDS. The Version-3 / Version-4 frame choice is one example, not the only added help. That file uses ASD-STE100. The other documents do not.
 
 **When this row is scheduled:** apply the same wording to the remaining Rocket-Chip docs and Starcom docs. Keep technical names and book cites. Do not drop operational numbers to make a sentence shorter. Erase this row when that standard is in force. Starcom pointer: `starcom/AGENT_WHITEBOARD.md`, same title.
 
-### Differential analog FPV video (Telestar FPV) (LOOK) (2026-10-13)
-
-Nathan, 2026-10-13. For the Telestar FPV board: send analog composite video as a differential signal over a twisted pair (like CCTV video baluns) to reject common-mode noise, with no added latency and no FPGA. Candidate parts: AD8132 driver + AD8130 receiver, both distributor-listed active (ADI pages not reachable; Octopart status ~4 yr old). Pointer only, nothing decided. Background: `starcom/spacewire/README.md`.
-
-### Twiggs Space Lab as a hardware reference (LOOK) (2026-10-25)
-
-Nathan, 2026-10-25: add Twiggs Space Lab as a hardware reference goal; STEM-focused small-sat hardware (supplier for the Aldrin Family Foundation S-Cubed program, per Goddard). Links (Goddard): [FlatSat kit](https://twiggs-space-lab.myshopify.com/products/tsl-flatsat-kit) (add-on connector for LoRa/GPS/SD), [TSLPB payload board](https://github.com/VCSFA-MARS/TSLPB/wiki) (Arduino Pro Mini); Mini Ground Station takes RF98 LoRa modules (SX127x family, but RFM98 is usually the 433 MHz part vs our 902-928 MHz RFM95; band unconfirmed, not plug-in compatible until their spec says so). Current FlatSat MCU and design-file openness not found. Pointer only, nothing decided; no outreach.
-
-## Look (Starcom pointers)
-
-Starcom-only LOOK/OPEN rows live on `starcom/AGENT_WHITEBOARD.md` (same titles): Pseudo-simplex main mode / Ingenuity link; Waveforms stay separate; Half-duplex carrier-only at turnaround; E2d asymmetric option; Hardware map for E2d-style path; Licence / bands; E2d history; UniClOGS / OreSat station reference; Re-evaluate Prox-1 vs USLP; APID-to-path assignment; Space Packet as the core unit; COP-P sync indication.
-
-## Use Cases
-
-1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
-2. **Cross-context handoff** - Notes for future Claude sessions when context is lost
-3. **Work-in-progress tracking** - Track incomplete tasks spanning multiple sessions
-4. **Hardware decisions pending** - Flag items needing user input before code changes
-5. **Deferred items** - Active intent kept visible until acted on (and then erased - see header rule)
-
-## Medium (session-scale, 4-12 hours)
+### Pre-flight hardening, session-scale (4-12 hours)
 
 Pre-dates the FSK pivot; pre-flight hardening items, not scheduled.
 
@@ -348,7 +316,7 @@ Pre-dates the FSK pivot; pre-flight hardening items, not scheduled.
 
 - **Station SPIN model extensions.** Scaffolding landed (IVP-147: P_TERMINATION + P_NO_DOUBLE_CLEAR, both PASS). RadioScheduler is gone (always-on COP-P). Extend when firmware lands: multi-pending-in-flight, MAVLink parser state, `station_idle_tick` GPS poll interleave.
 
-## Large (multi-session, architectural)
+### Multi-session, architectural
 
 Pre-dates the FSK pivot; each needs a Council review or plan doc first.
 
@@ -361,9 +329,9 @@ Pre-dates the FSK pivot; each needs a Council review or plan doc first.
   5. Air-dropped vehicle profile (altitude-aware abort, no "stay on ground")
   6. Multi-engine / staging support (partial engine light, inter-stage hold, TRA 13-9)
 
-## Research / Deferred
+### Research / deferred
 
-No code this sitting. Unique leftovers only — last-gasp is **Fault beacon last-gasp (HELD)**; FSK/SDLS/SET OTA are the Starcom board.
+Unique leftovers only — last-gasp is **Fault beacon last-gasp (HELD)**; FSK/SDLS/SET OTA are the Starcom board.
 
 - **Datasheet RAG.** Index the PDFs we already use (RP2350, SX1276, Pico SDK, CCSDS books) so register lookups are a query. Pointer not authority (LL 37/38). Independent of local vs cloud LLM (see Local-LLM shortlist). Starcom wire codecs already landed; remaining is datasheet/register RAG, not framing.
 - **ELRS on RP2350.** Native ExpressLRS / PIO hop vs Telstar CRSF module. Future radio protocol, not this PHY.
@@ -371,10 +339,6 @@ No code this sitting. Unique leftovers only — last-gasp is **Fault beacon last
 - **AON-timer prior-uptime** — stubbed to 0 in the anomalous-boot confidence gate. POWMAN already covers brownout; wire `pico_aon_timer` only if auto-zero-baro false-positives need a second corroborator. `docs/decisions/FAULT_RECOVERY_2026-05-14.md`.
 - **Battery ADC.** Hardware not wired. ADC pin + driver + telemetry field.
 
-## Far-future
+### Far-future
 
 Mission Profile OTA, F' evaluation (branch `fprime`, CHANGELOG 2026-10-14-001), u-blox GPS, OTA drivers, GPS-free 3D reconstruction, MATLAB export - all tracked in `docs/PROJECT_STATUS.md` future features. FSK bitstream is on the Starcom board.
-
-## Upcoming Stages
-
-IVP stages are done. Current work is pre-flight hardening (link, driver, FSK) to make flight more reliable; the preflight stage has not started. The old Stage 15-17 lists are in git history.

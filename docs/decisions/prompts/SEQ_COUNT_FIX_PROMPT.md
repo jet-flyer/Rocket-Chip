@@ -4,7 +4,7 @@
 
 ## Context
 
-Every on-air packet carries Packet Sequence Count 0. `pump_pack_nav_packet`, `pump_pack_cmd_packet` and `pump_pack_ack_packet` in `src/starcom_adapt/byte_pump.cpp` set only the APID and the packet type. The walk-test CSV `seq` column is not useful until this is fixed. Starcom docs: `starcom/docs/CONFORMANCE.md` (Known gaps, APID allocation, Annex A).
+Historical (the pre-`1f23b359` state this prompt was written against): every on-air packet carried Packet Sequence Count 0. `pump_pack_nav_packet`, `pump_pack_cmd_packet` and `pump_pack_ack_packet` in `src/starcom_adapt/byte_pump.cpp` set only the APID and the packet type. The walk-test CSV `seq` column was not useful until this was fixed. Starcom docs: `starcom/docs/CONFORMANCE.md` (Known gaps, APID allocation, Annex A).
 
 Rules for the session: use the branch/worktree already set up. Do not touch the modified files from the other session (`src/flight_director/*`, `test/*`, `scripts/config_wizard/core/*`). No git push. Never use --no-verify. Do not edit `starcom/docs/CONFORMANCE.md`; Hamilton updates docs after review.
 

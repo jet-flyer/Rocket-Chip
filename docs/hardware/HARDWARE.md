@@ -267,6 +267,10 @@ Studied for hardware/software architecture:
 |-------|-----------|
 | madflight FC3v2 | RP2350B flight controller with ICM-45686, BMP580, FreeRTOS - close to RocketChip Pro target |
 
+### Twiggs Space Lab (pointer, 2026-10-25)
+
+Nathan, 2026-10-25: add Twiggs Space Lab as a hardware reference goal; STEM-focused small-sat hardware (supplier for the Aldrin Family Foundation S-Cubed program, per Goddard). Links (Goddard): [FlatSat kit](https://twiggs-space-lab.myshopify.com/products/tsl-flatsat-kit) (add-on connector for LoRa/GPS/SD), [TSLPB payload board](https://github.com/VCSFA-MARS/TSLPB/wiki) (Arduino Pro Mini); Mini Ground Station takes RF98 LoRa modules (SX127x family, but RFM98 is usually the 433 MHz part vs our 902-928 MHz RFM95; band unconfirmed, not plug-in compatible until their spec says so). Current FlatSat MCU and design-file openness not found. Pointer only, nothing decided; no outreach.
+
 ## Ground Station Hardware
 
 | Part | Adafruit P/N | Notes |

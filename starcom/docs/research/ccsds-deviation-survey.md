@@ -68,6 +68,18 @@ One nuance for Duke. The Prox-1 "not near Earth" text is about the 430 MHz frequ
 
 **Relevance to Starcom:** A fielded example of USLP + COP-1 + SDLS-style HMAC over a non-CCSDS GFSK PHY. It writes down its own "out of spec" SDLS placement.
 
+**Station / GCS pointers (folded from the 2026-10-05 LOOK row; reference only, nothing decided)**
+- Station hardware (Buzz): LimeSDR, GNU Radio, UHF Yagi RHCP/LHCP, LNA/PA, coax switch; UHF 435–438 MHz amateur (same UHF range already stated in the UniClOGS README above).
+- Yamcs GCS (Goddard): UniClOGS runs Yamcs + USLP/COP-1/CFDP; GNU Radio passes CCSDS frames over UDP. Relates to the parked Yamcs / openmct-yamcs option (30 Sep). uniclogs/yamcs is AGPL-3.0 — reference only, not Starcom code.
+- Additional licenses not already listed above: uniclogs-configs = GPL-3.0. (oresat-c3-software, uniclogs-hardware, and OpenCCSDS are already noted in this file.)
+- Additional links:
+  - CrowdSupply OreSat field report: https://www.crowdsupply.com/lime-micro/limesdr/updates/field-report-oresat-oregons-first-satellite
+  - Org: https://github.com/uniclogs
+  - https://github.com/uniclogs/uniclogs-sdr
+  - https://github.com/uniclogs/uniclogs-docs
+  - Yamcs config example: https://github.com/uniclogs/uniclogs-configs/blob/311ffc486c0b696e1a3b626a5a02d580d35351ac/etc/yamcs.oresat0_5.yaml
+  - uniclogs/yamcs: https://github.com/uniclogs/yamcs
+
 ---
 
 ## 2. SatNOGS-COMMS (Libre Space Foundation)

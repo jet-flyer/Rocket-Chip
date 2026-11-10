@@ -282,7 +282,7 @@ Live help is SSOT (`src/cli/cli_menus.h`). Main:
 | `f` | Flight director (ARM / LAUNCH) — **not** list flights |
 | `q` | Debug (`s` sensors, `e` ESKF live, `b` boot/HW) |
 | `s` | Settings (`l` catalog, `n` next radio preset) |
-| `b` | Find-me beacon |
+| `b` | Find-me beacon (on only; a second `b` does not turn it off; stays on until the next state change) |
 | `t` | Radio status |
 | `g` | List flights |
 | `d` | Download flight |

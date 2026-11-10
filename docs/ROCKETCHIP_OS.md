@@ -48,6 +48,8 @@ Displayed on terminal connect and on `h` keypress. Commands grouped by function.
 | **Data** | `g` `d` `l` `x` | List flights, download, flush to flash, erase all |
 | **Radio** | `t` `r` `m` `b` | Telemetry status, cycle TX rate, MAVLink toggle, **Beacon (manual find-me, Stage L)** |
 
+Main-menu `b` turns the find-me beacon on; a second `b` does not turn it off (stays on until the next state change). Seen on the board 2026-10-21.
+
 **Drift fix 2026-05-13:** previously documented `s`/`e`/`b` as main-menu Status keys and `i` as a main-menu Radio key. Stage L (2026-04-18) reassigned `b` from "boot summary" to "Beacon (manual find-me)" in main menu, and bench-tier sensor/ESKF/HW status / I2C-scan keys moved to the `q`-Debug submenu via the bench-tier classification. The previous documentation rotted silently. See R-27 (this cycle) for the fix.
 
 ### Debug Sub-Menu (`[debug]`) — press `q` from main

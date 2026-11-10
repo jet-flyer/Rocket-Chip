@@ -12,7 +12,7 @@ READ FIRST
 Use the branch/worktree already set up. Do NOT touch the ~12 modified files from the other session (src/flight_director/*, test/*, scripts/config_wizard/core/*). No git push. Never use --no-verify.
 
 PREREQUISITE
-The per-APID, per-direction 14-bit sequence-count fix (pump_pack_nav_packet, pump_pack_cmd_packet, pump_pack_ack_packet; 133.0-B-2 4.1.3.4.3.3/.4) must already be in the tree. If it is not, stop and report; do not build on a counter that is always 0.
+The per-APID, per-direction 14-bit sequence-count fix (pump_pack_nav_packet, pump_pack_cmd_packet, pump_pack_ack_packet; 133.0-B-2 4.1.3.4.3.3/.4) must already be in the tree. If it is not, stop and report; do not build on a counter that is always 0 (historical: that was the pre-fix state; the count is no longer always 0).
 
 SCOPE (mandatory Annex A rows only: SPP-2, 6, 7, 8, 10, 11, 12, 13, 19-22; SPP-9 is optional, skip it)
 The codec (clause 4.1 packet structure) already exists. Add the service layer on top of it:

@@ -47,6 +47,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-11-09-001 | Grok Hamilton (Grok Bot) | documentation
+
+**Whiteboard cleanup.** The root `AGENT_WHITEBOARD.md` is now one Open / Later layout with only active rows; the Handover and Upcoming stages sections are gone. The finished LOOK rows moved into the docs they point at (`docs/hardware/HARDWARE.md`, `docs/hardware/TELSTAR_BOOSTER_PACK.md`, the `starcom/docs/research/` reports, and the new `starcom/docs/research/ingenuity-pseudo-simplex-link.md`). The FSK bitstream bearer detail now lives only on `starcom/AGENT_WHITEBOARD.md`. Stale facts were fixed: the find-me beacon `b` is on-only (`docs/ROCKETCHIP_OS.md`, `docs/USER_GUIDE.md`), the sequence-count prompts and `docs/IVP.md` say per-APID counts landed in `1f23b359`, and the `test_coding.cpp` header cites 131.0-B-6 section 4.3 / 8.4 (comment only). Bench and wiring rows were updated by Buzz. Verified: docs and one comment line, no firmware path, host ctest at commit.
+
 ### 2026-10-31-001 | Grok Hamilton (Grok Bot) | refactor, bugfix, tooling
 
 **Starcom coding-standards fixes changed Rocket-Chip code.** The adapter (`src/starcom_adapt/` `byte_pump`, `cmd_sdu`) got the same rule fixes as the Starcom core. The COP-P resend and sync-loss counts moved into `CoppEndpoint`, which changed `ao_telemetry.cpp` and `src/diag/link_baseline`. The station dashboard `D` key works again (PR-41, `src/cli/rc_os.cpp`, `src/station/gcs_mavlink.h`). Build-flag `#ifdef`s changed to generated constants (`cmake/rc_version.cmake`, `include/rocketchip/host_build.h.in`). The root `.clang-tidy` gate was fixed, the soak script was fixed, and `scripts/ci/comment_coverage.py` is new. The new `include/rocketchip/host_build.h.in` uses an `#ifndef` guard, not `#pragma once` (JSF 27, 35). Every bench gate passed. Step record: `starcom/docs/audits/STARCOM_AUDIT_FIX_RECORD_2026-10-30_to_2026-10-31.md`. Library row: `starcom/CHANGELOG.md` 2026-10-31-001.

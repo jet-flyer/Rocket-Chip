@@ -4,7 +4,7 @@
 // Book: none.
 
 // IVP increment 19 - Prox-1 convolutional and LDPC encode.
-// 211.2 section 3.4.3/3.4.4/3.4.5 -> 131.0-B-5 section 3.3 / section 7.4. Encode only.
+// 211.2 section 3.4.3/3.4.4/3.4.5 -> 131.0-B-6 section 4.3 / section 8.4. Encode only.
 
 #include "heap_trap.h"
 #include "starcom/adapters/phy.h"

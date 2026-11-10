@@ -427,6 +427,31 @@ The Table 3-1 text for E2d is the same in 211.1-B-4 and 211.1-P-4.2:
 >
 > — 235.1-R-1, Annex B, B7.9, p. B-15
 
+The Green Book marks FSK the same way, in the features list, not as a requirement:
+
+> "Intended for missions such as microprobes with a descoped receiver. This option is not required for cross support."
+>
+> — 210.0-G-2, §2.3.3, p. 2-10, footnote 2 (on "FSK" under Physical Layer, Modulation Options)
+
+History (informational, not a requirement). Greg Kazz, answering why E2d modulation differs and what microprobes are, 28 September 2016, on the CCSDS SLS-SLP list:
+
+> "From a historical perspective, the prototypical E2d device we had in mind was a micro-probe.  NASA sent a micro-probe to Mars called Deep Space 2 (DS-2), deployed from the Mars Polar Lander in 2000, which unfortunately failed to communicate."
+>
+> — Greg J. Kazz, [Sls-slp] reply to Xiongwen He, 28 Sep 2016, https://mailman.ccsds.org/pipermail/sls-slp/2016-September/000772.html
+
+Working assumption only, if an E2d-style path is chosen later; untested residual-PSK TX on our desk; not a book claim and not a product decision:
+
+- Rocket TX (telemetry residual-PSK): SDR or I/Q path. RFM95/96 and CC1101 cannot make that waveform.
+- Ground TX (rare FSK commands): RFM96W or CC1101 can make FSK.
+- Rocket RX: FSK (same modules).
+- Ground RX (residual-PSK): not an RFM demod path; SDR on the station is the practical receive side.
+
+Module versus die: SX1276 is the die (synth/modem); RFM95W is the 915 MHz match; RFM96W is the 433/470-class match. SPI to the die does not change the match. A 915 MHz RFM95W cannot become a clean 435 MHz Prox-1 forward radio by register writes alone.
+
+The books still give no FSK deviation, rate, or acquisition rules for E2d (211.1-B-4 and 211.1-P-4.2 name FSK only in the Table 3-1 E2d row and the acronyms list). Do not put FSK uplink details into CONFORMANCE without a quoted profile Nathan accepts.
+
+Hail can set TX and RX modulation separately. 211.0-B-6 Table 6-10 E30 (p. 6-27) lists separate SET PL EXTENSIONS (TX) and (RX), and B1.7.9 sets Carrier Modulation.
+
 #### Q2.1d Residual-carrier PCM/PM
 
 > "3.3.5.1 The PCM data shall be Bi-Phase-L encoded and modulated directly onto the carrier. 3.3.5.2 Residual carrier shall be provided with modulation index of 60° ± 5%."
@@ -870,3 +895,4 @@ Inside the 211.1-P-4.2 S-band section (§5): the modulation index list (§5.1.6.
 7. Hailing modulation, coding, or symbol rate, in the Blue Books.
 8. Carrier-only, acquisition, or idle timing for GMSK or a suppressed carrier. (Search terms in Q2.5.)
 9. A warning against partial implementation, in those words. (Search terms in Q2.6.)
+10. An FSK deviation, rate, or acquisition profile for E2d. (211.1-B-4 and 211.1-P-4.2 name FSK only in Table 3-1 and the acronyms list; see Q2.1c.)

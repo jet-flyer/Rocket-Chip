@@ -290,6 +290,7 @@ Links: every book above is under https://ccsds.org/wp-content/uploads/gravity_fo
   - GMSK made as FSK. §3.1.3.1, p. 3-2. QUOTE: "There are two common methods of generating GMSK, one as a Frequency Shift Keyed (FSK) modulation and the other as an offset quadrature phase shift keyed modulation."
 - Not found: I found no text on noncoherent or limiter-discriminator detection. Searches for "discriminator", "noncoherent" and "limiter" returned no hits.
 - Keep the waveforms apart (Nathan's rule). This GMSK is for high-rate SRS/EESS telemetry. It is not the 211.1-P-4.2 Pink Book GMSK. It is not E2d FSK, not 211.0-B-6 suppressed-carrier PSK, and not residual-carrier PCM/PM.
+- The same power-saving motive does not make those four waveforms the same waveform or requirement set. Not a design decision; docs and hardware notes must not merge them.
 - Patterns: P3. INFERENCE: the scope is tied to bands and rates, so any row that cites this book needs a re-check when the radio changes.
 - FSK pivot: **helps** (the precoding reason applies to any coherent GMSK receiver) and **warns** (the book's own scope excludes our band and rate).
 
