@@ -74,6 +74,12 @@ Moved from the root board 2026-10-21. When the network grows past one ground/veh
 
 ---
 
+## ESP32 repeater station with two-radio duplex (LATER) (2026-11-21)
+
+Nathan's idea: a dedicated ground repeater station on the ESP32-S3 Reverse TFT Feather (#5691) on hand, or an RP2350 board. The RFM95W (SX1276) and LoRa in general are half-duplex, and no LoRa chip receives while it transmits, so a one-radio repeater is store-and-forward and spends double airtime. With two of the four RFM95s, one radio always listens on the downlink frequency and the other re-sends on a second frequency, so the station never goes deaf while it sends. Both radios can share one SPI bus with separate CS and IRQ pins. Both sit in 902-928 MHz, so put the two frequencies near opposite ends of the band and separate the antennas on the tripler mount (vertical spacing or a few meters). Measure how much the RX radio loses while the TX radio sends before buying a cavity duplexer. Builds on the Stage 12A relay test (0 CRC errors) and IVP 7 `repeatPltu` / IVP 12 buffered. ESP32 extras on the same box: phone dashboard over Wi-Fi, MAVLink UDP to QGC, TFT pages on the three buttons.
+
+---
+
 ## LoRa Hail (OPEN) (2026-09-02)
 
 **Starcom** Prox-1 §6 / Best-effort hail on RFM95/915 — not a 211.1 PICS tick. Wire `MacSession`; do not reimplement §6. **Coupled with RC FPV-style scan/find** (repo-root `AGENT_WHITEBOARD.md`): same first-impl slot, **FPV scan won**. Hail is not cancelled. Stash `wip phy-scan leds docs` had both in one row. Not this sitting.
