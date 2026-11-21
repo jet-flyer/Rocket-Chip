@@ -189,6 +189,14 @@ Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Debug `o` (2026-10-08):** `f142a4db` force-one-TX-timeout is inside `#if ROCKETCHIP_DEV_MODE`, but that option defaults ON, and the case does not call `inject_allowed()`, so it runs with runtime DEV MODE off (help only hides it). Compile it out of field images or refuse it when DEV MODE is off. Needs Nathan.
 
+### Per-board folder in the hardware section (TODO) (Nathan, 2026-11-21)
+
+Board-specific files are spread out today: board packs in `include/rocketchip/` (`board.h` selects `board_feather_rp2350.h`, `board_fruit_jam.h`, `board_pico2.h`, and on `grok/tiny2350-main` `board_tiny_2350.h`), `PICO_BOARD` defaults in `CMakeLists.txt` (~227-239), presets in `CMakePresets.json` (`vehicle-tiny`), board docs in `docs/hardware/` (`HARDWARE.md` sections, `BOARD_COMPARISON.md`, carrier and booster-pack files), and CI board setup in `scripts/ci/board_config.py` + `boards.example.json`. To do: one hardware folder with a sub-folder per board, holding that board's config header, pinout and notes, plus anything else that applies only to that board. Open: exact path and how CMake finds the header (include path per `PICO_BOARD`). Shared code stays out of these folders.
+
+### Possible nasa/CF closure-flag bug (look into later) (Nathan, 2026-11-21)
+
+`fsw/src/cf_codec.c:108-109` in CF v7.0.2 `dev` defines the Metadata closure-requested field at shift 7 (0x80), but 727.0-B-5 Table 5-9 puts it at 0x40. The same field is used on encode (`CF_CFDP_EncodeMd`, `:582`) and decode (`CF_CFDP_DecodeMd`, `:909`), so CF can't interoperate in either direction, while two CF nodes cancel each other out. F´ fixed the same bug (fprime#6136). Found by Goddard, book-checked by Duke, lines verified. Open: report upstream (Nathan's call; a public post) and confirm with a cfdp-py round trip. See plan §21 and `docs/reports/2026-11-21_goddard_cfdp-reuse-study.md`.
+
 ## Later
 
 ### RC side of Space Packet as the core unit (2026-10-19)
