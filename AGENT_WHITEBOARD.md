@@ -195,7 +195,11 @@ Board-specific files are spread out today: board packs in `include/rocketchip/` 
 
 ### Possible nasa/CF closure-flag bug (look into later) (Nathan, 2026-11-21)
 
-`fsw/src/cf_codec.c:108-109` in CF v7.0.2 `dev` defines the Metadata closure-requested field at shift 7 (0x80), but 727.0-B-5 Table 5-9 puts it at 0x40. The same field is used on encode (`CF_CFDP_EncodeMd`, `:582`) and decode (`CF_CFDP_DecodeMd`, `:909`), so CF can't interoperate in either direction, while two CF nodes cancel each other out. F´ fixed the same bug (fprime#6136). Found by Goddard, book-checked by Duke, lines verified. Open: report upstream (Nathan's call; a public post) and confirm with a cfdp-py round trip. See plan §21 and `docs/reports/2026-11-21_goddard_cfdp-reuse-study.md`.
+`fsw/src/cf_codec.c:108-109` in CF v7.0.2 `dev` defines the Metadata closure-requested field at shift 7 (0x80), but 727.0-B-5 Table 5-9 puts it at 0x40. The same field is used on encode (`CF_CFDP_EncodeMd`, `:582`) and decode (`CF_CFDP_DecodeMd`, `:909`), so CF can't interoperate in either direction, while two CF nodes cancel each other out. F´ fixed the same bug (fprime#6136). Found by Goddard, book-checked by Duke, lines verified. **Nathan (2026-11-22):** no upstream report of the CF bug until we look into it more. Still open: confirm with a cfdp-py round trip. See plan §21 and `docs/reports/2026-11-21_goddard_cfdp-reuse-study.md`.
+
+### Add a distinct house-rules section to standards/ (Nathan, 2026-11-22)
+
+Split house rules (ours, more flexible, changeable by Nathan's call) from external standards (more rigid, cite the clause) so each rule is clearly labeled. Example: the 2026-10-21 flash rule ("writes only while disarmed") is a house rule, not from a standard. Tie in with plan §19.6 (the lighter references tier, decided 2026-11-21; do not edit `standards/` yet). **Duke's suggested structure (2026-11-22), a proposal, not decided:** three tiers in `standards/` sharing one layout with plan §19.6: (1) Binding standards we claim conformance to (e.g. 133.0-B-2, 131.0-B-5), changed only by a deliberate decision with deviations recorded; (2) Reference guidance followed unless something better turns up (PUS, GSFC, FAA, Magenta/Historical books); (3) House rules (the flash rule, AO Commandments), each tagged with origin and date so it is clearly changeable. Every rule carries its source so a house rule cannot pass as a standard (as the old flash rule did).
 
 ## Later
 
