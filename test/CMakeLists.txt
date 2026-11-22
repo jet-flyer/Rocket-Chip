@@ -471,6 +471,14 @@ target_include_directories(test_prearm_fail_ticks PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_prearm_fail_ticks)
 
+# WMM GPS-fix persist gate (pure, header-only): a fix after ARM is applied
+# in RAM but its cal-storage flash write waits for kIdle.
+add_executable(test_wmm_persist test_wmm_persist.cpp)
+target_link_libraries(test_wmm_persist PRIVATE GTest::gtest_main)
+target_include_directories(test_wmm_persist PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_wmm_persist)
+
 # R-6c (2026-05-07 audit): Levenberg-Marquardt solver host coverage.
 # Pure-function module extracted from calibration_manager.cpp; tests pin
 # bytes-on-wire identity of the LM math under template dispatch.
