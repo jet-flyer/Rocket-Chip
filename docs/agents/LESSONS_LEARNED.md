@@ -1001,6 +1001,8 @@ The ICM-20948 returns to a sleep/reset state (cause unknown — possibly power g
 
 ---
 
+**2026-11-22 note (pending a wider LL audit):** this entry's XIP cache figure ("2KB") and datasheet section ("5.5.3") are likely wrong. The in-tree RP2350 datasheet §4.4.1 (p.341) says "The cache is 16 kB, two-way set-associative, 1 cycle hit", and §5.5.3 is "UF2 targeting rules". Both were written in a81e20ff (2026-02-21) before the datasheet was in the repo. The 398 → 59 µs measurement is not re-benched.
+
 ## Entry 30: RP2350 XIP Cache Thrashing — Use `.time_critical` for Hot Functions >2KB
 
 **Date:** 2026-02-21

@@ -47,6 +47,19 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-11-23-002 | Grok Hamilton (Grok Bot) | feature, hardware, documentation
+
+Work 2026-11-21 to 2026-11-23. **Tiny 2350 Phase A on `grok/tiny2350-main` (not merged to main; full merge to main planned at the end of Phase 1 at the latest, per Nathan 2026-11-23).** Adds the Pimoroni Tiny 2350 (PIM721) board pack and a discrete-RGB status-LED backend, and gates the radio, pyro, Flight Director pyro path, PIO backup timers, Go/No-Go stations and boot hardware check on the pack's capability flags instead of board identity. The boot check names the LED the board has (RGB on GP18/19/20 on Tiny, NeoPixel only where fitted). Found on Buzz's Tiny bench: DISARM printed `[PIO] Backup timers disarmed` with no timers running; disarm and the fire poll are now skipped without pyro hardware. Plan and open items: `docs/plans/TINY2350_AND_LOGGING_PLAN_2026-11-21.md` sections 2, 9 and 16. Pushed in two parts:
+
+- Push 1 `7ccbb202`..`192cfbfe` (merge of main `b067cf49`, docs `c19870b6`, pack `c3078f01`, boot check `192cfbfe`): Verified at push: vehicle 3/3 PASS (flight-192cfbfe), station 4/4 PASS (flight-192cfbfe); firmware tree eb8965f0f0ea; range b067cf497f33..192cfbfef46c.
+- Push 2 `192cfbfe`..`0e91d7c2` (`[isolate:pyro-deploy]` `cf9b0777`, docs `0e91d7c2`): Verified at push: vehicle 3/3 PASS (flight-0e91d7c2), station 4/4 PASS (flight-0e91d7c2); firmware tree 8ab038c8e235; range cf9b07773f3a..0e91d7c20d6a.
+
+Not flight qualification.
+
+### 2026-11-23-001 | Grok Hamilton (Grok Bot) | tooling, bugfix, hardware
+
+Work 2026-11-21 to 2026-11-23. **Pre-push gate redesign, [PR #39](https://github.com/jet-flyer/Rocket-Chip/pull/39) merged as `5b681bf8` (commits `2cc9867d`, `5032b3ce`).** Benches are checked against each board profile's expected hardware (fitted/optional/not-fitted from `boards.local.json` / `board_config.py`). A TLA+ statechart model check of the gate rules found two bugs, fixed in `5032b3ce`: the vehicle radio preflight line was not judged, and inhibits/not-fitted could hide a failure (wrong radio chip or `[FAIL]` now fails in every state; a fitted part with no line fails; present-but-not-fitted warns). Host tests `scripts/test_pre_push_gate.py` 304 pass, 1 skip. Detail: `standards/HW_GATE_DISCIPLINE.md` and `docs/FLASHING.md`. Gate push of the PR branch: Verified at push: vehicle 3/3 PASS (flight-2cc9867d), station 4/4 PASS (flight-2cc9867d); firmware tree 9d334dde1974. Known follow-ups noted for later: the banner check compares commit hash not firmware tree; `split_push.py` import path.
+
 ### 2026-11-09-001 | Grok Hamilton (Grok Bot) | documentation
 
 **Whiteboard cleanup.** The root `AGENT_WHITEBOARD.md` is now one Open / Later layout with only active rows; the Handover and Upcoming stages sections are gone. The finished LOOK rows moved into the docs they point at (`docs/hardware/HARDWARE.md`, `docs/hardware/TELSTAR_BOOSTER_PACK.md`, the `starcom/docs/research/` reports, and the new `starcom/docs/research/ingenuity-pseudo-simplex-link.md`). The FSK bitstream bearer detail now lives only on `starcom/AGENT_WHITEBOARD.md`. Stale facts were fixed: the find-me beacon `b` is on-only (`docs/ROCKETCHIP_OS.md`, `docs/USER_GUIDE.md`), the sequence-count prompts and `docs/IVP.md` say per-APID counts landed in `1f23b359`, and the `test_coding.cpp` header cites 131.0-B-6 section 4.3 / 8.4 (comment only). Bench and wiring rows were updated by Buzz. Verified: docs and one comment line, no firmware path, host ctest at commit.
