@@ -57,6 +57,21 @@ the GPS clock only.
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
 
+### Typical Bench Setup
+
+What each gate role normally has fitted (Nathan, 2026-11-23). Parts get moved between boards; the gate's board profiles (`scripts/ci/board_profiles.json`) follow this table, and per-branch not-fitted entries (`scripts/ci/gate_inhibits.json`) cover temporary changes. Required = a part of this class (any supported IMU or baro driver) must be detected, and a missing one fails. Typical = normally fitted, and a missing one fails unless a not-fitted entry covers it. Optional = checked when present, N/A when absent, never a fail for being missing; a push that changes radio code requires the radio. Not expected = fitting one is only a warning.
+
+| Board | Part | Level | Notes |
+|---|---|---|---|
+| Feather RP2350 HSTX (vehicle) | IMU (any supported, today the ICM-20948 #4554 on STEMMA QT, 0x69) | Required | Off-board for now; will become integral |
+| Feather RP2350 HSTX (vehicle) | Baro (any supported, today the DPS310 #4494 on STEMMA QT) | Required | Off-board for now; will become integral |
+| Feather RP2350 HSTX (vehicle) | LoRa Radio FeatherWing RFM95W 915 MHz (#3231) | Optional | Required when the push changes radio code |
+| Feather RP2350 HSTX (vehicle) | PA1010D GPS (#4415, I2C 0x10) | Optional | When fitted, first on the QT chain: board, GPS, baro, IMU |
+| Fruit Jam (station) | RFM95W 915 MHz radio | Optional | Required when the push changes radio code |
+| Fruit Jam (station) | PA1010D GPS (I2C) | Optional | Spare unit; used for range and extra sensor testing |
+| Fruit Jam (station) | IMU / baro | Not expected | Fitting one is only a warning |
+| Tiny 2350 | (not a gate role yet) | | Shares the Qwiic IMU and baro with the Feather |
+
 ### Onboard Features Used
 - PSRAM (8MB) - High-speed data buffering
 - Flash - Persistent storage

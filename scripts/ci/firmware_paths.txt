@@ -24,6 +24,10 @@
 #
 # Markdown under a firmware path is not firmware.
 !**/*.md
+# Per-branch gate inhibits (data, not gate code). A not-fitted entry changes
+# the bench's expected hardware, which the bench note records (expect: line),
+# so a stale note is not reused; a warning entry changes no bench result.
+!scripts/ci/gate_inhibits.json
 #
 # Changing this file changes which commits get a bench run. Removing a path
 # needs the repo owner's OK (and a council, per the matrix policy).
