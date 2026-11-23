@@ -222,6 +222,18 @@ Design and ground-path options (Yamcs, network forwarding, SLE, XTCE): `starcom/
 
 **Should the station role require a radio? (LATER, Nathan 2026-11-23).** The gate's board profiles (`scripts/ci/board_profiles.json`) make the radio optional on every board for now: it's checked when detected, N/A when not, and required only when the push changes radio code. The station build may need the radio as required equipment. Settle it later, allowing for special station setups other than the main board (Fruit Jam). Nothing is decided.
 
+### Analog FPV OSD for the Telestar expansion (Nathan, 2026-11-23)
+
+**Reference for when the Telestar expansion includes analog video feeds (Nathan, 2026-11-23).** PIO can overlay a live analog (NTSC/PAL) FPV OSD on the RP2350. HSTX does not help with analog overlay. Pointer only; nothing is scheduled.
+
+**Code and hardware to pull from (fact).** Betaflight FB_OSD / Pixel OSD (PR #14882, merged, in 2026.6): `osd_tx.pio` and `osd_pico.c`; three pins (white, black, sync-detect); PAL/NTSC character grid plus pixel-drawn horizon, sidebars, and sticks. Notes: https://betaflight.com/docs/wiki/release/Betaflight-2026-6-Release-Notes and https://github.com/betaflight/betaflight/pull/14882. Betaflight is GPLv3, so reuse has to stay license-compatible; do not copy that code straight into this tree. OpenFC Lite Mini analog front end: the MCU is an RP2354A (QFN-60; verified from that repo's `AGENTS.md`), with a TLV7031 sync comparator, SN74LVC1G3157 SPDT switch, and op-amp on GPIO14-16 (`OSD_W`, `OSD_EN`, `OSD_SYNC`) — https://github.com/OpenDrone-hw/OpenFC-Lite-Mini/blob/main/AGENTS.md. ArduPilot RP2350 PR #32995 is still open (checked 2026-11-23); it claims PIO scan-out analog OSD and also lists MSP DisplayPort: https://github.com/ArduPilot/ardupilot/pull/32995.
+
+**RP2350 facts** (datasheet Release 9, https://pip.raspberrypi.com/documents/RP-008373-DS-rp2350-datasheet.pdf): three PIO blocks / 12 state machines (section 11.1); the Betaflight OSD program is 31/32 instructions and needs a whole block to itself; no user analog comparator (OpenFC adds the TLV7031); HSTX is output-only (section 12.11, GPIOs 12-19); ADC is 12-bit 500 kS/s (section 12.4). **Inference:** 500 kS/s is too slow to digitize NTSC/PAL, so overlay is timed analog switching, not frame capture; HSTX is for digital video output (DVI-style), not analog overlay or video ingest.
+
+**Digital FPV (fact).** DJI / Walksnail / HDZero OSD is MSP DisplayPort over a UART; no video hardware on the flight controller. Betaflight: https://betaflight.com/docs/development/API/DisplayPort. ArduPilot: https://ardupilot.org/plane/docs/common-displayport.html.
+
+**MAX7456 (fact, not re-verified live).** Classic analog OSD chip. An Analog Devices / Maxim FAQ reports it obsolete with no replacement planned; that page was not re-fetched on 2026-11-23. AT7456E-class clones are still common.
+
 ### Tiny 2350 as a core RC analogue (Nathan 2026-10-08)
 
 **Tiny 2350 as a core RC analogue (Nathan, 2026-10-08).** Use the Tiny 2350 as a smaller, lighter core RC analogue when work on internal logging and operation without telemetry starts. Board facts and pin-map conflicts: `docs/hardware/HARDWARE.md`, "Tiny 2350 (PIM721)".
