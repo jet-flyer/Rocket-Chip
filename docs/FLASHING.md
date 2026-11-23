@@ -242,6 +242,42 @@ the debug probe is wired to. One board per role.
 - `RC_UPTIME_GAP_S` (test-only) sets the seconds between the 3 uptime readings; unset keeps the defaults.
 - `RC_UPTIME_HOLD_S` (test-only) keeps reading uptime for up to N s after the 3 readings; a reset gives exit 4, no reset fails with 'hold expired: no reset seen' (exit 3).
 
+### Expected hardware (board profiles and inhibits)
+
+Nathan, 2026-11-23: the bench checks each board against what it is expected to
+carry, not a fixed list.
+
+- Add `"board": "<profile>"` to a board in `boards.local.json` to name its
+  profile in `scripts/ci/board_profiles.json` (tracked). Without it, that
+  board's bench keeps the legacy rules.
+- Levels per part: **required** means it must be detected. Only the IMU and baro
+  are required, and either counts as any supported part, not a particular chip.
+  **optional** (radio, GPS) means it is checked when detected and shown as N/A
+  by name when not; a missing part is never a fail. **absent** means it is not
+  expected, and fitting one is a warning only. The usual setup is in
+  `docs/hardware/HARDWARE.md`, Typical Bench Setup.
+- A push that changes radio code (`[radio]` in `firmware_paths.txt`) requires
+  the radio on every benched board that has a profile. If one isn't fitted,
+  the push is blocked with the reason.
+- On the vehicle, a preflight NO-GO with the IMU or baro expected is a test
+  fail. A warm reboot can cause it, so power-cycle and rerun.
+- `scripts/ci/gate_inhibits.json` (tracked, empty on main) holds per-branch
+  entries, like an aircraft warning-panel inhibit. `"kind": "warning"` with a
+  warning `id` (printed as `WARNING [id]`) shows that warning as `INHIBITED`.
+  It is still printed, never hidden. `"kind": "not-fitted"` with `role` and
+  `part` marks a part as off the board for that work, shown as N/A by name. A
+  required part can't be marked. Every entry needs a `reason`. An entry
+  applies only to pushes to its `branch`, so it ends when the branch merges.
+  An optional `until` (YYYY-MM-DD) ends it sooner. Failures can never be
+  inhibited.
+- The bench note records the expected hardware (`expect:`) and the N/A checks
+  (`na:`). A note is reused only for the same expected hardware. In a PASS
+  result, the Rule 3 citation names the N/A checks; they are not counted as
+  passes.
+- `scripts/ci/split_push.py` (**evaluation only, not yet permanent**) prints
+  the `git push <remote> <sha>:<branch>` sequence that fits the push-shape
+  rules. It pushes nothing.
+
 ---
 
 ## Board / firmware verification

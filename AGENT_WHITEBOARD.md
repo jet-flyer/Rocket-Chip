@@ -202,6 +202,10 @@ Design and ground-path options (Yamcs, network forwarding, SLE, XTCE): `starcom/
 
 **Roles vs. bench targets split. Deferred until the Forgix or the pico-ice gets an RC role (Nathan, 2026-10-08).** A role is a firmware config (vehicle or station). A role is not a board. One board (for example the Feather) can run both roles. Today the gate benches the vehicle and the station separately only because the current boards have different hardware quirks. Idea: a table that maps each bench target to the role that it runs. Each bench target row gives the physical board, the USB serial, the flash path and the board quirks (chip package and pin count, RP2350 stepping and E9). The table stores the stepping per board serial, from a picotool read of that board, not from the board type. Today the `ROLES` table in `scripts/ci/pre_push_gate.py` maps each role to one setup. Nothing is decided.
 
+### Station radio as required equipment (LATER) (Nathan, 2026-11-23)
+
+**Should the station role require a radio? (LATER, Nathan 2026-11-23).** The gate's board profiles (`scripts/ci/board_profiles.json`) make the radio optional on every board for now: it's checked when detected, N/A when not, and required only when the push changes radio code. The station build may need the radio as required equipment. Settle it later, allowing for special station setups other than the main board (Fruit Jam). Nothing is decided.
+
 ### Tiny 2350 as a core RC analogue (Nathan 2026-10-08)
 
 **Tiny 2350 as a core RC analogue (Nathan, 2026-10-08).** Use the Tiny 2350 as a smaller, lighter core RC analogue when work on internal logging and operation without telemetry starts. Board facts and pin-map conflicts: `docs/hardware/HARDWARE.md`, "Tiny 2350 (PIM721)".

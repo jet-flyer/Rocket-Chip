@@ -284,7 +284,17 @@ def main():
     parser.add_argument('--commit', default=None,
                         help='Sha being pushed (pre-push gate). The ELF must be a '
                              'clean build of that firmware tree. Default: working tree.')
+    parser.add_argument('--expect', default=None,
+                        help='Expected hardware from the pre-push gate, e.g. '
+                             'imu=fitted,baro=fitted,radio=optional,gps=optional. '
+                             'With IMU or baro fitted, a preflight NO-GO fails '
+                             'the bench. Default: NO-GO only warns (legacy).')
     args = parser.parse_args()
+    try:
+        args._expect = board_config.parse_expect(args.expect)
+    except board_config.BoardConfigError as e:
+        print(f'ERROR: {e}')
+        sys.exit(2)
 
     # Wall-clock watchdog: hard kill after deadline, even if stuck inside
     # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
@@ -367,6 +377,24 @@ def main():
         sys.exit(2)
 
 
+# Sensor parts whose health the preflight GO verdict covers.
+PREFLIGHT_PARTS = ('imu', 'baro')
+NOGO_FAIL_HINT = 'power-cycle the vehicle, then rerun'
+
+
+def preflight_nogo_message(expect):
+    """Preflight never reached GO. With IMU or baro expected fitted that is a
+    test fail (Nathan 2026-11-23); otherwise (manual run, or no sensors
+    expected) it stays the legacy warning. Pure, host-tested."""
+    fitted = [p for p in PREFLIGHT_PARTS
+              if expect and expect.get(p) == board_config.FITTED]
+    if fitted:
+        return (f'FAIL: preflight NO-GO after 15 s with {" and ".join(fitted)} '
+                f'expected fitted. A warm reboot can leave the sensors NO-GO: '
+                f'{NOGO_FAIL_HINT}.')
+    return 'WARNING: sensor health timeout — tests may fail due to NO-GO'
+
+
 def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     """Test body inside open_classified_port context."""
 
@@ -392,7 +420,11 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
                 print(f'  {verdict_line[0].strip()}')
         time.sleep(1.0)
     else:
-        print('WARNING: sensor health timeout — tests may fail due to NO-GO')
+        msg = preflight_nogo_message(getattr(args, '_expect', None))
+        if msg.startswith('FAIL'):
+            print(msg)
+            return 1
+        print(msg)
 
     # Inject keys are compile-time ROCKETCHIP_DEV_MODE + runtime toggle.
     # Toggle needs USB + IDLE (ABORT leftover from a prior run refuses).

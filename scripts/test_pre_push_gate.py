@@ -275,6 +275,7 @@ def main() -> int:
 
         bench_key_v2_tests(repo, td, ft, pg, f, d, base,
                            gcc_a, gcc_b, pt_a, pt_b, tools, sdk)
+        hw_expect_tests(pg)
     finally:
         shutil.rmtree(td, ignore_errors=True)
     print('ALL CHECKS PASS' if FAILS == 0 else f'{FAILS} CHECK(S) FAILED')
@@ -587,7 +588,7 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         ft.elf_tree_id = lambda *a, **k: 'feedface' * 5
         pg.build_role = lambda wt, r, want, keyed: (wt / 'rocketchip.elf', 'abc123')
         pg.flash_recorded = lambda elf: True
-        pg.run_bench = lambda wt, script, sha, label: (
+        pg.run_bench = lambda wt, script, sha, label, **k: (
             '2/2 PASS', 'SER1' if label.startswith('vehicle') else 'SER2')
         with env_set(RC_BENCH_FRESH='1'):
             out = captured(pg.handle_branch, repo, 'origin', 'refs/heads/feat',
@@ -860,6 +861,191 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         (bdir / 'build.ninja').unlink()
     else:
         print('  [SKIP] pioasm_DIR check needs a real pioasm.exe on Windows')
+
+
+def hw_expect_tests(pg) -> None:
+    """Expected hardware: profiles, inhibits, bench judging, notes (Nathan
+    2026-11-23). Pure functions, no board."""
+    import datetime as _dt
+    import json as _json
+    import board_config as bc
+    sys.path.insert(0, str(HERE / 'ci'))
+    print('test_board_profiles (tracked board_profiles.json)')
+    profiles = bc.parse_profiles((HERE / 'ci' / bc.PROFILES_FILE).read_text(encoding='utf-8'))
+    fe = profiles['feather_rp2350']
+    fj = profiles['fruit_jam']
+    check('tracked profiles load', fe.role == 'vehicle' and fj.role == 'station')
+    check('vehicle: IMU and baro required, radio and GPS optional',
+          fe.parts == {'imu': 'required', 'baro': 'required',
+                       'radio': 'optional', 'gps': 'optional'}, str(fe.parts))
+    check('station: radio and GPS optional, no IMU or baro expected',
+          fj.parts == {'imu': 'absent', 'baro': 'absent',
+                       'radio': 'optional', 'gps': 'optional'}, str(fj.parts))
+
+    def bad_profile(obj) -> bool:
+        try:
+            bc.parse_profiles(_json.dumps(obj))
+        except bc.BoardConfigError:
+            return True
+        return False
+    ok_parts = {'imu': 'required', 'baro': 'required', 'radio': 'optional', 'gps': 'optional'}
+    check('profile missing a part -> error',
+          bad_profile({'profiles': {'x': {'role': 'vehicle', 'parts': {'imu': 'required'}}}}))
+    check('unknown level -> error', bad_profile({'profiles': {'x': {
+        'role': 'vehicle', 'parts': dict(ok_parts, gps='maybe')}}}))
+    check('unknown role -> error', bad_profile({'profiles': {'x': {
+        'role': 'rover', 'parts': ok_parts}}}))
+
+    print('test_gate_inhibits (per branch, expire on merge or date)')
+    rows = bc.parse_inhibits((HERE / 'ci' / bc.INHIBITS_FILE).read_text(encoding='utf-8'))
+    check('tracked inhibit list is empty on main', rows == [], str(rows))
+    text = _json.dumps({'inhibits': [
+        {'branch': 'grok/x', 'kind': 'warning', 'id': 'radio-gap', 'reason': 'known'},
+        {'branch': 'grok/x', 'kind': 'not-fitted', 'role': 'station', 'part': 'gps',
+         'reason': 'GPS on the vehicle this week', 'until': '2026-11-30'},
+        {'branch': 'grok/x', 'kind': 'warning', 'id': 'shape-isolate', 'reason': 'old',
+         'until': '2026-11-01'},
+        {'branch': 'grok/other', 'kind': 'warning', 'id': 'unknown-serial', 'reason': 'n/a'},
+    ]})
+    rows = bc.parse_inhibits(text)
+    act, exp = bc.active_inhibits(rows, 'grok/x', _dt.date(2026, 11, 23))
+    check('entries for the pushed branch apply, others ignored',
+          sorted(x.target for x in act) == ['radio-gap', 'station:gps'],
+          str([x.target for x in act]))
+    check('dated entry past its date -> expired, not applied',
+          [x.target for x in exp] == ['shape-isolate'], str([x.target for x in exp]))
+    act_main, _ = bc.active_inhibits(rows, 'main', _dt.date(2026, 11, 23))
+    check('after merge (push to main) -> nothing applies', act_main == [])
+    check('branch from hook ref and from --plan upstream',
+          bc.branch_of('refs/heads/grok/x') == 'grok/x'
+          and bc.branch_of('refs/remotes/origin/grok/x') == 'grok/x')
+
+    def bad_inhibit(entry) -> bool:
+        try:
+            bc.parse_inhibits(_json.dumps({'inhibits': [entry]}))
+        except bc.BoardConfigError:
+            return True
+        return False
+    check('inhibit without a reason -> error',
+          bad_inhibit({'branch': 'b', 'kind': 'warning', 'id': 'radio-gap'}))
+    check('bad until date -> error', bad_inhibit(
+        {'branch': 'b', 'kind': 'warning', 'id': 'radio-gap', 'reason': 'r', 'until': 'soon'}))
+    check('unknown kind (no failure inhibits) -> error', bad_inhibit(
+        {'branch': 'b', 'kind': 'fail', 'id': 'x', 'reason': 'r'}))
+
+    print('test_expectations (profile + not-fitted entries)')
+    e = bc.expectations(fj, 'station', act)
+    check('station: GPS not fitted by entry, radio optional, IMU absent',
+          e == {'imu': 'absent', 'baro': 'absent', 'radio': 'optional',
+                'gps': 'not-fitted'}, str(e))
+    check('expect round-trips through --expect',
+          bc.parse_expect(bc.format_expect(e)) == e)
+    req = bc.parse_inhibits(_json.dumps({'inhibits': [
+        {'branch': 'b', 'kind': 'not-fitted', 'role': 'vehicle', 'part': 'baro', 'reason': 'r'}]}))
+    try:
+        bc.expectations(fe, 'vehicle', req)
+        blocked = False
+    except bc.BoardConfigError:
+        blocked = True
+    check('required part (baro) cannot be marked not fitted', blocked)
+    try:
+        bc.expectations(fj, 'vehicle', [])
+        blocked = False
+    except bc.BoardConfigError:
+        blocked = True
+    check('profile role does not match the board role -> error', blocked)
+
+    print('test_warn_inhibit (shown, never silent)')
+    pg.WARN_INHIBITS.clear()
+    pg.WARN_INHIBITS['radio-gap'] = 'known on this branch'
+    out = captured(pg.warn, 'radio not benched', 'radio-gap')
+    check('inhibited warning prints as INHIBITED with its reason',
+          'INHIBITED [radio-gap] (known on this branch)' in out, out)
+    out = captured(pg.warn, 'other', 'shape-isolate')
+    check('other warning still prints as WARNING with its id',
+          'WARNING [shape-isolate]' in out, out)
+    pg.WARN_INHIBITS.clear()
+
+    print('test_radio_code_needs_radio')
+    opt = {'imu': 'absent', 'baro': 'absent', 'radio': 'optional', 'gps': 'optional'}
+    up = captured(lambda: print(pg.radio_needs_radio({'station': opt, 'vehicle': None})))
+    check('optional radio -> required (fitted) for a radio-code push',
+          "'radio': 'fitted'" in up, up)
+    try:
+        pg.radio_needs_radio({'station': dict(opt, radio='not-fitted')})
+        blocked = False
+    except pg.GateFail as exc:
+        blocked = 'needs a radio' in str(exc)
+    check('radio-code push with the radio not fitted -> blocked with the reason', blocked)
+
+    print('test_note_expect_line (note reused only for the same hardware)')
+    line = pg.note_expect_line({'station': opt, 'vehicle': None})
+    check('expect line lists only roles with a profile',
+          line == 'expect: station=' + bc.format_expect(opt), line)
+    check('no profiles -> no expect line (legacy note)',
+          pg.note_expect_line({'station': None}) == '')
+    note = 'result: PASS\nroles: station\nboards: station=SER2\n' + line + '\n'
+    ok, _ = pg.note_covers(note, ['station'], False, {'SER2'}, line)
+    check('same expected hardware -> reused', ok)
+    other = pg.note_expect_line({'station': dict(opt, gps='not-fitted')})
+    ok, why = pg.note_covers(note, ['station'], False, {'SER2'}, other)
+    check('different expected hardware -> not reused', not ok and 'differs' in why, why)
+    ok, _ = pg.note_covers('result: PASS\nroles: station\nboards: station=SER2\n',
+                           ['station'], False, {'SER2'}, '')
+    check('legacy note, legacy push -> reused as before', ok)
+
+    print('test_split_push (EVALUATION script, push-shape grouping)')
+    import split_push as sp
+    cs = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    fw = {c: True for c in cs}
+    g = sp.split(cs, fw, {}, 5)
+    check('8 firmware commits, max 5 -> 5 then 3', [len(x) for x in g] == [5, 3], str(g))
+    g = sp.split(['d1', 'f1', 'iso', 'd2', 'f2'],
+                 {'f1': True, 'iso': True, 'f2': True}, {'iso': True}, 5)
+    check('isolate commit alone among firmware; docs ride along',
+          g == [['d1', 'f1'], ['iso', 'd2'], ['f2']], str(g))
+    g = sp.split(['d1', 'd2'], {}, {}, 5)
+    check('docs only -> one push', g == [['d1', 'd2']], str(g))
+
+    print('test_station_bench_judging (--expect)')
+    try:
+        import station_bench_sim as sb
+    except ImportError as exc:
+        print(f'  [SKIP] station_bench_sim needs pyserial ({exc})')
+        return
+    na = lambda n: f'[N/A ] {n} not installed\n'
+    base_out = na('ICM-20948') + na('DPS310')
+    ok, _, nas, warns = sb.judge_hw_status(base_out + na('GPS'), opt)
+    check('optional GPS missing -> pass, N/A by name, no warning',
+          ok and nas == ['gps'] and warns == [], f'{nas} {warns}')
+    ok, _, nas, _ = sb.judge_hw_status(base_out + '[PASS] GPS init (I2C at 0x10)\n', opt)
+    check('optional GPS present -> pass, not N/A', ok and nas == [])
+    ok, detail, _, _ = sb.judge_hw_status(base_out + '[FAIL] GPS init failed\n', opt)
+    check('optional GPS present but [FAIL] -> fail', not ok, detail)
+    ok, _, _, warns = sb.judge_hw_status(
+        '[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n' + na('DPS310') + na('GPS'), opt)
+    check('unexpected IMU on the station -> warning only',
+          ok and [w[0] for w in warns] == ['imu'], str(warns))
+    veh = {'imu': 'fitted', 'baro': 'fitted', 'radio': 'optional', 'gps': 'optional'}
+    ok, detail, _, _ = sb.judge_hw_status(na('ICM-20948') + '[PASS] DPS310 init OK\n', veh)
+    check('required IMU missing -> fail', not ok and 'ICM-20948' in detail, detail)
+    ok, _, _, _ = sb.judge_hw_status(base_out, None)
+    check('no --expect -> legacy rule unchanged (IMU and baro [N/A])', ok)
+    rv, _, _ = sb.judge_radio_version('no radio line', 'optional')
+    check('optional radio not detected -> N/A', rv is None)
+    for nothing in ('00', 'ff', 'FF'):
+        rv, _, _ = sb.judge_radio_version(f'  RegVersion=0x{nothing} (expect 0x12)', 'optional')
+        check(f'optional radio reads 0x{nothing} (no chip) -> N/A', rv is None)
+        rv, _, _ = sb.judge_radio_version(f'  RegVersion=0x{nothing} (expect 0x12)', 'fitted')
+        check(f'required radio reads 0x{nothing} (no chip) -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('  RegVersion=0x22 (expect 0x12)', 'optional')
+    check('optional radio, wrong chip 0x22 -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('  RegVersion=0x12 (expect 0x12)', 'optional')
+    check('optional radio 0x12 -> pass', rv is True)
+    rv, _, _ = sb.judge_radio_version('no radio line', 'fitted')
+    check('radio required (radio-code push) but no RegVersion -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('no radio line', None)
+    check('no --expect -> radio still required (legacy)', rv is False)
 
 
 if __name__ == '__main__':
