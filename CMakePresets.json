@@ -17,10 +17,20 @@
         "PICO_BOARD": "adafruit_fruit_jam",
         "ROCKETCHIP_JOB_STATION": "1"
       }
+    },
+    {
+      "name": "vehicle-tiny",
+      "displayName": "Vehicle (Tiny 2350)",
+      "description": "Local-logging vehicle on Pimoroni Tiny 2350 (PIM721). Output: rocketchip.uf2.",
+      "binaryDir": "${sourceDir}/build_tiny",
+      "cacheVariables": {
+        "PICO_BOARD": "pimoroni_tiny2350"
+      }
     }
   ],
   "buildPresets": [
     {"name": "vehicle-flight",  "configurePreset": "vehicle-flight"},
-    {"name": "station-flight",  "configurePreset": "station-flight"}
+    {"name": "station-flight",  "configurePreset": "station-flight"},
+    {"name": "vehicle-tiny",    "configurePreset": "vehicle-tiny"}
   ]
 }

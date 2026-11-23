@@ -92,6 +92,13 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB
 inline constexpr bool    kDvmAvailable         = true;   // HSTX DVI output
 inline constexpr bool    kSdCardAvailable      = true;   // SPI0 SD slot
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C0
+inline constexpr bool    kPyroAvailable        = false;  // no pyro harness on this GCS board
+inline constexpr bool    kRadioAvailable       = true;   // RFM95W on SPI1 adapter
+inline constexpr bool    kRgbLedAvailable      = false;  // status LED is WS2812 (5 pixels)
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // Same ICM-20948 Z-up breakout convention as Feather (WN-124).
 inline constexpr bool    kImuZUpNed            = true;

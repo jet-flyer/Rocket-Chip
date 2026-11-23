@@ -77,6 +77,13 @@ inline constexpr bool    kPsramAvailable       = false;  // no onboard PSRAM
 inline constexpr bool    kDvmAvailable         = false;  // no DVI
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = false;  // external breakout needed
+inline constexpr bool    kPyroAvailable        = false;  // no pyro hardware; pins were unverified bench defaults
+inline constexpr bool    kRadioAvailable       = true;   // LoRa breakout is the pack's intended expansion
+inline constexpr bool    kRgbLedAvailable      = false;  // single GPIO LED, not RGB
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
 inline constexpr bool    kImuZUpNed            = true;

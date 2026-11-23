@@ -422,6 +422,17 @@ add_executable(test_rc_snprintf test_rc_snprintf.cpp)
 target_link_libraries(test_rc_snprintf PRIVATE rc_log GTest::gtest_main)
 gtest_discover_tests(test_rc_snprintf)
 
+# Status LED backend selection + RGB animation (Tiny discrete LED path).
+add_executable(test_status_led_policy test_status_led_policy.cpp)
+target_link_libraries(test_status_led_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_status_led_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_status_led_policy)
+
+add_executable(test_rgb_led_animate test_rgb_led_animate.cpp)
+target_link_libraries(test_rgb_led_animate PRIVATE GTest::gtest_main)
+target_include_directories(test_rgb_led_animate PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_rgb_led_animate)
+
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
 #

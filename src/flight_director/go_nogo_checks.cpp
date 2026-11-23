@@ -100,9 +100,19 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
     add_station(r, 2, "Mag Cal", input.mag_calibrated,
                 input.mag_calibrated ? "GO" : "NO-GO NOT CALIBRATED");
     // Radio HW = SX1276 init / SPI reachable; RF Link = learned link state.
-    add_station(r, 2, "Radio HW", input.radio_linked,
-                input.radio_linked ? "GO" : "NO-GO NOT INIT");
-    add_rf_link_station(r, input);
+    // A board with no radio (logging-only tracker) is N/A, not a NO-GO.
+    if (!input.radio_fitted) {
+        add_station(r, 2, "Radio HW", true, "GO (not fitted)");
+        add_station(r, 2, "RF Link", true, "GO (not fitted)");
+    } else {
+        add_station(r, 2, "Radio HW", input.radio_linked,
+                    input.radio_linked ? "GO" : "NO-GO NOT INIT");
+        add_rf_link_station(r, input);
+    }
+    // No pyro continuity sense exists yet, so a fitted channel is reported
+    // as not monitored rather than a verified GO.
+    add_station(r, 2, "Pyro HW", true,
+                input.pyro_fitted ? "GO (not monitored)" : "GO (not fitted)");
     add_station(r, 2, "Battery", true, "GO (not monitored)");
 
     r.all_go = (r.tier1_go == r.tier1_total);

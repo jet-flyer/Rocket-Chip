@@ -1,8 +1,9 @@
 # RocketChip CMake Build System
 #
 # Two build modes:
-#   Target build (default): cmake -B build -G Ninja
-#   Host tests:             cmake -B build_host -G Ninja -DBUILD_TESTS=ON
+#   Target build (default Feather): cmake -B build -G Ninja
+#   Tiny 2350 vehicle:              cmake -B build_tiny -G Ninja -DPICO_BOARD=pimoroni_tiny2350
+#   Host tests:                     cmake -B build_host -G Ninja -DBUILD_TESTS=ON
 #
 # The BUILD_TESTS gate selects between Pico SDK target build and
 # host-side test build. They are mutually exclusive.
@@ -235,6 +236,9 @@ else()
     else()
         set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
     endif()
+    # Tiny 2350 (PIM721) is opt-in only: -DPICO_BOARD=pimoroni_tiny2350
+    # (or the vehicle-tiny preset). Default vehicle board stays Feather.
+    # set(... CACHE) does not overwrite a -D or existing cache value.
 
     # Pull in SDK (must be before project())
     include(pico_sdk_import.cmake)
@@ -351,6 +355,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
+        src/drivers/status_led.cpp
         src/drivers/i2c_master.cpp
 
         # -------------------------------------------------------------------------
@@ -545,6 +550,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
+        src/drivers/status_led.cpp
         src/drivers/i2c_master.cpp
         src/drivers/icm20948.cpp
         src/drivers/baro_dps310.cpp
@@ -686,6 +692,7 @@ else()
         pico_stdlib
         hardware_gpio
         hardware_pio         # For NeoPixel/WS2812 PIO driver
+        hardware_pwm         # For discrete RGB status LED
         hardware_clocks      # For clock_get_hz()
         hardware_i2c         # For I2C/QWIIC sensors
         hardware_uart        # For UART GPS (IVP-46)
@@ -724,7 +731,7 @@ else()
     # `tinyusb_common` are the SDK-public wrappers. Marking them all
     # belt-and-suspenders ensures tinyusb never leaks -I into user code.
     set(PICO_SDK_INTERFACE_LIBS
-        pico_stdlib hardware_gpio hardware_pio hardware_clocks hardware_i2c
+        pico_stdlib hardware_gpio hardware_pio hardware_pwm hardware_clocks hardware_i2c
         hardware_uart hardware_flash pico_flash pico_multicore
         hardware_exception hardware_watchdog pico_rand hardware_spi
         hardware_xip_cache hardware_adc

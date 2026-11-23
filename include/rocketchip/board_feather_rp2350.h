@@ -77,6 +77,13 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
 inline constexpr bool    kDvmAvailable         = false;  // HSTX connector present; DVI/DVM not in this firmware
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
+inline constexpr bool    kPyroAvailable        = true;   // bench channels on GPIO 12/13
+inline constexpr bool    kRadioAvailable       = true;   // RFM95W FeatherWing / SPI expansion
+inline constexpr bool    kRgbLedAvailable      = false;  // status LED is WS2812
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // ICM-20948 breakout is Z-up; ESKF is NED (Z-down). Sensor feed negates Z
 // when this is true so a second mount cannot inherit the convention silently

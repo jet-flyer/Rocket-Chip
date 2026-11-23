@@ -18,6 +18,7 @@
 #include "hardware/sync.h"
 #include "hardware/structs/mpu.h"
 #include "drivers/ws2812_status.h"
+#include "drivers/status_led.h"
 #include "drivers/i2c_master.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
@@ -453,14 +454,14 @@ static bool core1_check_pause_and_reload(calibration_store_t* local_cal) {
 
     if (g_core1PauseI2C.load(std::memory_order_acquire)) {
         g_core1I2CPaused.store(true, std::memory_order_release);
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
-        ws2812_update();
+        status_led_set_mode(WS2812_MODE_SOLID, kColorOrange);
+        status_led_update();
         while (g_core1PauseI2C.load(std::memory_order_acquire)) {
             sleep_ms(1);
         }
         g_core1I2CPaused.store(false, std::memory_order_release);
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
-        ws2812_update();
+        status_led_set_mode(WS2812_MODE_SOLID, kColorBlue);
+        status_led_update();
         return true;
     }
     return false;
