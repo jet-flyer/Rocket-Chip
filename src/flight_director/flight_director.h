@@ -75,6 +75,7 @@ struct FlightDirector {
     QHsm super;                     // QEP base class (must be first member)
     FlightState state;              // Runtime phase tracking
     const MissionProfile* profile;  // Active flight profile (boot-locked)
+    bool pyro_hardware;             // Board has pyro channels (pack kPyroAvailable)
     GuardEvaluator guard_eval;      // Guard sustain evaluator
     CombinatorSet combinator_set;   // Guard combinators + lockouts
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
@@ -82,7 +83,8 @@ struct FlightDirector {
 };
 
 // Lifecycle. profile must be non-null (Q_REQUIRE + early return).
-void flight_director_ctor(FlightDirector* me, const MissionProfile* profile);
+void flight_director_ctor(FlightDirector* me, const MissionProfile* profile,
+                          bool pyro_hardware = true);
 void flight_director_init(FlightDirector* me);
 
 // Dispatch
