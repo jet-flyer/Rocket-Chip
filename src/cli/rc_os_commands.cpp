@@ -118,6 +118,7 @@ static void cmd_radio_config_cycle() {
 }
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
+#include "drivers/status_led.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_storage.h"
 #include "drivers/i2c_master.h"
@@ -782,16 +783,31 @@ static void print_gps_status_boot() {
     }
 }
 
+// Status LED line: named for what the pack fits; nothing on a pack with no
+// status LED. The onboard LED line is skipped when it is an RGB channel.
+static void print_led_hw_status() {
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        rc::rc_log("[PASS] Onboard LED GPIO initialized (pin %d, %s)\n",
+               board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
+    }
+    if constexpr (kStatusLedKind == rc::StatusLedKind::kWs2812) {
+        rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
+               status_led_ready() ? "PASS" : "FAIL", board::kNeoPixelPin);
+    } else if constexpr (kStatusLedKind == rc::StatusLedKind::kDiscreteRgb) {
+        rc::rc_log("[%s] RGB status LED PWM initialized (R=%d G=%d B=%d, %s)\n",
+               status_led_ready() ? "PASS" : "FAIL",
+               board::kLedRedPin, board::kLedGreenPin, board::kLedBluePin,
+               board::kLedRgbActiveLow ? "active-low" : "active-high");
+    }
+}
+
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
     rc::rc_log("  Build: %s %s %s (%s %s)\n",
            kVersionString, kBuildConfig, kBuildIdentity, __DATE__, __TIME__);
 
     rc::rc_log("[PASS] Build + boot (you're reading this)\n");
-    rc::rc_log("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
-           board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
-    rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
-           g_neopixelInitialized ? "PASS" : "FAIL", board::kNeoPixelPin);
+    print_led_hw_status();
     rc::rc_log("[PASS] USB CDC connected\n");
 
     uint32_t ts = time_us_32();
@@ -845,8 +861,12 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     fail = 0;
     auto check = [&](bool ok) { if (ok) { ++pass; } else { ++fail; } };
     check(true);                                    // Build + boot
-    check(true);                                    // Red LED GPIO
-    check(g_neopixelInitialized);                   // NeoPixel
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        check(true);                                // Onboard LED GPIO
+    }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        check(status_led_ready());                  // NeoPixel or RGB LED
+    }
     check(true);                                    // USB CDC
     check(time_us_32() > 0);                        // Debug macros
     check(g_i2cInitialized);                        // I2C bus
@@ -871,7 +891,11 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
 
 // FAIL only if init was attempted and failed. Uninstalled sensors: silent.
 static void print_hw_failures() {
-    if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        if (!status_led_ready()) {
+            rc::rc_log("  [FAIL] %s\n", rc::status_led_label(kStatusLedKind));
+        }
+    }
     if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
     if (g_imuInitAttempted  && !g_imuInitialized)  { rc::rc_log("  [FAIL] ICM-20948 IMU\n"); }
     if (g_baroInitAttempted &&

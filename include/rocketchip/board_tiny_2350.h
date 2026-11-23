@@ -56,8 +56,17 @@ inline constexpr uint8_t kPyroMainPin      = 27;
 inline constexpr uint8_t kLedRedPin        = 18;
 inline constexpr uint8_t kLedGreenPin      = 19;
 inline constexpr uint8_t kLedBluePin       = 20;
+// Cross-check against the SDK board header (pimoroni_tiny2350.h) so a
+// colour/pin swap cannot build: R=GP18 (PWM 1A), G=GP19 (1B), B=GP20 (2A).
+#if defined(TINY2350_LED_R_PIN) && defined(TINY2350_LED_G_PIN) && defined(TINY2350_LED_B_PIN)
+static_assert(kLedRedPin == TINY2350_LED_R_PIN, "Tiny 2350 red LED pin");
+static_assert(kLedGreenPin == TINY2350_LED_G_PIN, "Tiny 2350 green LED pin");
+static_assert(kLedBluePin == TINY2350_LED_B_PIN, "Tiny 2350 blue LED pin");
+#endif
 
 // --- Onboard LED (green channel; SDK PICO_DEFAULT_LED_PIN) ---
+// This is the RGB LED's green channel, owned by the status LED as PWM
+// (kOnboardLedIsRgbChannel); boot does not claim it as a GPIO.
 inline constexpr uint8_t kLedPin           = kLedGreenPin;
 inline constexpr bool    kLedActiveHigh    = false;
 

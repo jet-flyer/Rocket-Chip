@@ -54,6 +54,43 @@ inline constexpr float kRgbPercentScale         = 100.0F;
 inline constexpr float kRgbHueFull              = 360.0F;
 inline constexpr float kRgbHueSector            = 60.0F;
 
+// Discrete RGB LED pins, in color order (R, G, B).
+struct RgbLedPins {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
+struct PwmPinLevel {
+    uint8_t pin;
+    uint16_t level;
+};
+
+struct RgbPwmLevels {
+    PwmPinLevel r;
+    PwmPinLevel g;
+    PwmPinLevel b;
+};
+
+// PWM counter wrap for the RGB backend: one count per 8-bit duty step.
+inline constexpr uint16_t kRgbPwmWrap = 255;
+
+// 8-bit duty to a PWM compare level. An active-low channel is lit when the
+// pin is low, so its level is inverted against the wrap.
+constexpr uint16_t rgb_pwm_level(uint8_t value, bool active_low) {
+    return active_low ? static_cast<uint16_t>(kRgbPwmWrap - value)
+                      : static_cast<uint16_t>(value);
+}
+
+// Color channel -> pin and level. c.r drives pins.r, c.g pins.g, c.b pins.b.
+constexpr RgbPwmLevels rgb_pwm_levels(Rgb8 c, RgbLedPins pins, bool active_low) {
+    return RgbPwmLevels{
+        PwmPinLevel{pins.r, rgb_pwm_level(c.r, active_low)},
+        PwmPinLevel{pins.g, rgb_pwm_level(c.g, active_low)},
+        PwmPinLevel{pins.b, rgb_pwm_level(c.b, active_low)},
+    };
+}
+
 inline Rgb8 rgb8_scale(Rgb8 c, float scale) {
     auto ch = [scale](uint8_t v) -> uint8_t {
         const float x = static_cast<float>(v) * scale;

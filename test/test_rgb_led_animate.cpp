@@ -101,3 +101,49 @@ TEST(RgbLedAnimate, HsvRedAtZeroHue) {
     EXPECT_GT(c.r, c.g);
     EXPECT_GT(c.r, c.b);
 }
+
+// Tiny 2350 pack (board_tiny_2350.h; SDK TINY2350_LED_R/G/B_PIN):
+// R=GP18, G=GP19, B=GP20, all active low.
+static constexpr rc::RgbLedPins kTinyPins{18, 19, 20};
+
+TEST(RgbPwmLevels, ColorChannelsMapToRgbPinsInOrder) {
+    const rc::RgbPwmLevels lv =
+        rc::rgb_pwm_levels(Rgb8{0x11, 0x22, 0x33}, kTinyPins, false);
+    EXPECT_EQ(lv.r.pin, 18);
+    EXPECT_EQ(lv.g.pin, 19);
+    EXPECT_EQ(lv.b.pin, 20);
+    EXPECT_EQ(lv.r.level, 0x11);
+    EXPECT_EQ(lv.g.level, 0x22);
+    EXPECT_EQ(lv.b.level, 0x33);
+}
+
+TEST(RgbPwmLevels, ActiveLowRedLightsOnlyGp18) {
+    // Red only: GP18 low most of the period (lit), GP19/GP20 held high (off).
+    const rc::RgbPwmLevels lv =
+        rc::rgb_pwm_levels(Rgb8{255, 0, 0}, kTinyPins, true);
+    EXPECT_EQ(lv.r.pin, 18);
+    EXPECT_EQ(lv.r.level, 0);
+    EXPECT_EQ(lv.g.level, rc::kRgbPwmWrap);
+    EXPECT_EQ(lv.b.level, rc::kRgbPwmWrap);
+}
+
+TEST(RgbPwmLevels, ActiveLowGreenLightsOnlyGp19) {
+    const rc::RgbPwmLevels lv =
+        rc::rgb_pwm_levels(Rgb8{0, 255, 0}, kTinyPins, true);
+    EXPECT_EQ(lv.g.pin, 19);
+    EXPECT_EQ(lv.g.level, 0);
+    EXPECT_EQ(lv.r.level, rc::kRgbPwmWrap);
+    EXPECT_EQ(lv.b.level, rc::kRgbPwmWrap);
+}
+
+TEST(RgbPwmLevels, ActiveLowOffHoldsAllPinsHigh) {
+    const rc::RgbPwmLevels lv = rc::rgb_pwm_levels(Rgb8{0, 0, 0}, kTinyPins, true);
+    EXPECT_EQ(lv.r.level, rc::kRgbPwmWrap);
+    EXPECT_EQ(lv.g.level, rc::kRgbPwmWrap);
+    EXPECT_EQ(lv.b.level, rc::kRgbPwmWrap);
+}
+
+TEST(RgbPwmLevels, ActiveLowInvertsMidDuty) {
+    EXPECT_EQ(rc::rgb_pwm_level(0x40, true), rc::kRgbPwmWrap - 0x40);
+    EXPECT_EQ(rc::rgb_pwm_level(0x40, false), 0x40);
+}

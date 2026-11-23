@@ -191,10 +191,7 @@ static void init_early_hw() {
     // On a discrete-RGB pack the onboard LED is one RGB channel, which
     // status_led_init() owns as PWM. Claiming it as SIO here would drive
     // an active-low channel on until PWM takes over.
-    if constexpr (!(board::kRgbLedAvailable &&
-                    (board::kLedPin == board::kLedRedPin ||
-                     board::kLedPin == board::kLedGreenPin ||
-                     board::kLedPin == board::kLedBluePin))) {
+    if constexpr (!kOnboardLedIsRgbChannel) {
         gpio_init(board::kLedPin);
         gpio_set_dir(board::kLedPin, true);
     }

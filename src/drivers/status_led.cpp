@@ -15,7 +15,6 @@
 
 namespace {
 
-constexpr uint16_t kRgbPwmWrap = 255;
 constexpr float kRgbPwmClkDiv = 32.0F;  // ~18 kHz at 150 MHz
 
 bool g_ready = false;
@@ -27,7 +26,7 @@ uint32_t g_modeStartMs = 0;
 uint32_t g_altHalfMs = rc::kRgbAlternateHalfMs;
 
 constexpr rc::StatusLedKind kind() {
-    return rc::status_led_kind(board::kNeoPixelCount, board::kRgbLedAvailable);
+    return kStatusLedKind;
 }
 
 rc::RgbAnimMode to_anim(ws2812_mode_t mode) {
@@ -49,31 +48,32 @@ rc::Rgb8 to_rgb8(ws2812_rgb_t c) {
     return rc::Rgb8{c.r, c.g, c.b};
 }
 
-void rgb_pwm_write_pin(uint8_t pin, uint8_t value) {
-    uint16_t level = value;
-    if constexpr (board::kLedRgbActiveLow) {
-        level = static_cast<uint16_t>(kRgbPwmWrap - level);
-    }
-    pwm_set_gpio_level(pin, level);
-}
+constexpr rc::RgbLedPins kRgbPins{
+    board::kLedRedPin, board::kLedGreenPin, board::kLedBluePin
+};
 
+// pwm_set_gpio_level picks the slice and the A/B channel from the pin, so
+// two colors that share a slice (Tiny: R=GP18 1A, G=GP19 1B) each get
+// their own compare level.
 void rgb_write(rc::Rgb8 c) {
-    rgb_pwm_write_pin(board::kLedRedPin, c.r);
-    rgb_pwm_write_pin(board::kLedGreenPin, c.g);
-    rgb_pwm_write_pin(board::kLedBluePin, c.b);
+    const rc::RgbPwmLevels lv =
+        rc::rgb_pwm_levels(c, kRgbPins, board::kLedRgbActiveLow);
+    pwm_set_gpio_level(lv.r.pin, lv.r.level);
+    pwm_set_gpio_level(lv.g.pin, lv.g.level);
+    pwm_set_gpio_level(lv.b.pin, lv.b.level);
 }
 
 void rgb_init_pins() {
-    const uint8_t pins[3] = {
-        board::kLedRedPin, board::kLedGreenPin, board::kLedBluePin
-    };
+    const uint8_t pins[3] = {kRgbPins.r, kRgbPins.g, kRgbPins.b};
+    // Every pin goes to PWM; each slice is configured and enabled once
+    // (both A and B channels of an enabled slice run).
     bool slice_done[NUM_PWM_SLICES] = {};
     for (uint8_t pin : pins) {
         gpio_set_function(pin, GPIO_FUNC_PWM);
         const uint slice = pwm_gpio_to_slice_num(pin);
         if (!slice_done[slice]) {
             pwm_config cfg = pwm_get_default_config();
-            pwm_config_set_wrap(&cfg, kRgbPwmWrap);
+            pwm_config_set_wrap(&cfg, rc::kRgbPwmWrap);
             pwm_config_set_clkdiv(&cfg, kRgbPwmClkDiv);
             pwm_init(slice, &cfg, true);
             slice_done[slice] = true;
@@ -117,6 +117,10 @@ bool status_led_init(void) {
 
 bool status_led_ws2812_ready(void) {
     return g_ws2812;
+}
+
+bool status_led_ready(void) {
+    return g_ready;
 }
 
 void status_led_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
