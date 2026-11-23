@@ -21,7 +21,9 @@ absent. gate_inhibits.json (tracked) holds per-branch entries: a warning id to
 show as INHIBITED, or a role:part that is not fitted for that work (N/A by
 name; a required part cannot be marked). Entries match the pushed-to branch,
 so they end when it merges; an optional until date ends them sooner.
-Failures are never inhibited. The bench gets the result as --expect.
+Failures are never inhibited: not-fitted is N/A only while the part reads
+absent; a wrong chip or a [FAIL] still fails, and a part that reads present
+and healthy is a warning. The bench gets the result as --expect.
 Pure stdlib, no serial I/O.
 """
 from __future__ import annotations
@@ -283,7 +285,9 @@ def active_inhibits(inhibits: Iterable[Inhibit], branch: str,
 
 def expectations(profile: Profile, role: str,
                  active: Iterable[Inhibit]) -> Dict[str, str]:
-    """part -> fitted / not-fitted / absent for one bench run."""
+    """part -> fitted / not-fitted / optional / absent for one bench run.
+    not-fitted tells the bench the part should read absent (N/A by name); it
+    never turns a failed reading into N/A (the bench judges do that rule)."""
     if profile.role != role:
         raise BoardConfigError(f'board profile {profile.name} is a {profile.role} '
                                f'board, but it is listed as the {role}')

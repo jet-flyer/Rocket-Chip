@@ -1042,10 +1042,250 @@ def hw_expect_tests(pg) -> None:
     check('optional radio, wrong chip 0x22 -> fail', rv is False)
     rv, _, _ = sb.judge_radio_version('  RegVersion=0x12 (expect 0x12)', 'optional')
     check('optional radio 0x12 -> pass', rv is True)
+    # Every combination of expected state x RegVersion reading against the
+    # rule (Nathan 2026-11-23): a wrong chip fails in every state (failures
+    # are never inhibited); required -> only 0x12 passes; optional -> no chip
+    # (missing/0x00/0xFF) is N/A; not-fitted -> no chip is N/A, 0x12 warns
+    # and passes; absent -> no chip passes, 0x12 warns and passes.
+    readings = {'missing': 'no radio line', '00': '  RegVersion=0x00', 'ff': '  RegVersion=0xff',
+                '12': '  RegVersion=0x12', '22': '  RegVersion=0x22'}
+    def intended(state, r):
+        if r == '22': return False, False
+        chip = r == '12'
+        if state == 'fitted': return chip, False
+        if state == 'optional': return (True if chip else None), False
+        if state == 'not-fitted': return (True if chip else None), chip
+        return True, chip  # absent
+    for state in ('fitted', 'optional', 'absent', 'not-fitted', None):
+        for r, text in readings.items():
+            got, detail, warns = sb.judge_radio_version(text, state)
+            want, warn_want = intended(state or 'fitted', r)
+            check(f'radio table: {state} x {r} -> {want}'
+                  + (' + warning' if warn_want else ''),
+                  got is want and bool(warns) == warn_want, f'{got} {detail} {warns}')
     rv, _, _ = sb.judge_radio_version('no radio line', 'fitted')
     check('radio required (radio-code push) but no RegVersion -> fail', rv is False)
     rv, _, _ = sb.judge_radio_version('no radio line', None)
     check('no --expect -> radio still required (legacy)', rv is False)
+    hw_status_table(sb)
+    try:
+        import bench_sim as vb
+    except ImportError as exc:
+        print(f'  [SKIP] bench_sim needs pyserial ({exc})')
+        return
+    vehicle_radio_table(vb)
+    statechart_replay(pg, bc, sb, vb)
+
+
+def hw_status_table(sb) -> None:
+    """Every expected state x Hardware Status reading for each part."""
+    print('test_hw_status_table (expect state x reading, every part)')
+    reads = {
+        'imu': {'fail': '[FAIL] ICM-20948 init failed', 'na': '[N/A ] ICM-20948 not installed',
+                'pass': '[PASS] ICM-20948 init (WHO_AM_I=0xEA)'},
+        'baro': {'fail': '[FAIL] DPS310 init failed', 'na': '[N/A ] DPS310 not installed',
+                 'pass': '[PASS] DPS310 init OK, continuous mode active',
+                 'warn': '[WARN] DPS310 init OK, continuous mode failed'},
+        'gps': {'fail': '[FAIL] GPS init failed', 'na': '[N/A ] GPS not installed',
+                'pass': '[PASS] GPS init (I2C at 0x10, 500us settling delay)'},
+    }
+    quiet = {'imu': 'absent', 'baro': 'absent', 'radio': 'optional', 'gps': 'absent'}
+    for part, rs in reads.items():
+        rs = dict(rs, missing='')
+        others = ''.join(reads[o]['na'] + '\n' for o in reads if o != part)
+        for state in ('fitted', 'optional', 'not-fitted', 'absent'):
+            for r, line in rs.items():
+                ok, detail, na, warns = sb.judge_hw_status(
+                    others + line + '\n', dict(quiet, **{part: state}))
+                present = r in ('pass', 'warn')
+                if r == 'fail':
+                    want = (False, False, False)
+                elif state == 'fitted':
+                    want = (present, False, False)
+                elif state == 'optional':
+                    want = (True, not present, False)
+                elif state == 'not-fitted':
+                    want = (True, not present, present)
+                else:
+                    want = (True, False, present)
+                got = (ok, part in na, part in [w[0] for w in warns])
+                check(f'hw table: {part} {state} x {r} -> ok={want[0]} '
+                      f'na={want[1]} warn={want[2]}', got == want, f'{got} {detail}')
+
+
+def preflight_text(radio: str, verdict: str = 'GO') -> str:
+    """A vehicle preflight print (cli_print_preflight, "T%u %-10s %s")."""
+    rows = [(1, 'IMU', 'GO'), (1, 'Baro', 'GO'), (1, 'ESKF', 'GO'),
+            (2, 'GPS', 'NO-GO NO LOCK'), (2, 'Mag Cal', 'NO-GO NOT CALIBRATED')]
+    if radio:
+        rows.append((2, 'Radio HW', radio))
+    rows += [(2, 'RF Link', 'NO-GO NO RX YET'), (2, 'Battery', 'GO (not monitored)')]
+    body = ''.join(f'T{t} {n:<10} {r}\r\n' for t, n, r in rows)
+    return (f'\r\n=== PREFLIGHT ===\r\n{body}MCU temp: GO  31.0C\r\n'
+            f'----------------\r\nVERDICT:  {verdict}\r\n')
+
+
+def vehicle_radio_table(vb) -> None:
+    """Every expected radio state x T2 Radio HW reading (bug 1)."""
+    print('test_vehicle_radio_table (expect state x T2 Radio HW reading)')
+    check('preflight row format matches the firmware ("T%u %-10s %s")',
+          'T2 Radio HW   NO-GO NOT INIT' in preflight_text('NO-GO NOT INIT'))
+    reads = {'missing': preflight_text(''), 'go': preflight_text('GO'),
+             'nogo': preflight_text('NO-GO NOT INIT'), 'no output': ''}
+    def intended(state, r):
+        go = r == 'go'
+        if state is None: return True, False
+        if state == 'fitted': return go, False
+        if state == 'optional': return (True if go else None), False
+        if state == 'not-fitted': return (True if go else None), go
+        return True, go  # absent
+    for state in ('fitted', 'optional', 'not-fitted', 'absent', None):
+        for r, text in reads.items():
+            got, detail, warns = vb.judge_preflight_radio(text, state)
+            want, warn_want = intended(state, r)
+            check(f'vehicle radio table: {state} x {r} -> {want}'
+                  + (' + warning' if warn_want else ''),
+                  got is want and bool(warns) == warn_want, f'{got} {detail} {warns}')
+    veh = {'imu': 'fitted', 'baro': 'fitted', 'radio': 'optional', 'gps': 'optional'}
+    res, na, _ = vb.judge_preflight_hw(preflight_text('NO-GO NOT INIT'), veh)
+    check('optional radio NO-GO -> N/A by name, GPS optional not judged',
+          [(n, ok) for n, ok, _ in res] == [(vb.PREFLIGHT_RADIO_CHECK, None)]
+          and na == [(vb.PREFLIGHT_RADIO_CHECK, 'radio')], f'{res} {na}')
+    res, _, _ = vb.judge_preflight_hw(preflight_text('GO'), dict(veh, gps='fitted'))
+    check('GPS expected fitted on the vehicle -> fail (preflight GPS is lock, '
+          'not presence)', (vb.PREFLIGHT_GPS_CHECK, False) in
+          [(n, ok) for n, ok, _ in res], str(res))
+    check('no --expect -> vehicle Tier 2 not judged (legacy)',
+          vb.judge_preflight_hw(preflight_text('NO-GO NOT INIT'), None) == ([], [], []))
+
+
+class FakeVehicle:
+    """Serial stand-in for _bench_sim_run_inner: answers each key once."""
+    def __init__(self, preflight: str):
+        self.preflight, self.pending = preflight, ''
+    def write(self, b: bytes) -> None:
+        k = b.decode()
+        self.pending = {'p': self.preflight, 'v': 'DEV_MODE on\r\n[main] ',
+                        's': '  Phase:       IDLE\r\n[flight] '}.get(k, '[main] ')
+    def read(self, n: int) -> bytes:
+        out, self.pending = self.pending, ''
+        return out.encode()
+
+
+def run_vehicle_bench(vb, preflight: str, expect) -> tuple:
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    args = SimpleNamespace(_expect=expect, verbose=False, max_runtime=60.0)
+    meta = SimpleNamespace(short_summary=lambda: 'fake vehicle')
+    buf = io.StringIO()
+    with patch.object(vb.time, 'sleep', lambda s: None), contextlib.redirect_stdout(buf):
+        rc = vb._bench_sim_run_inner(FakeVehicle(preflight), 'FAKE', meta, args)
+    return rc, buf.getvalue()
+
+
+def statechart_replay(pg, bc, sb, vb) -> None:
+    """The statechart bug paths (GatePush.tla, 2026-11-23) replayed against
+    the real gate and bench code. Bug paths: R2 (radio-code push, vehicle
+    radio missing, preflight still GO) and R6 (a not-fitted inhibit turned a
+    failed reading into N/A). The rest are the rules the model says hold."""
+    import datetime as _dt
+    import json as _json
+    import hashlib as _hl
+    print('test_statechart_replay (GatePush.tla paths on the real code)')
+    prof = bc.parse_profiles((HERE / 'ci' / 'board_profiles.json').read_text(encoding='utf-8'))
+    today = _dt.date(2026, 11, 23)
+    exp = pg.radio_needs_radio({
+        'vehicle': bc.expectations(prof['feather_rp2350'], 'vehicle', []),
+        'station': bc.expectations(prof['fruit_jam'], 'station', [])})
+    check('R2: radio-code push makes the vehicle radio fitted',
+          exp['vehicle']['radio'] == bc.FITTED, str(exp['vehicle']))
+    bare = preflight_text('NO-GO NOT INIT', verdict='GO')
+    rc, out = run_vehicle_bench(vb, bare, exp['vehicle'])
+    check('R2: vehicle with no radio, preflight VERDICT GO, radio required -> '
+          'bench fails', rc == 1 and '[FAIL]  Radio HW (preflight)' in out, out[-600:])
+    rc, out = run_vehicle_bench(vb, preflight_text('GO'), exp['vehicle'])
+    check('R2: same push, radio fitted (T2 Radio HW GO) -> radio check passes',
+          '[PASS]  Radio HW (preflight)' in out, out[-600:])
+    vexp = bc.expectations(prof['feather_rp2350'], 'vehicle', [])
+    rc, out = run_vehicle_bench(vb, bare, vexp)
+    check('R4: non-radio push, optional vehicle radio missing -> N/A by name '
+          '(hw_na line for the gate)', '[N/A ]  Radio HW (preflight)' in out
+          and bc.hw_na_line(vb.PREFLIGHT_RADIO_CHECK, 'radio') in out
+          and ', 1 N/A' in out, out[-600:])
+
+    inh = bc.parse_inhibits(_json.dumps({'inhibits': [{
+        'branch': 'grok/x', 'kind': 'not-fitted', 'role': 'station',
+        'part': 'radio', 'reason': 'replay'}]}))
+    act, _ = bc.active_inhibits(inh, 'grok/x', today)
+    sexp = bc.expectations(prof['fruit_jam'], 'station', act)
+    check('R6: not-fitted inhibit accepted on the optional station radio',
+          sexp['radio'] == bc.NOT_FITTED, str(sexp))
+    rv, d, _ = sb.judge_radio_version('  RegVersion=0x22 (expect 0x12)\n', sexp['radio'])
+    check('R6: wrong chip 0x22 under a not-fitted inhibit still fails', rv is False, d)
+    rv, d, _ = sb.judge_radio_version('  RegVersion=0xff (expect 0x12)\n', sexp['radio'])
+    check('R6: no chip under a not-fitted inhibit -> N/A', rv is None, d)
+    ok, d, na, _ = sb.judge_hw_status(
+        '[N/A ] ICM-20948 not installed\n[N/A ] DPS310 not installed\n'
+        '[FAIL] GPS init failed\n', dict(sexp, gps=bc.NOT_FITTED))
+    check('R6: [FAIL] GPS under a not-fitted GPS inhibit still fails',
+          ok is False and 'gps' not in na, f'{ok} {d} {na}')
+    ok, _, _, _ = sb.judge_hw_status(
+        '[N/A ] ICM-20948 not installed\n[N/A ] DPS310 not installed\n'
+        '[FAIL] GPS init failed\n', dict(sexp, gps=bc.OPTIONAL))
+    check('R6: the same reading fails without the inhibit', ok is False)
+    vni = dict(vexp, radio=bc.NOT_FITTED)
+    rv, d, w = vb.judge_preflight_radio(preflight_text('GO'), vni['radio'])
+    check('R6 (vehicle): radio marked not fitted but GO -> pass with a warning',
+          rv is True and w, f'{rv} {d} {w}')
+
+    sopt = bc.expectations(prof['fruit_jam'], 'station', [])
+    rv, d, _ = sb.judge_radio_version('RegVersion=0xff\n', 'optional')
+    check('R4: optional station radio reading 0xff -> N/A, not a fail', rv is None, d)
+    rv, d, _ = sb.judge_radio_version('RegVersion=0xff\n', exp['station']['radio'])
+    check('R2: radio push, station radio 0xff -> fail', rv is False, d)
+    try:
+        pg.radio_needs_radio({'station': dict(sopt, radio=bc.NOT_FITTED)})
+        blk = False
+    except pg.GateFail:
+        blk = True
+    check('R2: radio push + not-fitted inhibit -> blocked before the bench', blk)
+    try:
+        bc.expectations(prof['feather_rp2350'], 'vehicle', bc.active_inhibits(
+            bc.parse_inhibits(_json.dumps({'inhibits': [{
+                'branch': 'b', 'kind': 'not-fitted', 'role': 'vehicle',
+                'part': 'imu', 'reason': 'r'}]})), 'b', today)[0])
+        req = False
+    except bc.BoardConfigError:
+        req = True
+    check('R3/R6: a required IMU cannot be marked not fitted', req)
+    check('R3/R9: vehicle NO-GO with IMU and baro required -> FAIL',
+          vb.preflight_nogo_message(vexp).startswith('FAIL'))
+    lines = {'station': sopt, 'vehicle': vexp}
+    na_note = ('result: PASS\nroles: vehicle station\nboards: station=S vehicle=V\n'
+               + pg.note_expect_line(lines)
+               + '\nna: station bench: Radio RegVersion (radio not fitted)\n')
+    ok, why = pg.note_covers(na_note, ['vehicle', 'station'], False, {'S', 'V'},
+                             pg.note_expect_line(pg.radio_needs_radio(lines)))
+    check('R7: an N/A-radio note is not reused for a radio-code push', not ok, why)
+    ok, why = pg.note_covers(na_note, ['vehicle', 'station'], False, {'S'},
+                             pg.note_expect_line(lines))
+    check('R1: a note is not reused when a noted board is not attached', not ok, why)
+    ok, _ = pg.note_covers(na_note, ['vehicle', 'station'], False, None, '')
+    check('R1: a note is not reused when serials cannot be read', not ok)
+    with tempfile.TemporaryDirectory() as t:
+        elf = Path(t) / 'rocketchip.elf'
+        elf.write_bytes(b'new build')
+        (Path(t) / 'rocketchip.elf.flashed.json').write_text(
+            _json.dumps({'sha256': _hl.sha256(b'old build').hexdigest()}))
+        check('R8: a flash record for an older ELF -> not recorded',
+              pg.flash_recorded(elf) is False)
+    pg.WARN_INHIBITS.clear()
+    pg.WARN_INHIBITS['unknown-serial'] = 'r'
+    out = captured(lambda: (pg.warn('x', 'unknown-serial'),
+                            pg.warn('y', 'hw-unexpected:station:radio')))
+    check('R5: warnings (inhibited or not) print and never raise',
+          'INHIBITED' in out and 'WARNING' in out, out)
+    pg.WARN_INHIBITS.clear()
 
 
 if __name__ == '__main__':

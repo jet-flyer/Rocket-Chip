@@ -14,12 +14,14 @@ Four tests:
   1. Boot + dashboard round-trip (main menu reachable, no QP markers).
   2. Hardware Status against the expected hardware (--expect from the gate's
      board profile; without it the legacy rule: IMU and baro shown [N/A],
-     the IVP-142c presentation guard). Unexpected parts are warnings only.
+     the IVP-142c presentation guard). Unexpected parts are warnings only;
+     a [FAIL] fails whatever the part is expected to be.
   3. Health pipeline populated (diag_stats [Health] line: secondary byte
      non-zero, critical 0, regression guard for AO_HealthMonitor-on-station
      under capability-masking).
   4. Radio RegVersion=0x12 (SX1276 positive control), only when a radio is
-     expected or detected; otherwise N/A by name.
+     expected or detected; otherwise N/A by name. A wrong chip (not 0x12,
+     0x00 or 0xFF) fails whatever the radio is expected to be.
   N/A checks print as "hw_na: <check> (<part> not fitted)" and unexpected
   hardware as "hw_warn: hw-unexpected:<role>:<part> ..." for the gate.
 
@@ -249,10 +251,14 @@ def judge_hw_status(out, expect):
     """Hardware Status text -> (ok, detail, na, warns). Pure, host-tested.
 
     expect None: legacy rule (IMU and baro must show [N/A]).
-    expect dict: per part, fitted = shown and not [N/A] / [FAIL];
-    optional = checked when detected, N/A by name when not (never fails for
-    being missing); absent = should show [N/A], if not that is a warning only
-    (Nathan 2026-11-23: unexpected hardware warns); not-fitted = N/A by name.
+    expect dict, per part. A part reads one of: [FAIL] <name> (failed),
+    [PASS]/[WARN] <name> (present), [N/A ] <name> not installed or no line
+    (absent). A failure fails in every state: an inhibit or an absent level
+    never hides one (Nathan 2026-11-23).
+      fitted:      present passes; absent fails.
+      optional:    present passes; absent is N/A by name.
+      not-fitted:  absent is N/A by name; present warns (unexpected) and passes.
+      absent:      absent passes; present warns and passes.
     """
     na_hits = RE_NA_SENSOR.findall(out)
     if expect is None:
@@ -268,24 +274,24 @@ def judge_hw_status(out, expect):
     na, warns, bad = [], [], []
     for part, name in HW_STATUS_NAMES.items():
         state = expect[part]
-        failed = re.search(r'\[FAIL\]\s*' + re.escape(name), out) is not None
-        if state == board_config.NOT_FITTED:
-            na.append(part)
+        n = re.escape(name)
+        failed = re.search(r'\[FAIL\]\s*' + n, out) is not None
+        present = re.search(r'\[(?:PASS|WARN)\s*\]\s*' + n, out) is not None
+        if failed:
+            bad.append(f'{name} shown [FAIL] ({part} {state})')
         elif state == board_config.FITTED:
-            if name in na_hits:
-                bad.append(f'{name} expected but shown [N/A]')
-            elif failed:
-                bad.append(f'{name} expected but shown [FAIL]')
+            if not present:
+                bad.append(f'{name} expected but '
+                           + ('shown [N/A]' if name in na_hits else 'not shown'))
         elif state == board_config.OPTIONAL:
-            if failed:
-                bad.append(f'{name} (optional) fitted but shown [FAIL]')
-            elif name in na_hits:
+            if not present:
                 na.append(part)
-        else:  # absent
-            if failed:
-                bad.append(f'[FAIL] {name} seen — regression of N/A presentation')
-            elif name not in na_hits:
-                warns.append((part, f'{name} detected but not expected on this board'))
+        elif present:  # not-fitted or absent, but it is there and healthy
+            warns.append((part, f'{name} detected but not expected on this board'
+                          + (' (marked not fitted)' if state == board_config.NOT_FITTED
+                             else '')))
+        elif state == board_config.NOT_FITTED:
+            na.append(part)
     if bad:
         return False, '; '.join(bad), na, warns
     return True, f'OK ({len(na_hits)} N/A shown)', na, warns
@@ -327,24 +333,38 @@ def judge_health(out):
 
 def judge_radio_version(out, radio_state):
     """(ok or None for N/A, detail, warns). RegVersion=0x12 is the SX1276
-    positive control (council, IVP-132a.4); it runs only when a radio is
-    expected (Nathan 2026-11-23). radio_state None: legacy, radio required."""
+    positive control (council, IVP-132a.4). Pure, host-tested.
+
+    A reading is the chip (0x12), no chip (no line, 0x00 or 0xFF: nothing on
+    the SPI bus) or a wrong chip (any other value). A wrong chip fails in
+    every state: an inhibit or an absent level never hides it (Nathan
+    2026-11-23). radio_state None: legacy, radio required.
+      fitted / None: 0x12 passes; no chip fails.
+      optional:      0x12 passes; no chip is N/A by name.
+      not-fitted:    no chip is N/A by name; 0x12 warns (unexpected), passes.
+      absent:        no chip passes; 0x12 warns and passes."""
     rv = RE_REG_VERSION.search(out)
+    val = rv.group(1).lower() if rv else None
+    if val is not None and val != '12' and val not in NO_RADIO_REG_VERSIONS:
+        return False, f'RegVersion=0x{rv.group(1)} (expected 0x12): wrong chip', []
+    chip = val == '12'
     if radio_state == board_config.NOT_FITTED:
+        if chip:
+            return True, 'radio marked not fitted', [(
+                'radio', 'SX1276 RegVersion=0x12 read but the radio is marked not fitted')]
         return None, 'radio not fitted', []
-    if radio_state == board_config.OPTIONAL and (
-            not rv or rv.group(1).lower() in NO_RADIO_REG_VERSIONS):
-        return None, 'optional radio not detected', []
     if radio_state == board_config.ABSENT:
-        if rv and rv.group(1).lower() == '12':
+        if chip:
             return True, 'no radio expected', [('radio', 'SX1276 RegVersion=0x12 '
                                                 'read but no radio expected')]
         return True, 'no radio expected', []
+    if chip:
+        return True, 'OK RegVersion=0x12', []
+    if radio_state == board_config.OPTIONAL:
+        return None, 'optional radio not detected', []
     if not rv:
         return False, 'RegVersion not found in T=0 preconditions', []
-    if rv.group(1).lower() != '12':
-        return False, f'RegVersion=0x{rv.group(1)} (expected 0x12)', []
-    return True, 'OK RegVersion=0x12', []
+    return False, f'RegVersion=0x{rv.group(1)} (expected 0x12): no chip', []
 
 
 def test_health_pipeline(port, state, verbose=False):

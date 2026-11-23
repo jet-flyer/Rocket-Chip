@@ -69,10 +69,16 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     (board_profiles.json, read from the pushed commit) is benched against
     that profile with --expect; without one its bench keeps the legacy
     rules. gate_inhibits.json (pushed commit) entries for the pushed-to
-    branch mark a part not fitted (N/A by name) or show a warning id as
-    INHIBITED. A [radio] change requires the radio on every benched board
-    with a profile, otherwise it BLOCKS. Missing required or expected
-    hardware fails in the bench; unexpected hardware only warns.
+    branch mark a part not fitted or show a warning id as INHIBITED. A
+    not-fitted part is N/A by name only while it reads absent; a failure
+    (wrong chip, [FAIL]) still fails, and a part that reads present and
+    healthy warns. A [radio] change requires the radio fitted and passing
+    on every benched board with a profile: an absent or not-fitted radio
+    BLOCKS before the bench, and a missing radio fails the bench (station
+    RegVersion=0x12; vehicle T2 Radio HW GO, since the preflight VERDICT
+    is Tier 1 only). This is separate from rule 5, which stays a warning
+    until RADIO_LINK_BENCH exists. Missing required or expected hardware
+    fails in the bench; unexpected hardware only warns.
     Warnings never block, and each carries a fixed id: shape-max-firmware,
     shape-isolate, radio-gap, unknown-serial, probe-not-flagged,
     no-board-serial, inhibit-unused, hw-unexpected:<role>:<part>.
@@ -865,7 +871,9 @@ def radio_needs_radio(expects: Mapping[str, Optional[Dict[str, str]]]
     """A [radio] change requires a radio on every benched board that has a
     profile: an optional radio becomes fitted for this push (Nathan
     2026-11-23: a missing radio is not a fail, but radio code needs a radio).
-    Returns the updated expectations; an absent or not-fitted radio blocks."""
+    Returns the updated expectations; an absent or not-fitted radio blocks.
+    Both benches then fail a missing radio: the station on RegVersion, the
+    vehicle on its T2 Radio HW line (bench_sim.judge_preflight_radio)."""
     out: Dict[str, Optional[Dict[str, str]]] = {}
     off = []
     for r, e in sorted(expects.items()):
