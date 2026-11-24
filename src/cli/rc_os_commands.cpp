@@ -124,6 +124,7 @@ static void cmd_radio_config_cycle() {
 #include "drivers/i2c_master.h"
 #include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
+#include "drivers/icm20948_fs.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_uart.h"
 #include "drivers/gps_pa1010d.h"
@@ -632,8 +633,8 @@ static void print_imu_status() {
     if (g_imuInitialized) {
         rc::rc_log("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
         rc::rc_log("  IMU FS: accel=%ug gyro=%u dps\n",
-               2U << static_cast<unsigned>(g_imu.accel_fs),
-               250U << static_cast<unsigned>(g_imu.gyro_fs));
+               static_cast<unsigned>(icm20948_fs::accel_range_g(g_imu.accel_fs)),
+               static_cast<unsigned>(icm20948_fs::gyro_range_dps(g_imu.gyro_fs)));
         rc::rc_log("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");

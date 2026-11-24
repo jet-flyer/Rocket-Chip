@@ -4,9 +4,10 @@
 // Prior Art: DS-000189; AKD09916; SparkFun bank cache.
 
 #include "icm20948.h"
+#include "drivers/icm20948_fs.h"
 #include "i2c_master.h"
+#include "rocketchip/board.h"
 #include "pico/time.h"
-#include <math.h>
 #include <string.h>
 
 constexpr uint8_t kRegBankSel = 0x7F;
@@ -22,25 +23,26 @@ constexpr uint8_t kFsSelMask = 0xF9;  // clear ACCEL/GYRO_FS_SEL bits [2:1]
 constexpr uint8_t kFsSelShift = 1;
 constexpr uint8_t kFsSelField = 0x03U;
 // I2C ACK is not proof a bank-2 write took. POR is ACCEL_FS=0 ±2g /
-// 16384 LSB/g (DS-000189 Table 2). Software ±4g is 8192 LSB/g — a stuck
-// POR with a 4g scale reports ~2g at rest (|A|≈19.6) and ESKF refuses
-// stationary init. Same retry class as kMagWiaTries.
+// 16384 LSB/g (DS-000189 Table 2). A stuck POR read with the pack's
+// scale would report the wrong |A| at rest and ESKF refuses stationary
+// init, so the write is verified and the scale is loaded from the chip's
+// readback. Same retry class as kMagWiaTries.
 constexpr uint8_t kFsWriteTries = 5;
 constexpr uint8_t kMagWiaTries = 10;
 constexpr uint8_t kPwrMgmt2On = 0x00;
 constexpr float kTempSensitivity = 333.87F;  // DS-000189
 constexpr float kTempOffset = 21.0F;         // DS-000189
 constexpr float kMagScale = 0.15F;           // AKD09916 0.15 uT/LSB
-constexpr float kStdGravityMs2 = 9.80665F;   // ISO 80000-3
-constexpr float kDegToRad = static_cast<float>(M_PI) / 180.0F;
-constexpr float kGyroLsb250Dps = 131.0F;     // DS-000189
-constexpr float kGyroLsb500Dps = 65.5F;
-constexpr float kGyroLsb1000Dps = 32.8F;
-constexpr float kGyroLsb2000Dps = 16.4F;
-constexpr float kAccelLsb2G = 16384.0F;
-constexpr float kAccelLsb4G = 8192.0F;
-constexpr float kAccelLsb8G = 4096.0F;
-constexpr float kAccelLsb16G = 2048.0F;
+
+// Full scale from the board pack (Council 2026-11-21: ±16 g / ±2000 dps).
+static_assert(icm20948_fs::accel_range_valid(board::kImuAccelRangeG),
+              "board::kImuAccelRangeG must be 2, 4, 8 or 16");
+static_assert(icm20948_fs::gyro_range_valid(board::kImuGyroRangeDps),
+              "board::kImuGyroRangeDps must be 250, 500, 1000 or 2000");
+constexpr icm20948_accel_fs_t kAccelFs =
+    icm20948_fs::accel_fs_from_range(board::kImuAccelRangeG);
+constexpr icm20948_gyro_fs_t kGyroFs =
+    icm20948_fs::gyro_fs_from_range(board::kImuGyroRangeDps);
 
 namespace bank0 {
     constexpr uint8_t kWhoAmI    = 0x00;
@@ -77,20 +79,6 @@ namespace ak {
     constexpr uint8_t kSt1Drdy = 0x01;
     constexpr uint8_t kSt2Hofl = 0x08;
 }  // namespace ak
-
-static const float kAccelScale[] = {
-    kStdGravityMs2 / kAccelLsb2G,
-    kStdGravityMs2 / kAccelLsb4G,
-    kStdGravityMs2 / kAccelLsb8G,
-    kStdGravityMs2 / kAccelLsb16G,
-};
-
-static const float kGyroScale[] = {
-    kDegToRad / kGyroLsb250Dps,
-    kDegToRad / kGyroLsb500Dps,
-    kDegToRad / kGyroLsb1000Dps,
-    kDegToRad / kGyroLsb2000Dps,
-};
 
 static uint8_t g_magDivCount = 0;
 
@@ -156,7 +144,7 @@ static bool load_accel_scale_from_chip(icm20948_t* dev) {
     }
     const uint8_t actual = fs_sel_bits(cfg);
     dev->accel_fs = static_cast<icm20948_accel_fs_t>(actual);
-    dev->accel_scale = kAccelScale[actual];
+    dev->accel_scale = icm20948_fs::accel_scale(dev->accel_fs);
     return true;
 }
 
@@ -167,7 +155,7 @@ static bool load_gyro_scale_from_chip(icm20948_t* dev) {
     }
     const uint8_t actual = fs_sel_bits(cfg);
     dev->gyro_fs = static_cast<icm20948_gyro_fs_t>(actual);
-    dev->gyro_scale = kGyroScale[actual];
+    dev->gyro_scale = icm20948_fs::gyro_scale(dev->gyro_fs);
     return true;
 }
 
@@ -258,10 +246,10 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     if (!reset_and_wake(dev)) {
         return false;
     }
-    if (!apply_accel_fs(dev, ICM20948_ACCEL_FS_4G)) {
+    if (!apply_accel_fs(dev, kAccelFs)) {
         return false;
     }
-    if (!apply_gyro_fs(dev, ICM20948_GYRO_FS_500DPS)) {
+    if (!apply_gyro_fs(dev, kGyroFs)) {
         return false;
     }
     (void)init_mag(dev);
@@ -343,8 +331,8 @@ bool icm20948_ensure_awake(icm20948_t* dev) {
         return false;
     }
     // Sleep/wake does not reset FS, but a bank-desynced recover can.
-    return apply_accel_fs(dev, ICM20948_ACCEL_FS_4G) &&
-           apply_gyro_fs(dev, ICM20948_GYRO_FS_500DPS);
+    return apply_accel_fs(dev, kAccelFs) &&
+           apply_gyro_fs(dev, kGyroFs);
 }
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {

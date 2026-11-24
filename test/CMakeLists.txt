@@ -385,6 +385,17 @@ target_include_directories(test_diag_radio_precondition PRIVATE
 target_compile_definitions(test_diag_radio_precondition PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_diag_radio_precondition)
 
+# ICM-20948 full-scale codes / scale factors and the pack range (±16 g /
+# ±2000 dps, Council 2026-11-21). Header-only; board.h via host stubs.
+add_executable(test_icm20948_fs test_icm20948_fs.cpp)
+target_link_libraries(test_icm20948_fs PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_fs PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_fs PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_fs)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)

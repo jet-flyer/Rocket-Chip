@@ -101,6 +101,10 @@ inline constexpr bool        kLedRgbActiveLow     = true;
 
 // Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
 inline constexpr bool    kImuZUpNed          = true;
+// IMU full scale (Council 2026-11-21, plan 3.4): a boost must not clip.
+// ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
+inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
+inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
 inline constexpr uint8_t kMcuTempAdcInput    = 4;  // RP2350A die sensor
 
 // Required pack member: src/main.cpp passes kPsramCsPin to psram_init inside

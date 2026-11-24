@@ -89,6 +89,10 @@ inline constexpr bool    kLedRgbActiveLow      = false;
 // when this is true so a second mount cannot inherit the convention silently
 // (WN-124). Not a full board_rotation matrix.
 inline constexpr bool    kImuZUpNed            = true;
+// IMU full scale (Council 2026-11-21, plan 3.4): a boost must not clip.
+// ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
+inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
+inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
 inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---
