@@ -496,6 +496,12 @@ target_link_libraries(test_status_led_policy PRIVATE GTest::gtest_main)
 target_include_directories(test_status_led_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_status_led_policy)
 
+# Boot hardware check: PSRAM counted only when the pack fits it.
+add_executable(test_psram_check_policy test_psram_check_policy.cpp)
+target_link_libraries(test_psram_check_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_psram_check_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_psram_check_policy)
+
 add_executable(test_rgb_led_animate test_rgb_led_animate.cpp)
 target_link_libraries(test_rgb_led_animate PRIVATE GTest::gtest_main)
 target_include_directories(test_rgb_led_animate PRIVATE ${CMAKE_SOURCE_DIR}/include)

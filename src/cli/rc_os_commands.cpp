@@ -119,6 +119,7 @@ static void cmd_radio_config_cycle() {
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
 #include "drivers/status_led.h"
+#include "rocketchip/psram_check_policy.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_storage.h"
 #include "drivers/i2c_master.h"
@@ -702,7 +703,17 @@ static void hw_validate_sensors() {
     print_gps_status();
 }
 
+// Same predicate as the boot count (rc::psram_check).
+static rc::PsramCheck psram_boot_check() {
+    return rc::psram_check(board::kPsramAvailable, g_psramSize,
+                           g_psramSelfTestPassed, g_psramFlashSafePassed);
+}
+
 static void print_psram_status() {
+    if constexpr (!board::kPsramAvailable) {
+        rc::rc_log("[----] PSRAM: not fitted on this board\n");
+        return;
+    }
     if (g_psramSize > 0) {
         rc::rc_log("[%s] PSRAM: %luMB at 0x%08lX",
                g_psramSelfTestPassed ? "PASS" : "FAIL",
@@ -886,7 +897,11 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     if (g_spiInitialized) {
         check(AO_Radio_get_state()->initialized);
     }
-    check(true);                                    // PSRAM
+    // PSRAM: counted only when the pack fits it (rc::psram_check).
+    const rc::PsramCheck psram = psram_boot_check();
+    if (psram != rc::PsramCheck::kNotCounted) {
+        check(psram == rc::PsramCheck::kPass);
+    }
     check(true);                                    // Logging
     check(true);                                    // Flash
 }
@@ -910,6 +925,9 @@ static void print_hw_failures() {
     }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
         rc::rc_log("  [FAIL] Radio\n");
+    }
+    if (psram_boot_check() == rc::PsramCheck::kFail) {
+        rc::rc_log("  [FAIL] PSRAM\n");
     }
 }
 
