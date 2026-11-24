@@ -402,6 +402,7 @@ else()
         #   src/dev/replay_inject.{cpp,h}
         #   src/dev/station_replay.{cpp,h}
         src/diag/diag_stats.cpp
+        src/diag/diag_radio_precondition.cpp  # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp  # R-32 R0: increment-only rate counters
         src/diag/link_baseline.cpp        # baseline LINK line (CLI t)
 
@@ -587,6 +588,7 @@ else()
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
         src/diag/diag_stats.cpp                     # R-25-exec step 4
+        src/diag/diag_radio_precondition.cpp        # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp            # R-32 R0: increment-only rate counters
         src/diag/link_baseline.cpp                  # baseline LINK line (CLI t)
         src/math/vec3.cpp

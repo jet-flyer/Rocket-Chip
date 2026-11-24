@@ -360,6 +360,31 @@ target_include_directories(test_radio_tx_force PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_tx_force)
 
+# SPI helper refuses register access before spi_bus_init() (Tiny: no radio,
+# SPI never set up). Real spi_bus.cpp against counting SDK stubs.
+add_executable(test_spi_bus_guard
+    test_spi_bus_guard.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/spi_bus.cpp)
+target_link_libraries(test_spi_bus_guard PRIVATE GTest::gtest_main)
+target_include_directories(test_spi_bus_guard PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_spi_bus_guard PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_spi_bus_guard)
+
+# Diag T=0 [Radio] lines: "fitted=NO" and no read when no radio is fitted.
+add_executable(test_diag_radio_precondition
+    test_diag_radio_precondition.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/diag_radio_precondition.cpp)
+target_link_libraries(test_diag_radio_precondition PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_diag_radio_precondition PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_diag_radio_precondition PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_diag_radio_precondition)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
