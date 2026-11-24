@@ -396,6 +396,16 @@ target_include_directories(test_icm20948_fs PRIVATE
 target_compile_definitions(test_icm20948_fs PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_icm20948_fs)
 
+# IMU I2C transfer budget (~2 ms pack value vs the burst's bus time).
+add_executable(test_imu_i2c_budget test_imu_i2c_budget.cpp)
+target_link_libraries(test_imu_i2c_budget PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_i2c_budget PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_i2c_budget PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_i2c_budget)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)

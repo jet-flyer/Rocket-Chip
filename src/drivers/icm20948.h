@@ -14,6 +14,12 @@ constexpr uint8_t kIcm20948AddrDefault = kI2cAddrIcm20948;
 constexpr uint8_t kIcm20948AddrAlt     = kI2cAddrIcm20948Alt;
 constexpr uint8_t kIcm20948WhoAmI      = 0xEA;
 constexpr uint8_t kAk09916WhoAmI       = 0x09;
+// ACCEL_XOUT_H..TEMP_OUT_L burst (accel, gyro, temp).
+constexpr uint8_t kIcm20948ImuBurstBytes = 14;
+// Longest transfer the driver makes: address + register, repeated-start
+// address, then the burst. Sizes board::kImuI2cTimeoutUs.
+constexpr uint8_t kIcm20948LongestXferBytes =
+    static_cast<uint8_t>(3U + kIcm20948ImuBurstBytes);
 
 typedef enum {
     ICM20948_ACCEL_FS_2G  = 0,

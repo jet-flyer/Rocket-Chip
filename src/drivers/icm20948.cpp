@@ -6,16 +6,25 @@
 #include "icm20948.h"
 #include "drivers/icm20948_fs.h"
 #include "i2c_master.h"
+#include "drivers/i2c_timing.h"
 #include "rocketchip/board.h"
 #include "pico/time.h"
 #include <string.h>
 
 constexpr uint8_t kRegBankSel = 0x7F;
-constexpr uint32_t kXferUs = kI2cMasterDefaultTimeoutUs;
+// IMU-specific transfer budget from the pack (Council 2026-11-21): ~2 ms,
+// not the 50 ms GPS default. At least 4x the longest transfer's clock time
+// at the shared bus speed, so a slower kI2cMasterFreqHz fails the build.
+constexpr uint32_t kXferUs = board::kImuI2cTimeoutUs;
+static_assert(kXferUs >= 4U * i2c_bytes_time_us(kIcm20948LongestXferBytes,
+                                                kI2cMasterFreqHz),
+              "board::kImuI2cTimeoutUs too small for the IMU burst at this I2C speed");
+static_assert(kXferUs < kI2cMasterDefaultTimeoutUs,
+              "IMU budget should be tighter than the GPS-sized default");
 constexpr uint32_t kResetSettleMs = 100;  // DS-000189 start-up 11-100 ms
 constexpr uint32_t kWakeSettleMs = 50;
 constexpr uint32_t kStepDelayMs = 10;
-constexpr uint8_t kImuBurst = 14;
+constexpr uint8_t kImuBurst = kIcm20948ImuBurstBytes;
 constexpr uint8_t kMagBurst = 9;
 constexpr uint8_t kMagDivider = 10;
 constexpr uint8_t kUnknownBank = 0xFF;

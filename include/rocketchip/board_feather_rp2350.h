@@ -93,6 +93,10 @@ inline constexpr bool    kImuZUpNed            = true;
 // ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
 inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
 inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
+// IMU I2C transfer budget (Council 2026-11-21, plan 3.4): a hung IMU or
+// AK09916 transfer pays this, not the 50 ms GPS-sized default
+// (kI2cMasterDefaultTimeoutUs). icm20948.cpp static_asserts the margin.
+inline constexpr uint32_t kImuI2cTimeoutUs  = 2000U;
 inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---
