@@ -2022,3 +2022,15 @@ For any audit: owner-quoted scope; hand-read evidence for every PASS; two deriva
 - LL 36: an honor-system gate. Here a check was listed but silenced.
 - LL 43: "clean" without proving the check applied. The same negative evidence, in clang-tidy config.
 - LL 48: gate PASS on the wrong artifact.
+
+## Entry 50: Code Left Behind by a Removed Link Flag Looks Live
+
+**What happened (2026-11-24).** The Tiny 2350 Phase 1 stage-close clang-tidy sweep flagged 4 reserved identifiers: `__wrap_watchdog_reboot`, `__wrap_rom_reset_usb_boot_extra` and their `__real_` declarations in `src/drivers/i2c_bus_legacy.cpp`. The `--wrap` link flags had been removed on 2026-09-03 (`6dcea56e`) because they broke `picotool -f` on the Fruit Jam, and the file has not been built since `0f53a02c` kept it as an uncompiled reference. Reviewers read the wrappers as live and asked for a repeated-flash bench to protect the I2C quiesce on picotool reboots. `arm-none-eabi-nm` on both flight ELFs showed none of those symbols, so the quiesce had been off on those paths for months.
+
+**Why.** Removing the link flag did not remove the code that only it reached. Unbuilt code is still read and still linted, so it misleads both people and gates.
+
+### Prevention
+When removing a linker flag, build option or hook, remove the code that only it reached in the same commit. Before reasoning about whether code runs, check the ELF symbols (`arm-none-eabi-nm`) or the compile list, not the source alone.
+
+### Related
+- LL 43: prove a check applies to the real artifact before trusting "clean".
