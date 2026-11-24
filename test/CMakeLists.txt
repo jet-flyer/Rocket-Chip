@@ -100,6 +100,12 @@ add_executable(test_log_decimator test_log_decimator.cpp)
 target_link_libraries(test_log_decimator PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_log_decimator)
 
+# DPS310 new-sample gate + baro new-sample watch (header-only, pure)
+add_executable(test_baro_poll test_baro_poll.cpp)
+target_include_directories(test_baro_poll PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_baro_poll PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_baro_poll)
+
 # IVP-53a: CRC-32 + Flight log table tests
 add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
@@ -360,6 +366,74 @@ target_include_directories(test_radio_tx_force PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_tx_force)
 
+# SPI helper refuses register access before spi_bus_init() (Tiny: no radio,
+# SPI never set up). Real spi_bus.cpp against counting SDK stubs.
+add_executable(test_spi_bus_guard
+    test_spi_bus_guard.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/spi_bus.cpp)
+target_link_libraries(test_spi_bus_guard PRIVATE GTest::gtest_main)
+target_include_directories(test_spi_bus_guard PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_spi_bus_guard PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_spi_bus_guard)
+
+# Diag T=0 [Radio] lines: "fitted=NO" and no read when no radio is fitted.
+add_executable(test_diag_radio_precondition
+    test_diag_radio_precondition.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/diag_radio_precondition.cpp)
+target_link_libraries(test_diag_radio_precondition PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_diag_radio_precondition PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_diag_radio_precondition PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_diag_radio_precondition)
+
+# ICM-20948 full-scale codes / scale factors and the pack range (±16 g /
+# ±2000 dps, Council 2026-11-21). Header-only; board.h via host stubs.
+add_executable(test_icm20948_fs test_icm20948_fs.cpp)
+target_link_libraries(test_icm20948_fs PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_fs PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_fs PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_fs)
+
+# IMU I2C transfer budget (~2 ms pack value vs the burst's bus time).
+add_executable(test_imu_i2c_budget test_imu_i2c_budget.cpp)
+target_link_libraries(test_imu_i2c_budget PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_i2c_budget PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_i2c_budget PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_i2c_budget)
+
+# Core 1 IMU recover policy (plan section 4 gap 1): pure decision logic.
+add_executable(test_imu_recover_policy test_imu_recover_policy.cpp)
+target_link_libraries(test_imu_recover_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_recover_policy PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_recover_policy PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_recover_policy)
+
+# icm20948_reinit against a register-level fake of the i2c_master calls.
+add_executable(test_icm20948_reinit
+    test_icm20948_reinit.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/icm20948.cpp)
+target_link_libraries(test_icm20948_reinit PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_reinit PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_reinit PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_reinit)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
@@ -421,6 +495,23 @@ gtest_discover_tests(test_rc_log)
 add_executable(test_rc_snprintf test_rc_snprintf.cpp)
 target_link_libraries(test_rc_snprintf PRIVATE rc_log GTest::gtest_main)
 gtest_discover_tests(test_rc_snprintf)
+
+# Status LED backend selection + RGB animation (Tiny discrete LED path).
+add_executable(test_status_led_policy test_status_led_policy.cpp)
+target_link_libraries(test_status_led_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_status_led_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_status_led_policy)
+
+# Boot hardware check: PSRAM counted only when the pack fits it.
+add_executable(test_psram_check_policy test_psram_check_policy.cpp)
+target_link_libraries(test_psram_check_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_psram_check_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_psram_check_policy)
+
+add_executable(test_rgb_led_animate test_rgb_led_animate.cpp)
+target_link_libraries(test_rgb_led_animate PRIVATE GTest::gtest_main)
+target_include_directories(test_rgb_led_animate PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_rgb_led_animate)
 
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.

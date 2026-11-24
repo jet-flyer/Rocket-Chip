@@ -189,6 +189,22 @@ Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 **Debug `o` (2026-10-08):** `f142a4db` force-one-TX-timeout is inside `#if ROCKETCHIP_DEV_MODE`, but that option defaults ON, and the case does not call `inject_allowed()`, so it runs with runtime DEV MODE off (help only hides it). Compile it out of field images or refuse it when DEV MODE is off. Needs Nathan.
 
+### Per-board folder in the hardware section (TODO) (Nathan, 2026-11-21)
+
+Board-specific files are spread out today: board packs in `include/rocketchip/` (`board.h` selects `board_feather_rp2350.h`, `board_fruit_jam.h`, `board_pico2.h`, and on `grok/tiny2350-main` `board_tiny_2350.h`), `PICO_BOARD` defaults in `CMakeLists.txt` (~227-239), presets in `CMakePresets.json` (`vehicle-tiny`), board docs in `docs/hardware/` (`HARDWARE.md` sections, `BOARD_COMPARISON.md`, carrier and booster-pack files), and CI board setup in `scripts/ci/board_config.py` + `boards.example.json`. To do: one hardware folder with a sub-folder per board, holding that board's config header, pinout and notes, plus anything else that applies only to that board. Open: exact path and how CMake finds the header (include path per `PICO_BOARD`). Shared code stays out of these folders.
+
+### Possible nasa/CF closure-flag bug (look into later) (Nathan, 2026-11-21)
+
+`fsw/src/cf_codec.c:108-109` in CF v7.0.2 `dev` defines the Metadata closure-requested field at shift 7 (0x80), but 727.0-B-5 Table 5-9 puts it at 0x40. The same field is used on encode (`CF_CFDP_EncodeMd`, `:582`) and decode (`CF_CFDP_DecodeMd`, `:909`), so CF can't interoperate in either direction, while two CF nodes cancel each other out. F´ fixed the same bug (fprime#6136). Found by Goddard, book-checked by Duke, lines verified. **Nathan (2026-11-22):** no upstream report of the CF bug until we look into it more. Still open: confirm with a cfdp-py round trip. See plan §21 and `docs/reports/2026-11-21_goddard_cfdp-reuse-study.md`.
+
+### Add a distinct house-rules section to standards/ (Nathan, 2026-11-22)
+
+Split house rules (ours, more flexible, changeable by Nathan's call) from external standards (more rigid, cite the clause) so each rule is clearly labeled. Example: the 2026-10-21 flash rule ("writes only while disarmed") is a house rule, not from a standard. Tie in with plan §19.6 (the lighter references tier, decided 2026-11-21; do not edit `standards/` yet). **Duke's suggested structure (2026-11-22), a proposal, not decided:** three tiers in `standards/` sharing one layout with plan §19.6: (1) Binding standards we claim conformance to (e.g. 133.0-B-2, 131.0-B-5), changed only by a deliberate decision with deviations recorded; (2) Reference guidance followed unless something better turns up (PUS, GSFC, FAA, Magenta/Historical books); (3) House rules (the flash rule, AO Commandments), each tagged with origin and date so it is clearly changeable. Every rule carries its source so a house rule cannot pass as a standard (as the old flash rule did).
+
+### Evaluate the IMU FIFO for the logging refactor (LATER, Phase 2) (Nathan, 2026-11-23)
+
+Evaluate the ICM-20948 FIFO for the logging refactor (Phase 2, both boards; plan `docs/plans/TINY2350_AND_LOGGING_PLAN_2026-11-21.md` §3.4 and §16). Main does not use the FIFO today (no FIFO register use in `src/drivers/icm20948.cpp`) and never sets an output data rate (no `GYRO_SMPLRT_DIV` write); Core 1 polls at about 1 kHz (`kCore1TargetCycleUs = 1000`, `src/core1/sensor_core1.cpp:42`). **FIFO size (Goddard, 2026-11-23):** DS-000189 v1.3 (in tree) says 512 bytes; TDK's current v1.5 §4.16 says 4 KB; both say the usable size depends on the DMP features in use. **ArduPilot (Goddard, 2026-11-23):** [`AP_InertialSensor_Invensensev2.cpp`](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_InertialSensor/AP_InertialSensor_Invensensev2.cpp) always uses the FIFO (~line 183) and caps each read (~lines 474-493): on SPI, more than 32 queued samples means the tail is corrupt, so it reads 24 and resets the FIFO; on I2C, more than 4 queued means it reads 4 and resets. **Open questions:** drain every loop or let a backlog build; a catch-up burst must fit the 2 ms IMU I2C timeout (`kImuI2cTimeoutUs`), so read in small chunks; set an explicit ODR; a per-packet sample counter / FIFO-overflow flag per the plan's Format 3 proposal (§13). The FIFO does not fix flash-write stalls (see plan §16, the Core 1 / I2C SRAM item).
+
 ## Later
 
 ### RC side of Space Packet as the core unit (2026-10-19)

@@ -92,9 +92,24 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB
 inline constexpr bool    kDvmAvailable         = true;   // HSTX DVI output
 inline constexpr bool    kSdCardAvailable      = true;   // SPI0 SD slot
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C0
+inline constexpr bool    kPyroAvailable        = false;  // no pyro harness on this GCS board
+inline constexpr bool    kRadioAvailable       = true;   // RFM95W on SPI1 adapter
+inline constexpr bool    kRgbLedAvailable      = false;  // status LED is WS2812 (5 pixels)
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // Same ICM-20948 Z-up breakout convention as Feather (WN-124).
 inline constexpr bool    kImuZUpNed            = true;
+// IMU full scale (Council 2026-11-21, plan 3.4): a boost must not clip.
+// ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
+inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
+inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
+// IMU I2C transfer budget (Council 2026-11-21, plan 3.4): a hung IMU or
+// AK09916 transfer pays this, not the 50 ms GPS-sized default
+// (kI2cMasterDefaultTimeoutUs). icm20948.cpp static_asserts the margin.
+inline constexpr uint32_t kImuI2cTimeoutUs  = 2000U;
 inline constexpr uint8_t kMcuTempAdcInput      = 8;  // RP2350B die sensor
 
 // --- Board identity ---

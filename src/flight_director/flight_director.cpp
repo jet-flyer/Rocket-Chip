@@ -185,13 +185,15 @@ const char* flight_signal_name(uint16_t sig) {
 // Lifecycle
 // ============================================================================
 
-void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
+void flight_director_ctor(FlightDirector* me, const MissionProfile* profile,
+                          bool pyro_hardware) {
     Q_REQUIRE(me != nullptr);
     Q_REQUIRE(profile != nullptr);
     if (me == nullptr || profile == nullptr) { return; }
     QHsm_ctor(&me->super, Q_STATE_CAST(&state_initial));
     me->state.init();
     me->profile = profile;
+    me->pyro_hardware = pyro_hardware;
     me->tick_ms = 0;
     me->guards_enabled = false;
     // Init guard evaluator: 10ms tick period (100Hz)
@@ -202,6 +204,11 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     // fires before the first real enter_phase() call doesn't read uninitialized
     // bytes and trigger spurious kFault dispatch.
     flight_phase_observable_set(FlightPhase::kIdle);
+}
+
+static bool fd_should_fire_pyro(const FlightDirector* me) {
+    return me != nullptr && me->profile != nullptr &&
+           me->profile->has_pyro && me->pyro_hardware;
 }
 
 void flight_director_init(FlightDirector* me) {
@@ -440,8 +447,8 @@ static QState state_coast(FlightDirector * const me, QEvt const * const e) {
             return Q_HANDLED();
         }
         case SIG_APOGEE:
-            // Transition action: fire drogue pyro (if profile has pyro)
-            if (me->profile->has_pyro) {
+            // Transition action: fire drogue if the profile and the board agree.
+            if (fd_should_fire_pyro(me)) {
                 run_transition_actions(me, kTransitionFireDrogue,
                     action_count(kTransitionFireDrogue),
                     FlightPhase::kCoast, FlightPhase::kDrogueDescent);
@@ -455,7 +462,7 @@ static QState state_coast(FlightDirector * const me, QEvt const * const e) {
             if (elapsed >= me->profile->coast_timeout_ms) {
                 rc::rc_log("[FD] Coast timeout — forced apogee\n");
                 // Fire drogue pyro on timeout-forced apogee (same as SIG_APOGEE)
-                if (me->profile->has_pyro) {
+                if (fd_should_fire_pyro(me)) {
                     run_transition_actions(me, kTransitionFireDrogue,
                         action_count(kTransitionFireDrogue),
                         FlightPhase::kCoast, FlightPhase::kDrogueDescent);
@@ -507,8 +514,8 @@ static QState state_drogue_descent(FlightDirector * const me, QEvt const * const
             return Q_HANDLED();
         }
         case SIG_MAIN_DEPLOY:
-            // Transition action: fire main pyro (if profile has pyro)
-            if (me->profile->has_pyro) {
+            // Transition action: fire main pyro if the profile and the board agree.
+            if (fd_should_fire_pyro(me)) {
                 run_transition_actions(me, kTransitionFireMain,
                     action_count(kTransitionFireMain),
                     FlightPhase::kDrogueDescent, FlightPhase::kMainDescent);
@@ -592,13 +599,15 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
 
             // ABORT transition actions depend on source phase (Amendment #1)
             if (prev == FlightPhase::kBoost &&
-                me->profile->abort_fires_drogue_from_boost) {
+                me->profile->abort_fires_drogue_from_boost &&
+                fd_should_fire_pyro(me)) {
                 run_transition_actions(me, kTransitionFireDrogue,
                     action_count(kTransitionFireDrogue),
                     prev, FlightPhase::kAbort);
                 rc::rc_log("[FD] ABORT from BOOST — drogue pyro intent\n");
             } else if (prev == FlightPhase::kCoast &&
-                       me->profile->abort_fires_drogue_from_coast) {
+                       me->profile->abort_fires_drogue_from_coast &&
+                       fd_should_fire_pyro(me)) {
                 run_transition_actions(me, kTransitionFireDrogue,
                     action_count(kTransitionFireDrogue),
                     prev, FlightPhase::kAbort);

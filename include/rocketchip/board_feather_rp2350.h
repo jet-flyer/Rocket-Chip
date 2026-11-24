@@ -77,11 +77,26 @@ inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
 inline constexpr bool    kDvmAvailable         = false;  // HSTX connector present; DVI/DVM not in this firmware
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
+inline constexpr bool    kPyroAvailable        = true;   // bench channels on GPIO 12/13
+inline constexpr bool    kRadioAvailable       = true;   // RFM95W FeatherWing / SPI expansion
+inline constexpr bool    kRgbLedAvailable      = false;  // status LED is WS2812
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // ICM-20948 breakout is Z-up; ESKF is NED (Z-down). Sensor feed negates Z
 // when this is true so a second mount cannot inherit the convention silently
 // (WN-124). Not a full board_rotation matrix.
 inline constexpr bool    kImuZUpNed            = true;
+// IMU full scale (Council 2026-11-21, plan 3.4): a boost must not clip.
+// ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
+inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
+inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
+// IMU I2C transfer budget (Council 2026-11-21, plan 3.4): a hung IMU or
+// AK09916 transfer pays this, not the 50 ms GPS-sized default
+// (kI2cMasterDefaultTimeoutUs). icm20948.cpp static_asserts the margin.
+inline constexpr uint32_t kImuI2cTimeoutUs  = 2000U;
 inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---

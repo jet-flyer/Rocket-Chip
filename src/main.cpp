@@ -15,6 +15,7 @@
 #include "pico/time.h"
 #include "hardware/gpio.h"
 #include "drivers/ws2812_status.h"
+#include "drivers/status_led.h"
 #include "drivers/i2c_master.h"
 #include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
@@ -187,25 +188,30 @@ static void init_fault_recovery() {
 static void init_early_hw() {
     init_fault_recovery();
 
-    gpio_init(board::kLedPin);
-    gpio_set_dir(board::kLedPin, true);
+    // On a discrete-RGB pack the onboard LED is one RGB channel, which
+    // status_led_init() owns as PWM. Claiming it as SIO here would drive
+    // an active-low channel on until PWM takes over.
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        gpio_init(board::kLedPin);
+        gpio_set_dir(board::kLedPin, true);
+    }
 
     // Pack may release a shared peripheral RESET before I2C (no-op on Feather).
     board::board_release_peripheral_reset();
 
-    if (board::kNeoPixelCount == 0) {
-        g_neopixelInitialized = false;
-    } else {
-        g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
-                                                    board::kNeoPixelCount);
-    }
+    g_neopixelInitialized = status_led_init() && status_led_ws2812_ready();
     (void)rc::mcu_temp_init();  // always true; ADC enable has no fail return
 }
 
 static void init_peripherals() {
     // SPI bus + radio init (before USB per LL Entry 4/12)
-    // Optional peripheral: absent FeatherWing detected at init time
-    g_spiInitialized = spi_bus_init();
+    // Optional peripheral: absent FeatherWing detected at init time.
+    // Skip pin mux when the pack has no radio (local-logging tracker).
+    if constexpr (board::kRadioAvailable) {
+        g_spiInitialized = spi_bus_init();
+    } else {
+        g_spiInitialized = false;
+    }
     // Radio hardware init moved to AO_Radio_start() — owns its own lifecycle.
 
     // Calibration storage init (before USB per LL Entry 4/12)
@@ -247,8 +253,9 @@ static void init_hardware() {
     // (e.g. previous boot within same powered session detected a critical
     // fault while ARMED). Power cycle clears the flag; see
     // docs/USER_GUIDE.md "Safety State Model".
-    if (rc::flight_director_launch_abort() && g_neopixelInitialized) {
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
+    if (rc::flight_director_launch_abort()) {
+        status_led_set_mode(WS2812_MODE_SOLID, kColorRed);
+        status_led_update();
     }
 
     // I2C bus init (before USB per LL Entry 4/12), then IMU/baro/GPS.
@@ -288,10 +295,12 @@ static void init_pio_safety() {
     if (!rc::pio_watchdog_init()) {
         DBG_ERROR("PIO watchdog init failed — PIO2 SM unavailable");
     }
-    // Backup deployment timers (drogue=GPIO12, main=GPIO13)
-    // Bench test pins — not connected to pyro hardware yet
-    if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
-        DBG_ERROR("PIO backup timer init failed");
+    // Backup deployment timers. Claim pins only when the pack has pyro
+    // hardware (Feather bench channels today; Tiny/Jam/Pico 2 do not).
+    if constexpr (board::kPyroAvailable) {
+        if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
+            DBG_ERROR("PIO backup timer init failed");
+        }
     }
     // pyro_edge_logger_init() is WIP (WN-274 / rem WB R-14). Do not arm the
     // GPIO IRQ from flight boot until pyro HW is on these pins and a real

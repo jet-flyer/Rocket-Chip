@@ -26,6 +26,7 @@
 #include "fusion/eskf_runner.h"           // eskf_is_disabled()
 #include "rocketchip/rc_debug.h"  // DBG_PRINT compiles out without DEBUG
 #include "rocketchip/job.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
+#include "rocketchip/board.h"  // kRadioAvailable, kPyroAvailable
 
 // ============================================================================
 // Extern declarations -- globals owned by main.cpp (global namespace)
@@ -756,6 +757,8 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     const calibration_store_t* cal = calibration_manager_get();
     gng->mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
     gng->radio_linked   = (g_health.secondary & kHealthRadioOk) != 0;
+    gng->radio_fitted   = board::kRadioAvailable;
+    gng->pyro_fitted    = board::kPyroAvailable;
 
     // Stage T Batch B IVP-T14: RF link-health for pre-arm check.
     // Reads AO_RfManager's read-only state accessor per AO Commandment V

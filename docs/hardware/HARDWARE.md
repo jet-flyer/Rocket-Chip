@@ -169,14 +169,8 @@ Source: product page https://shop.pimoroni.com/products/tiny-2350, and SDK 2.2.0
 - BOOT button: user switch on GP23, active low (product page).
 - Qw/St (Qwiic) I2C: GP12 SDA, GP13 SCL (SDK: "routed to Qw/St connector").
 - Stepping is per unit. The product page says current stock is A4. Measured unit: "Important Notes" item 2 below.
-- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2. `include/rocketchip/board_tiny_2350_plus.h` l.3 ("Pimoroni Tiny 2350+ (the Plus variant)") is a mix-up.
-
-Known conflicts in the repo map (`include/rocketchip/board_tiny_2350_common.h`):
-
-- l.24, l.84: GPIO 21 is both I2C SCL and PSRAM CS (CW-B02-03). The product page lists no PSRAM, so remove the PSRAM CS line.
-- l.23-24: I2C is on GPIO 20 / 21. GPIO 20 is the blue LED. The Qwiic I2C is on GPIO 12 / 13.
-- l.54: `kLedPin` is 25. The LED is RGB on GPIO 18-20, active low.
-- l.44: `kNeoPixelPin` is 23. GPIO 23 is the BOOT switch. The board has no NeoPixel.
+- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2.
+- Board pack: `include/rocketchip/board_tiny_2350.h` (`kBoardName` "Pimoroni Tiny 2350", `kPsramAvailable` false). Selected by `-DPICO_BOARD=pimoroni_tiny2350`. Qw/ST I2C is GP12/13 (i2c0); RGB LED is GP18-20 active low; no WS2812 (`kNeoPixelCount` 0); BOOT is GP23; pyro defaults are GP26/27 (off the Qwiic pins, unverified, no pyro fitted). Radio SPI is an expansion default and is unverified. There is no onboard radio, GPS, or PSRAM.
 
 ### Sensors
 | Part | Adafruit P/N | Notes |

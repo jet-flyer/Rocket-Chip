@@ -4,6 +4,7 @@
 // Prior Art: IFXDS_DPS310 v1.1 compensation; Adafruit DPS310 Arduino.
 
 #include "baro_dps310.h"
+#include "dps310_poll.h"
 #include "i2c_master.h"
 #include "rocketchip/isa_atmosphere.h"
 #include "pico/time.h"
@@ -32,6 +33,8 @@ constexpr uint8_t kMrShift = 4;
 constexpr uint8_t kTmpExt = 0x80;  // TMP_CFG MEMS source
 constexpr uint8_t kStandby = 0x00;
 constexpr uint8_t kRawBurst = 6;
+constexpr uint8_t kRawLen = 3;     // one 24-bit result (PSR or TMP)
+constexpr uint8_t kRawBits = 24;
 constexpr uint8_t kCoefReadyTries = 50;
 constexpr uint32_t kSoftRstWaitMs = 40;   // Infineon startup + coef window
 constexpr uint32_t kCoefReadyPollMs = 10;
@@ -40,6 +43,9 @@ constexpr uint32_t kScaleOs8 = 7864320;   // IFXDS OS=8
 
 static uint8_t g_addr = 0;
 static bool g_ready = false;
+// Last raw temperature read by baro_dps310_poll(); valid once g_haveTmpRaw.
+static int32_t g_tmpRaw = 0;
+static bool g_haveTmpRaw = false;
 static float g_seaLevelPa = rc::kStdAtmPressurePa;
 static int32_t g_c0 = 0;
 static int32_t g_c1 = 0;
@@ -115,6 +121,7 @@ static bool load_coefs() {
 bool baro_dps310_init(uint8_t addr) {
     g_addr = addr;
     g_ready = false;
+    g_haveTmpRaw = false;
     if (!write_reg(kRegRst, kSoftRst)) {
         return false;
     }
@@ -175,29 +182,22 @@ bool baro_dps310_start_continuous() {
     if (!g_ready) {
         return false;
     }
+    g_haveTmpRaw = false;  // restart: no temperature converted yet
     return write_reg(kRegMeasCfg, kModeContBoth);
 }
 
 bool baro_dps310_stop() {
+    g_haveTmpRaw = false;
     return write_reg(kRegMeasCfg, kStandby);
 }
 
-bool baro_dps310_read(baro_dps310_data_t* data) {
-    if (data == nullptr || !g_ready) {
-        if (data != nullptr) {
-            data->valid = false;
-        }
-        return false;
-    }
-    uint8_t raw[kRawBurst];
-    if (!read_regs(kRegPsr, raw, kRawBurst)) {
-        data->valid = false;
-        return false;
-    }
-    int32_t praw = twos((static_cast<uint32_t>(raw[0]) << 16) |
-                        (static_cast<uint32_t>(raw[1]) << 8) | raw[2], 24);
-    int32_t traw = twos((static_cast<uint32_t>(raw[3]) << 16) |
-                        (static_cast<uint32_t>(raw[4]) << 8) | raw[5], 24);
+static int32_t raw24(const uint8_t* b) {
+    return twos((static_cast<uint32_t>(b[0]) << 16) |
+                (static_cast<uint32_t>(b[1]) << 8) | b[2], kRawBits);
+}
+
+// IFXDS / datasheet §4.9.1-4.9.2 compensation from raw results.
+static void compensate_raw(int32_t praw, int32_t traw, baro_dps310_data_t* data) {
     const float tsc = static_cast<float>(traw) / static_cast<float>(kScaleOs1);
     const float psc = static_cast<float>(praw) / static_cast<float>(kScaleOs8);
     const float temp = (static_cast<float>(g_c0) * 0.5F) +
@@ -213,7 +213,49 @@ bool baro_dps310_read(baro_dps310_data_t* data) {
     data->pressure_pa = pres;
     data->altitude_m = baro_dps310_pressure_to_altitude(pres, g_seaLevelPa);
     data->valid = true;
+}
+
+bool baro_dps310_read(baro_dps310_data_t* data) {
+    if (data == nullptr || !g_ready) {
+        if (data != nullptr) {
+            data->valid = false;
+        }
+        return false;
+    }
+    uint8_t raw[kRawBurst];
+    if (!read_regs(kRegPsr, raw, kRawBurst)) {
+        data->valid = false;
+        return false;
+    }
+    compensate_raw(raw24(&raw[0]), raw24(&raw[kRawLen]), data);
     return true;
+}
+
+BaroSampleStatus baro_dps310_poll(baro_dps310_data_t* data) {
+    if (data == nullptr || !g_ready) {
+        return BaroSampleStatus::kError;
+    }
+    uint8_t meas = 0;
+    if (i2c_master_read_reg(g_addr, kRegMeasCfg, &meas, kXferUs) != 0) {
+        return BaroSampleStatus::kError;
+    }
+    const Dps310PollPlan plan = dps310_poll_plan(meas, g_haveTmpRaw);
+    uint8_t raw[kRawLen];
+    if (plan.read_tmp) {
+        if (!read_regs(kRegTmp, raw, kRawLen)) {
+            return BaroSampleStatus::kError;
+        }
+        g_tmpRaw = raw24(raw);
+        g_haveTmpRaw = true;
+    }
+    if (!plan.read_psr) {
+        return BaroSampleStatus::kNoNewSample;
+    }
+    if (!read_regs(kRegPsr, raw, kRawLen)) {
+        return BaroSampleStatus::kError;
+    }
+    compensate_raw(raw24(raw), g_tmpRaw, data);
+    return BaroSampleStatus::kNewSample;
 }
 
 void baro_dps310_set_sea_level(float pressure_pa) {

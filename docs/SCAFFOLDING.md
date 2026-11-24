@@ -121,8 +121,7 @@ rocketchip/
 │       ├── board.h                # Compile-time board selector (Feather/FruitJam/Tiny/Pico2)
 │       ├── board_feather_rp2350.h # Feather RP2350 HSTX pin config
 │       ├── board_fruit_jam.h      # Fruit Jam pin config (I2C0, SPI1, 5 NeoPixels)
-│       ├── board_tiny_2350_common.h  # Pimoroni Tiny 2350 family shared pin map (scaffolding)
-│       ├── board_tiny_2350_plus.h    # Tiny 2350+ variant overrides (gated by TINY_2350_BRINGUP_OK)
+│       ├── board_tiny_2350.h      # Pimoroni Tiny 2350 (PIM721) pin config
 │       ├── board_pico2.h          # Raspberry Pi Pico 2 pin map (gated by PICO2_BRINGUP_OK)
 │       ├── job.h                  # Device role selector + capability predicates (Vehicle/Station/Relay)
 │       ├── job_vehicle.h          # Vehicle role constants

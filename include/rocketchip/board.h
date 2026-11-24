@@ -15,9 +15,8 @@
 #elif defined(ADAFRUIT_FEATHER_RP2350)
     #include "board_feather_rp2350.h"
 #elif defined(PIMORONI_TINY2350)
-    // WIP / unsupported until TINY_2350_BRINGUP_OK. Plus pack only;
-    // no board_tiny_2350.h.
-    #include "board_tiny_2350_plus.h"
+    // Pimoroni Tiny 2350 (PIM721). Selected by -DPICO_BOARD=pimoroni_tiny2350.
+    #include "board_tiny_2350.h"
 #elif defined(RASPBERRYPI_PICO2)
     // WIP / unsupported until PICO2_BRINGUP_OK.
     #include "board_pico2.h"

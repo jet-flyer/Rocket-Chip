@@ -21,6 +21,7 @@
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
 #include "fusion/eskf_runner.h"
+#include "rocketchip/board.h"
 
 #include "pico/time.h"
 #include "rocketchip/rc_log.h"
@@ -139,7 +140,11 @@ static void fd_tick(FdAo* me) {
         rc::flight_director_set_launch_abort();
     }
 
-    fd_check_pio_backup(me);
+    // No pyro hardware: the backup timers were never initialized, so there
+    // is nothing to poll.
+    if constexpr (board::kPyroAvailable) {
+        fd_check_pio_backup(me);
+    }
 }
 
 // ============================================================================
@@ -233,7 +238,8 @@ static void fd_note_inject_arm_phase() {
 void AO_FlightDirector_start(uint8_t prio) {
     FdAo* me = &g_fdAo;
 
-    rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
+    rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile,
+                             board::kPyroAvailable);
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
@@ -285,18 +291,25 @@ bool AO_FlightDirector_process_command(int cmd) {
         // PIO backup timer arm/disarm hooks
         if (result.signal == rc::SIG_ARM) {
             const auto* p = g_fdAo.director.profile;
-            rc::pio_backup_timer_arm(p->drogue_timer_s, p->main_timer_s);
-            rc::rc_log("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
-                       static_cast<double>(p->drogue_timer_s),
-                       static_cast<double>(p->main_timer_s));
+            if (p->has_pyro && board::kPyroAvailable) {
+                rc::pio_backup_timer_arm(p->drogue_timer_s, p->main_timer_s);
+                rc::rc_log("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
+                           static_cast<double>(p->drogue_timer_s),
+                           static_cast<double>(p->main_timer_s));
+            }
             eskf_runner_end_mahony_startup();
         } else if (result.signal == rc::SIG_ABORT) {
             AO_Logger_log_event(rc::LogEventId::kAbortTriggered,
                              static_cast<uint8_t>(phase), 0, 0, 0);
         } else if (result.signal == rc::SIG_DISARM ||
                    result.signal == rc::SIG_RESET) {
-            rc::pio_backup_timer_disarm();
-            rc::rc_log("[PIO] Backup timers disarmed\n");
+            // Symmetric with ARM: no pyro hardware, no backup timers to
+            // disarm. Gated on the board only (not has_pyro) so a pyro
+            // board always stops its timers and parks the pins low.
+            if constexpr (board::kPyroAvailable) {
+                rc::pio_backup_timer_disarm();
+                rc::rc_log("[PIO] Backup timers disarmed\n");
+            }
         }
     } else {
         rc::rc_log("[FD] Command rejected: %s\n", result.reason);

@@ -683,3 +683,77 @@ TEST_F(FlightDirectorTest, MainDescentBackstopDoesNotFireBeforeTimeout) {
     rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
     EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
 }
+
+TEST(FlightDirectorPyroHardware, NoHardwareDoesNotFireOnApogeeOrMain) {
+    rc::FlightDirector fd{};
+    rc::fd_effect_host_reset();
+    rc::flight_director_ctor(&fd, &rc::kDefaultRocketProfile, false);
+    rc::flight_director_init(&fd);
+
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_ARM);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_LAUNCH);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_BURNOUT);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_APOGEE);
+    EXPECT_EQ(rc::flight_director_phase(&fd), rc::FlightPhase::kDrogueDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(rc::flight_director_phase(&fd), rc::FlightPhase::kMainDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+}
+
+TEST(FlightDirectorPyroHardware, DefaultCtorStillFiresOnApogee) {
+    rc::FlightDirector fd{};
+    rc::fd_effect_host_reset();
+    rc::flight_director_ctor(&fd, &rc::kDefaultRocketProfile);
+    rc::flight_director_init(&fd);
+
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_ARM);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_LAUNCH);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_BURNOUT);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_APOGEE);
+    EXPECT_EQ(rc::flight_director_phase(&fd), rc::FlightPhase::kDrogueDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+}
+
+TEST(FlightDirectorPyroHardware, NoHardwareDoesNotFireOnCoastTimeout) {
+    rc::FlightDirector fd{};
+    rc::fd_effect_host_reset();
+    rc::flight_director_ctor(&fd, &rc::kDefaultRocketProfile, false);
+    rc::flight_director_init(&fd);
+
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_ARM);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_LAUNCH);
+    rc::flight_director_test_set_time(&fd, 5000);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_BURNOUT);
+    // 15 s after coast entry: timeout-forced apogee.
+    rc::flight_director_dispatch_tick(&fd, 20000);
+    EXPECT_EQ(rc::flight_director_phase(&fd), rc::FlightPhase::kDrogueDescent);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+}
+
+// Abort-from-boost drogue is off in the default profile; turn it on in a
+// copy so both the profile flag and the board flag are exercised.
+static void abort_from_boost(bool pyro_hardware) {
+    rc::MissionProfile profile = rc::kDefaultRocketProfile;
+    profile.abort_fires_drogue_from_boost = true;
+    rc::FlightDirector fd{};
+    rc::fd_effect_host_reset();
+    rc::flight_director_ctor(&fd, &profile, pyro_hardware);
+    rc::flight_director_init(&fd);
+
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_ARM);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_LAUNCH);
+    rc::flight_director_dispatch_signal(&fd, rc::SIG_ABORT);
+    EXPECT_EQ(rc::flight_director_phase(&fd), rc::FlightPhase::kAbort);
+}
+
+TEST(FlightDirectorPyroHardware, NoHardwareDoesNotFireOnAbortFromBoost) {
+    abort_from_boost(false);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 0);
+}
+
+TEST(FlightDirectorPyroHardware, HardwareFiresOnAbortFromBoostWhenProfileSaysSo) {
+    abort_from_boost(true);
+    EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+}

@@ -118,11 +118,14 @@ static void cmd_radio_config_cycle() {
 }
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
+#include "drivers/status_led.h"
+#include "rocketchip/psram_check_policy.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_storage.h"
 #include "drivers/i2c_master.h"
 #include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
+#include "drivers/icm20948_fs.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_uart.h"
 #include "drivers/gps_pa1010d.h"
@@ -376,13 +379,14 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
     rc::rc_log("Reads: I=%lu M=%lu B=%lu G=%lu  "
-           "Errors: I=%lu Z=%lu B=%lu G=%lu\n",
+           "Errors: I=%lu Z=%lu R=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.mag_read_count,
            (unsigned long)snap.baro_read_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.imu_error_count,
            (unsigned long)core1_imu_zero_reject_count(),
+           (unsigned long)core1_imu_reinit_count(),
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
     if (AO_Logger_is_initialized()) {
@@ -631,8 +635,8 @@ static void print_imu_status() {
     if (g_imuInitialized) {
         rc::rc_log("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
         rc::rc_log("  IMU FS: accel=%ug gyro=%u dps\n",
-               2U << static_cast<unsigned>(g_imu.accel_fs),
-               250U << static_cast<unsigned>(g_imu.gyro_fs));
+               static_cast<unsigned>(icm20948_fs::accel_range_g(g_imu.accel_fs)),
+               static_cast<unsigned>(icm20948_fs::gyro_range_dps(g_imu.gyro_fs)));
         rc::rc_log("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");
@@ -699,7 +703,17 @@ static void hw_validate_sensors() {
     print_gps_status();
 }
 
+// Same predicate as the boot count (rc::psram_check).
+static rc::PsramCheck psram_boot_check() {
+    return rc::psram_check(board::kPsramAvailable, g_psramSize,
+                           g_psramSelfTestPassed, g_psramFlashSafePassed);
+}
+
 static void print_psram_status() {
+    if constexpr (!board::kPsramAvailable) {
+        rc::rc_log("[----] PSRAM: not fitted on this board\n");
+        return;
+    }
     if (g_psramSize > 0) {
         rc::rc_log("[%s] PSRAM: %luMB at 0x%08lX",
                g_psramSelfTestPassed ? "PASS" : "FAIL",
@@ -782,16 +796,31 @@ static void print_gps_status_boot() {
     }
 }
 
+// Status LED line: named for what the pack fits; nothing on a pack with no
+// status LED. The onboard LED line is skipped when it is an RGB channel.
+static void print_led_hw_status() {
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        rc::rc_log("[PASS] Onboard LED GPIO initialized (pin %d, %s)\n",
+               board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
+    }
+    if constexpr (kStatusLedKind == rc::StatusLedKind::kWs2812) {
+        rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
+               status_led_ready() ? "PASS" : "FAIL", board::kNeoPixelPin);
+    } else if constexpr (kStatusLedKind == rc::StatusLedKind::kDiscreteRgb) {
+        rc::rc_log("[%s] RGB status LED PWM initialized (R=%d G=%d B=%d, %s)\n",
+               status_led_ready() ? "PASS" : "FAIL",
+               board::kLedRedPin, board::kLedGreenPin, board::kLedBluePin,
+               board::kLedRgbActiveLow ? "active-low" : "active-high");
+    }
+}
+
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
     rc::rc_log("  Build: %s %s %s (%s %s)\n",
            kVersionString, kBuildConfig, kBuildIdentity, __DATE__, __TIME__);
 
     rc::rc_log("[PASS] Build + boot (you're reading this)\n");
-    rc::rc_log("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
-           board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
-    rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
-           g_neopixelInitialized ? "PASS" : "FAIL", board::kNeoPixelPin);
+    print_led_hw_status();
     rc::rc_log("[PASS] USB CDC connected\n");
 
     uint32_t ts = time_us_32();
@@ -845,8 +874,12 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     fail = 0;
     auto check = [&](bool ok) { if (ok) { ++pass; } else { ++fail; } };
     check(true);                                    // Build + boot
-    check(true);                                    // Red LED GPIO
-    check(g_neopixelInitialized);                   // NeoPixel
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        check(true);                                // Onboard LED GPIO
+    }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        check(status_led_ready());                  // NeoPixel or RGB LED
+    }
     check(true);                                    // USB CDC
     check(time_us_32() > 0);                        // Debug macros
     check(g_i2cInitialized);                        // I2C bus
@@ -864,14 +897,22 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     if (g_spiInitialized) {
         check(AO_Radio_get_state()->initialized);
     }
-    check(true);                                    // PSRAM
+    // PSRAM: counted only when the pack fits it (rc::psram_check).
+    const rc::PsramCheck psram = psram_boot_check();
+    if (psram != rc::PsramCheck::kNotCounted) {
+        check(psram == rc::PsramCheck::kPass);
+    }
     check(true);                                    // Logging
     check(true);                                    // Flash
 }
 
 // FAIL only if init was attempted and failed. Uninstalled sensors: silent.
 static void print_hw_failures() {
-    if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        if (!status_led_ready()) {
+            rc::rc_log("  [FAIL] %s\n", rc::status_led_label(kStatusLedKind));
+        }
+    }
     if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
     if (g_imuInitAttempted  && !g_imuInitialized)  { rc::rc_log("  [FAIL] ICM-20948 IMU\n"); }
     if (g_baroInitAttempted &&
@@ -884,6 +925,9 @@ static void print_hw_failures() {
     }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
         rc::rc_log("  [FAIL] Radio\n");
+    }
+    if (psram_boot_check() == rc::PsramCheck::kFail) {
+        rc::rc_log("  [FAIL] PSRAM\n");
     }
 }
 

@@ -9,7 +9,7 @@
 // GPS/ESKF evaluation is in AO_Notify. This tick seqlock-reads only
 // for Core 1 vitality (core1_loop_count).
 //
-// Runs on Core 0 via QV cooperative scheduler. ws2812_update() called at
+// Runs on Core 0 via QV cooperative scheduler. status_led_update() called at
 // ~33Hz (every 3 ticks at 100Hz base) — adequate for all animation modes.
 //============================================================================
 
@@ -18,6 +18,7 @@
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "drivers/ws2812_status.h"
+#include "drivers/status_led.h"
 #include "rocketchip/job.h"
 #include "pico/time.h"
 // Seqlock is Core 1 vitality fallback only. Sensor-status LED lives in AO_Notify.
@@ -82,7 +83,7 @@ static QState led_engine_running(LedEngine * const me, QEvt const * const e);
 //----------------------------------------------------------------------------
 // Helpers
 
-// Only call ws2812_set_mode() on transitions to avoid resetting animation state
+// Only call status_led_set_mode() on transitions to avoid resetting animation state
 static void led_set_if_changed(LedEngine * const me,
                                 ws2812_mode_t mode, ws2812_rgb_t color) {
     if (mode != me->last_mode ||
@@ -91,7 +92,7 @@ static void led_set_if_changed(LedEngine * const me,
         color.b != me->last_color.b) {
         me->last_mode  = mode;
         me->last_color = color;
-        ws2812_set_mode(mode, color);
+        status_led_set_mode(mode, color);
     }
 }
 
@@ -108,7 +109,7 @@ static void led_set_alternate_if_changed(LedEngine * const me,
         me->last_mode = WS2812_MODE_ALTERNATE;
         me->last_color = a;
         me->last_alt_color = b;
-        ws2812_set_mode_alternate(a, b, 250U);  // 250ms each = 2Hz toggle
+        status_led_set_mode_alternate(a, b, 250U);  // 250ms each = 2Hz toggle
     }
 }
 
@@ -124,7 +125,7 @@ static bool led_is_station(uint8_t val) {
 // only reports the link. 50 ms sweep matches the old 100 Hz / 5-tick step.
 // 250 ms flash half-period matches the old 25-tick green toggle.
 static void led_render_station(LedEngine * const me, uint8_t val) {
-    // Next uniform pattern must call ws2812_set_mode again. The chain
+    // Next uniform pattern must call status_led_set_mode again. The chain
     // is in PIXELS until then, so a matching last_mode would skip it.
     me->last_mode = WS2812_MODE_PIXELS;
     const uint32_t now = to_ms_since_boot(get_absolute_time());
@@ -137,34 +138,34 @@ static void led_render_station(LedEngine * const me, uint8_t val) {
     switch (val) {
         case rc::led::kStationNoSignal:
             if (entered) {
-                ws2812_set_rssi_bar(0, true);
+                status_led_set_rssi_bar(0, true);
             }
             break;
         case rc::led::kStationLocked:
             if (entered || me->station_drawn_rssi != me->notify_rssi) {
                 me->station_drawn_rssi = me->notify_rssi;
-                ws2812_set_rssi_bar(me->notify_rssi, false);
+                status_led_set_rssi_bar(me->notify_rssi, false);
             }
             break;
         case rc::led::kStationWaiting:
             if (entered || (now - me->station_mark_ms) >= kStationSweepMs) {
                 me->station_mark_ms = now;
-                ws2812_set_sweep_bar(kColorRed);
+                status_led_set_sweep_bar(kColorRed);
             }
             break;
         case rc::led::kStationApply:
             if (entered || (now - me->station_mark_ms) >= kStationSweepMs) {
                 me->station_mark_ms = now;
-                ws2812_set_sweep_bar(kStationApplyColor);
+                status_led_set_sweep_bar(kStationApplyColor);
             }
             break;
         case rc::led::kStationRfHeard:
             if (entered) {
-                ws2812_set_flash_bar(kColorGreen, true);
+                status_led_set_flash_bar(kColorGreen, true);
             } else if ((now - me->station_mark_ms) >= kStationFlashHalfMs) {
                 me->station_mark_ms = now;
                 me->station_flash_on = !me->station_flash_on;
-                ws2812_set_flash_bar(kColorGreen, me->station_flash_on);
+                status_led_set_flash_bar(kColorGreen, me->station_flash_on);
             }
             break;
         default:
@@ -330,7 +331,7 @@ static QState led_engine_running(LedEngine * const me, QEvt const * const e) {
 
         // Apply priority compositor and drive animation frame
         led_apply_compositor(me);
-        ws2812_update();
+        status_led_update();
         return Q_HANDLED();
     }
 

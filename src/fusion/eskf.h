@@ -71,10 +71,16 @@ struct ESKF {
 
     // Gyro noise spectral density: 0.015 dps/√Hz (Table 1, BW=10Hz, FS_SEL=0)
     // Conversion: 0.015 × π/180 = 2.618e-4 rad/s/√Hz
+    // Driver runs ±2000 dps (FS_SEL=3, board::kImuGyroRangeDps). Table 1 gives
+    // noise at FS_SEL=0 only; the 0.061 dps LSB adds about 0.0176 dps RMS
+    // quantization, ~0.0008 dps/√Hz at 1.1 kHz ODR (estimate), well under
+    // 0.015, so the value is kept.
     static constexpr float kSigmaGyro = 2.618e-4F;  // rad/s/√Hz
 
     // Accel noise spectral density: 230 µg/√Hz (Table 2, BW=10Hz)
     // Conversion: 230e-6 × 9.80665 = 2.256e-3 m/s²/√Hz
+    // At ±16 g (board::kImuAccelRangeG) the 0.488 mg LSB adds about 0.14 mg
+    // RMS quantization, ~6 µg/√Hz at 1.1 kHz ODR (estimate), well under 230.
     static constexpr float kSigmaAccel = 2.256e-3F;  // m/s²/√Hz
 
     // Gyro bias random walk — no datasheet spec (ICM-20948 does not publish
