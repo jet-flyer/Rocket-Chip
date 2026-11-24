@@ -226,38 +226,38 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
     core1_apply_imu_cal(imu_data, local_data, local_cal);
 }
 
-static void core1_read_baro(shared_sensor_data_t* local_data) {
-    static uint32_t g_baroConsecFail = 0;
-    static uint32_t g_baroReinitAttempts = 0;
+// Baro new-sample watch (drivers/baro_sample.h). Core 1 only.
+static BaroSampleWatch g_baroWatch{kBaroDps310MaxSampleGapUs};
+static uint32_t g_baroConsecFail = 0;
+static uint32_t g_baroReinitAttempts = 0;
 
-    // Read directly via ruuvi driver -- no MEAS_CFG pre-check.
-    // The DPS310 in continuous mode alternates PRS_RDY and TMP_RDY;
-    // requiring both simultaneously is too strict and produces false errors.
-    // The ruuvi driver reads raw registers; I2C failure returns !valid.
-    baro_dps310_data_t baro_data;
-    if (baro_dps310_read(&baro_data) && baro_data.valid) {
-        local_data->pressure_pa = baro_data.pressure_pa;
-        local_data->baro_temperature_c = baro_data.temperature_c;
-        local_data->baro_timestamp_us = time_us_32();
-        local_data->baro_read_count++;
-        local_data->baro_valid = true;
-        g_baroConsecFail = 0;
-        g_baroReinitAttempts = 0;  // Successful read proves sensor is alive
+static void core1_baro_publish(shared_sensor_data_t* local_data,
+                               const baro_dps310_data_t& baro_data,
+                               uint32_t now_us) {
+    local_data->pressure_pa = baro_data.pressure_pa;
+    local_data->baro_temperature_c = baro_data.temperature_c;
+    local_data->baro_timestamp_us = now_us;
+    local_data->baro_read_count++;
+    local_data->baro_valid = true;
+    g_baroConsecFail = 0;
+    g_baroReinitAttempts = 0;  // A new conversion proves the sensor is alive
 
-        // Feed baro calibration with raw data from Core 1
-        if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
-            calibration_feed_baro(baro_data.pressure_pa,
-                                  baro_data.temperature_c);
-        }
-        return;
+    // Feed baro calibration with raw data from Core 1
+    if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
+        calibration_feed_baro(baro_data.pressure_pa,
+                              baro_data.temperature_c);
     }
+}
 
-    // I2C failure or driver error -- escalate (mirrors IMU pattern)
+// I2C failure, driver error, or conversions stopped -- escalate (mirrors IMU
+// pattern).
+static void core1_baro_fault(shared_sensor_data_t* local_data, uint32_t now_us) {
     g_baroConsecFail++;
     local_data->baro_error_count++;
     if (g_baroConsecFail >= kCore1ConsecFailDevReset) {
         if (g_baroReinitAttempts < kBaroMaxReinitAttempts) {
             baro_dps310_start_continuous();
+            g_baroWatch.restart(now_us);
             g_baroReinitAttempts++;
         } else {
             g_baroInitialized.store(false, std::memory_order_release);  // Declare baro dead
@@ -269,6 +269,35 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
             i2c_master_abort_and_idle();
             i2c_master_reattach();
         }
+    }
+}
+
+static void core1_read_baro(shared_sensor_data_t* local_data) {
+    // Publish only new conversions. The poll and the DPS310's conversion
+    // clock are not locked together, so a poll can land before the next
+    // result; re-reading the result registers then returns the previous
+    // sample again (datasheet §4.7) and the ESKF, which fuses on every
+    // baro_read_count change, would take a repeat as a new measurement.
+    // The gate needs PRS_RDY only. The old rejected pre-check required
+    // PRS_RDY and TMP_RDY together, which is rarely true because the
+    // temperature converts at 2 Hz and pressure at 32 Hz; that check was
+    // too strict, not the idea. A no-new poll counts nothing and is not a
+    // fault; only a gap past kBaroDps310MaxSampleGapUs is.
+    // Exact repeats of a new conversion still happen (quantization at
+    // OS=8) and are valid samples; they are not filtered.
+    const uint32_t now_us = time_us_32();
+    baro_dps310_data_t baro_data = {};
+    const BaroSampleStatus status = baro_dps310_poll(&baro_data);
+    switch (g_baroWatch.on_poll(status, now_us)) {
+        case BaroSampleAction::kPublish:
+            core1_baro_publish(local_data, baro_data, now_us);
+            break;
+        case BaroSampleAction::kSkip:
+            break;
+        case BaroSampleAction::kFault:
+        default:
+            core1_baro_fault(local_data, now_us);
+            break;
     }
 }
 

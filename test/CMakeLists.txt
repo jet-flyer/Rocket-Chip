@@ -100,6 +100,12 @@ add_executable(test_log_decimator test_log_decimator.cpp)
 target_link_libraries(test_log_decimator PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_log_decimator)
 
+# DPS310 new-sample gate + baro new-sample watch (header-only, pure)
+add_executable(test_baro_poll test_baro_poll.cpp)
+target_include_directories(test_baro_poll PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_baro_poll PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_baro_poll)
+
 # IVP-53a: CRC-32 + Flight log table tests
 add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
