@@ -55,6 +55,10 @@ extern i2c_gps_sidecar_t g_i2cGpsSidecar;
 // imu_error_count is bus failures only.
 uint32_t core1_imu_zero_reject_count();
 
+// IMU re-init attempts by the Core 1 recover policy
+// (core1/imu_recover_policy.h): stuck lines or many failed reads in a row.
+uint32_t core1_imu_reinit_count();
+
 // Update best-fix diagnostic when satellite count or HDOP improves.
 // Shared by vehicle Core 1 sensor loop and station idle-bridge tick
 // (Stage 16C IVP-141) so both roles maintain one authoritative

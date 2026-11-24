@@ -378,13 +378,14 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
     rc::rc_log("Reads: I=%lu M=%lu B=%lu G=%lu  "
-           "Errors: I=%lu Z=%lu B=%lu G=%lu\n",
+           "Errors: I=%lu Z=%lu R=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.mag_read_count,
            (unsigned long)snap.baro_read_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.imu_error_count,
            (unsigned long)core1_imu_zero_reject_count(),
+           (unsigned long)core1_imu_reinit_count(),
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
     if (AO_Logger_is_initialized()) {

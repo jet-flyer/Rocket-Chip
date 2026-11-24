@@ -62,6 +62,7 @@ void diag_stats_t0_preconditions() {
 #include "active_objects/ao_telemetry.h"
 #include "safety/health_monitor.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "core1/sensor_core1.h"
 #include "rocketchip/job.h"
 #include "pico/time.h"
 #include "hardware/structs/scb.h"
@@ -211,6 +212,7 @@ static void dump_sensors() {
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count);
+    rc::rc_log("  IMU reinits=%lu\n", (unsigned long)core1_imu_reinit_count());
     rc::rc_log("  core1 loops=%lu\n", (unsigned long)snap.core1_loop_count);
     // MCU die temp below kMcuTempAbsentBelowC (includes sentinel) is unset.
     if (snap.mcu_die_temp_c > rc::kMcuTempAbsentBelowC) {

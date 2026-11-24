@@ -21,6 +21,7 @@
 #include "drivers/status_led.h"
 #include "drivers/i2c_master.h"
 #include "drivers/icm20948.h"
+#include "core1/imu_recover_policy.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
 #include "drivers/gps_uart.h"
@@ -44,8 +45,8 @@ static constexpr uint32_t kCore1GpsDivider = 100;               // GPS poll ~10H
 static constexpr uint32_t kCore1McuTempDivider = 1000;          // MCU temp at ~1Hz (Stage 16C IVP-142a)
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // Caller debounce; backend owns slave timing
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
-static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
-static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
+static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold (baro, zero-reject)
+static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // Baro re-init threshold (IMU: imu_recover_policy.h)
 static constexpr uint32_t kBaroMaxReinitAttempts = 3;           // Max baro re-inits before declaring dead
 // Pad/1g gravity-floor heuristic (9.8 * cos(72 deg) = 3.0 m/s^2).
 // Free-fall/coast can be below this; the body still treats it as IMU death.
@@ -77,6 +78,14 @@ uint32_t core1_imu_zero_reject_count() {
     return g_imuZeroRejectCount;
 }
 
+static uint32_t g_imuReinitCount = 0;
+static uint32_t g_imuLastReinitUs = 0;
+static bool g_imuReinitTried = false;
+
+uint32_t core1_imu_reinit_count() {
+    return g_imuReinitCount;
+}
+
 // Fault protection and MPU stack guard now provided by safety/fault_protection.h
 // (OPT-IVP-01). core1_entry() calls the shared mpu_setup_stack_guard().
 
@@ -86,25 +95,47 @@ uint32_t core1_imu_zero_reject_count() {
 // Each helper writes into localData (passed by pointer). The seqlock_write()
 // call stays in the sensor loop -- NOT inside these helpers (council rule).
 
-// IMU error path: increment fail counter, invalidate accel/gyro, attempt recovery.
+// IMU re-init (plan section 4 gap 1). Only into idle lines, so the
+// re-init transfers do not go out on a stuck bus. Calibration is Core 1's
+// local_cal and is not touched; the driver re-applies the pack's full
+// scale and loads the scale from the chip.
+static void core1_imu_reinit(uint32_t* imu_consec_fail) {
+    if (!i2c_master_lines_idle()) {
+        return;
+    }
+    g_imuReinitCount++;
+    (void)icm20948_reinit(&g_imu);
+    g_imuLastReinitUs = time_us_32();
+    g_imuReinitTried = true;
+    *imu_consec_fail = 0;
+}
+
+// IMU error path: count, invalidate accel/gyro, then the recover policy
+// (core1/imu_recover_policy.h). NACK is a finished transfer; bus recover
+// is for a stuck line (UM10204). Never DEVICE_RESET in the 1 kHz path
+// (DS-000189: needs an ACK, can set I2C_IF_DIS). Stuck lines: ABORT+STOP,
+// never reset_block.
 static void core1_imu_error_recovery(uint32_t* imu_consec_fail,
                                       shared_sensor_data_t* local_data) {
     (*imu_consec_fail)++;
     local_data->accel_valid = false;
     local_data->gyro_valid = false;
     local_data->imu_error_count++;
-    // NACK is a finished transfer. Recover is for a stuck line (UM10204).
-    // DEVICE_RESET is bring-up (DS-000189) and needs an ACK — do not fire
-    // it every 50 failed data reads on a live stretching bus.
-    // Do not DEVICE_RESET in the 1 kHz path (DS-000189 reset needs ACK and
-    // can set I2C_IF_DIS). Stuck lines: ABORT+STOP, never reset_block.
-    if (*imu_consec_fail >= kCore1ConsecFailBusRecover
-        && (*imu_consec_fail % kCore1ConsecFailBusRecover) == 0) {
-        if (!i2c_master_lines_idle()) {
-            i2c_master_abort_and_idle();
-            i2c_master_reattach();
-        }
-        *imu_consec_fail = 0;
+    if (!imu_recover::is_check_point(*imu_consec_fail)) {
+        return;
+    }
+    const bool due = imu_recover::reinit_due(time_us_32(), g_imuLastReinitUs,
+                                             g_imuReinitTried);
+    const imu_recover::Action act =
+        imu_recover::decide(*imu_consec_fail, i2c_master_lines_idle(), due);
+    if (act == imu_recover::Action::kBusRecover ||
+        act == imu_recover::Action::kBusRecoverThenReinit) {
+        i2c_master_abort_and_idle();
+        i2c_master_reattach();
+    }
+    if (act == imu_recover::Action::kBusRecoverThenReinit ||
+        act == imu_recover::Action::kReinit) {
+        core1_imu_reinit(imu_consec_fail);
     }
 }
 

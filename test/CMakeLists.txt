@@ -406,6 +406,28 @@ target_include_directories(test_imu_i2c_budget PRIVATE
 target_compile_definitions(test_imu_i2c_budget PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_imu_i2c_budget)
 
+# Core 1 IMU recover policy (plan section 4 gap 1): pure decision logic.
+add_executable(test_imu_recover_policy test_imu_recover_policy.cpp)
+target_link_libraries(test_imu_recover_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_recover_policy PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_recover_policy PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_recover_policy)
+
+# icm20948_reinit against a register-level fake of the i2c_master calls.
+add_executable(test_icm20948_reinit
+    test_icm20948_reinit.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/icm20948.cpp)
+target_link_libraries(test_icm20948_reinit PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_reinit PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_reinit PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_reinit)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)

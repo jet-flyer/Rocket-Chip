@@ -191,6 +191,15 @@ static bool enable_bypass(icm20948_t* dev) {
     return true;
 }
 
+// AK09916: power-down before a mode change, then continuous 100 Hz.
+static bool set_mag_continuous() {
+    (void)i2c_master_write_reg(kI2cAddrAk09916, ak::kCntl2, ak::kModePwrDown,
+                               kXferUs);
+    sleep_ms(1);
+    return i2c_master_write_reg(kI2cAddrAk09916, ak::kCntl2, ak::kModeCont100,
+                                kXferUs) == 0;
+}
+
 static bool init_mag(icm20948_t* dev) {
     if (!enable_bypass(dev)) {
         return false;
@@ -212,11 +221,7 @@ static bool init_mag(icm20948_t* dev) {
     if (!found) {
         return false;
     }
-    (void)i2c_master_write_reg(kI2cAddrAk09916, ak::kCntl2, ak::kModePwrDown,
-                               kXferUs);
-    sleep_ms(1);
-    if (i2c_master_write_reg(kI2cAddrAk09916, ak::kCntl2, ak::kModeCont100,
-                             kXferUs) != 0) {
+    if (!set_mag_continuous()) {
         return false;
     }
     dev->mag_initialized = true;
@@ -342,6 +347,28 @@ bool icm20948_ensure_awake(icm20948_t* dev) {
     // Sleep/wake does not reset FS, but a bank-desynced recover can.
     return apply_accel_fs(dev, kAccelFs) &&
            apply_gyro_fs(dev, kGyroFs);
+}
+
+bool icm20948_reinit(icm20948_t* dev) {
+    if (dev == nullptr || !dev->initialized) {
+        return false;
+    }
+    // Same bring-up as icm20948_init without the memset: addr and the
+    // init flags stay. reset_and_wake checks WHO_AM_I before any write.
+    dev->current_bank = kUnknownBank;
+    if (!reset_and_wake(dev)) {
+        return false;
+    }
+    if (!apply_accel_fs(dev, kAccelFs) || !apply_gyro_fs(dev, kGyroFs)) {
+        return false;
+    }
+    if (dev->mag_initialized) {
+        // Bypass and mode only; the AK09916 soft reset is boot-only.
+        if (!enable_bypass(dev) || !set_mag_continuous()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {

@@ -15,6 +15,8 @@ inline uint32_t g_spiTransferCalls = 0;  // spi_*_blocking
 inline uint32_t g_gpioCalls = 0;         // gpio_put, gpio_get, gpio_set_function
 inline uint8_t  g_spiRxByte = 0x12U;     // byte every stubbed SPI read returns
 inline bool     g_gpioLevel = false;     // level gpio_get returns
+inline uint32_t g_sleepCalls = 0;        // sleep_ms
+inline uint32_t g_sleepMsTotal = 0;      // sum of sleep_ms arguments
 
 inline void reset() {
     g_spiConfigCalls = 0;
@@ -22,6 +24,8 @@ inline void reset() {
     g_gpioCalls = 0;
     g_spiRxByte = 0x12U;
     g_gpioLevel = false;
+    g_sleepCalls = 0;
+    g_sleepMsTotal = 0;
 }
 
 }  // namespace host_stub
