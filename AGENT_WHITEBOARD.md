@@ -353,6 +353,7 @@ Pre-dates the FSK pivot; pre-flight hardening items, not scheduled.
 Pre-dates the FSK pivot; each needs a Council review or plan doc first.
 
 - **Real-World Accuracy Tests plan.** Bench-side ground-truth validation - IMU known-angle tilts, baro altitude vs reference, GPS stationary/moving baseline characterization, ESKF replay vs synthetic truth, Allan variance for gyro/accel. Doesn't need launch window or airframe. Needs dedicated plan doc with prior-art research (ArduPilot EKF tuning, PX4 calibration) and equipment assessment.
+- **Speaker shake sweep.** General IMU verification (frequency/response check), not board-specific; pinned by Nathan 2026-11-21.
 - **Launch procedure audit items.** Six future safety items from NASA/SpaceX/NAR procedure comparison, all requiring Mission Profile or hardware support:
   1. Angle-rate abort guard (BOOST bank threshold -> ABORT; needs IMU attitude in BOOST)
   2. No-pyro-after-impact guard (landing guard before apogee guard -> suppress pyro)
