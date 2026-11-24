@@ -4,6 +4,7 @@
 
 #include "flash_flush.h"
 #include "crc32.h"
+#include "flight_log_layout.h"
 #include "rocketchip/pcm_frame.h"
 #include "ao_flight_director.h"
 #include "flight_director/flight_director.h"  // Full FlightDirector for profile name
@@ -220,30 +221,29 @@ bool flight_log_erase_all(const FlightTableState* table) {
 // ============================================================================
 
 // Write ring buffer frames to flash, one sector at a time.
-// If header is non-null, it is written at the start of the first sector.
+// Sector 0 starts with the flight log header. Frame placement comes from flight_log_layout.h, the same layout the USB
+// download reads back.
 static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
                                  uint32_t start_sector, uint32_t sectors_needed,
-                                 const FlightLogHeader* header) {
+                                 const FlightLogHeader& header) {
     static uint8_t g_sectorBuf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
-    uint32_t frame_idx = 0;
     uint32_t frame_size = rb->frame_size;
 
     for (uint32_t s = 0; s < sectors_needed; ++s) {
         memset(g_sectorBuf, 0xFF, sizeof(g_sectorBuf));
-        uint32_t buf_pos = 0;
 
-        // Write flight log header at the start of the first sector
-        if (s == 0 && header != nullptr) {
-            memcpy(g_sectorBuf, header, sizeof(FlightLogHeader));
-            buf_pos = kFlightLogHeaderSize;
+        if (s == 0) {
+            memcpy(g_sectorBuf, &header, sizeof(FlightLogHeader));
         }
 
-        while (frame_idx < stored && buf_pos + frame_size <= kFlashSectorSize) {
-            if (!ring_read_sequential(rb, frame_idx, g_sectorBuf + buf_pos)) {
+        const uint32_t first = flight_log_first_frame_in_sector(s, frame_size);
+        const FlightLogRun run = flight_log_run_at(first, stored, frame_size);
+        uint32_t buf_pos = flight_log_sector_data_start(s);
+        for (uint32_t k = 0; k < run.frames; ++k) {
+            if (!ring_read_sequential(rb, first + k, g_sectorBuf + buf_pos)) {
                 return FlushResult::kWriteError;
             }
             buf_pos += frame_size;
-            ++frame_idx;
         }
 
         uint32_t flash_offset = (start_sector + s) * kFlashSectorSize;
@@ -314,13 +314,10 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
     }
 
     uint32_t frame_size = rb->frame_size;
-    // First sector loses kFlightLogHeaderSize bytes to the metadata header
-    uint32_t frames_first_sector = (kFlashSectorSize - kFlightLogHeaderSize) / frame_size;
-    uint32_t frames_per_sector = kFlashSectorSize / frame_size;
-    uint32_t remaining = (stored > frames_first_sector)
-        ? stored - frames_first_sector : 0;
-    uint32_t sectors_needed = 1 + (remaining > 0
-        ? (remaining + frames_per_sector - 1) / frames_per_sector : 0);
+    if (!flight_log_frame_size_valid(frame_size)) {
+        return FlushResult::kNotInitialized;
+    }
+    uint32_t sectors_needed = flight_log_sectors_needed(stored, frame_size);
 
     uint32_t start_sector = flight_table_next_free_sector(table);
     if (start_sector + sectors_needed > kFlightLogEnd / kFlashSectorSize) {
@@ -340,7 +337,7 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
     xip_cache_clean_all();
 
     FlushResult result = flush_sectors(rb, stored, start_sector, sectors_needed,
-                                       &header);
+                                       header);
     if (result != FlushResult::kOk) {
         return result;
     }

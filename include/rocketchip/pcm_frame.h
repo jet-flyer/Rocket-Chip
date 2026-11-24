@@ -112,6 +112,9 @@ void pcm_encode_standard(const TelemetryState& telem, uint32_t met_ms,
 void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
                        uint32_t met_ms, PcmFrameEvent& frame);
 
+void pcm_pack_event_slot(const PcmFrameEvent& event,
+                         uint8_t slot[kPcmFrameStandardSize]);
+
 // true if sync, length, and CRC all validate
 bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem);
 

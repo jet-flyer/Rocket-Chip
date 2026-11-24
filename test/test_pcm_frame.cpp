@@ -21,6 +21,7 @@
 #include "rocketchip/telemetry_state.h"
 #include "logging/data_convert.h"
 #include "logging/crc16_ccitt.h"
+#include "logging/ring_buffer.h"
 
 // Compile-time size check
 static_assert(sizeof(rc::PcmFrameStandard) == 61, "PcmFrameStandard size");
@@ -348,4 +349,38 @@ TEST(PcmFrame, BufferTooSmall) {
     uint8_t small[10] = {};
     uint32_t offset = 0;
     EXPECT_FALSE(rc::pcm_find_sync(small, sizeof(small), offset));
+}
+
+// ============================================================================
+// Event frames in a standard-size ring slot
+// ============================================================================
+
+TEST(PcmFrame, EventSlotPadsToStandardRingFrame) {
+    rc::PcmFrameEvent event{};
+    const uint8_t data[4] = {0x11, 0x22, 0x33, 0x44};
+    rc::pcm_encode_event(static_cast<uint8_t>(rc::LogEventId::kPhaseChange),
+                         data, 123456U, event);
+
+    uint8_t slot[rc::kPcmFrameStandardSize];
+    std::memset(slot, 0xA5, sizeof(slot));
+    rc::pcm_pack_event_slot(event, slot);
+
+    EXPECT_EQ(std::memcmp(slot, &event, rc::kPcmFrameEventSize), 0);
+    for (uint32_t i = rc::kPcmFrameEventSize; i < rc::kPcmFrameStandardSize; ++i) {
+        EXPECT_EQ(slot[i], 0) << "padding byte " << i;
+    }
+
+    std::vector<uint8_t> mem(16 + 4 * rc::kPcmFrameStandardSize, 0x5A);
+    rc::RingBuffer rb{};
+    ASSERT_TRUE(rc::ring_init(&rb, mem.data(), static_cast<uint32_t>(mem.size()),
+                              rc::kPcmFrameStandardSize, 10));
+    ASSERT_TRUE(rc::ring_push(&rb, slot));
+
+    uint8_t readback[rc::kPcmFrameStandardSize];
+    std::memset(readback, 0x5A, sizeof(readback));
+    ASSERT_TRUE(rc::ring_read(&rb, 0, readback));
+    EXPECT_EQ(std::memcmp(readback, &event, rc::kPcmFrameEventSize), 0);
+    for (uint32_t i = rc::kPcmFrameEventSize; i < rc::kPcmFrameStandardSize; ++i) {
+        EXPECT_EQ(readback[i], 0) << "ring padding byte " << i;
+    }
 }

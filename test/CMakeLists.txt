@@ -568,6 +568,16 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/test_firmware_tree.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    add_test(
+        NAME scripts_decode_flight_log
+        COMMAND ${Python3_EXECUTABLE} scripts/test_decode_flight_log.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    add_test(
+        NAME scripts_warm_reboot_audit
+        COMMAND ${Python3_EXECUTABLE} scripts/test_warm_reboot_audit.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     # Starcom core does not include Pico SDK or RP2350 hardware headers
     # (PR-9). The nested Starcom build has its tests off, so the RC host
     # ctest (pre-commit hook) runs the same check here.
@@ -628,6 +638,8 @@ if(Python3_Interpreter_FOUND)
         scripts_fault_force_gate_audit
         scripts_pre_commit_fixture
         scripts_firmware_tree
+        scripts_decode_flight_log
+        scripts_warm_reboot_audit
         scripts_list_citations
         PROPERTIES LABELS "python"
     )

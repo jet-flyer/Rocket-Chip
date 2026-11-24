@@ -133,6 +133,7 @@ static void cmd_radio_config_cycle() {
 #include "logging/ring_buffer.h"
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
+#include "logging/flight_log_layout.h"
 #include "logging/crc32.h"
 #include "safety/pio_watchdog.h"
 #include "flight_director/flight_director.h"  // flight_director_launch_abort()
@@ -1302,58 +1303,112 @@ void cmd_list_flights() {
 // read_flight_number() removed — blocking input now in AO_RCOS (non-blocking).
 // Flight number input via AO_RCOS_start_download_flight() → cal_ui_handle_flight_num().
 
-// Block-with-watchdog-feed write — binary download path waits for CDC
-// backpressure rather than dropping. Operator wants complete data.
-static void cdc_write_blocking(const uint8_t* buf, uint32_t len) {
-    if (!tud_cdc_connected()) { return; }
+// USB download write bound. The PIO watchdog trips ~2 s after its last feed
+// (pio_watchdog.h: countdown kPioWatchdogCountdown, 3 PIO cycles per step at
+// 1 MHz). The download feeds it only when the host accepts bytes, so a host
+// that holds the port open and stops reading ends the download after this
+// long, well inside the watchdog period, instead of hanging the main loop.
+static constexpr uint32_t kCdcNoProgressTimeoutUs = 1000000U;
+static constexpr uint32_t kPioWatchdogCyclesPerStep = 3U;
+static_assert(kCdcNoProgressTimeoutUs <
+                  rc::kPioWatchdogCountdown * kPioWatchdogCyclesPerStep,
+              "download stall bound must be shorter than the PIO watchdog");
+
+enum class CdcWriteResult : uint8_t {
+    kOk,
+    kDisconnected,  // host closed the port (DTR dropped)
+    kStalled,       // no bytes accepted for kCdcNoProgressTimeoutUs
+};
+
+// Binary download path: waits for CDC backpressure rather than dropping
+// (operator wants complete data), but gives up on disconnect or a stall.
+static CdcWriteResult cdc_write_bounded(const uint8_t* buf, uint32_t len) {
     uint32_t written = 0;
+    uint32_t last_progress_us = time_us_32();
     while (written < len) {
+        if (!tud_cdc_connected()) {
+            return CdcWriteResult::kDisconnected;
+        }
         uint32_t avail = tud_cdc_write_available();
-        if (avail == 0) {
-            rc::pio_watchdog_feed();
-        } else {
+        uint32_t accepted = 0;
+        if (avail > 0) {
             uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
-            tud_cdc_write(buf + written, chunk);
-            written += chunk;
+            accepted = tud_cdc_write(buf + written, chunk);
+        }
+        if (accepted > 0) {
+            written += accepted;
+            last_progress_us = time_us_32();
+            rc::pio_watchdog_feed();
+        } else if (time_us_32() - last_progress_us >= kCdcNoProgressTimeoutUs) {
+            return CdcWriteResult::kStalled;
         }
     }
+    return CdcWriteResult::kOk;
 }
 
-static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
-    uint32_t frame_size = entry.frame_size;
-    uint32_t frames_per_sector = rc::kFlashSectorSize / frame_size;
-    uint32_t flash_base = entry.start_sector * rc::kFlashSectorSize;
+struct FlightStreamResult {
+    CdcWriteResult status;
+    uint32_t crc;           // valid only when status == kOk
+    uint32_t frames_sent;   // whole sector runs fully handed to USB
+};
+
+// Frame positions come from flight_log_layout.h, the layout flush_sectors
+// wrote: sector 0 starts with the FlightLogHeader, which is not sent.
+static FlightStreamResult stream_flight_binary(const rc::FlightLogEntry& entry) {
     const uint8_t* xip_base = reinterpret_cast<const uint8_t*>(
-        XIP_BASE + flash_base);
+        XIP_BASE + entry.start_sector * rc::kFlashSectorSize);
 
     uint32_t running_crc = kCrc32InitXor;
     uint32_t frames_sent = 0;
 
     while (frames_sent < entry.frame_count) {
-        uint32_t sector_idx = frames_sent / frames_per_sector;
-        uint32_t frame_in_sector = frames_sent % frames_per_sector;
-        uint32_t offset = sector_idx * rc::kFlashSectorSize +
-                          frame_in_sector * frame_size;
+        const rc::FlightLogRun run = rc::flight_log_run_at(
+            frames_sent, entry.frame_count, entry.frame_size);
+        const uint8_t* src = xip_base + run.offset;
+        const uint32_t run_bytes = run.frames * entry.frame_size;
 
-        uint32_t remaining_in_sector = frames_per_sector - frame_in_sector;
-        uint32_t remaining_total = entry.frame_count - frames_sent;
-        uint32_t batch = (remaining_in_sector < remaining_total)
-                             ? remaining_in_sector : remaining_total;
-        uint32_t batch_bytes = batch * frame_size;
+        CdcWriteResult w = cdc_write_bounded(src, run_bytes);
+        if (w != CdcWriteResult::kOk) {
+            return FlightStreamResult{w, 0U, frames_sent};
+        }
 
-        cdc_write_blocking(xip_base + offset, batch_bytes);
-
-        running_crc = rc::crc32_update(running_crc,
-                                       xip_base + offset, batch_bytes);
-        frames_sent += batch;
+        running_crc = rc::crc32_update(running_crc, src, run_bytes);
+        frames_sent += run.frames;
         rc::pio_watchdog_feed();
     }
-    return running_crc ^ kCrc32InitXor;
+    return FlightStreamResult{CdcWriteResult::kOk,
+                              running_crc ^ kCrc32InitXor, frames_sent};
+}
+
+// Entry fields come from the CRC-checked table, but a bad frame size would
+// divide by zero in the layout and a bad range would read outside the log
+// region, so check both before touching flash.
+static bool flight_entry_layout_ok(const rc::FlightLogEntry& entry) {
+    if (!rc::flight_log_frame_size_valid(entry.frame_size)) {
+        return false;
+    }
+    const uint32_t first_log_sector = rc::kFlightLogStart / rc::kFlashSectorSize;
+    const uint32_t end_log_sector = rc::kFlightLogEnd / rc::kFlashSectorSize;
+    if (entry.start_sector < first_log_sector ||
+        entry.sector_count > end_log_sector - entry.start_sector) {
+        return false;
+    }
+    return rc::flight_log_sectors_needed(entry.frame_count, entry.frame_size) <=
+           entry.sector_count;
 }
 
 // Download prompt + flight number input now in AO_RCOS (non-blocking).
 // This function is the completion callback — does the actual download.
+// Ends with RCEND:<crc32> on success, or RCERR:<reason>:<frames_sent> if the
+// host stopped reading or disconnected.
 void cli_do_download_flight(int num) {
+    // The download blocks the main loop for its whole length. Only on the
+    // pad: an armed or flying vehicle must keep running its AOs.
+    if (!AO_FlightDirector_is_ground_state()) {
+        rc::rc_log("Download refused: vehicle is not in IDLE. Disarm first.\n");
+        return;
+    }
+
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     uint32_t count = rc::flight_table_count(ft);
     if (num < 1 || static_cast<uint32_t>(num) > count) {
@@ -1367,6 +1422,10 @@ void cli_do_download_flight(int num) {
         rc::rc_log("Failed to read flight entry.\n");
         return;
     }
+    if (!flight_entry_layout_ok(entry)) {
+        rc::rc_log("Flight entry has an invalid layout; not downloading.\n");
+        return;
+    }
 
     rc::rc_log("RCBIN:%d:%lu:%u:%lu\n",
            num,
@@ -1374,8 +1433,18 @@ void cli_do_download_flight(int num) {
            (unsigned)entry.log_rate_hz,
            (unsigned long)entry.frame_size);
 
-    uint32_t crc = stream_flight_binary(entry);
-    rc::rc_log("RCEND:%08lX\n", (unsigned long)crc);
+    const FlightStreamResult r = stream_flight_binary(entry);
+    switch (r.status) {
+    case CdcWriteResult::kOk:
+        rc::rc_log("RCEND:%08lX\n", (unsigned long)r.crc);
+        break;
+    case CdcWriteResult::kStalled:
+        rc::rc_log("\nRCERR:STALL:%lu\n", (unsigned long)r.frames_sent);
+        break;
+    case CdcWriteResult::kDisconnected:
+        rc::rc_log("\nRCERR:DISCONNECT:%lu\n", (unsigned long)r.frames_sent);
+        break;
+    }
 }
 
 // ============================================================================

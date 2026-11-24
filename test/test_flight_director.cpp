@@ -14,6 +14,7 @@
 //     coast timeout forced apogee)
 //   - MissionProfile struct properties
 //   - Descent superstate hierarchy (ABORT handled at superstate level)
+//   - Flight-in-progress sentinel on every IDLE entry; markers per arming
 //============================================================================
 
 #include <gtest/gtest.h>
@@ -21,6 +22,7 @@
 #include "guard_evaluator.h"
 #include "safety/health_monitor.h"
 #include "rocketchip/fused_state.h"
+#include "safety/crash_record.h"
 
 // Host test helper declared in flight_director.cpp
 namespace rc {
@@ -756,4 +758,179 @@ TEST(FlightDirectorPyroHardware, NoHardwareDoesNotFireOnAbortFromBoost) {
 TEST(FlightDirectorPyroHardware, HardwareFiresOnAbortFromBoostWhenProfileSaysSo) {
     abort_from_boost(true);
     EXPECT_EQ(rc::fd_effect_host_pyro_calls(), 1);
+}
+
+// ============================================================================
+// Flight-in-progress sentinel (crash_record.h) across IDLE entries
+//
+// Set on ARMED, cleared on LANDED, and cleared on any later IDLE entry
+// unless this arming launched. flight_in_progress_was_set() consumes it,
+// as anomalous_boot_init() does on the next boot.
+// ============================================================================
+
+class FlightSentinelTest : public FlightDirectorTest {
+protected:
+    void SetUp() override {
+        rc::flight_in_progress_clear();
+        FlightDirectorTest::SetUp();
+    }
+
+    // What the next boot would read (consumes the sentinel).
+    static bool next_boot_sees_flight() {
+        return rc::flight_in_progress_was_set();
+    }
+
+    void fly_to_landed(uint32_t start_ms) {
+        set_time(start_ms);
+        dispatch(rc::SIG_ARM);
+        set_time(start_ms + 1000U);
+        dispatch(rc::SIG_LAUNCH);
+        dispatch(rc::SIG_BURNOUT);
+        dispatch(rc::SIG_APOGEE);
+        dispatch(rc::SIG_MAIN_DEPLOY);
+        dispatch(rc::SIG_LANDING);
+        ASSERT_EQ(phase(), rc::FlightPhase::kLanded);
+    }
+};
+
+TEST_F(FlightSentinelTest, ArmSetsSentinel) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    EXPECT_TRUE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, DisarmClearsSentinel) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_DISARM);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, ArmedTimeoutClearsSentinel) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    tick(1000U + rc::kDefaultRocketProfile.armed_timeout_ms);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, PadAbortTimeoutClearsSentinel) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_ABORT);
+    tick(1000U + rc::kDefaultRocketProfile.abort_timeout_ms);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, PadAbortResetClearsSentinel) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_ABORT);
+    dispatch(rc::SIG_RESET);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, InFlightAbortResetKeepsSentinel) {
+    // The vehicle may still be in the air; ABORT never reaches LANDED.
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    set_time(2000);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_ABORT);
+    dispatch(rc::SIG_RESET);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_TRUE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, LandedClearsAndResetKeepsClear) {
+    fly_to_landed(1000U);
+    dispatch(rc::SIG_RESET);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, DisarmAfterEarlierFlightClearsSentinel) {
+    // A launch from the earlier flight must not count for this arming.
+    fly_to_landed(1000U);
+    dispatch(rc::SIG_RESET);
+    set_time(100000);
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_DISARM);
+    ASSERT_EQ(phase(), rc::FlightPhase::kIdle);
+    EXPECT_FALSE(next_boot_sees_flight());
+}
+
+TEST_F(FlightSentinelTest, StartupIdleEntryLeavesSentinel) {
+    // FD init must not consume or clear what the previous boot left;
+    // anomalous_boot_init() owns that read.
+    rc::flight_in_progress_set();
+    rc::FlightDirector fresh;
+    rc::flight_director_ctor(&fresh, &rc::kDefaultRocketProfile);
+    rc::flight_director_init(&fresh);
+    EXPECT_TRUE(next_boot_sees_flight());
+}
+
+// ============================================================================
+// Markers describe one arming
+// ============================================================================
+
+TEST_F(FlightDirectorTest, MarkersClearedOnRearm) {
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    set_time(2000);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_ABORT);
+    dispatch(rc::SIG_RESET);
+    ASSERT_NE(fd_.state.markers.launch_ms, 0u);
+
+    set_time(50000);
+    dispatch(rc::SIG_ARM);
+    EXPECT_EQ(fd_.state.markers.armed_ms, 50000u);
+    EXPECT_EQ(fd_.state.markers.launch_ms, 0u);
+    EXPECT_EQ(fd_.state.markers.abort_ms, 0u);
+    EXPECT_EQ(fd_.state.markers.landing_ms, 0u);
+}
+
+TEST_F(FlightDirectorTest, PadAbortAfterEarlierFlightReturnsToIdle) {
+    // Before markers were cleared per arming, the earlier flight's launch_ms
+    // made this pad abort look in-flight: no auto-IDLE, beacon instead.
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    set_time(2000);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_ABORT);
+    dispatch(rc::SIG_RESET);
+
+    set_time(50000);
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_ABORT);
+    tick(50000U + rc::kDefaultRocketProfile.abort_timeout_ms);
+    EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
+}
+
+TEST_F(FlightDirectorTest, InFlightAbortBeaconOnSecondFlight) {
+    // landing_ms is the in-flight abort beacon one-shot; a stale value from
+    // an earlier abort must not suppress it.
+    set_time(1000);
+    dispatch(rc::SIG_ARM);
+    set_time(2000);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_ABORT);
+    tick(2000U + rc::kDefaultRocketProfile.abort_timeout_ms);
+    ASSERT_NE(fd_.state.markers.landing_ms, 0u);
+    dispatch(rc::SIG_RESET);
+
+    set_time(400000);
+    dispatch(rc::SIG_ARM);
+    set_time(401000);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_ABORT);
+    EXPECT_EQ(fd_.state.markers.landing_ms, 0u);
+    tick(401000U + rc::kDefaultRocketProfile.abort_timeout_ms);
+    EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
+    EXPECT_EQ(fd_.state.markers.landing_ms,
+              401000U + rc::kDefaultRocketProfile.abort_timeout_ms);
 }

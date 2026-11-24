@@ -47,19 +47,53 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e);
 // ============================================================================
 // Helper: record phase transition
 // ============================================================================
+// Launch was detected during the current arming. Markers are cleared on
+// every ARMED entry (enter_phase), so a launch from an earlier flight does
+// not count. launch_ms is ms since boot, so a launch is never stamped 0.
+static bool launched_this_arming(const FlightState& st) {
+    return st.markers.launch_ms != 0U;
+}
+
+// Flight-in-progress sentinel (crash_record.h, .uninitialized_data). A reset
+// that keeps SRAM while it is set boots as kProbablyMidFlight, which
+// suppresses baro auto-zero (anomalous_boot.cpp, main.cpp).
+//   ARMED entry: set.
+//   LANDED entry: clear.
+//   IDLE entry (not the startup entry): clear unless this arming launched.
+//     That covers DISARM, the armed timeout, the pad-abort timeout and RESET
+//     after a pad abort, none of which left the pad. RESET after an
+//     in-flight abort keeps it set: the vehicle may still be airborne, and
+//     ABORT never reaches LANDED.
+// The startup IDLE entry leaves it alone: anomalous_boot_init() has already
+// consumed it, and FD init must not depend on that ordering.
+static void update_flight_sentinel(const FlightDirector* me, FlightPhase phase) {
+    if (phase == FlightPhase::kArmed) {
+        flight_in_progress_set();
+    } else if (phase == FlightPhase::kLanded) {
+        flight_in_progress_clear();
+    } else if (phase == FlightPhase::kIdle && me->state.transition_count > 1U &&
+               !launched_this_arming(me->state)) {
+        flight_in_progress_clear();
+    }
+}
+
 static void enter_phase(FlightDirector* me, FlightPhase phase) {
     me->state.previous_phase = me->state.current_phase;
     me->state.current_phase = phase;
     me->state.phase_entry_ms = me->tick_ms;
     ++me->state.transition_count;
 
+    // Markers describe one arming. Clear them on ARMED entry, before the
+    // entry actions stamp armed_ms, so a pad abort or disarm after an
+    // earlier flight is not mistaken for an in-flight one (launch_ms) and
+    // the in-flight abort beacon one-shot (landing_ms) is re-armed.
+    if (phase == FlightPhase::kArmed) {
+        me->state.markers.clear();
+    }
+
     // Flight-in-progress sentinel + fault-handler-observable phase pair.
     // See docs/decisions/FAULT_RECOVERY_2026-05-14.md (kAbort invariant + B.3).
-    if (phase == FlightPhase::kArmed) {
-        flight_in_progress_set();
-    } else if (phase == FlightPhase::kLanded) {
-        flight_in_progress_clear();
-    }
+    update_flight_sentinel(me, phase);
     flight_phase_observable_set(phase);
 
     fd_effect_phase_change(phase, me->tick_ms);
@@ -621,8 +655,8 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
         case SIG_TICK: {
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->abort_timeout_ms) {
-                if (me->state.markers.launch_ms == 0) {
-                    // Pad abort: launch_ms still 0 — auto-return to IDLE
+                if (!launched_this_arming(me->state)) {
+                    // Pad abort: no launch this arming — auto-return to IDLE
                     rc::rc_log("[FD] ABORT timeout (pad) — auto-IDLE\n");
                     return Q_TRAN(&state_idle);
                 }

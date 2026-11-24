@@ -247,7 +247,10 @@ void AO_Logger_log_event(rc::LogEventId id,
     uint8_t data[4] = {d0, d1, d2, d3};
     uint32_t met = to_ms_since_boot(get_absolute_time());
     rc::pcm_encode_event(static_cast<uint8_t>(id), data, met, frame);
-    (void)rc::ring_push(&g_ringBuffer, &frame);
+    // ring_push copies a standard-size slot; pad so the 15-byte event is not over-read.
+    uint8_t slot[rc::kPcmFrameStandardSize]{};
+    rc::pcm_pack_event_slot(frame, slot);
+    (void)rc::ring_push(&g_ringBuffer, slot);
 #else
     (void)id; (void)d0; (void)d1; (void)d2; (void)d3;
 #endif
