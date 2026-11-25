@@ -80,13 +80,13 @@ TEST(CliKeymap, DebugGatesAndLowercaseE) {
     EXPECT_EQ(find(Menu::kDebug, '0', kVehicle)->gate, Gate::kTestMode);
 }
 
-TEST(CliKeymap, DebugStationDioKeys) {
+TEST(CliKeymap, DebugDioKeysBothRoles) {
     EXPECT_EQ(find(Menu::kDebug, 'j', kStation)->action, Action::kDebugDioToggle);
     EXPECT_EQ(find(Menu::kDebug, 'J', kStation)->action, Action::kDebugDioToggle);
     EXPECT_EQ(find(Menu::kDebug, 'n', kStation)->action, Action::kDebugFifoDepth);
     EXPECT_EQ(find(Menu::kDebug, 'N', kStation)->action, Action::kDebugFifoDepth);
-    EXPECT_EQ(find(Menu::kDebug, 'j', kVehicle), nullptr);
-    EXPECT_EQ(find(Menu::kDebug, 'n', kVehicle), nullptr);
+    EXPECT_EQ(find(Menu::kDebug, 'j', kVehicle)->action, Action::kDebugDioToggle);
+    EXPECT_EQ(find(Menu::kDebug, 'n', kVehicle)->action, Action::kDebugFifoDepth);
     EXPECT_EQ(find(Menu::kDebug, 'b', kStation)->action, Action::kDebugBootHw);
     EXPECT_EQ(find(Menu::kDebug, 'k', kStation), nullptr);
 }

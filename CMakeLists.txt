@@ -421,7 +421,6 @@ else()
         src/diag/tick_skip.cpp            # QF tick skip after a stall (host-tested)
         src/diag/rx_quality_stats.cpp     # CRC-fail vs good packet RSSI/SNR (host-tested)
         src/diag/qf_tick.cpp              # 100 Hz QF tick alarm (bsp_qv.c QF_onStartup)
-        src/diag/station_dio_bench.cpp    # debug j/n: DIO jumper and Q31 FIFO (DEV_MODE)
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -622,7 +621,6 @@ else()
         src/diag/tick_skip.cpp                      # QF tick skip after a stall
         src/diag/rx_quality_stats.cpp               # CRC-fail vs good packet RSSI/SNR
         src/diag/qf_tick.cpp                        # 100 Hz QF tick alarm
-        src/diag/station_dio_bench.cpp              # debug j/n: DIO jumper and Q31 FIFO (DEV_MODE)
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -661,6 +659,13 @@ else()
         src/station/station_idle_tick.cpp
         src/log/rc_log.cpp                      # R-5 Unit B (2026-05-16): bounded log channel replacing stdio
     )
+    # Dev-only DIO jumper / FIFO debug (j/n). Omitted from field images so
+    # the object and symbols are not in the ELF. Appended before the
+    # pedantic set_source_files_properties so a dev build still gates it.
+    if(ROCKETCHIP_DEV_MODE)
+        target_sources(rocketchip PRIVATE src/diag/station_dio_bench.cpp)
+        list(APPEND ROCKETCHIP_SOURCES src/diag/station_dio_bench.cpp)
+    endif()
     # L2-P5 (2026-06-24): -Wshadow / -Wfloat-equal finalized as hard errors (via the
     # global -Werror) after remediation cleared all sites — was warning-only (-Wno-error)
     # during the measurement phase. See docs/plans/L2P5_WALK_PLAN.md Phase B.

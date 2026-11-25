@@ -78,8 +78,12 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
     {MenuId::kDebug, 'w', true,  "flash stall", MenuId::kNone, ActionId::kDebugFlashStall},
 #if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
-    {MenuId::kDebug, 'j', true,  "scratch loop", MenuId::kNone,
+    {MenuId::kDebug, 'f', true,  "scratch loop", MenuId::kNone,
      ActionId::kDebugFlashScratch},
+#endif
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'j', true,  "DIO1/DIO2 jumper", MenuId::kNone, ActionId::kDebugDioToggle},
+    {MenuId::kDebug, 'n', true,  "Q31 FIFO depth",   MenuId::kNone, ActionId::kDebugFifoDepth},
 #endif
 #if defined(ROCKETCHIP_DEV_MODE)
     {MenuId::kDebug, 'o', true,  "force 1 TX timeout", MenuId::kNone,

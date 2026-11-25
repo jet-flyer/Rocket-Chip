@@ -73,8 +73,8 @@ void AO_Radio_rx_quality_dump();
 
 #if defined(ROCKETCHIP_DEV_MODE)
 // Sleep, LoRa init, runtime config, DioMapping from that init, then RX.
-// DIO bench calls this. Does not start Tx.
-bool AO_Radio_restore_station_link();
+// The DIO bench calls this on both roles. Does not start Tx.
+bool AO_Radio_restore_lora_rx();
 #endif
 
 // True while a send is in flight. Telemetry must not drain a COP-P AD

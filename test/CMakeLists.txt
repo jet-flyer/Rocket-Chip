@@ -521,6 +521,7 @@ target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
 target_include_directories(test_cli_keymap PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_keymap PRIVATE ROCKETCHIP_DEV_MODE=1)
 gtest_discover_tests(test_cli_keymap)
 
 add_executable(test_station_dio_eval test_station_dio_eval.cpp)
@@ -529,6 +530,22 @@ target_include_directories(test_station_dio_eval PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_station_dio_eval)
+
+# Vehicle DIO bench wait-for-TX-idle latch. Header-only. No SPI.
+add_executable(test_station_dio_pending test_station_dio_pending.cpp)
+target_link_libraries(test_station_dio_pending PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_pending PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_station_dio_pending PRIVATE ROCKETCHIP_DEV_MODE=1)
+gtest_discover_tests(test_station_dio_pending)
+
+add_executable(test_station_dio_pending_field test_station_dio_pending.cpp)
+target_link_libraries(test_station_dio_pending_field PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_pending_field PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_station_dio_pending_field)
 
 add_executable(test_cli_engine test_cli_engine.cpp)
 target_link_libraries(test_cli_engine PRIVATE GTest::gtest_main)
@@ -550,6 +567,7 @@ target_link_libraries(test_cli_catalog PRIVATE GTest::gtest_main)
 target_include_directories(test_cli_catalog PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_catalog PRIVATE ROCKETCHIP_DEV_MODE=1)
 gtest_discover_tests(test_cli_catalog)
 
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)

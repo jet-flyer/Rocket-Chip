@@ -37,6 +37,10 @@ inline constexpr uint8_t kRadioCsPin       = 5;
 inline constexpr uint8_t kRadioRstPin      = 22;
 inline constexpr uint8_t kRadioIrqPin      = 2;
 inline constexpr bool    kRadioTrustDio0   = false;
+// No DIO1 / DIO2 jumpers on this pack. The DIO bench refuses.
+inline constexpr bool    kRadioDioJumpered = false;
+inline constexpr uint8_t kRadioDio1Pin     = 0;   // unused when kRadioDioJumpered is false
+inline constexpr uint8_t kRadioDio2Pin     = 0;
 
 // --- NeoPixel ---
 // No WS2812 on this board (SDK: no PICO_DEFAULT_WS2812_PIN). Count 0 skips

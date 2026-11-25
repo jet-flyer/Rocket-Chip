@@ -33,6 +33,7 @@
 #include "diag/rx_quality_stats.h"  // FSK open item C: CRC-fail RSSI/SNR
 #if defined(ROCKETCHIP_DEV_MODE)
 #include "radio_tx_force.h"
+#include "diag/station_dio_bench.h"
 #endif
 #include <string.h>
 
@@ -192,6 +193,11 @@ static void note_completed_air(const RadioAoState& s) {
 
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
+#if defined(ROCKETCHIP_DEV_MODE)
+    if (dio_bench_blocks_tx()) {
+        return false;
+    }
+#endif
     if (rfm95w_send_start(&s.radio, buf, len)) {
         s.tx_active = true;
         g_onairLen = len;
@@ -843,6 +849,10 @@ static void handle_radio_tick(RadioAo* me) {
 
     handle_link_quality(me);
     handle_rssi_bar(me);
+
+#if defined(ROCKETCHIP_DEV_MODE)
+    dio_bench_pending_tick(s.tx_active);
+#endif
 }
 
 static QState radio_ao_running(RadioAo * const me, QEvt const * const e) {
@@ -893,7 +903,7 @@ const RadioAoState* AO_Radio_get_state() {
 }
 
 #if defined(ROCKETCHIP_DEV_MODE)
-bool AO_Radio_restore_station_link() {
+bool AO_Radio_restore_lora_rx() {
     RadioAoState& s = g_radioAo.state;
     s.tx_active = false;
     const bool ok = rfm95w_init(&s.radio,

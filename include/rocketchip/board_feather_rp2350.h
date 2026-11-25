@@ -34,6 +34,13 @@ inline constexpr uint8_t kRadioIrqPin      = 6;
 // Current path reads the SX1276 IRQ register (DIO0 not required).
 inline constexpr bool    kRadioTrustDio0   = false;
 
+// #3231 wing jumpers. FSK plan §7.1 and REV2 D5.
+// DIO1 (DCLK) is A0. DIO2 (DATA) is A1. DIO5 stays open.
+// Vehicle chip is A2, so E9 applies: use the pad pull-up (plan §7.2).
+inline constexpr bool    kRadioDioJumpered = true;
+inline constexpr uint8_t kRadioDio1Pin     = 26;
+inline constexpr uint8_t kRadioDio2Pin     = 27;
+
 // --- NeoPixel (WS2812) ---
 inline constexpr uint     kNeoPixelPin     = 21;
 inline constexpr uint8_t  kNeoPixelCount   = 1;

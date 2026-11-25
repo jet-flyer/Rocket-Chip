@@ -144,6 +144,17 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
     EXPECT_EQ(r.act, ActionId::kDebugI2cQuiesce);
     r = on_key(e, kVehicleItems, kVehicleItemCount, 'u');
     EXPECT_EQ(r.act, ActionId::kDebugI2cPark);
+#if defined(ROCKETCHIP_DEV_MODE)
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'j');
+    EXPECT_EQ(r.act, ActionId::kDebugDioToggle);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'n');
+    EXPECT_EQ(r.act, ActionId::kDebugFifoDepth);
+#else
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'j');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+    r = on_key(e, kVehicleItems, kVehicleItemCount, 'n');
+    EXPECT_EQ(r.ev, Event::kUnknown);
+#endif
 
     Engine s{};
     init(s);
@@ -159,10 +170,15 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'r').act,
               ActionId::kDebugRfRates);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'e').ev, Event::kUnknown);
+#if defined(ROCKETCHIP_DEV_MODE)
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'j').act,
               ActionId::kDebugDioToggle);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'n').act,
               ActionId::kDebugFifoDepth);
+#else
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'j').ev, Event::kUnknown);
+    EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'n').ev, Event::kUnknown);
+#endif
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'b').act,
               ActionId::kDebugBootHw);
     EXPECT_EQ(on_key(s, kStationItems, kStationItemCount, 'k').act,
@@ -171,7 +187,7 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
 
 #if defined(ROCKETCHIP_DEV_MODE)
 TEST(CliEngine, DebugOForcesOneTxTimeout) {
-    EXPECT_EQ(kVehicleItemCount, 61u);
+    EXPECT_EQ(kVehicleItemCount, 63u);
     Engine e{};
     init(e);
     on_key(e, kVehicleItems, kVehicleItemCount, 'q');
@@ -205,8 +221,15 @@ TEST(CliEngine, DebugWPrintsFlashStallBothRoles) {
     auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'w');
     EXPECT_EQ(r.ev, Event::kAction);
     EXPECT_EQ(r.act, ActionId::kDebugFlashStall);
-    // Scratch toggle exists only in ROCKETCHIP_FLASH_STALL_SCRATCH builds.
+    // Scratch toggle is 'f' and only in ROCKETCHIP_FLASH_STALL_SCRATCH builds.
+    // Debug 'j' is the DIO jumper check, and only in ROCKETCHIP_DEV_MODE.
+#if defined(ROCKETCHIP_DEV_MODE)
+    const Item* jkey = find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'j');
+    ASSERT_NE(jkey, nullptr);
+    EXPECT_EQ(jkey->act, ActionId::kDebugDioToggle);
+#else
     EXPECT_EQ(find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'j'), nullptr);
+#endif
 
     Engine s{};
     init(s);

@@ -37,6 +37,10 @@ inline constexpr uint8_t kRadioCsPin       = 17;
 inline constexpr uint8_t kRadioRstPin      = 20;
 inline constexpr uint8_t kRadioIrqPin      = 21;
 inline constexpr bool    kRadioTrustDio0   = false;
+// No DIO1 / DIO2 jumpers on this pack. The DIO bench refuses.
+inline constexpr bool    kRadioDioJumpered = false;
+inline constexpr uint8_t kRadioDio1Pin     = 0;   // unused when kRadioDioJumpered is false
+inline constexpr uint8_t kRadioDio2Pin     = 0;
 
 // --- NeoPixel ---
 // Pico 2: GPIO LED only. Count 0 skips WS2812. Pin 0 is UART GPS TX — do not mux PIO.

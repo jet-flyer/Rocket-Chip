@@ -129,9 +129,11 @@ static void catalog_list() {
     } else {
         rc::rc_log("  STN_OUTPUT  basic  %s  (main m cycles)\n",
                    stn_out_name(AO_RCOS_get_output_mode()));
-        rc::rc_log("  DIO_TOGGLE  read   debug j\n");
-        rc::rc_log("  FIFO_DEPTH  read   debug n\n");
     }
+#if defined(ROCKETCHIP_DEV_MODE)
+    rc::rc_log("  DIO_TOGGLE  read   debug j\n");
+    rc::rc_log("  FIFO_DEPTH  read   debug n\n");
+#endif
 }
 
 static void catalog_nav_next() {
@@ -382,10 +384,10 @@ void run_action(ActionId act) {
 #endif
 #if defined(ROCKETCHIP_DEV_MODE)
         case ActionId::kDebugDioToggle:
-            station_dio_toggle_check();
+            dio_bench_toggle_check();
             break;
         case ActionId::kDebugFifoDepth:
-            station_dio_fifo_depth();
+            dio_bench_fifo_depth();
             break;
 #endif
 #if defined(ROCKETCHIP_DEV_MODE)

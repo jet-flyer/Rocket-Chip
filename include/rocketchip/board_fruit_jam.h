@@ -44,6 +44,7 @@ inline constexpr bool    kRadioTrustDio0   = false;  // DIO0 not trusted on this
 
 // Fruit Jam JP3. FSK plan §7.1 and REV2 D5.
 // DIO1 (DCLK) is A1. DIO2 (DATA) is A2. DIO5 stays open.
+inline constexpr bool    kRadioDioJumpered = true;
 inline constexpr uint8_t kRadioDio1Pin     = 41;
 inline constexpr uint8_t kRadioDio2Pin     = 42;
 

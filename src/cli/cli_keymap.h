@@ -169,8 +169,10 @@ inline constexpr Key kKeys[] = {
     {'3', false, Menu::kDebug, kBoth, Gate::kTestMode, Action::kDebugRadioCfg3, "radio cfg 3"},
     {'4', false, Menu::kDebug, kBoth, Gate::kTestMode, Action::kDebugRadioCfg4, "radio cfg 4"},
     {'5', false, Menu::kDebug, kBoth, Gate::kTestMode, Action::kDebugRadioCfg5, "radio cfg 5"},
-    {'j', true,  Menu::kDebug, kStation, Gate::kNone, Action::kDebugDioToggle, "DIO1/DIO2 jumper"},
-    {'n', true,  Menu::kDebug, kStation, Gate::kNone, Action::kDebugFifoDepth, "Q31 FIFO depth"},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {'j', true,  Menu::kDebug, kBoth, Gate::kNone,     Action::kDebugDioToggle, "DIO1/DIO2 jumper"},
+    {'n', true,  Menu::kDebug, kBoth, Gate::kNone,     Action::kDebugFifoDepth, "Q31 FIFO depth"},
+#endif
     {'h', true,  Menu::kDebug, kBoth, Gate::kNone,     Action::kHelp, "help"},
     {'?', false, Menu::kDebug, kBoth, Gate::kNone,     Action::kHelp, "help"},
     {'z', true,  Menu::kDebug, kBoth, Gate::kNone,     Action::kBackMain, "back"},
