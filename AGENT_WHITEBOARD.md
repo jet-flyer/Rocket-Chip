@@ -29,6 +29,21 @@
 
 Active work before FSK and before first flight. The AO / QEP row sets the run order.
 
+### R-35 Standby-before-write parked on `grok/r35-standby` (2026-11-25)
+
+The R-35 fix is committed as `93e1fe62` on the local branch `grok/r35-standby` (worktree `../rc-r35-standby`). Host ctest is 1161/1161. The fix is not benched and is not pushed. The pre-push gate requires a two-board bench at 2 dBm for a firmware push, so the branch stays local until that bench runs. Keep the branch and the worktree.
+
+**Blocked by:** the vehicle Feather needs a power cycle, then a preflight GO check, then the two-board gate bench at 2 dBm. After a picotool flash, the IMU at 0x69 and the baro at 0x77 do not acknowledge the boot probe (R-36, open; `docs/PROBLEM_REPORTS.md`). That condition stays after `picotool reboot -f`. Only a power cycle has restored them so far. Preflight stays NO-GO until the sensors come back.
+
+**Boards:** vehicle is on main `57facdaa`. Station is on the jumper-check build `62054213`.
+
+**Next:** flash both boards with the R-35 images, power-cycle the Feather, confirm the sensors with read-only `s` and `d` (do not send `b`), confirm preflight is GO, then run the gate bench at 2 dBm. Do not push `grok/r35-standby` until the gate clears the bench.
+
+**FSK pre-plan:** step 1 is this fix, not benched. Steps 2 to 4 are not started (measure the flash stall; rewrite the LoRa driver with QEP states; split `byte_pump`). Configuration writes during transmit stay as leftover work for step 3. Detail: `docs/plans/FSK_PIVOT_PLAN_2026-10-08.md`.
+
+**Files:** `src/drivers/rfm95w.cpp`, `src/drivers/rfm95w.h`, `src/active_objects/ao_radio.cpp`, `test/test_rfm95w_config_standby.cpp`, `test/CMakeLists.txt`, `test/host_stubs/hardware/gpio.h`, `test/host_stubs/pico/time.h`, and a two-line update in `docs/PROBLEM_REPORTS.md`.
+
+
 ### AO / QEP order: settle before FSK work (2026-10-11, Council 2026-10-21)
 
 Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nathan decides the split before any FSK pivot code.
