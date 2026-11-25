@@ -77,6 +77,8 @@ Consequences that bind every decision in this document:
 
 **Prior-art survey — every reference implementation is framework-free:** OSDLP (C, `enum`+`switch`, handlers `fop_e1()`…`fop_e46()` named to the standard's events, queues/timers via weak functions), NASA `cop1.c` (C, switch, FARM-1 only), dariol83/ccsds (Java, GoF State pattern), yamcs (Java, plain `int state`). **Zero use QP/C, Boost.SML, or any statechart engine.**
 
+More prior art (mission and network implementations): see [PRIOR_ART.md](PRIOR_ART.md).
+
 **Decision (recommended; pending final user sign-off at framework-planning):**
 - **Build COP-1/COP-P as plain, passive, table-driven C++ state machines** — transcribe the Blue-Book state×event tables into a `switch` or a `std::array` of transitions. This is **less** work than a framework (you're copying tables, not building an HSM engine), it's what 100% of the field does, and an HSM framework's value (deep hierarchy) does not apply to 2–6 flat states.
 - **The core takes NO framework/QP dependency.** It is a **passive sans-I/O library** (`Starcom::FopEngine` etc.) driven by the consumer via `submit()` / `on_clcw()` / `tick(now)`. (Time handled the sans-I/O way: the engine checks its own deadlines against the `now` the caller passes to `tick()`; it owns no clock and no thread.)

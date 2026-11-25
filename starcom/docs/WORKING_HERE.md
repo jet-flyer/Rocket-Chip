@@ -142,6 +142,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
 | [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table (published PICS tick). | Draft 2026-08-25 |
 | [`docs/COVERAGE.md`](COVERAGE.md) | Clause walk: implemented vs unread, plus neighbors. Not a second PICS. | Living 2026-09-11 |
+| [`docs/PRIOR_ART.md`](PRIOR_ART.md) | Real implementations that Starcom compares against (RADAR, MRN/Electra, lunar, rate change, duplex). 211.0-B-6 governs where they disagree. | Living 2026-11-25 |
 | [`docs/IVP.md`](IVP.md) | Integration/verification plan (IEEE 1012 + ECSS methods). Closed log IDs when gates pass. | Living 2026-08-25 |
 | [`docs/GLOSSARY.md`](GLOSSARY.md) | Terms and Blue Book section cites. README holds the short list. | Living 2026-08-27 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |
