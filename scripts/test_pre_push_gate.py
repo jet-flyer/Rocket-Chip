@@ -263,8 +263,13 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
         check('warns that the radio rule is not active',
               'NOT radio-benched' in out, out)
-        check('push needs only the gate; no hand soak',
-              'soak by hand' not in out and 'needs only what this' in out, out)
+        check('says plainly that the radio check is not done',
+              'radio check is NOT done' in out
+              and 'NOT verified on\nair' in out and 'open gap' in out, out)
+        check('does not call the gap acceptable',
+              'needs only what this' not in out
+              and 'not a\npush requirement' not in out
+              and 'soak by hand' not in out, out)
         check('does not block on the missing script; fails closed at the bench',
               rc == 1 and STUB in out, out)
 
