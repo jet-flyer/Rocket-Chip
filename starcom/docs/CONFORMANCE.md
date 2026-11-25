@@ -29,9 +29,9 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | Space Packet PDU codec + service layer | 133.0-B-2 Fig 4-1 / 4-2, §3, §4.2, §4.3 | Full (implemented, unit-tested (RC test/ suite), not integrated) | In scope (MVP) | 6-octet primary header + user data. Service layer `src/ccsds/space_packet_service.cpp` (Packet and Octet String services, Assembly / Transfer / Extraction / Reception) is unit-tested in Rocket Chip `test/test_space_packet_service.cpp` (not the Starcom suite) and not integrated: Rocket Chip packs with the codec (`src/starcom_adapt/byte_pump.cpp`). Rocket Chip keeps a per-APID modulo-16384 sequence count (`byte_pump.cpp` seq lanes). Idle-packet secondary-header flag is not forced on encode. Not a Starcom product name. Annex A table below (see the Annex A section). Tests: `tests/unit/test_space_packet.cpp`. |
 | PLCW 16-bit SPDU field codec | 211.0-B-6 §3.2.4.3.2.1.1 | Full | In scope (MVP codecs) | Pack/unpack only. Not the ARQ. Distinct from CLCW. No generic OCF. Tests: `tests/unit/test_ocf.cpp`. |
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | Full | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. Tests: `tests/unit/test_ocf.cpp`. |
-| COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | Full | In scope (MVP + IVP 11 USLP VC) | Tables + `CoppEndpoint` / `coppInitUslp` (`tests/unit/test_copp.cpp`). SET V(R) persistent is MAC — increment 13. Not a whole-book 211.0-B-6 PICS tick (timing, segment reassembly, most Type-1 SPDUs are 0; see `COVERAGE.md`). No SC-NNN. Not demonstrated at shall level: 19 of 22 §7 shalls UNVERIFIED (audit 2026-10-29). |
+| COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | Partial (211.0-B-6 DLL-125, DLL-131, DLL-133 Planned) | In scope (MVP + IVP 11 USLP VC) | Tables + `CoppEndpoint` / `coppInitUslp` (`tests/unit/test_copp.cpp`). SET V(R) persistent is MAC — increment 13. Not a whole-book 211.0-B-6 PICS tick (timing, segment reassembly, most Type-1 SPDUs are 0; see `COVERAGE.md`). No SC-NNN. Not demonstrated at shall level: 19 of 22 §7 shalls UNVERIFIED (audit 2026-10-29). |
 | COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | Full (implemented options) | In scope (MVP + IVP 10 Table 5-1 remainder) | FARM-1 Table 6-1 + FOP-1 E23/S4/S5/E29 + Resume E30–E34, E35–E39, LLIF E42 (`tests/unit/test_cop1.cpp`). LLIF E41, E43–E46 implemented (`src/ccsds/cop1.cpp` fop1Ad/Bc/BdAccept/Reject), not tested. Not TC 232.0-B-4 frames. No SC-NNN. |
-| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Partial | In scope (IVP 13 full module) | Owner pick 2026-08-27: full §6, not turnaround helper, not consumer-only. Tables 6-2–6-13 + SET V(R) 7.2.3.2. Annex B SET TX/RX/CONTROL/PL EXTENSIONS **octets** on hail, token, and 6-11 COMM_CHANGE (`tests/unit/test_mac.cpp`). No radio objects in the core. 211.1 fields not enacted. Not a whole-book 211.0-B-6 PICS tick (see `COVERAGE.md` gaps). No SC-NNN. Gaps (PICS M, not implemented; audit 2026-10-29 F-4..F-7): RECEIVING_SCID_BUFFER and SET RECEIVING SCID BUFFER (6.2.3.9, 6.3.3.1.7); RECEIVING_PCID_BUFFER (6.2.3.10); Test_Source source-SCID test and INVALID FRAME SOURCE (6.2.4.2, 6.6.1.2, Annex D); Comm_Change_Waiting_Period / Comm_Change_Lifetime (6.2.4.7, 6.2.4.10). |
+| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Partial | In scope (IVP 13 full module) | Owner pick 2026-08-27: full §6, not turnaround helper, not consumer-only. Tables 6-2–6-13 + SET V(R) 7.2.3.2. Annex B SET TX/RX/CONTROL/PL EXTENSIONS **octets** on hail, token, and 6-11 COMM_CHANGE (`tests/unit/test_mac.cpp`). No radio objects in the core. 211.1 fields not enacted. Not a whole-book 211.0-B-6 PICS tick (see `COVERAGE.md` gaps). No SC-NNN. Gaps (PICS M, not implemented; audit 2026-10-29 F-4..F-7): RECEIVING_SCID_BUFFER and SET RECEIVING SCID BUFFER (6.2.3.9, 6.3.3.1.7); RECEIVING_PCID_BUFFER (6.2.3.10); Test_Source source-SCID test and INVALID FRAME SOURCE (6.2.4.2, 6.6.1.2, Annex D); Comm_Change_Waiting_Period (6.2.4.7). Comm_Change_Lifetime (6.2.4.10) is Planned (211.0-B-6 DLL-153). The R-37 fix must set it and pass a two-board bench first. |
 | Host UDP / file replay | — | Best effort (bearer) | In scope (IVP 15) | Port, no Blue Book claim. `replayPltuFile` / `udp_*` in `starcom::adapters`. No sockets in the core (`tests/unit/test_host_io.cpp`). No SC-NNN. |
 | Generic SPI/GPIO radio port | — | Best effort (bearer) | In scope (IVP 16) | Port, no Blue Book claim, not 211.1. `BusOps` + `radio_bus_shift_*` (`tests/unit/test_radio_bus.cpp`). No Pico SDK in `include/starcom`. RFM95W/LoRa is a later ISM adapter, not this row. No SC-NNN. |
 | PIO PLTU symbol pipe | — | Best effort (bearer) | In scope (IVP 17) | Port, no Blue Book PHY claim. `pioShiftOut` / `pioShiftIn` (`tests/unit/test_pio_port.cpp`). Same 0+1 PLTU octets. Not 211.1 PM. No `hardware/pio.h` in `include/starcom`. No SC-NNN. |
@@ -44,11 +44,11 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | F' as a Starcom dependency | — | 0 | Out of scope | Integration target only (Grok §10). |
 | CFDP file delivery (post-mission data offload) | 727.0-B-5 | 0 | Deferred (wanted; not IVP 0–25) | Checksummed file transfer in Space Packet user data. Owner-wanted after the data-link core. Not SDLS (355.0 is TC frame auth). Not `starcom::ccsds` codecs. |
 | Timing services and time tag | 211.0-B-6 §5, §4.2.4, §3.2.4.4.3, Annex B2; 211.2-B-3 §3.5.6, §3.6.8 | 0 | Stated deviation | PICS DLL-31/32/52–64 M not implemented. Not IVP 0–25. Implementation is a triage item (audit 2026-10-29 F-2). |
-| C&S Idle / Acquisition / Tail sequence | 211.2-B-3 §3.3.2–3.3.5, §3.5.3 | 0 | Stated deviation | PN 352EF853 not generated; no Acquisition_Idle_Duration / Tail_Idle_Duration use. Implementation is a triage item (F-1). |
+| C&S Idle / Acquisition / Tail sequence | 211.2-B-3 §3.3.2–3.3.5, §3.5.3 | 0 | Stated deviation | PN 352EF853 not generated (F-1). The MAC uses Acquisition_Idle_Duration and Tail_Idle_Duration as timers (211.0-B-6 DLL-150, DLL-183). Implementation is a triage item (F-1). |
 | ChannelAccess service primitives | 211.2-B-3 Annex B | 0 | Stated deviation | I/O-free core API (encode / decode / hunt) per DESIGN.md (F-3). |
 | I/O sublayer and segment reassembly | 211.0-B-6 §4.4, §8 (DLL-37–51, 42/43) | 0 | Stated deviation | I/O-free core: the caller owns queues; DFC 01 unused (D-1). |
 | Receive-side source validation | 211.0-B-6 6.2.3.9, 6.2.3.10, 6.2.4.2, 6.3.3.1.7, 6.6.1.2, Annex D | 0 | Gap (MAC row Partial) | No RECEIVING_SCID/PCID buffers or Test_Source; receive checks destination SCID only (F-4..F-6). |
-| COMM_CHANGE timers | 211.0-B-6 6.2.4.7, 6.2.4.10, 4.2.2.5.4–4.2.2.5.5 | Partial | Gap (MAC row Partial) | F-7, part closed (R-37). `MacMib::comm_change_lifetime` is Comm_Change_Lifetime (6.2.4.10.2) as a repeat count. Default 0. Expiry: 4.2.2.5.4–4.2.2.5.5 (`halfExpiredMiss`, `halfExpiredS52`). Project-specific: `comm_change_failed` after E49 at Y=3 (`halfExpiredS52`). It exists only because of the echo gate (see "COMM_CHANGE echo"). Tests: `tests/unit/test_mac.cpp` `test_half_comm_change_lifetime_repeats`, `test_half_comm_change_token_aborts_at_lifetime`. Open: Comm_Change_Waiting_Period (6.2.4.7). |
+| COMM_CHANGE timers | 211.0-B-6 6.2.4.7, 6.2.4.10, 4.2.2.5.4–4.2.2.5.5 | Partial | Gap (MAC row Partial) | F-7. Comm_Change_Lifetime (6.2.4.10) is Planned, pending the R-37 fix and a two-board bench (211.0-B-6 DLL-153). `MacMib::comm_change_lifetime` is Comm_Change_Lifetime (6.2.4.10.2) as a repeat count. Default 0. Expiry: 4.2.2.5.4–4.2.2.5.5 (`halfExpiredMiss`, `halfExpiredS52`). Project-specific: `comm_change_failed` after E49 at Y=3 (`halfExpiredS52`). It exists only because of the echo gate (see "COMM_CHANGE echo"). Tests: `tests/unit/test_mac.cpp` `test_half_comm_change_lifetime_repeats`, `test_half_comm_change_token_aborts_at_lifetime`. Open: Comm_Change_Waiting_Period (6.2.4.7). |
 | COMM_CHANGE echo (half duplex) | 211.0-B-6 Table 6-11 E63/E64, E68, E69 | Best effort | Stated deviation (Rocket Chip) | Book method: Table 6-11 E63/E64 (SET RECEIVER PARAMETERS before the request) and E68. Ours: E69 also sets Y=2, so the responder sends the COMM_CHANGE back (`src/ccsds/mac.cpp`, E69 block). While the caller waits at Y=3, the Rocket Chip adapter lets only that echo run E68 (`src/starcom_adapt/byte_pump.cpp`, `hop_wait`, `handle_air_frame`). The core E68 is unchanged. Reason: the current driver writes one modem configuration for TX and RX. The book method is deferred to the driver rewrite (FSK pre-plan step 3). Known gap: a lost echo splits the two ends (Rocket Chip R-37). The fallback needs the responder session kept across the apply, then E85 (Table 6-10) and a retune to the initial hail settings. The half-duplex retune is taken from Table 6-7 E82: Table 6-10 E85 omits it, and the caller rows E80 and E83 keep it. Informative support only: 210.0-G-2 2.3.4.2 (the responder listens with its default physical parameters). |
 | CARRIER_LOSS_TIMER (half duplex) | 211.0-B-6 6.2.4.6, 6.3.1.3, Table 6-10 E85 | Partial | Gap | Deviations: (1) A CARRIER_ACQUIRED true-to-false edge arms the timer, not the 6.3.1.3.2 conditions (`macSetCarrierAcquired`). (2) After an expiry outside S60 the timer stays spent and does not reload (`macTickCarrierLoss`). (3) No controller notify at E85 (note under 6.3.1.3.1). (4) Rocket Chip: a remote COMM_CHANGE apply restarts the session, so the timer does not run after a hop (R-37). |
 | Constant-rate C&S output | 211.2-B-3 §3.5.5 | Best effort | Open (bench) | FSK/LoRa bearer delivery rate not verified as constant R_cs (O-2). |
@@ -176,6 +176,536 @@ All other APIDs are unallocated. APID 0x003 is sent by two ends (station for com
 - **Current Starcom packets:** no secondary header. `met_ms` is a 4-octet field at offset 40 of the 51-octet `TelemetryState` user data (little-endian, RP2350 native; only the Space Packet primary header is big-endian).
 - **Meaning:** flag `kFlagsMetMission` set means `met_ms` is mission elapsed time, zero at T0 (the profile's `met_start_phase`, or plug-in when that is `kMetStartPlugIn`). Flag clear means time since vehicle boot, and the station must not present it as MET. `kFlagsMetDays` is a display hint only. Civil time rides separately in the `utc_*` bytes, valid only when `kFlagsUtcValid` is set. Sources: `telemetry_state.h`, `vehicle_met.h`, `ao_logger.cpp`.
 - **Not claimed:** conformance to any CCSDS time code. TBD whether to adopt CUC or CDS in a future secondary header.
+
+## Annex A PICS: CCSDS 211.0-B-6 (Proximity-1 Data Link Layer)
+
+Draft and unsigned. Book: CCSDS 211.0-B-6, Issue 6, July 2020, with Editorial Change 1 (September 2024), file `standards/ccsds/CCSDS-211.0-B-6-EC1.pdf`. Annex A is book pages A-1 to A-14. The Item, Description, Reference, Status, Values Allowed and Support columns are the annex text, copied word for word (Duke, 2026-11-25). The book's Support column stays blank. The Starcom column is the claim.
+
+The Implementation Under Test is the Starcom core. A consumer configuration can have more exceptions. See the consumer configuration exceptions subsection after the 211.x PICS sections.
+
+Each row has the key "211.0-B-6 DLL-n". The draft Pink Book 211.0-P-6.2 (April 2026) renumbers the annex to DLL-1 to DLL-59. Do not use "DLL-n" alone. Test pointers are under `starcom/`.
+
+| A2.1 field | Value |
+|------------|-------|
+| Date of statement (DD/MM/YYYY) | 25/11/2026 (draft) |
+| PICS serial number | TBD (none issued) |
+| System conformance statement cross-reference | The claims table at the top of this file |
+| Implementation name | `starcom::ccsds`: V-3 codec, COP-P (`CoppEndpoint`), MAC (`MacSession`), PLCW and Annex B codecs |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
+| Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
+| Supplier | Starcom (`starcom/` directory) |
+| Contact point for queries | TBD |
+| Specification | CCSDS 211.0-B-6 (Issue 6, July 2020, EC 1 September 2024) |
+| Have any exceptions been required? | Yes. Mandatory items are not supported by the core (see the exceptions list below the tables). |
+
+Starcom column states: `Supported` (a test proves it; the cell names the test), `Planned` (with the stage from IVP.md, or "no stage set"), `Stated deviation` (with the reason), `Not planned`. "Code present, no test" is Planned, not Supported.
+
+
+#### Table 1: Version-3 Transfer Frame  (book page A-4, 18 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-1 | DLL-1 | Version-3 Transfer Frame | 3.2.1 | M |  | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-2 | DLL-2 | Transfer Frame Header | 3.2.2 | M |  | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-3 | DLL-3 | Transfer Frame Version Number | 3.2.2.2 | M | 2 | | Supported. `tests/unit/test_v3.cpp::test_encode_matches_golden`; `tests/unit/test_v3.cpp::test_reject_tfvn_unknown` |
+| 211.0-B-6 DLL-4 | DLL-4 | Quality of Service Indicator | 3.2.2.3 | M | 0, 1 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-5 | DLL-5 | PDU Type ID | 3.2.2.4 | M | 0, 1 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated`; `tests/unit/test_user_defined.cpp::test_pframe_forces_dfc_packets` |
+| 211.0-B-6 DLL-6 | DLL-6 | Data Field Construction ID | 3.2.2.5 | M | 0–3 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated`; `tests/unit/test_user_defined.cpp::test_reserved_dfc_not_a_service` |
+| 211.0-B-6 DLL-7 | DLL-7 | SCID | 3.2.2.6 | M | 0–1023 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-8 | DLL-8 | PCID | 3.2.2.7 | M | 0, 1 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-9 | DLL-9 | Port Identifier | 3.2.2.8 | M | 0–7 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-10 | DLL-10 | Source-or-Destination Identifier | 3.2.2.9 | M | 0, 1 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-11 | DLL-11 | Frame Length | 3.2.2.10 | M | 4–2047 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated`; `tests/unit/test_v3.cpp::test_reject_v3_length_oob` |
+| 211.0-B-6 DLL-12 | DLL-12 | Frame Sequence Number (Sequence Controlled or Expedited) | 3.2.2.11 | M | 0–255 | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-13 | DLL-13 | Transfer Frame Data Field | 3.2.3 | M | 0–2043 octets | | Supported. `tests/unit/test_user_defined.cpp::test_dfc11_opaque_and_empty`; `tests/unit/test_user_defined.cpp::test_user_defined_length_oob` |
+| 211.0-B-6 DLL-14 | DLL-14 | PACKETS in a U-Frame (DFC ID = 0) | 3.2.3.2 | O.1 |  | | Supported. `tests/unit/test_user_defined.cpp::test_copp_default_still_packets` |
+| 211.0-B-6 DLL-15 | DLL-15 | SEGMENT DATA UNITS in a U-Frame (DFC ID = 1) | 3.2.3.3 | O.1 |  | | Not planned. DFC 01 is not used. The core does no reassembly. |
+| 211.0-B-6 DLL-16 | DLL-16 | CCSDS RESERVED FIELD (U-Frame) (DFC ID = 2) | 3.2.3.4 | O.1 |  | | Not planned. Reserved in Table 3-1. The core gives it no service. |
+| 211.0-B-6 DLL-17 | DLL-17 | USER-DEFINED DATA in a U-Frame (DFC ID = 3) | 3.2.3.5 | O.1 |  | | Supported. `tests/unit/test_user_defined.cpp::test_dfc11_opaque_and_empty`; `tests/unit/test_user_defined.cpp::test_copp_user_defined_host_loop` |
+| 211.0-B-6 DLL-18 | DLL-18 | Transfer Frame Data Field Contents in a P-frame | 3.2.3.6 | M |  | | Supported. `tests/unit/test_user_defined.cpp::test_pframe_forces_dfc_packets`; `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+
+O.1 For the Transfer Frame Data Field at least one must be chosen.
+
+#### Table 2: SPDU  (book page A-4, 6 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-19 | DLL-19 | SUPERVISORY PDU (SPDU) | 3.2.4 | M |  | | Supported. `tests/unit/test_ocf.cpp::test_plcw_roundtrip`; `tests/unit/test_mac.cpp::test_set_vr_codec` |
+| 211.0-B-6 DLL-20 | DLL-20 | Fixed-length SPDU | 3.2.4.2.1 | M |  | | Supported. `tests/unit/test_ocf.cpp::test_plcw_roundtrip`; `tests/unit/test_ocf.cpp::test_plcw_zero_report` |
+| 211.0-B-6 DLL-21 | DLL-21 | Variable-length SPDU | 3.2.4.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_codec`; `tests/unit/test_mac.cpp::test_annex_b_codecs` |
+| 211.0-B-6 DLL-22 | DLL-22 | Variable-Length SPDU Type 1 (Directives/Reports) | 3.2.4.2.2, B1 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_codec`; `tests/unit/test_mac.cpp::test_annex_b_codecs` |
+| 211.0-B-6 DLL-23 | DLL-23 | Variable-Length SPDU Type 2: Time Distribution | 3.2.4.4.3, B2 | O |  | | Stated deviation. O item. No Type 2 SPDU. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-24 | DLL-24 | Variable-Length SPDU Type 3: Status Reports | 3.2.4.4.4 | O |  | | Not planned. O item. No Type 3 status report SPDU. |
+
+#### Table 3: Data Link Layer  (book page A-5, 2 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-25 | DLL-25 | Frame Sub-Layer Functions | 4.1.2 | M |  | | Supported. `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+| 211.0-B-6 DLL-26 | DLL-26 | Sending End Frame Selection for Output | 4.1.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` (`macFifoSource`, Table 6-14) |
+
+#### Table 4: Medium Access Control Sublayer  (book page A-5, 6 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-27 | DLL-27 | Persistence | 4.2.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-28 | DLL-28 | MAC Control Mechanisms | 4.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_half_and_simplex` |
+| 211.0-B-6 DLL-29 | DLL-29 | Directive Decoder | 4.2.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs` (`spduDirectiveType`) |
+| 211.0-B-6 DLL-30 | DLL-30 | MAC buffers | 4.2.4 | M |  | | Stated deviation. The 4.2.4 MAC buffers are the two time buffers (DLL-31, DLL-32). See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-31 | DLL-31 | SENT_TIME_BUFFER | 4.2.4.1 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-32 | DLL-32 | RECEIVE_TIME_BUFFER | 4.2.4.2 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+
+#### Table 5: Data Services Sublayer  (book page A-5, 4 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-33 | DLL-33 | Send Side Functionality | 4.3.1.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack`; `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+| 211.0-B-6 DLL-34 | DLL-34 | Receive Side Functionality | 4.3.1.2 | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table`; `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+| 211.0-B-6 DLL-35 | DLL-35 | Order in which User Data is transferred | 4.3.2.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` |
+| 211.0-B-6 DLL-36 | DLL-36 | Two Qualities of Service | 4.3.2.2 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+
+#### Table 6: I/O Interface Sublayer  (book page A-6, 15 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| | **Send Side** | | | | | | |
+| 211.0-B-6 DLL-37 | DLL-37 | Accept user data for transfer | 4.4.2.1 a) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-38 | DLL-38 | Form the Frame Data Unit and the Transfer Frame Header | 4.4.2.1 b) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-39 | DLL-39 | Expedited SDU is radiated | 4.4.2.1 c) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-40 | DLL-40 | Transfer of a Sequence Controlled SDU | 4.4.2.1 d) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| | **Receive Side** | | | | | | |
+| 211.0-B-6 DLL-41 | DLL-41 | Output SDUs | 4.4.2.2 a) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-42 | DLL-42 | Assemble segments/verify packets | 4.4.2.2 b) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-43 | DLL-43 | Deliver only complete packets | 4.4.2.2 c) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-44 | DLL-44 | Deliver the packets/user-defined data | 4.4.2.2 d) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| | **Interface to the Lower Sublayers** | | | | | | |
+| 211.0-B-6 DLL-45 | DLL-45 | SDUs to appropriate Queues (Sequence or Expedited) | 4.4.3.1 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-46 | DLL-46 | Existence of Expedited queue and Sequence Controlled queue | 4.4.3.1 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-47 | DLL-47 | Association between SDU and frame sequence number | 4.4.3.3 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-48 | DLL-48 | Evaluation of NNR for complete SDU transfer | b) | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. Reference: 4.4.3.3 b) (printed as "b)"). |
+| | **I/O Sublayer Queues and Control Signals** | | | | | | |
+| 211.0-B-6 DLL-49 | DLL-49 | Data units stored within the Sequence Controlled Frame queue | 4.4.4.1 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-50 | DLL-50 | Data units stored within the Expedited Frame queue | 4.4.4.2 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-51 | DLL-51 | Frame extraction from either queue | 4.4.4.3 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+
+#### Table 7: Proximity-1 Timing Services  (book page A-7, 13 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| | **Time Tag Recording** | | | | | | |
+| 211.0-B-6 DLL-52 | DLL-52 | Time Tagged Bit | 5.2.1 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-53 | DLL-53 | Time Tag Event | 5.2.2 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-54 | DLL-54 | Time Tags relationship to time reference point | 5.2.3 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-55 | DLL-55 | Enterprise defined time reference point | 5.2.4 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-56 | DLL-56 | Operational Mode | 5.2.5 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-57 | DLL-57 | Initiate Time Tag Collection | 5.2.6 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-58 | DLL-58 | Capture and Package Time Tags + Meta Data | 5.2.7 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-59 | DLL-59 | Time Correlation Process | 5.3 | O |  | | Stated deviation. O item. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| | **Transferring Time to a Remote Asset** | | | | | | |
+| 211.0-B-6 DLL-60 | DLL-60 | Time Distribution | 5.4.1 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-61 | DLL-61 | Compute Enterprise Time | 5.4.2.1 | O |  | | Stated deviation. O item. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-62 | DLL-62 | Send Side: Formulate Time Distribution Directive | 5.4.2.2 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-63 | DLL-63 | Send Side: Transmit Time Distribution Directive | 5.4.2.3 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-64 | DLL-64 | Receive Side: Time Distribution Directive | 5.4.2.4 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+
+#### Table 8: State Control Variables  (book page A-7, 4 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-65 | DLL-65 | Mode | 6.2.2.1 | M | inactive, connecting-T, connecting-L, active | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-66 | DLL-66 | DUPLEX | 6.2.2.2 | M | full, half, simplex transmit, simplex receive | | Supported. `tests/unit/test_mac.cpp::test_half_and_simplex`; `tests/unit/test_mac.cpp::test_set_duplex_s1_only` |
+| 211.0-B-6 DLL-67 | DLL-67 | TRANSMIT | 6.2.2.3 | M | on, off | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-68 | DLL-68 | SUB-STATE | 6.2.2.4 | M | 0-7 | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+
+#### Table 9: Operational Control Variables  (book page A-8, 10 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-69 | DLL-69 | Session Termination | 6.2.3.1 | M | 0–5 | | Supported. `tests/unit/test_mac.cpp::test_half_s55_e57_enter_s1` |
+| 211.0-B-6 DLL-70 | DLL-70 | COMM_CHANGE | 6.2.3.2 | M | 0–5 | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok`; `tests/unit/test_mac.cpp::test_half_remote_comm_change_echo`. The echo method is a stated deviation (see the "COMM_CHANGE echo (half duplex)" row). |
+| 211.0-B-6 DLL-71 | DLL-71 | SYMBOL_INLOCK_STATUS | 6.2.3.3 | M | 0, 1 | | Supported. `tests/unit/test_mac.cpp::test_valid_frame_s48_e17` (E16). Core input `macSetSymbolInlock`. |
+| 211.0-B-6 DLL-72 | DLL-72 | Modulation | 6.2.3.4 | M | on, off | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-73 | DLL-73 | Persistence | 4.2.2.2 | M | true, false | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-74 | DLL-74 | NEED_PLCW and NEED_STATUS_REPORT | 6.2.3.6 | M | true, false | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop`; `tests/unit/test_mac.cpp::test_half_s55_e57_enter_s1`. NEED_STATUS_REPORT selects a PLCW. There is no Type 3 report (DLL-24). |
+| 211.0-B-6 DLL-75 | DLL-75 | REMOTE_SCID_BUFFER | 6.2.3.7 | M | 0–1023 | | Planned (no stage set). Code holds `CoppEndpoint::remote_scid` and writes it in sent frames. The receive check uses `local_scid` (`copp.cpp` `dest_is_local`). No test checks REMOTE_SCID_BUFFER. |
+| 211.0-B-6 DLL-76 | DLL-76 | COMMUNICATION_VALUE_BUFFER | 6.2.3.8 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok` (`pending_cv`) |
+| 211.0-B-6 DLL-77 | DLL-77 | RECEIVING_SCID_BUFFER | 6.2.3.9 | M | 0–1023 | | Planned (no stage set). Audit F-4. No code. |
+| 211.0-B-6 DLL-78 | DLL-78 | RECEIVING_PCID_BUFFER | 6.2.3.10 | M | 0, 1 | | Planned (no stage set). Audit F-5. No code. |
+
+#### Table 10: Elements and Events That Affect State Status  (book page A-8, 6 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-79 | DLL-79 | Interval_Clock | 6.3.1.1.1 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`. The caller supplies `now` in Tick. |
+| 211.0-B-6 DLL-80 | DLL-80 | WAIT TIMER (WT) and Associated Events | 6.3.1.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-81 | DLL-81 | CARRIER_LOSS_TIMER and Associated Events | 6.3.1.3 | M |  | | Planned (no stage set). Code present. `tests/unit/test_mac.cpp::test_carrier_loss_caller` covers full-duplex E80 only. See the deviations in the "CARRIER_LOSS_TIMER (half duplex)" row. A replacement for that row waits on Nathan. |
+| 211.0-B-6 DLL-82 | DLL-82 | PLCW TIMER and Associated Events | 6.3.1.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_plcw_repeat_arms` |
+| 211.0-B-6 DLL-83 | DLL-83 | OUTPUT FIFO | 6.3.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` (`macOnFifoEmpty`) |
+| 211.0-B-6 DLL-84 | DLL-84 | NO_FRAMES_PENDING | 6.3.2.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_token_octets` (`macOnNoFramesPending`). See DLL-101 for the E65 condition. |
+
+#### Table 11: Directives  (book page A-9, 15 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-85 | DLL-85 | Local Directives | 6.3.3.1 | M |  | | Planned (no stage set). DLL-86 to DLL-91 are Supported. DLL-92 is not (audit F-4). |
+| 211.0-B-6 DLL-86 | DLL-86 | SET MODE | 6.3.3.1.1 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-87 | DLL-87 | SET INITIALIZE MODE | 6.3.3.1.1.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_s1_initialize` |
+| 211.0-B-6 DLL-88 | DLL-88 | Local COMM_CHANGE (LCCD) | 6.3.3.1.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok` |
+| 211.0-B-6 DLL-89 | DLL-89 | LOAD COMMUNICATIONS VALUE BUFFER | 6.3.3.1.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok` (`macLoadPendingCommValue`) |
+| 211.0-B-6 DLL-90 | DLL-90 | LOCAL_NO_MORE_DATA (LNMD) | 6.3.3.1.5 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_s55_e57_enter_s1` (`macLocalNoMoreData`) |
+| 211.0-B-6 DLL-91 | DLL-91 | SET DUPLEX | 6.3.3.1.6 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_duplex_s1_only` |
+| 211.0-B-6 DLL-92 | DLL-92 | SET RECEIVING SCID BUFFER | 6.3.3.1.7 | M |  | | Planned (no stage set). Audit F-4. No code. |
+| 211.0-B-6 DLL-93 | DLL-93 | READ STATUS | 6.3.3.1.8 | O |  | | Not planned. O item. No READ STATUS directive. The caller reads `MacSession`. |
+| 211.0-B-6 DLL-94 | DLL-94 | Remote directives | 6.3.3.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_hail_octets`; `tests/unit/test_mac.cpp::test_half_token_octets`; `tests/unit/test_mac.cpp::test_half_remote_comm_change_echo` |
+| 211.0-B-6 DLL-95 | DLL-95 | SET TRANSMITTER PARAMETERS directive | 6.3.3.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_hail_octets`. The core does not enact the 211.1 fields. |
+| 211.0-B-6 DLL-96 | DLL-96 | SET RECEIVER PARAMETERS directive | 6.3.3.2.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_hail_octets`. The core does not enact the 211.1 fields. |
+| 211.0-B-6 DLL-97 | DLL-97 | SET PL_EXTENSIONS directive | 6.3.3.2.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs`; `tests/unit/test_mac.cpp::test_hail_queue_pl_extensions`. The core packs the fields as the caller gives them. |
+| 211.0-B-6 DLL-98 | DLL-98 | The Set CONTROL PARAMETERS directive (Time Sample Field) | 6.3.3.2.5 | M |  | | Stated deviation. Codec and Token/RNMD use: `tests/unit/test_mac.cpp::test_annex_b_codecs`; `tests/unit/test_mac.cpp::test_half_token_octets`. The core carries the Time Sample field but does not act on it. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-99 | DLL-99 | Initialized values of Proximity-1 control variables | Table 6-6 | M |  | | Supported. `tests/unit/test_mac.cpp::test_s1_initialize`; `tests/unit/test_mac.cpp::test_half_s55_e57_enter_s1` (`applyTable66`) |
+
+#### Table 12: Duplex/Simplex Operations  (book page A-9, 3 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-100 | DLL-100 | Full duplex operations | 6.4.2, Tables 6-7, 6-8, 6-9 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_full_responder_hail`; `tests/unit/test_mac.cpp::test_carrier_loss_caller`; `tests/unit/test_mac.cpp::test_valid_frame_s48_e17`. Tested on host only, not over the air. |
+| 211.0-B-6 DLL-101 | DLL-101 | Half duplex operations | 6.4.3, Table 6-10, 6-11, 6-12 | O |  | | Planned (no stage set). This is the mode in use. Code and tests: `tests/unit/test_mac.cpp` `test_half_*`. Three tests pin behavior that fails the book ("Fix is a later step"): Table 6-11 E65 (`tests/unit/test_mac.cpp::test_half_s52_e64_y1_and_y3`; `tests/unit/test_mac.cpp::test_half_s52_y2_full`) and Table 6-10 E47 (`tests/unit/test_mac.cpp::test_half_s62_carrier_no_e50`). See also the "COMM_CHANGE echo" and "CARRIER_LOSS_TIMER" rows. |
+| 211.0-B-6 DLL-102 | DLL-102 | Simplex operations | 6.4.4, Table 6-13 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_and_simplex`; `tests/unit/test_user_defined.cpp::test_simplex_no_hail` |
+
+#### Table 13: Interfaces with the Physical Layer  (book page A-10, 12 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-103 | DLL-103 | Output Interfaces | 6.5.1 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` (`macPhy`) |
+| 211.0-B-6 DLL-104 | DLL-104 | The TRANSMIT parameter | 6.5.1.1 | M | On, Off | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-105 | DLL-105 | Frame output | 6.5.1.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_hail_octets`; `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+| 211.0-B-6 DLL-106 | DLL-106 | The MODULATION parameter | 6.5.1.3 | M | On, Off | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-107 | DLL-107 | Input interfaces | 6.5.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_e48_e49_carrier`; `tests/unit/test_mac.cpp::test_valid_frame_s48_e17` (`macSetCarrierAcquired`, `macSetSymbolInlock`). The caller supplies the inputs. |
+| | **Sending Operations** | | | | | | |
+| 211.0-B-6 DLL-108 | DLL-108 | Session Establishment | 6.6.1 | M |  | | Planned (no stage set). Hailing: `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_half_and_simplex`. No 6.6.1.2 source check (audit F-6, DLL-184). |
+| 211.0-B-6 DLL-109 | DLL-109 | Reset NEED_PLCW or NEED_STATUS_REPORT | 6.2.3.6.2–6.2.3.6.2 | M | True, False | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` (NEED_PLCW false after a PLCW is sent). |
+| 211.0-B-6 DLL-110 | DLL-110 | Setting No_Frames_Pending | 6.3.2.3 | M | True, False | | Supported. `tests/unit/test_mac.cpp::test_half_token_octets` |
+| 211.0-B-6 DLL-111 | DLL-111 | Setting OUTPUT_FIFO=empty | 6.3.2.2 | M | True, False | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| | **Receiving Operations** | | | | | | |
+| 211.0-B-6 DLL-112 | DLL-112 | Frame Reception | 6.7.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` |
+| 211.0-B-6 DLL-113 | DLL-113 | Frame Validation Criteria | 6.7.2 | M |  | | Planned (no stage set). a) `tests/unit/test_v3.cpp::test_reject_tfvn_unknown`. b) code present (`dest_is_local`), no test rejects a wrong SCID. c) no code (audit F-6). |
+| 211.0-B-6 DLL-114 | DLL-114 | Validated Frame Processing | 6.7.3 | M |  | | Planned (no stage set). U-frames: `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw`. P-frames: the code takes one SPDU per frame (SET V(R) or PLCW) and does not delimit several SPDUs (`copp.cpp` `coppReceiveV3`). A comment in `tests/unit/test_copp.cpp::test_copp_lossy_loop` records that a PLCW with second octet 0x03 decodes as SET V(R). |
+
+#### Table 14: Communication Operations Procedure for Proximity Links COP-P  (book page A-11, 26 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-115 | DLL-115 | Implement COP-P Protocol | 7, 4.3.3 | M |  | | Supported. `tests/unit/test_copp.cpp` (all tests). The "COP-P procedures" row records 19 of 22 §7 shalls UNVERIFIED (audit 2026-10-29). |
+| 211.0-B-6 DLL-116 | DLL-116 | DATA SERVICES OPERATIONS (COP-P): Modulo-256 counters will be used for sequence number in the COP-P protocol | 7 | M |  | | Supported. `tests/unit/test_copp.cpp::test_seq_compare` |
+| 211.0-B-6 DLL-117 | DLL-117 | SENDING PROCEDURES (FOP-P) | 7.2 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| 211.0-B-6 DLL-118 | DLL-118 | The FOP-P Sent Frame Queue | 7.2.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| | **FOP-P Variables** | | | | | | |
+| 211.0-B-6 DLL-119 | DLL-119 | VE(S) | 7.2.2 a) | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| 211.0-B-6 DLL-120 | DLL-120 | V(S) | 7.2.2 b) | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| 211.0-B-6 DLL-121 | DLL-121 | VV(S) | 7.2.2 c) | M |  | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` |
+| 211.0-B-6 DLL-122 | DLL-122 | N(R): | 7.2.2 d) | M |  | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` |
+| 211.0-B-6 DLL-123 | DLL-123 | NN(R): | 7.2.2 e) | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| 211.0-B-6 DLL-124 | DLL-124 | R(R): | 7.2.2 f) | M |  | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` |
+| 211.0-B-6 DLL-125 | DLL-125 | RR(R): | 7.2.2 g) | M |  | | Planned (no stage set). Code present (`FopP::rr_r`, `copp.cpp` `plcwValid`, SE2, SE4). No test asserts RR(R). |
+| 211.0-B-6 DLL-126 | DLL-126 | NEED_PLCW/NEED_STATUS_REPORT | 7.2.2 h) | M |  | | Supported. `tests/unit/test_copp.cpp::test_copp_lossy_loop` |
+| 211.0-B-6 DLL-127 | DLL-127 | SYNCH_TIMER | 7.2.2 i) | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_invalid_plcw_and_timer` |
+| 211.0-B-6 DLL-128 | DLL-128 | RESYNC | 7.2.2 j) | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-129 | DLL-129 | FOP-P General Procedures | 7.2.3.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+| 211.0-B-6 DLL-130 | DLL-130 | Set V(R) persistent activity | 7.2.3.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-131 | DLL-131 | Configure the SET V(R) persistent activity | 7.2.3.2.1 | M |  | | Planned (no stage set). Code present (`MacMib::resync_waiting_period`, `resync_lifetime`; `CoppMib::resync_local`). No test runs the repeat or the abort path. |
+| 211.0-B-6 DLL-132 | DLL-132 | Execute the SET V(R) persistent activity | 7.2.3.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_persistent`; `tests/unit/test_mac.cpp::test_inbound_set_vr` |
+| 211.0-B-6 DLL-133 | DLL-133 | FOP-P State Table | 7.2.3.3 | M |  | | Planned (no stage set). SE0 to SE4 and SE7: `tests/unit/test_copp.cpp::test_fop_p_send_and_ack`; `tests/unit/test_copp.cpp::test_fop_p_invalid_plcw_and_timer`. SE5, SE6 and SE8 have no event call. The caller sets `CoppMib` at `coppInit`. |
+| 211.0-B-6 DLL-134 | DLL-134 | DATA SERVICES RECEIVING OPERATIONS | 7.3 | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` |
+| 211.0-B-6 DLL-135 | DLL-135 | FARM-P STATE TABLE | 7.3.1 | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table`; `tests/unit/test_mac.cpp::test_inbound_set_vr` (RE2) |
+| | **INTERNAL FARM-P PARAMETERS** | | | | | | |
+| 211.0-B-6 DLL-136 | DLL-136 | V(R): | 7.3.2 a) | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` |
+| 211.0-B-6 DLL-137 | DLL-137 | R(S): | 7.3.2 b) | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` |
+| 211.0-B-6 DLL-138 | DLL-138 | N(S): | 7.3.2 c) | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` |
+| 211.0-B-6 DLL-139 | DLL-139 | EXPEDITED_FRAME_COUNTER | 7.3.2 d) | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` |
+| 211.0-B-6 DLL-140 | DLL-140 | INTERFACE TO THE I/O SUBLAYER | 7.3.3 | M |  | | Supported. `tests/unit/test_copp.cpp::test_canned_pltu_to_plcw` (`coppTakeSdu`) |
+
+#### Table 15: Input/Output Sublayer Operations  (book page A-11, 2 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-141 | DLL-141 | Sending Operations | 8.2 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-142 | DLL-142 | Receiving Operations | 8.3 | M |  | | Stated deviation. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+
+#### Table 16: Variable-length Supervisory Protocol Data Field Formats  (book page A-12, 7 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-143 | DLL-143 | SET TRANSMITTER PARAMETERS Directive | B1.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs` |
+| 211.0-B-6 DLL-144 | DLL-144 | SET CONTROL PARAMETERS Directive | B1.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs` |
+| 211.0-B-6 DLL-145 | DLL-145 | SET RECEIVER PARAMETERS Directive | B1.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs` |
+| 211.0-B-6 DLL-146 | DLL-146 | SET V(R) Directive | B1.5 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_codec`. See DLL-114 for the decode-order note. |
+| 211.0-B-6 DLL-147 | DLL-147 | REPORT REQUEST Directive | B1.6 | O |  | | Not planned. O item. No REPORT REQUEST directive. |
+| 211.0-B-6 DLL-148 | DLL-148 | SET PL EXTENSIONS Directive | B1.7 | M |  | | Supported. `tests/unit/test_mac.cpp::test_annex_b_codecs`; `tests/unit/test_mac.cpp::test_hail_queue_pl_extensions`. |
+| 211.0-B-6 DLL-149 | DLL-149 | REPORT SOURCE SPACECRAFT ID Directive | B1.8 | O |  | | Not planned. O item. No REPORT SOURCE SPACECRAFT ID directive. |
+
+#### Table 17: Management Information Base Parameters (alphabetical)  (book page A-13, 36 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-150 | DLL-150 | Acquisition_Idle_Duration | 6.2.4.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`. The MAC uses the duration. The C&S Idle PN pattern is not generated (see the "C&S Idle / Acquisition / Tail sequence" row, audit F-1). |
+| 211.0-B-6 DLL-151 | DLL-151 | Carrier_Loss_Timer_Duration | 6.2.4.6 | M |  | | Supported. `tests/unit/test_mac.cpp::test_carrier_loss_caller`. See DLL-81. |
+| 211.0-B-6 DLL-152 | DLL-152 | Carrier_Only_Duration | 6.2.4.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
+| 211.0-B-6 DLL-153 | DLL-153 | Comm_Change_Lifetime | 6.2.4.10 | M |  | | Planned, pending the R-37 fix and a two-board bench. `tests/unit/test_mac.cpp::test_half_comm_change_lifetime_repeats`; `tests/unit/test_mac.cpp::test_half_comm_change_token_aborts_at_lifetime`. A repeat count (6.2.4.10.2). Default 0. |
+| 211.0-B-6 DLL-154 | DLL-154 | Comm_Change_Notification | 6.2.4.9 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok`; `tests/unit/test_mac.cpp::test_half_comm_change_token_aborts_at_lifetime` |
+| 211.0-B-6 DLL-155 | DLL-155 | Comm_Change_Response | 6.2.4.8 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok` (E68); `tests/unit/test_mac.cpp::test_valid_frame_s48_e17` (E17) |
+| 211.0-B-6 DLL-156 | DLL-156 | Comm_Change_Waiting_Period | 6.2.4.7 | M |  | | Planned (no stage set). Audit F-7, open. No code. |
+| 211.0-B-6 DLL-157 | DLL-157 | Hail_Lifetime | 6.2.4.14 | M |  | | Planned (no stage set). Code present (`hail_life_left`, `hail_fail`). No test runs the expiry. |
+| 211.0-B-6 DLL-158 | DLL-158 | Hail_Notification | 6.2.4.13 | M |  | | Planned (no stage set). Success: `tests/unit/test_mac.cpp::test_full_hail_tables` (`hail_ok`). Failure (`hail_fail`): code present, no test. |
+| 211.0-B-6 DLL-159 | DLL-159 | Hail_Response | 6.2.4.12 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`; `tests/unit/test_mac.cpp::test_half_and_simplex` |
+| 211.0-B-6 DLL-160 | DLL-160 | Hail_Wait_Duration | 6.2.4.11 | M |  | | Planned (no stage set). Code present. No test runs the Hail_Wait expiry (`hail_repeat`). |
+| 211.0-B-6 DLL-161 | DLL-161 | Hailing_Channel | 6.2.4.15 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_and_revert`. The core holds the values in `hail_cv` (SET TX/RX fields). The consumer enacts them. |
+| 211.0-B-6 DLL-162 | DLL-162 | Hailing_Data_Rate | 6.2.4.16 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_and_revert`. The core holds the values in `hail_cv` (SET TX/RX fields). The consumer enacts them. |
+| 211.0-B-6 DLL-163 | DLL-163 | Interval_Clock | 6.3.1.1.1 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`. The caller supplies `now` in Tick. |
+| 211.0-B-6 DLL-164 | DLL-164 | Local_PCID | 3.2.2.7 | M |  | | Supported. `tests/unit/test_copp.cpp::test_farm_p_table` (PCID in the PLCW). Fact: `MacMib::local_pcid` exists, but `mac.cpp` does not read it. |
+| 211.0-B-6 DLL-165 | DLL-165 | Local_Spacecraft_ID | 3.2.2.9.3 | M |  | | Planned (no stage set). Code present (`CoppEndpoint::local_scid`, `dest_is_local`). Loop tests pass frames to the matching SCID. No test rejects a wrong SCID. |
+| 211.0-B-6 DLL-166 | DLL-166 | Maximum_Failed_Token_Passes | 6.4.3, Table 6-10 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_e83_rehail`; `tests/unit/test_mac.cpp::test_half_e83_responder_listens` |
+| 211.0-B-6 DLL-167 | DLL-167 | Maximum_Frame_Length | 3.2.3.1 | M |  | | Stated deviation. No MIB field. The codec has a fixed cap (`kV3DataMax` 2043). I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-168 | DLL-168 | Maximum_Packet_Size | 4.4.2.1 | M |  | | Stated deviation. No MIB field. `kCoppHold` (64) is a host-loop cap. I/O-free core: the caller owns the queues and packet assembly. See the "I/O sublayer and segment reassembly" row. |
+| 211.0-B-6 DLL-169 | DLL-169 | Persistence_Wait_Time | 6.4.2, Table 6-8 | M |  | | Planned (no stage set). Code present: `MacMib::persistence_wait_time` loads the wait at E15 (`mac.cpp`). No test reaches E15. |
+| 211.0-B-6 DLL-170 | DLL-170 | PLCW_Repeat_Interval | 6.2.4.19 | M |  | | Supported. `tests/unit/test_mac.cpp::test_plcw_repeat_arms` |
+| 211.0-B-6 DLL-171 | DLL-171 | Receive_Duration | 6.2.4.18 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_s60_full` |
+| 211.0-B-6 DLL-172 | DLL-172 | Drop_Carrier_Duration | 6.2.1, Table 6-2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_carrier_loss_caller`; `tests/unit/test_mac.cpp::test_half_e83_rehail` |
+| 211.0-B-6 DLL-173 | DLL-173 | Remote_PCID | 3.2.2.7 | M |  | | Planned (no stage set). Audit F-5. No Remote_PCID field. |
+| 211.0-B-6 DLL-174 | DLL-174 | Remote_Spacecraft_ID | 3.2.2.9.3 | M |  | | Planned (no stage set). `CoppEndpoint::remote_scid` addresses sent frames. No receive validation against it (audit F-4, F-6). |
+| 211.0-B-6 DLL-175 | DLL-175 | Resync_Local | 7.2.3.2.1,7.2.3.3 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_invalid_plcw_and_timer`; `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-176 | DLL-176 | Resync_Lifetime | 7.2.3.2 | M |  | | Planned (no stage set). Code present (`resync_fail`). No test runs the expiry. |
+| 211.0-B-6 DLL-177 | DLL-177 | Resync_Notification | 7.2.3.2 | M |  | | Planned (no stage set). Success: `tests/unit/test_mac.cpp::test_set_vr_persistent` (`resync_ok`). Failure (`resync_fail`): code present, no test. |
+| 211.0-B-6 DLL-178 | DLL-178 | Resync_Response | 7.2.3.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_set_vr_persistent` |
+| 211.0-B-6 DLL-179 | DLL-179 | Resync_Waiting_Period | 7.2.3.2 | M |  | | Planned (no stage set). Code present. No test runs the repeat. |
+| 211.0-B-6 DLL-180 | DLL-180 | Send_Duration | 6.2.4.17 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_s51_e40_and_s52_y0_full` |
+| 211.0-B-6 DLL-181 | DLL-181 | Source_Destination_ID | 3.2.2.9 | M |  | | Supported. `tests/unit/test_v3.cpp::test_roundtrip_populated` |
+| 211.0-B-6 DLL-182 | DLL-182 | Synch_Timeout | 7.2.2 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_invalid_plcw_and_timer` |
+| 211.0-B-6 DLL-183 | DLL-183 | Tail_Idle_Duration | 6.2.4.5 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_s58_full`. The MAC uses the duration. The C&S Idle PN pattern is not generated (see the "C&S Idle / Acquisition / Tail sequence" row, audit F-1). |
+| 211.0-B-6 DLL-184 | DLL-184 | Test_Source | 6.2.4.2 | M |  | | Planned (no stage set). Audit F-6. No code. |
+| 211.0-B-6 DLL-185 | DLL-185 | Transmission_Window | 7.2.3.3 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_send_and_ack` |
+
+#### Table 18: Notifications to Vehicle Controller  (book page A-14, 11 rows)
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.0-B-6 DLL-186 | DLL-186 | 1 RESULT OF PERSISTENT ACTIVITY | Annex D #1 | M |  | | Planned (no stage set). Tested: `hail_ok` (`tests/unit/test_mac.cpp::test_full_hail_tables`), `resync_ok` (`tests/unit/test_mac.cpp::test_set_vr_persistent`), `comm_change_ok` and `comm_change_failed` (DLL-154). No test: `hail_fail`, `resync_fail`. |
+| 211.0-B-6 DLL-187 | DLL-187 | 2 STATE CONTROL STATUS | Annex D #2 | M |  | | Planned (no stage set). No notification. The caller reads `MacSession` (mode, duplex, transmit_on, ss). |
+| 211.0-B-6 DLL-188 | DLL-188 | 3 INVALID FRAME SOURCE | Annex D #3 | M |  | | Planned (no stage set). Audit F-6. No code. |
+| 211.0-B-6 DLL-189 | DLL-189 | 4 TIMING SERVICES INSTANCE | Annex D #4 | M |  | | Stated deviation. See the "Timing services and time tag" row (audit F-2). No timing services in the core. |
+| 211.0-B-6 DLL-190 | DLL-190 | 5 NO CARRIER RECEIVED - HALF DUPLEX | Annex D #5 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_s62_e50_y0_full` (`no_carrier_this_contact`) |
+| 211.0-B-6 DLL-191 | DLL-191 | 6 NO DATA TRANSFERRED - HALF DUPLEX | Annex D #6 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_s61_e45_and_e50` (`no_data_this_contact`) |
+| 211.0-B-6 DLL-192 | DLL-192 | 7 SENDER EXCEEDED PRESCRIBED TRANSMISSION PERIOD - HALF DUPLEX | Annex D #7 | O |  | | Supported. `tests/unit/test_mac.cpp::test_half_e48_e49_carrier` (`sender_overran`) |
+| 211.0-B-6 DLL-193 | DLL-193 | 8 COP-P LOSS OF SYNCHRONIZATION | Annex D #8 | M |  | | Supported. `tests/unit/test_copp.cpp::test_fop_p_invalid_plcw_and_timer`; `tests/unit/test_copp.cpp::test_copp_lossy_loop` (`coppSyncLossCount`) |
+| 211.0-B-6 DLL-194 | DLL-194 | 9 CARRIER_LOSS_TIMER UNDERFLOWS | Annex D #9 | M |  | | Planned (no stage set). Maps to Table 6-10 E85 for half duplex (E80 and E82 for full duplex). No controller notification at E85 (see the "CARRIER_LOSS_TIMER (half duplex)" row). See the cross-reference note on Annex D below. |
+| 211.0-B-6 DLL-195 | DLL-195 | 10 END OF SESSION (# octets received) | Annex D #10 | M |  | | Planned (no stage set). `end_session`: `tests/unit/test_mac.cpp::test_half_s55_e57_enter_s1`. No octet count. See the cross-reference note on Annex D below. |
+| 211.0-B-6 DLL-196 | DLL-196 | 11 CARRIER ONLY RECEIVED | Annex D #11 | M |  | | Planned (no stage set). `MacNotify::carrier_only_heard` is declared. `mac.cpp` does not emit it. |
+
+
+Starcom column totals: Supported 120, Planned 32, Stated deviation 38, Not planned 6. Mandatory items not Supported: 66.
+
+Exceptions (A1.3), mandatory items with a stated deviation in the core: 211.0-B-6 DLL-30, 211.0-B-6 DLL-31, 211.0-B-6 DLL-32, 211.0-B-6 DLL-37, 211.0-B-6 DLL-38, 211.0-B-6 DLL-39, 211.0-B-6 DLL-40, 211.0-B-6 DLL-41, 211.0-B-6 DLL-42, 211.0-B-6 DLL-43, 211.0-B-6 DLL-44, 211.0-B-6 DLL-45, 211.0-B-6 DLL-46, 211.0-B-6 DLL-47, 211.0-B-6 DLL-48, 211.0-B-6 DLL-49, 211.0-B-6 DLL-50, 211.0-B-6 DLL-51, 211.0-B-6 DLL-52, 211.0-B-6 DLL-53, 211.0-B-6 DLL-54, 211.0-B-6 DLL-55, 211.0-B-6 DLL-56, 211.0-B-6 DLL-57, 211.0-B-6 DLL-58, 211.0-B-6 DLL-60, 211.0-B-6 DLL-62, 211.0-B-6 DLL-63, 211.0-B-6 DLL-64, 211.0-B-6 DLL-98, 211.0-B-6 DLL-141, 211.0-B-6 DLL-142, 211.0-B-6 DLL-167, 211.0-B-6 DLL-168, 211.0-B-6 DLL-189. The reason is in the Starcom cell of each row. The other mandatory items that are not Supported are Planned.
+
+Cross-reference notes:
+- Printed cross-reference slip, intent clear: Annex D items 9 and 10 cite Table 6-9 Event E27. E27 appears nowhere else in 211.0-B-6 (Table 6-9 lists E26, then E28) or in 211.0-B-5. Starcom maps 211.0-B-6 DLL-194 to Table 6-10 E85 for half duplex (E80 and E82 for full duplex).
+
+## Annex A PICS: CCSDS 211.1-B-4 (Proximity-1 Physical Layer)
+
+Draft and unsigned. Book: CCSDS 211.1-B-4, Issue 4, December 2013, with Editorial Change 1 (January 2018), file `standards/ccsds/CCSDS-211.1-B-4-EC1.pdf`. Table A-1 is book pages A-4 to A-5. The columns before Starcom are the annex text, copied word for word (Duke, 2026-11-25). Each row has the key "211.1-B-4 <item>".
+
+The Implementation Under Test is the Starcom core. The core has no radio, and Starcom does not claim this book (see the "211.1-B-4 Physical Layer" row). This table reads C1 and C2 for category E2n (non-coherent transmit and receive): C1 makes item 1.3.1 O, and C2 makes item 2.2 M.
+
+| A2.1 field | Value |
+|------------|-------|
+| Date of statement (DD/MM/YYYY) | 25/11/2026 (draft) |
+| PICS serial number | TBD (none issued) |
+| System conformance statement cross-reference | The claims table at the top of this file |
+| Implementation name | `starcom::ccsds` MAC PHY view (`macPhy`) and `starcom::adapters` PHY declaration (`PhyDecl`). No radio. |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
+| Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
+| Supplier | Starcom (`starcom/` directory) |
+| Contact point for queries | TBD |
+| Specification | CCSDS 211.1-B-4 (Issue 4, December 2013, EC 1 January 2018) |
+| Have any exceptions been required? | Yes. Mandatory items are not supported by the core (see the exceptions list below the tables). |
+
+Starcom column states: `Supported` (a test proves it; the cell names the test), `Planned` (with the stage from IVP.md, or "no stage set"), `Stated deviation` (with the reason), `Not planned`. "Code present, no test" is Planned, not Supported.
+
+| Key | Item | Description | Reference | Status | Values Allowed | Support/Values Implemented | Starcom |
+|---|---|---|---|---|---|---|---|
+| 211.1-B-4 1.1 | 1.1 | Radio equipment category E1 | table 3-1 | O.1 |  | | Not planned. E1 is transmit-only. |
+| 211.1-B-4 1.2 | 1.2 | Radio equipment category E2n | table 3-1 | O.1 |  | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 1.3 | 1.3 | Radio equipment category E2c | table 3-1 | O.1 |  | | Not planned. No frequency coherency. |
+| 211.1-B-4 1.3.1 | 1.3.1 | Transmit/receive frequency coherency capability | 3.1.2 | C1 (note 1) |  | | Not planned. C1 is O for E2n. No coherency, no range or range-rate measurement. |
+| 211.1-B-4 1.4 | 1.4 | Radio equipment category E2d | table 3-1 | O.1 |  | | Not planned. E2d transmits PSK. |
+| 211.1-B-4 2.1 | 2.1 | Transmitter | 3.2.2 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` (`macPhy`: transmit and modulation bits for the Table 3-2 states, including carrier only). The transmitter is outside the core. |
+| 211.1-B-4 2.2 | 2.2 | Receiver | 3.2.3 | C2 |  | | Supported. `tests/unit/test_mac.cpp::test_half_and_simplex` (`macPhy` receive bit). C2 is M for E2n. The receiver is outside the core. |
+| 211.1-B-4 3.1 | 3.1 | Frequency Range (MHz) | 3.3.2.2 | M | Forward: from 435 to 450; Return: from 390 to 405 | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 3.2 | 3.2 | Hailing channel | 3.3.2.3 | M (note 2) | Channel 1, Channel 0, Channel N with N=2, 3, .. 15 | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. Note 3 permits a single-channel radio (the working channel is the hailing channel). |
+| 211.1-B-4 3.3 | 3.3 | Working channel(s) | 3.3.2.4, 3.3.2.5 | M (note 3) | Channel 0 .. 15 | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. Note 3 permits a single-channel radio (the working channel is the hailing channel). |
+| 211.1-B-4 3.3.1 | 3.3.1 | Forward and return link frequencies for channels 4, 5, .. 15 (MHz) | 3.3.2.5 | M | Forward: from 435 to 450 in 20 kHz steps; Return: from 390 to 405 in 20 kHz steps | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 4 | 4 | Polarization | 3.3.4 | M | Right Hand Circular | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 5 | 5 | Modulation | 3.3.5 | M | Bi-Phase-L | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 6.1 | 6.1 | Forward coded symbol rates (symbols/s) | 3.3.6.1 | M (note 4) | 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 512000, 1024000, 2048000, 4096000 | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 6.2 | 6.2 | Return coded symbol rates (symbols/s) | 3.3.6.1 | M (note 4) | 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 512000, 1024000, 2048000, 4096000 | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 6.3 | 6.3 | Short Term Channel Symbol Rate Stability | 3.3.6.2 | M | ≤ 1% | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 6.4 | 6.4 | Channel Symbol Rate Offset | 3.3.6.3 | M | < 0.1% | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+| 211.1-B-4 7 | 7 | Performance Requirements | 3.4 | M |  | | Stated deviation. The core has no radio. PHY adapters declare a tier (`PhyDecl`, `tests/unit/test_phy.cpp`). Full 211.1 (`PhyTier::compliant`) is not offered. See the "211.1-B-4 Physical Layer" row. |
+
+Predicates and notes: see the book, below Table A-1 (O.1, C1, C2, notes 1 to 4).
+
+Starcom column totals: Supported 2, Planned 0, Stated deviation 12, Not planned 4. Mandatory items (C2 read for E2n) not Supported: 11.
+
+Exceptions (A1.3), mandatory items with a stated deviation in the core: 211.1-B-4 3.1, 211.1-B-4 3.2, 211.1-B-4 3.3, 211.1-B-4 3.3.1, 211.1-B-4 4, 211.1-B-4 5, 211.1-B-4 6.1, 211.1-B-4 6.2, 211.1-B-4 6.3, 211.1-B-4 6.4, 211.1-B-4 7. Item 1.2 (O.1 group) is also a stated deviation.
+
+Cross-reference notes:
+- Reference [3] in 211.1-B-4 is 211.0-B-5.
+- Printed cross-reference slip, intent clear: 211.1-B-4 points to "annex A of reference [3]" for SET TRANSMITTER PARAMETERS, SET PL EXTENSIONS and the rate values. It points to "Annex B of reference [3]" for the hail MIB values. In 211.0-B-5, those are Annex B (B1.2 onward) and Annex C. Annex A of 211.0-B-5 is the PICS.
+- The draft Pink Book 211.1-P-4.2 (April 2026, https://ccsds.org/review/) changes this annex. This table does not include it.
+
+## Annex A PICS: CCSDS 211.2-B-3 (Proximity-1 Coding and Synchronization Sublayer)
+
+Draft and unsigned. Book: CCSDS 211.2-B-3, Issue 3, October 2019, file `standards/ccsds/CCSDS-211.2-B-3.pdf`. The requirements list is book page A-4. The columns before Starcom are the annex text, copied word for word (Duke, 2026-11-25). The annex has no Values Allowed column. Each row has the key "211.2-B-3 <item>". The Implementation Under Test is the Starcom core. The PLTU and coding rows at the top of this file give the claim levels.
+
+| A2.1 field | Value |
+|------------|-------|
+| Date of statement (DD/MM/YYYY) | 25/11/2026 (draft) |
+| PICS serial number | TBD (none issued) |
+| System conformance statement cross-reference | The claims table at the top of this file |
+| Implementation name | `starcom::ccsds` PLTU (`encodePltu`, `decodePltu`, `huntPltu`), convolutional and LDPC encoders |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
+| Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
+| Supplier | Starcom (`starcom/` directory) |
+| Contact point for queries | TBD |
+| Specification | CCSDS 211.2-B-3 (Issue 3, October 2019) |
+| Have any exceptions been required? | Yes. Mandatory items are not supported by the core (see the exceptions list below the tables). |
+
+Starcom column states: `Supported` (a test proves it; the cell names the test), `Planned` (with the stage from IVP.md, or "no stage set"), `Stated deviation` (with the reason), `Not planned`. "Code present, no test" is Planned, not Supported.
+
+| Key | Item | Description | Reference | Status | Support | Starcom |
+|---|---|---|---|---|---|---|
+| 211.2-B-3 1 | 1 | PLTU structure: ASM, Transfer Frame, CRC | 3.2 | M | | Supported. `tests/unit/test_pltu.cpp::test_encode_decode_roundtrip`; `tests/unit/test_pltu.cpp::test_asm_in_crc`; `tests/unit/test_pltu.cpp::test_reject_bad_asm` |
+| 211.2-B-3 2 | 2 | Idle data | 3.3 | M | | Stated deviation. The core has no Idle data generator. See the PLTU row (N5-1) and the "C&S Idle / Acquisition / Tail sequence" row (audit F-1). |
+| 211.2-B-3 3 | 3 | Coding option: uncoded data | 3.4 | O.1 | | Supported. `tests/unit/test_pltu.cpp::test_encode_decode_roundtrip`; `tests/unit/test_coding.cpp::test_conv_pltu_and_uncoded_phy`. Uncoded meets the O.1 group. |
+| 211.2-B-3 4 | 4 | Coding option: convolutional | 3.4.3 | O.1 | | Planned (no stage set). Encode only: `tests/unit/test_coding.cpp::test_conv_zero`; `tests/unit/test_coding.cpp::test_conv_state_concat`. No decode ("Convolutional or LDPC coding" row). |
+| 211.2-B-3 5 | 5 | Coding option: LDPC | 3.4.4, 3.4.5 | O.1 | | Planned (no stage set). Encode only: `tests/unit/test_coding.cpp::test_ldpc_systematic_noiseless`; `tests/unit/test_coding.cpp::test_ldpc_zero_is_pn`. No decode ("Convolutional or LDPC coding" row). |
+| 211.2-B-3 6 | 6 | Time tag support | 3.5.6, 3.6.8 | O | | Stated deviation. O item. No time tag. See the "Timing services and time tag" row (audit F-2). |
+| 211.2-B-3 7 | 7 | Transfer Frame Version Number | 3.6.4 | M | | Supported. `tests/unit/test_pltu.cpp::test_reject_tfvn_unknown`; `tests/unit/test_pltu.cpp::test_hunt_unknown_tfvn_steps_one` |
+| 211.2-B-3 7.1 | 7.1 | Proximity-1 Frame Length Field | Reference [3], subsection 3.2.2.10 | M | | Supported. `tests/unit/test_pltu.cpp::test_reject_v3_length_oob`; `tests/unit/test_pltu.cpp::test_encode_max_frame` |
+| 211.2-B-3 7.2 | 7.2 | USLP Frame Length Field | Reference [5], subsection 4.1.2.7 | M | | Supported. `tests/unit/test_uslp.cpp::test_pltu_composition` |
+| 211.2-B-3 7.3 | 7.3 | USLP Truncated Transfer Frame Length | Reference [5], table 5-3 | M | | Supported. `tests/unit/test_uslp.cpp::test_truncated_roundtrip_and_pltu` |
+| 211.2-B-3 8 | 8 | Handling of invalid received frames | 3.6.6 | M | | Supported. `tests/unit/test_pltu.cpp::test_reject_bad_crc`; `tests/unit/test_pltu.cpp::test_hunt_bad_crc_consumes_unit` |
+
+O.1: see the book, below the table.
+
+Starcom column totals: Supported 7, Planned 2, Stated deviation 2, Not planned 0. Mandatory items not Supported: 1.
+
+Exceptions (A1.3), mandatory items with a stated deviation in the core: 211.2-B-3 2.
+
+Cross-reference notes:
+- Reference [3] in 211.2-B-3 is 211.0-B-5.
+- Printed cross-reference slip, intent clear: 211.2-B-3 points to "annex A of reference [3]" for SET TRANSMITTER PARAMETERS, SET PL EXTENSIONS and the rate values. In 211.0-B-5, those are Annex B (B1.2 onward). Annex A of 211.0-B-5 is the PICS.
+- The draft Pink Book 211.2-P-3.2 (April 2026, https://ccsds.org/review/) changes this annex. This table does not include it.
+
+## Rocket-Chip configuration exceptions (RFM95, half duplex)
+
+This subsection is the consumer layer. The configuration is Rocket-Chip 0.16.3-dev (`RC_VERSION`) at commit 134db12d, with the Starcom core, one RFM95 (SX1276) radio, 902-928 MHz, half duplex, LoRa now and FSK planned. Adapter: `src/starcom_adapt/byte_pump.cpp`. Rocket-Chip MIB values: see "Related Prox-1 managed parameters".
+
+A1.3: "If a mandatory requirement is not satisfied, exception information must be supplied by entering a reference Xi". Each mandatory row that this configuration does not meet has a reference Xi below. A row that is not Supported in the core is also not met here. Item 211.1-B-4 1.2 (O.1 group) is listed because the group needs one category.
+
+Terms: carrier is the RF signal from the partner. The CARRIER_ACQUIRED stand-in is preamble detect (FSK) or signal detected (LoRa). Symbol lock is LoRa RegModemStat bit 1 (211.1-B-4 §3.2.3.4.1).
+
+| Ref | Row | Reason |
+|-----|-----|--------|
+| X1 | 211.0-B-6 DLL-30 | Core stated deviation (see the core row). |
+| X2 | 211.0-B-6 DLL-31 | Core stated deviation (see the core row). |
+| X3 | 211.0-B-6 DLL-32 | Core stated deviation (see the core row). |
+| X4 | 211.0-B-6 DLL-37 | Core stated deviation (see the core row). |
+| X5 | 211.0-B-6 DLL-38 | Core stated deviation (see the core row). |
+| X6 | 211.0-B-6 DLL-39 | Core stated deviation (see the core row). |
+| X7 | 211.0-B-6 DLL-40 | Core stated deviation (see the core row). |
+| X8 | 211.0-B-6 DLL-41 | Core stated deviation (see the core row). |
+| X9 | 211.0-B-6 DLL-42 | Core stated deviation (see the core row). |
+| X10 | 211.0-B-6 DLL-43 | Core stated deviation (see the core row). |
+| X11 | 211.0-B-6 DLL-44 | Core stated deviation (see the core row). |
+| X12 | 211.0-B-6 DLL-45 | Core stated deviation (see the core row). |
+| X13 | 211.0-B-6 DLL-46 | Core stated deviation (see the core row). |
+| X14 | 211.0-B-6 DLL-47 | Core stated deviation (see the core row). |
+| X15 | 211.0-B-6 DLL-48 | Core stated deviation (see the core row). |
+| X16 | 211.0-B-6 DLL-49 | Core stated deviation (see the core row). |
+| X17 | 211.0-B-6 DLL-50 | Core stated deviation (see the core row). |
+| X18 | 211.0-B-6 DLL-51 | Core stated deviation (see the core row). |
+| X19 | 211.0-B-6 DLL-52 | Core stated deviation (see the core row). |
+| X20 | 211.0-B-6 DLL-53 | Core stated deviation (see the core row). |
+| X21 | 211.0-B-6 DLL-54 | Core stated deviation (see the core row). |
+| X22 | 211.0-B-6 DLL-55 | Core stated deviation (see the core row). |
+| X23 | 211.0-B-6 DLL-56 | Core stated deviation (see the core row). |
+| X24 | 211.0-B-6 DLL-57 | Core stated deviation (see the core row). |
+| X25 | 211.0-B-6 DLL-58 | Core stated deviation (see the core row). |
+| X26 | 211.0-B-6 DLL-60 | Core stated deviation (see the core row). |
+| X27 | 211.0-B-6 DLL-62 | Core stated deviation (see the core row). |
+| X28 | 211.0-B-6 DLL-63 | Core stated deviation (see the core row). |
+| X29 | 211.0-B-6 DLL-64 | Core stated deviation (see the core row). |
+| X30 | 211.0-B-6 DLL-70 | Core Supported. The Rocket-Chip adapter lets only the COMM_CHANGE echo run E68 (`src/starcom_adapt/byte_pump.cpp`, `hop_wait`, `handle_air_frame`). See the "COMM_CHANGE echo (half duplex)" row. |
+| X31 | 211.0-B-6 DLL-71 | Core Supported. Symbol lock for LoRa is RegModemStat bit 1 (211.1-B-4 §3.2.3.4.1). Observed at 134db12d: `byte_pump.cpp` sets SYMBOL_INLOCK true together with CARRIER_ACQUIRED, never sets it false, and does not read RegModemStat bit 1. |
+| X32 | 211.0-B-6 DLL-75 | Core Planned (see the core row). |
+| X33 | 211.0-B-6 DLL-77 | Core Planned (see the core row). |
+| X34 | 211.0-B-6 DLL-78 | Core Planned (see the core row). |
+| X35 | 211.0-B-6 DLL-81 | Core Planned (see the core row). Also: a remote COMM_CHANGE apply restarts the session, so the timer does not run after a hop (R-37, deviation (4) in the "CARRIER_LOSS_TIMER (half duplex)" row). |
+| X36 | 211.0-B-6 DLL-85 | Core Planned (see the core row). |
+| X37 | 211.0-B-6 DLL-92 | Core Planned (see the core row). |
+| X38 | 211.0-B-6 DLL-97 | Core Supported. Mode Select and Scrambler carry a rate index until D13. See the "Interim PL-extension field use" row. |
+| X39 | 211.0-B-6 DLL-98 | Core stated deviation (see the core row). |
+| X40 | 211.0-B-6 DLL-100 | Core Supported. The RFM95 (SX1276) is half duplex only. Rocket Chip runs DUPLEX = half. |
+| X41 | 211.0-B-6 DLL-107 | Core Supported. Carrier is the RF signal from the partner. The RFM95 has no residual carrier. The CARRIER_ACQUIRED stand-in is preamble detect (FSK) or signal detected (LoRa). |
+| X42 | 211.0-B-6 DLL-108 | Core Planned (see the core row). |
+| X43 | 211.0-B-6 DLL-113 | Core Planned (see the core row). |
+| X44 | 211.0-B-6 DLL-114 | Core Planned (see the core row). |
+| X45 | 211.0-B-6 DLL-125 | Core Planned (see the core row). |
+| X46 | 211.0-B-6 DLL-131 | Core Planned (see the core row). |
+| X47 | 211.0-B-6 DLL-133 | Core Planned (see the core row). |
+| X48 | 211.0-B-6 DLL-141 | Core stated deviation (see the core row). |
+| X49 | 211.0-B-6 DLL-142 | Core stated deviation (see the core row). |
+| X50 | 211.0-B-6 DLL-156 | Core Planned (see the core row). |
+| X51 | 211.0-B-6 DLL-157 | Core Planned (see the core row). |
+| X52 | 211.0-B-6 DLL-158 | Core Planned (see the core row). |
+| X53 | 211.0-B-6 DLL-160 | Core Planned (see the core row). |
+| X54 | 211.0-B-6 DLL-165 | Core Planned (see the core row). |
+| X55 | 211.0-B-6 DLL-167 | Core stated deviation (see the core row). |
+| X56 | 211.0-B-6 DLL-168 | Core stated deviation (see the core row). |
+| X57 | 211.0-B-6 DLL-169 | Core Planned (see the core row). The RFM95 is half duplex only. Table 6-8 is full duplex. |
+| X58 | 211.0-B-6 DLL-173 | Core Planned (see the core row). |
+| X59 | 211.0-B-6 DLL-174 | Core Planned (see the core row). |
+| X60 | 211.0-B-6 DLL-176 | Core Planned (see the core row). |
+| X61 | 211.0-B-6 DLL-177 | Core Planned (see the core row). |
+| X62 | 211.0-B-6 DLL-179 | Core Planned (see the core row). |
+| X63 | 211.0-B-6 DLL-184 | Core Planned (see the core row). |
+| X64 | 211.0-B-6 DLL-186 | Core Planned (see the core row). |
+| X65 | 211.0-B-6 DLL-187 | Core Planned (see the core row). |
+| X66 | 211.0-B-6 DLL-188 | Core Planned (see the core row). |
+| X67 | 211.0-B-6 DLL-189 | Core stated deviation (see the core row). |
+| X68 | 211.0-B-6 DLL-194 | Core Planned (see the core row). |
+| X69 | 211.0-B-6 DLL-195 | Core Planned (see the core row). |
+| X70 | 211.0-B-6 DLL-196 | Core Planned (see the core row). |
+| X71 | 211.1-B-4 1.2 | The RFM95 transmits and receives, non-coherent only, so E2n is the closest category. It is not a 211.1 radio. |
+| X72 | 211.1-B-4 2.1 | Not shown on the RFM95: no test or bench record of the Table 3-2 states. Carrier-only output (TRANSMIT on, MODULATION false) is not checked. |
+| X73 | 211.1-B-4 2.2 | Not shown on the RFM95: no test or bench record of the receiver states. |
+| X74 | 211.1-B-4 3.1 | Rocket Chip uses 902-928 MHz. That is outside 435-450 MHz and 390-405 MHz. |
+| X75 | 211.1-B-4 3.2 | No 211.1 channel numbers on a 902-928 MHz plan. Note 3 permits a single-channel radio: the hailing channel is the working channel. |
+| X76 | 211.1-B-4 3.3 | No 211.1 channel numbers on a 902-928 MHz plan. Note 3 permits a single-channel radio: the working channel is the hailing channel. |
+| X77 | 211.1-B-4 3.3.1 | Rocket Chip uses 902-928 MHz. That is outside 435-450 MHz and 390-405 MHz. |
+| X78 | 211.1-B-4 4 | The antennas are not shown to be RHCP. No record of the antenna polarization. |
+| X79 | 211.1-B-4 5 | The RFM95 cannot do PM, also with the Forgix FPGA. No Bi-Phase-L PM onto a residual carrier. |
+| X80 | 211.1-B-4 6.1 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 134db12d, and no test. The FSK bearer is "Future path" in IVP.md. |
+| X81 | 211.1-B-4 6.2 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 134db12d, and no test. The FSK bearer is "Future path" in IVP.md. |
+| X82 | 211.1-B-4 6.3 | Planned (no stage set). Bench measurement. No bench record. |
+| X83 | 211.1-B-4 6.4 | Planned (no stage set). Bench measurement. No bench record. |
+| X84 | 211.1-B-4 7 | Partial deviation. Parts of 3.4 assume PM at UHF (3.4.2 residual AM of the PM signal, 3.4.3 template at 437.1 MHz, 3.4.5 UHF Doppler). They do not apply to the RFM95. The oscillator-stability parts (3.4.1) have no bench record. |
+| X85 | 211.2-B-3 1 | Core Supported. On LoRa, the SX1276 packet framing (preamble, header, LoRa CRC) wraps each PLTU. The PLTU is not sent as a continuous C&S symbol stream. |
+| X86 | 211.2-B-3 2 | Core stated deviation (see the core row). |
+| X87 | 211.0-B-6 DLL-153 | Core Planned (see the core row). Pending the R-37 fix and a two-board bench. |
+
+Rocket Chip sends only Version-3 frames. Rows 211.2-B-3 7.2 and 7.3 (USLP frame length) are not used in this configuration. They are not exceptions.
 
 ## Known gaps
 
