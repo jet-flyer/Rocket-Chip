@@ -47,6 +47,11 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-11-24-003 | Grok Hamilton (Grok Bot) | documentation
+
+**Problem reports R-35 and R-36 filed on main.** `e59f27f7` files R-35. The RFM95 driver writes LoRa configuration registers while the radio is in receive. `32402c8a` files R-36. The boot banner reports hardware OK during the sensor fault. `85c77ad8` corrects R-36 and names the no-count IMU and baro paths. `96b979af` rewrites R-36 from the live diagnostic. After a picotool flash, the vehicle Feather IMU at 0x69 and the baro at 0x77 do not acknowledge the boot probe. The banner leaves sensors that do not acknowledge out of the count. A possible per-board list of expected sensors is not decided. `7d492da0` adds the WIP handoff row on the whiteboard. All five commits are documentation only. The push gate said no bench was needed for each. The R-35 fix `93e1fe62` stays local and is not pushed on branch `grok/r35-standby`. It needs a two-board bench at 2 dBm after a Feather power cycle and a preflight GO check. Its gate plan shows a RADIO PUSH and a radio-gap warning.
+
+
 ### 2026-11-24-002 | Grok Hamilton (Grok Bot) | bugfix, documentation
 
 **Logging fixes pushed late; CHANGELOG gap closed.** `bc164c40` fixes the event-frame over-read, the download timeout and ground check, and the download off-by-one. It also updates the decoder and the warm-reboot audit, and adds `flight_log_layout.h` with tests. This is not the Phase 2 logging rework. `57facdaa` adds the whiteboard row for the speaker shake sweep IMU check (Nathan, 2026-11-21). Both commits were made during the 2026-11-24 morning wrap but stayed local. The first push attempt failed because the Fruit Jam was not on USB. Entry `2026-11-24-001` was written before they were pushed, so it does not mention them. That is the slip this entry fixes. Verified at push: vehicle 2/2 PASS (flight-57facdaa), station 4/4 PASS (flight-57facdaa); firmware tree 6058e4cae4a7; range bc164c405056..57facdaa9529. Cleanup: branch `grok/log-event-overread` and its worktree deleted; remote `agent/whiteboard-pending` deleted.
