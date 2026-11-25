@@ -486,7 +486,8 @@ void test_half_e83_responder_listens()
 void test_half_rehail_while_active()
 {
   // Station reboot hails again while the responder is still S50.
-  // 211.0 E85/E82 -> S2, then E30 -> S51 (not ignore / E69).
+  // Project step to S2 (not E85/E82: no timer expiry), then E30 -> S51
+  // (not ignore / E69).
   MacSession s{};
   macInit(s, test_mib(), MacDuplex::half, nullptr);
   macSetMode(s, MacMode::connecting_l, 0);
@@ -597,6 +598,98 @@ void test_half_comm_change_ok()
   CHECK(s.state == MacState::s60);
   CHECK(macPollNotify(s) == MacNotify::comm_change_ok);
   CHECK(!s.pending_cv_valid);
+}
+
+// Caller at S62 with Y=3 after one COMM_CHANGE send (E63, E65, E67).
+Tick half_comm_change_to_s62(MacSession& s, MacMib const& mib)
+{
+  macInit(s, mib, MacDuplex::half, nullptr);
+  macSetMode(s, MacMode::connecting_l, 0);
+  macOnHailReceived(s, 1);
+  macTick(s, 3);
+  macTick(s, 5);
+  MacCommValue cv{};
+  cv.tx.encoding = kPhyEncodingBypass;
+  cv.rx.encoding = kPhyEncodingBypass;
+  macLoadPendingCommValue(s, cv);
+  macLocalCommChange(s, 5);
+  (void)macPollNotify(s);
+  s.need_plcw = false;
+  macOnNoFramesPending(s, 6);
+  macOnNoFramesPending(s, 7);
+  macTick(s, 9);
+  return 9;
+}
+
+// Step the clock until the state is not `from` (bounded).
+Tick half_tick_out_of(MacSession& s, MacState from, Tick now)
+{
+  for (int i = 0; i < 50 && s.state == from; ++i)
+  {
+    ++now;
+    macTick(s, now);
+  }
+  return now;
+}
+
+// 211.0 6.2.4.10.2: Comm_Change_Lifetime 1 (one repeat). A miss at S62
+// with Y=3 keeps Y=3 (E50). E64 in S52 sends the COMM_CHANGE again. The
+// second miss aborts.
+void test_half_comm_change_lifetime_repeats()
+{
+  MacSession s{};
+  MacMib mib = test_mib();
+  mib.comm_change_lifetime = 1;
+  Tick now = half_comm_change_to_s62(s, mib);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 3);
+  CHECK(s.comm_change_sends == 1);
+  now = half_tick_out_of(s, MacState::s62, now);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.y == 3);
+  CHECK(s.pending_cv_valid);
+  CHECK(macPollNotify(s) != MacNotify::comm_change_revert);
+  now = half_tick_out_of(s, MacState::s51, now);
+  CHECK(s.state == MacState::s52);
+  now = half_tick_out_of(s, MacState::s52, now);
+  CHECK(s.state == MacState::s56);  // E64, then E65
+  CHECK(s.y == 2);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_apply_rx);
+  macOnNoFramesPending(s, now);
+  CHECK(s.state == MacState::s58);
+  now = half_tick_out_of(s, MacState::s58, now);
+  CHECK(s.state == MacState::s62);
+  CHECK(s.y == 3);
+  CHECK(s.comm_change_sends == 2);
+  (void)half_tick_out_of(s, MacState::s62, now);
+  CHECK(s.state == MacState::s51);
+  CHECK(s.y == 0);
+  CHECK(!s.persistence);
+  CHECK(!s.pending_cv_valid);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_revert);
+}
+
+// Lifetime 0 (no repeat): E47 then E49 (token) at Y=3 and no response. The
+// S52 expiry aborts (4.2.2.5.4) and reports comm_change_failed with
+// PERSISTENCE false (4.2.2.5.5). No second send.
+void test_half_comm_change_token_aborts_at_lifetime()
+{
+  MacSession s{};
+  Tick now = half_comm_change_to_s62(s, test_mib());
+  CHECK(s.state == MacState::s62);
+  macSetCarrierAcquired(s, true, now);
+  CHECK(s.state == MacState::s61);  // E47
+  macOnToken(s, now);
+  CHECK(s.state == MacState::s51);  // E49
+  CHECK(s.y == 3);
+  now = half_tick_out_of(s, MacState::s51, now);
+  CHECK(s.state == MacState::s52);
+  (void)half_tick_out_of(s, MacState::s52, now);
+  CHECK(s.state == MacState::s50);
+  CHECK(s.y == 0);
+  CHECK(!s.persistence);
+  CHECK(!s.pending_cv_valid);
+  CHECK(macPollNotify(s) == MacNotify::comm_change_failed);
 }
 
 void test_half_remote_comm_change_echo()
@@ -857,10 +950,14 @@ void test_half_s52_e64_y1_and_y3()
                       s.mib.send_duration, MacNotify::comm_change_apply_rx);
     CHECK(s.mac_frame_pending);
   }
-  // Y=3 at S52: same E64 then E65. pending_cv_valid stays set.
+  // Y=3 at S52 with Comm_Change_Lifetime left (211.0 6.2.4.10): same E64
+  // then E65. pending_cv_valid stays set. Lifetime 0 aborts here instead
+  // (test_half_comm_change_token_aborts_at_lifetime).
   {
     MacSession s{};
-    macInit(s, test_mib(), MacDuplex::half, nullptr);
+    MacMib mib = test_mib();
+    mib.comm_change_lifetime = 1;
+    macInit(s, mib, MacDuplex::half, nullptr);
     Tick now = half_responder_comm_to_s58(s);
     (void)macPollNotify(s);
     now += s.mib.tail_idle_duration;
@@ -1019,8 +1116,8 @@ void test_half_s61_e45_and_e50()
     check_half_expiry(s, MacState::s51, 0, false, false, false, true, 1, false, true,
                       s.mib.carrier_only_duration, MacNotify::no_data_this_contact);
   }
-  // Project behavior: 211.0-B-6 does not define this case.
-  // E50 from S61, Y=3: revert, clear the pending COMM value.
+  // E50 from S61, Y=3, Comm_Change_Lifetime 0 (no repeat) used up: abort
+  // (211.0 4.2.2.5.4), clear the pending COMM value, PERSISTENCE false (4.2.2.5.5).
   {
     MacSession s{};
     macInit(s, test_mib(), MacDuplex::half, nullptr);
@@ -1037,7 +1134,7 @@ void test_half_s61_e45_and_e50()
     (void)macPollNotify(s);
     now += s.mib.receive_duration;
     macTick(s, now);
-    check_half_expiry(s, MacState::s51, 0, true, true, false, true, 1, false, true,
+    check_half_expiry(s, MacState::s51, 0, false, true, false, true, 1, false, true,
                       s.mib.carrier_only_duration, MacNotify::comm_change_revert);
   }
 }
@@ -1232,7 +1329,9 @@ void test_half_s60_full()
   }
 }
 
-// Project behavior: 211.0-B-6 does not define this case.
+// E50 at S62 with Y=3 and Comm_Change_Lifetime 0 (no repeat) used up: abort
+// (211.0 4.2.2.5.4) and PERSISTENCE false (4.2.2.5.5). The revert notify is the
+// failure notification.
 void test_half_s62_e50_y3_full()
 {
   MacSession s{};
@@ -1246,7 +1345,7 @@ void test_half_s62_e50_y3_full()
   (void)macPollNotify(s);
   now += s.mib.receive_duration;
   macTick(s, now);
-  check_half_expiry(s, MacState::s51, 0, true, true, false, true, 1, false, true,
+  check_half_expiry(s, MacState::s51, 0, false, true, false, true, 1, false, true,
                     s.mib.carrier_only_duration, MacNotify::comm_change_revert);
 }
 
@@ -1526,6 +1625,8 @@ int run_mac_tests()
   test_half_token_octets();
   test_half_comm_change_and_revert();
   test_half_comm_change_ok();
+  test_half_comm_change_lifetime_repeats();
+  test_half_comm_change_token_aborts_at_lifetime();
   test_half_remote_comm_change_echo();
   test_half_comm_change_fifo_empty_leaves_s56();
   test_half_s50_e38_token_below_and_off();

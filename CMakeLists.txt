@@ -129,6 +129,7 @@ if(BUILD_TESTS)
         src/starcom_adapt/nav_sdu.cpp
         src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
+        src/drivers/rfm95w_airtime.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
         ${RC_VERSION_GENERATED_DIR}
@@ -462,6 +463,7 @@ else()
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/drivers/rfm95w_airtime.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/station/gcs_mavlink.cpp
@@ -560,6 +562,7 @@ else()
         src/drivers/mcu_temp.cpp
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/drivers/rfm95w_airtime.cpp
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp

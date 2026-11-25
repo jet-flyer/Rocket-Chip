@@ -169,6 +169,7 @@ add_executable(test_starcom_byte_pump
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp
 )
 target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
 target_include_directories(test_starcom_byte_pump PRIVATE
@@ -177,6 +178,21 @@ target_include_directories(test_starcom_byte_pump PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 gtest_discover_tests(test_starcom_byte_pump)
+
+add_executable(test_starcom_comm_change
+    test_starcom_comm_change.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp
+)
+target_link_libraries(test_starcom_comm_change PRIVATE Starcom::starcom GTest::gtest_main)
+target_include_directories(test_starcom_comm_change PRIVATE
+    ${RC_VERSION_GENERATED_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_starcom_comm_change)
 
 add_executable(test_space_packet_service
     test_space_packet_service.cpp
@@ -378,6 +394,20 @@ target_include_directories(test_spi_bus_guard PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(test_spi_bus_guard PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_spi_bus_guard)
+
+# R-35: config apply goes RX -> Standby -> writes -> RX. Real rfm95w.cpp
+# against a register-recording fake of spi_bus (SX1276 Rev. 4 p.38).
+add_executable(test_rfm95w_config_standby
+    test_rfm95w_config_standby.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp)
+target_link_libraries(test_rfm95w_config_standby PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_rfm95w_config_standby PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_rfm95w_config_standby PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_rfm95w_config_standby)
 
 # Diag T=0 [Radio] lines: "fitted=NO" and no read when no radio is fitted.
 add_executable(test_diag_radio_precondition

@@ -88,6 +88,9 @@ enum class MacNotify : std::uint8_t
   no_carrier_this_contact,
   resync_ok,
   resync_fail,
+  // 211.0 4.2.2.5.4-4.2.2.5.5: Comm_Change_Lifetime ran out after a token
+  // pass (E49) with no Comm_Change_Response. The activity is aborted.
+  comm_change_failed,
 };
 
 enum class MacFifoSource : std::uint8_t
@@ -122,6 +125,11 @@ struct MacMib
   Tick resync_waiting_period = 0;
   Tick resync_lifetime = 0;
   std::uint8_t maximum_failed_token_passes = 0;  // 0 = unlimited (optional)
+  // 211.0 6.2.4.10.2: Comm_Change_Lifetime "may be locally defined in terms
+  // of a duration or a maximum number of times this activity is to be
+  // repeated before the activity is aborted". Here: the number of repeats.
+  // 0 = send once, no repeat.
+  std::uint8_t comm_change_lifetime = 0;
   Scid local_scid{};
   Pcid local_pcid{};
 };
@@ -216,6 +224,7 @@ struct MacSession
   bool no_frames_pending = true;
   bool sdu_pending = false;
   std::uint8_t token_fail_n = 0;
+  std::uint16_t comm_change_sends = 0;  // E67 count for Comm_Change_Lifetime
   std::array<std::byte, kMacQueueCap> mac_queue{};
   std::size_t mac_queue_len = 0;
   MacCommValue hail_cv{};     // session / S80 revert target

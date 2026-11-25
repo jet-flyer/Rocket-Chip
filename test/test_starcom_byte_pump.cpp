@@ -7,6 +7,7 @@
 #include "starcom_adapt/byte_pump.h"
 #include "starcom_adapt/cmd_sdu.h"
 #include "starcom_adapt/nav_sdu.h"
+#include "rocketchip/radio_config_airtime.h"
 #include "rocketchip/radio_config_table.h"
 #include "rocketchip/job.h"
 #include "rocketchip/host_build.h"
@@ -644,7 +645,12 @@ TEST(StarcomBytePump, HailCatalogIsNotE69) {
         wire, std::span<const std::byte>(frame.data(), *vn));
     ASSERT_TRUE(pn.has_value());
     pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
-    EXPECT_NE(vehicle.mac.state, starcom::ccsds::MacState::s51);
+    // R-37: E47 (S62 to S61) runs before dispatch (211.0 table 6-10). A
+    // hail catalog in S61 is the station reconnect (project step to S2,
+    // not E85/E82; then E30 to S51), not E69 (that would set Y=2 and arm a
+    // remote apply).
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_FALSE(vehicle.remote_apply_now);
     EXPECT_EQ(vehicle.mac.y, 0u);
 }
 
@@ -1395,9 +1401,27 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
 }
 
+// R-37: the radio port query gives the SX1276 4.1.1.6 time on air for a
+// preset. Known values for SF7, CR 4/5, explicit header, CRC on, 8-symbol
+// preamble: 69-octet nav PLTU and 14-octet report PLTU.
+TEST(StarcomBytePump, PresetAirtimeKnownValues) {
+    const rc::RadioConfigEntry e125{125, 5, 7, 5, 2};
+    const rc::RadioConfigEntry e250{250, 10, 7, 5, 2};
+    const rc::RadioConfigEntry e500{500, 10, 7, 5, 2};
+    EXPECT_EQ(rc::radio_preset_airtime_us(e125, 69), 128256u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e250, 69), 64128u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e500, 69), 32064u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e125, 14), 46336u);
+}
+
 // 211.0 6.2.4.17–18: vehicle Send_Duration is the long side.
-// Receive_Duration is the peer's S51–S58 contact: that send, the open
-// and tail, plus the PLCW and the pass token that leave after E38.
+// Vehicle Receive_Duration is the station S51–S58 contact: that send, the open
+// and tail, one frame still on air at E38, plus the PLCW and the pass
+// token that leave after E38. Station Receive_Duration also holds a vehicle
+// timer contact after a lost station frame: vehicle receive, the E48/E50
+// turn idles, then that contact (R-37 hop 12). Carrier loss stays at the
+// contact (E85 is responder only). R-37: sized once for the slowest preset in
+// the rate table (annex C: session static).
 TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     static BytePump station{};
     static BytePump vehicle{};
@@ -1409,15 +1433,25 @@ TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     constexpr uint8_t kReportPltuBytes = static_cast<uint8_t>(
         starcom::ccsds::kPltuAsmSize + starcom::ccsds::kV3HeaderSize + 2U +
         starcom::ccsds::kPltuCrcSize);
-    const auto report_us = rc::radio_config_nav_airtime_us(
-        rc::kDefaultRocketRadioConfig.spreading_factor,
-        rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuBytes);
+    uint32_t report_us = 0;
+    uint32_t frame_us = 0;
+    for (const auto& e : rc::kRadioConfigTable) {
+        const auto r = rc::radio_config_nav_airtime_us(e.sf, e.bw_khz,
+                                                       kReportPltuBytes);
+        const auto f = rc::radio_config_nav_airtime_us(
+            e.sf, e.bw_khz, rc::kRadioConfigNavPltuBytes);
+        report_us = (r > report_us) ? r : report_us;
+        frame_us = (f > frame_us) ? f : frame_us;
+    }
     const starcom::ccsds::Tick report_ms =
         static_cast<starcom::ccsds::Tick>((report_us + 999U) / 1000U);
-    const auto contact_tail = turn + (2U * report_ms);
+    const starcom::ccsds::Tick frame_ms =
+        static_cast<starcom::ccsds::Tick>((frame_us + 999U) / 1000U);
+    const auto contact_tail = turn + frame_ms + (2U * report_ms);
     EXPECT_GT(vehicle.mac.mib.send_duration, station.mac.mib.send_duration);
     EXPECT_EQ(station.mac.mib.receive_duration,
-              vehicle.mac.mib.send_duration + contact_tail);
+              vehicle.mac.mib.receive_duration + turn +
+                  vehicle.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(vehicle.mac.mib.receive_duration,
               station.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(station.mac.mib.carrier_loss_timer_duration,

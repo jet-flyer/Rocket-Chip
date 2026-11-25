@@ -430,6 +430,24 @@ void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr) {
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
 }
 
+int8_t rfm95w_apply_modem_config(rfm95w_t* dev, uint8_t bw, uint8_t sf,
+                                 uint8_t cr, int8_t power_dbm) {
+    // R-35: no config write while in RX (SX1276 Rev. 4 p.38).
+    const bool resume_rx = dev->initialized &&
+                           (dev->mode == rfm95w::mode::kRxContinuous);
+    if (resume_rx) {
+        set_mode(dev, rfm95w::mode::kStandby);
+    }
+    rfm95w_set_bandwidth(dev, bw);
+    rfm95w_set_spreading_factor(dev, sf);
+    rfm95w_set_coding_rate(dev, cr);
+    const int8_t applied = rfm95w_set_tx_power(dev, power_dbm);
+    if (resume_rx) {
+        rfm95w_start_rx(dev);
+    }
+    return applied;
+}
+
 void rfm95w_start_rx(rfm95w_t* dev) {
     if (!dev->initialized) {
         return;
@@ -452,38 +470,4 @@ void rfm95w_set_tx_timeout_us(rfm95w_t* dev, uint32_t timeout_us) {
     // for airtime-aware sizing.
     if (timeout_us < 10000U) { timeout_us = 10000U; }
     dev->tx_timeout_us = timeout_us;
-}
-
-uint32_t rfm95w_airtime_us(uint8_t sf, uint16_t bw_khz, uint8_t payload_bytes) {
-    // SX1276 datasheet §4.1.1.6.
-    // Assumes: explicit header (IH=0), CRC on (CRC=1), preamble 8 symbols,
-    // low-data-rate-optimize OFF (valid for SF<=10 at BW>=125).
-    // T_symbol = 2^SF / BW  (in microseconds if BW is Hz; use ratio below).
-    // Keep integer math for host-test / deterministic build.
-    if (bw_khz == 0) { bw_khz = 125; }  // sanity
-    if (sf < 7)    { sf = 7; }
-    if (sf > 12)   { sf = 12; }
-
-    // T_symbol in microseconds = (1 << sf) * 1000 / bw_khz
-    uint32_t t_sym_us = (static_cast<uint32_t>(1U) << sf) * 1000U / bw_khz;
-
-    // Preamble: (n_preamble + 4.25) * T_sym ≈ 12.25 * T_sym for 8-symbol preamble.
-    // Scale by 4 to keep integer: 4 * 12.25 = 49.
-    uint32_t t_preamble_us = (t_sym_us * 49U) / 4U;
-
-    // Payload-symbol count formula (explicit header, CRC on, LDRO off):
-    //   n_payload = 8 + max(ceil((8*PL - 4*SF + 28 + 16*CRC - 20*IH) / (4*SF)) * (CR+4), 0)
-    // With CRC=1, IH=0, CR=5 (4/5) here:
-    //   n_payload = 8 + max(ceil((8*PL - 4*SF + 44) / (4*SF)) * 5, 0)
-    int32_t numerator = static_cast<int32_t>(8U * payload_bytes)
-                      - static_cast<int32_t>(4U * sf) + 44;
-    int32_t denominator = static_cast<int32_t>(4U * sf);
-    int32_t chunks = 0;
-    if (numerator > 0) {
-        chunks = (numerator + denominator - 1) / denominator;  // ceil
-    }
-    uint32_t n_payload_symbols = 8U + static_cast<uint32_t>(chunks) * 5U;
-
-    uint32_t t_payload_us = n_payload_symbols * t_sym_us;
-    return t_preamble_us + t_payload_us;
 }

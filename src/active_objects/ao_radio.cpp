@@ -329,7 +329,8 @@ static void handle_tx_poll(RadioAo* me) {
 // in handle_tx_poll() — without this, rfm95w_init() during TX-fail recovery
 // silently snapped radio back to configure_modem() compile-time defaults
 // (SF7/BW125/CR5/+15 dBm) while RuntimeRadioConfig tracked something else.
-// Setters only, no reinit. Does NOT enter RX mode — caller handles RX/TX mode.
+// Setters only, no reinit. From RX the driver goes to Standby for the
+// config writes and back to RX (R-35). From Standby it stays in Standby.
 //
 // Per correctness council edit #3: power_dbm setter is called LAST so a
 // power increase or decrease doesn't affect the ACK transmission we just
@@ -341,9 +342,14 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
                      (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
                                                  rfm95w::kBw125;
-    rfm95w_set_bandwidth(&s.radio, bw_reg);
-    rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
-    rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
+    // Power LAST inside the driver call — per correctness council edit #3.
+    // Store the dBm the driver wrote. CFG and the saved config read it.
+    const int8_t applied = rfm95w_apply_modem_config(
+        &s.radio, bw_reg, rc.spreading_factor, rc.coding_rate,
+        static_cast<int8_t>(rc.power_dbm));
+    if (applied >= 0) {
+        s.runtime_config.power_dbm = static_cast<uint8_t>(applied);
+    }
     // Nav cadence is AO_Telemetry interval_ms; caller owns RX-mode transition.
     if (rc.nav_rate_hz != 0) {
         // Stage T Batch B prelim: actually wire nav_rate_hz into the vehicle TX
@@ -378,13 +384,6 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     if (ack_retry_ms < 200U)  { ack_retry_ms = 200U; }
     if (ack_retry_ms > 1000U) { ack_retry_ms = 1000U; }
     AO_Telemetry_set_ack_retry_timeout_ms(ack_retry_ms);
-    // Power LAST — per correctness council edit #3 item 3.
-    // Store the dBm the driver wrote. CFG and the saved config read it.
-    const int8_t applied = rfm95w_set_tx_power(
-        &s.radio, static_cast<int8_t>(rc.power_dbm));
-    if (applied >= 0) {
-        s.runtime_config.power_dbm = static_cast<uint8_t>(applied);
-    }
 }
 
 // Stage T IVP-T5.5 sub 2b/2d: commit a pending config to the radio.

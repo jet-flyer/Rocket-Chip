@@ -322,7 +322,137 @@ static bool g_commChangeArmed = false;
 static bool g_remoteApplyOnReceive = false;
 static rc::RadioConfig g_commChangePending = rc::kDefaultRocketRadioConfig;
 
+// R-37: end a local hop that will not complete. Keep the old PHY.
+static void starcom_end_hop(starcom::ccsds::MacNotify n) {
+    // 211.0 4.2.2.5.4-4.2.2.5.5: no echo inside Comm_Change_Lifetime. The
+    // MAC aborted the activity. The station never left the old PHY.
+    if (n == starcom::ccsds::MacNotify::comm_change_failed) {
+        const auto idx = g_pump.pending_catalog_idx;
+        rc::starcom_adapt::pump_cancel_comm_change(g_pump);
+        g_commChangeArmed = false;
+        g_remoteApplyOnReceive = false;
+        rc::rc_log("[SC] COMM_CHANGE no echo, cancelled idx=%u\n",
+                   static_cast<unsigned>(idx));
+    }
+    // A new session (hail fail) ends the hop. Do not keep TX held.
+    if (g_commChangeArmed && !g_pump.local_comm_change) {
+        g_commChangeArmed = false;
+    }
+}
+
+static const char* starcom_turn_text(rc::starcom_adapt::TurnCause c) {
+    using rc::starcom_adapt::TurnCause;
+    switch (c) {
+    case TurnCause::token:
+        return "E49-token";
+    case TurnCause::timer_e48:
+        return "E48-timer";
+    case TurnCause::timer_e50:
+        return "E50-timer";
+    case TurnCause::hail:
+        return "E30-hail";
+    case TurnCause::remote_comm_change:
+        return "E69";
+    case TurnCause::none:
+        break;
+    }
+    return "none";
+}
+
+static uint32_t g_pumpEventsLostLogged = 0;
+
+static const char* starcom_spdu_text(uint8_t type) {
+    switch (type) {
+    case starcom::ccsds::kSetTxDirectiveType:
+        return "SET-TX";
+    case starcom::ccsds::kSetRxDirectiveType:
+        return "SET-RX";
+    case starcom::ccsds::kSetPlExtDirectiveType:
+        return "SET-PL";
+    case starcom::ccsds::kSetControlDirectiveType:
+        return "SET-CONTROL";
+    default:
+        break;
+    }
+    return "other";
+}
+
+static const char* starcom_turn_event_text(rc::starcom_adapt::TurnEvent t) {
+    using rc::starcom_adapt::TurnEvent;
+    switch (t) {
+    case TurnEvent::enter_s50:
+    case TurnEvent::enter_s60:
+    case TurnEvent::enter_s61:
+    case TurnEvent::enter_s62:
+        return "enter";
+    case TurnEvent::e44:
+        return "E44";
+    case TurnEvent::e45:
+        return "E45";
+    case TurnEvent::e48:
+        return "E48";
+    case TurnEvent::e49:
+        return "E49";
+    case TurnEvent::e50:
+        return "E50";
+    case TurnEvent::none:
+        break;
+    }
+    return "none";
+}
+
+// R-37 log of one pump event. t is the device time in ms (now_ms). A drop
+// is one line for each dropped SPDU; idx=255 means no SET PL in the frame.
+static void starcom_log_pump_event(rc::starcom_adapt::PumpEvent const& e) {
+    if (e.turn == rc::starcom_adapt::TurnEvent::none) {
+        const bool own = e.why == rc::starcom_adapt::CommChangeDrop::own_hop;
+        rc::rc_log("[SC] COMM_CHANGE dropped S%u why=%s n=%lu idx=%u "
+                   "cmd=%u/%u type=%s t=%lu\n",
+                   static_cast<unsigned>(e.state),
+                   own ? "own-hop" : "not-S60/S61",
+                   static_cast<unsigned long>(e.drop_n),
+                   static_cast<unsigned>(e.idx),
+                   static_cast<unsigned>(e.cmd_pos),
+                   static_cast<unsigned>(e.cmd_n),
+                   starcom_spdu_text(e.cmd_type),
+                   static_cast<unsigned long>(e.t));
+        return;
+    }
+    rc::rc_log("[SC] MAC %s S%u t=%lu\n", starcom_turn_event_text(e.turn),
+               static_cast<unsigned>(e.state),
+               static_cast<unsigned long>(e.t));
+}
+
+// R-37 logs: the COMM_CHANGE send (table 6-11 E65), each received
+// COMM_CHANGE SPDU that did not start E69, and the MAC turn events. The
+// pump keeps the events in a ring; this poll loop prints them.
+static void starcom_log_comm_change_air() {
+    if (g_pump.cc_sent_new) {
+        g_pump.cc_sent_new = false;
+        rc::rc_log("[SC] COMM_CHANGE sent idx=%u %s S%u turn=%s try=%u\n",
+                   static_cast<unsigned>(g_pump.pending_catalog_idx),
+                   g_pump.local_comm_change ? "request" : "echo",
+                   static_cast<unsigned>(g_pump.cc_sent_state),
+                   starcom_turn_text(g_pump.cc_sent_turn),
+                   static_cast<unsigned>(g_pump.cc_sent_n) + 1U);
+    }
+    g_pump.cc_drop_new = false;
+    rc::starcom_adapt::PumpEvent e{};
+    for (uint8_t i = 0; i < rc::starcom_adapt::kPumpEventCap; ++i) {
+        if (!rc::starcom_adapt::pump_take_event(g_pump, e)) {
+            break;
+        }
+        starcom_log_pump_event(e);
+    }
+    if (g_pump.ev_lost != g_pumpEventsLostLogged) {
+        g_pumpEventsLostLogged = g_pump.ev_lost;
+        rc::rc_log("[SC] MAC events lost n=%lu\n",
+                   static_cast<unsigned long>(g_pumpEventsLostLogged));
+    }
+}
+
 static void starcom_poll_mac_radio() {
+    starcom_log_comm_change_air();
     const auto n = rc::starcom_adapt::pump_poll_mac_notify(g_pump);
     if (n == starcom::ccsds::MacNotify::comm_change_apply_rx &&
         g_pump.pending_catalog_valid) {
@@ -347,6 +477,7 @@ static void starcom_poll_mac_radio() {
         rc::starcom_adapt::pump_start_session(
             g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
     }
+    starcom_end_hop(n);
     // E69: stay on the old PHY through the following send so the
     // initiator can hear a frame (E68) before anyone retunes.
     if (g_pump.remote_apply_now && g_pump.pending_catalog_valid) {

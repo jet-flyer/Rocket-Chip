@@ -340,12 +340,22 @@ void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf);
 // Modifies RegModemConfig1[3:1]. Must be called while in Standby or Sleep.
 void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr);
 
+// R-35: writes BW, SF, CR, then TX power (power last). SX1276 Rev. 4
+// p.38: config writes need Sleep, Standby or FSTX. From RX Continuous
+// this goes to Standby first and starts RX Continuous again after the
+// writes. From Sleep or Standby the mode does not change (boot, reinit,
+// after TxDone). TX mode is not changed: callers defer while TX is active.
+// Returns the dBm that rfm95w_set_tx_power() wrote.
+int8_t rfm95w_apply_modem_config(rfm95w_t* dev, uint8_t bw, uint8_t sf,
+                                 uint8_t cr, int8_t power_dbm);
+
 // Caller sets ~2× max packet airtime at current {SF, BW, CR, payload}.
 void rfm95w_set_tx_timeout_us(rfm95w_t* dev, uint32_t timeout_us);
 
 // Implements SX1276 datasheet §4.1.1.6 formula: T_preamble + T_payload.
 // Returns microseconds. Used by callers to set TX timeout and ACK-window
 // budgets. Assumes explicit header, CRC on, 8-symbol preamble, CR 4/5.
+// Defined in rfm95w_airtime.cpp (no SPI or SDK calls; host tests link it).
 uint32_t rfm95w_airtime_us(uint8_t sf, uint16_t bw_khz, uint8_t payload_bytes);
 
 void rfm95w_start_rx(rfm95w_t* dev);

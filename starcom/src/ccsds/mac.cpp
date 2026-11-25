@@ -472,27 +472,47 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept
   }
 }
 
+// 211.0 6.2.4.10.2: Comm_Change_Lifetime is "a maximum number of times this
+// activity is to be repeated before the activity is aborted". The first send
+// is not a repeat, so a repeat is left while sends <= lifetime.
+bool commChangeLifetimeLeft(MacSession const& m) noexcept
+{
+  return m.comm_change_sends <= m.mib.comm_change_lifetime;
+}
+
+// 211.0 4.2.2.5.4: no Comm_Change_Response within Comm_Change_Lifetime, so
+// the activity is aborted. 4.2.2.5.5: notify, then PERSISTENCE false.
+void abortCommChange(MacSession& m, MacNotify failure) noexcept
+{
+  m.y = 0;
+  m.pending_cv_valid = false;
+  m.persistence = false;
+  m.comm_change_sends = 0;
+  notify(m, failure);
+}
+
 // S61 and S62 share this miss. The Y!=3 notify is the only difference.
 void halfExpiredMiss(MacSession& m, MacNotify miss_notify) noexcept
 {
   applyState(m, MacState::s51);
   loadWait(m, m.mib.carrier_only_duration);
   ++m.token_fail_n;
-  if (m.y == 3)
+  if (m.y == 3 && !commChangeLifetimeLeft(m))
   {
-    m.y = 0;
-    m.pending_cv_valid = false;
-    notify(m, MacNotify::comm_change_revert);
+    abortCommChange(m, MacNotify::comm_change_revert);
   }
   else
   {
+    // Y=3 with lifetime left: E50, then E64 in S52 sends the COMM_CHANGE
+    // again (211.0 table 6-11, 6.2.4.10.1).
     notify(m, miss_notify);
   }
 }
 
 void halfExpiredS50(MacSession& m) noexcept
 {
-  // E83 is the caller's reconnect hail. Responder listens (E82/E85 -> S2).
+  // E83 is the caller's reconnect hail (table 6-10). The responder goes to
+  // S2 here: project step, not E82/E85 (no CARRIER_LOSS_TIMER expiry).
   if (m.mib.maximum_failed_token_passes != 0 &&
       m.token_fail_n >= m.mib.maximum_failed_token_passes)
   {
@@ -524,6 +544,15 @@ void halfExpiredS52(MacSession& m) noexcept
 {
   applyState(m, MacState::s50);
   loadWait(m, m.mib.send_duration);
+  // Y=3 here: E49 took the token in S61 and no response came. Repeat only
+  // inside Comm_Change_Lifetime (211.0 6.2.4.10.1, 4.2.2.5.4). Project
+  // case, not a table 6-11 row: in the book any valid frame at Y=3 is E68.
+  // It happens because the Rocket Chip adapter echo gate blocks E68 for
+  // non-echo frames (CONFORMANCE.md "COMM_CHANGE echo").
+  if (m.y == 3 && !commChangeLifetimeLeft(m))
+  {
+    abortCommChange(m, MacNotify::comm_change_failed);
+  }
   if (m.y == 1 || m.y == 3)
   {  // E64
     m.y = 2;
@@ -544,6 +573,10 @@ void halfExpiredS58(MacSession& m) noexcept
   if (m.y == 2)
   {  // E67
     m.y = 3;
+    if (commChangeLifetimeLeft(m))
+    {  // the count stops at the lifetime
+      ++m.comm_change_sends;
+    }
     applyState(m, MacState::s62);
     loadWait(m, m.mib.receive_duration);
   }
@@ -773,11 +806,12 @@ void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept
 void macOnHailReceived(MacSession& m, Tick now) noexcept
 {
   (void)now;
-  // 211.0 E85 (table 6-10) / E82 (table 6-7): on carrier loss the
-  // responder goes to S2, then
-  // E30 (table 6-10) accepts hail. Station reboot re-hails with the same
-  // catalog while the vehicle is still S50-S62; that is a new hail, not
-  // E69 COMM_CHANGE (same SET TX/RX as the first hail).
+  // Project step, not E85 (table 6-10) or E82 (table 6-7): those need a
+  // CARRIER_LOSS_TIMER expiry. A hail heard by an active half-duplex
+  // responder outside S2 moves it to S2. Then E30 (table 6-10) accepts the
+  // hail. Station reboot re-hails with the same catalog while the vehicle
+  // is still S50-S62; that is a new hail, not E69 COMM_CHANGE (same SET
+  // TX/RX as the first hail).
   if (m.duplex == MacDuplex::half && m.role == MacRole::responder &&
       m.mode == MacMode::active && m.state != MacState::s2)
   {
@@ -849,7 +883,8 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept
     return;
   }
   if (m.state == MacState::s62)
-  {
+  {  // E47 followed by E46 (211.0 table 6-10): carrier lock S62 to S61,
+     // then a valid frame with Y!=3 S61 to S60.
     applyState(m, MacState::s60);
   }
 }
@@ -1070,12 +1105,14 @@ void macLocalCommChange(MacSession& m, Tick now) noexcept
     if (m.state == MacState::s50)
     {  // E63
       m.y = 2;
+      m.comm_change_sends = 0;  // a new activity (Comm_Change_Lifetime)
       m.persistence = true;
       notify(m, MacNotify::comm_change_apply_rx);
     }
     else if (m.y == 0)
     {  // E62
       m.y = 1;
+      m.comm_change_sends = 0;
     }
     else
     {
@@ -1098,7 +1135,10 @@ void macOnRemoteCommChange(MacSession& m, Tick now) noexcept
       (m.state == MacState::s60 || m.state == MacState::s61))
   {  // E69
     applyState(m, MacState::s51);
+    // Project echo, not in the E69 row: Y=2 makes the responder send the
+    // COMM_CHANGE back (E65). See CONFORMANCE.md, "COMM_CHANGE echo".
     m.y = 2;
+    m.comm_change_sends = 0;
     m.persistence = true;
     m.need_plcw = true;
     loadWait(m, m.mib.carrier_only_duration);

@@ -41,6 +41,17 @@ inline constexpr starcom::ccsds::Tick kHailWaitSlackMs = 20;
 // row of Table 6-3. The book has no 6.2.4 entry for it. The value is a project
 // choice.
 inline constexpr starcom::ccsds::Tick kDropCarrierMs = 20;
+// Comm_Change_Lifetime as a repeat count (211.0-B-6 6.2.4.10.2): 2 repeats,
+// 3 sends. A lost request leaves the vehicle without a token, so it takes
+// its next turn by the E48/E50 timer. The station Receive_Duration holds
+// that whole vehicle timer contact (flight_mac_mib, R-37 hop 12), so each
+// repeat follows the vehicle token (E49) and meets a listening vehicle.
+// The vehicle does not receive in its send contact (ao_radio.cpp, E43), so
+// a repeat sent by the station E50 timer in that contact is lost. Each
+// repeat can recover one lost request. 2 repeats recover 2 lost requests
+// in a row. Each repeat adds one contact cycle (about 1.8 s) to the abort
+// time.
+inline constexpr std::uint8_t kCommChangeLifetime = 2;
 // ASM 3 + Version-3 header 5 + 2-octet SPDU + CRC-32 4.
 // CCSDS 211.2-B-3 3.2.3 and 3.2.5, and 211.0-B-6 3.2.1.
 inline constexpr std::uint8_t kReportPltuBytes = 14;
@@ -61,6 +72,57 @@ struct SpaceSeqLane {
   std::uint32_t rx_lost = 0;
 };
 
+// R-37 logs. How this side got its send turn (211.0-B-6 table 6-10):
+// E49 token, E48 or E50 timer back-up, E30 hail, or table 6-11 E69.
+enum class TurnCause : std::uint8_t {
+  none = 0,
+  token,
+  timer_e48,
+  timer_e50,
+  hail,
+  remote_comm_change,
+};
+
+// R-37 logs. Why a received COMM_CHANGE did not start E69 (table 6-11).
+enum class CommChangeDrop : std::uint8_t {
+  none = 0,
+  own_hop,    // this side has a hop of its own in flight (Y=1, 2 or 3)
+  not_s60_61, // table 6-11 E69 starts only in S60 or S61
+};
+
+// R-37 logs. A MAC turn event (211.0-B-6 table 6-10) or a state entry.
+enum class TurnEvent : std::uint8_t {
+  none = 0,  // the event is a COMM_CHANGE drop, not a turn event
+  enter_s50,
+  enter_s60,
+  enter_s61,
+  enter_s62,
+  e44,  // Receive_Duration ended with carrier: stay in S60
+  e45,  // Receive_Duration ended with carrier: stay in S61
+  e48,  // Receive_Duration ended in S60 without carrier: take the turn
+  e49,  // token received: take the turn
+  e50,  // Receive_Duration ended in S61 or S62 without carrier: take the turn
+};
+
+// R-37 logs. One pump event for the AO log, with the device time in ms.
+// A drop has turn == none. The AO drains the ring in its poll loop.
+struct PumpEvent {
+  starcom::ccsds::Tick t = 0;
+  TurnEvent turn = TurnEvent::none;
+  starcom::ccsds::MacState state = starcom::ccsds::MacState::s1;
+  CommChangeDrop why = CommChangeDrop::none;
+  std::uint8_t idx = 0;       // catalog idx of the frame; kNoCatalogIdx: none
+  std::uint8_t cmd_pos = 0;   // 1-based position of the SPDU in the frame
+  std::uint8_t cmd_n = 0;     // SPDUs in the frame
+  std::uint8_t cmd_type = 0;  // 211.0 directive type of the dropped SPDU
+  std::uint32_t drop_n = 0;   // cc_drop_n after this drop
+};
+
+// Project choice: 16 events hold more than one contact cycle of turn events
+// (about 6) and the 3 drops of one frame. The AO drains every tick.
+inline constexpr std::uint8_t kPumpEventCap = 16;
+inline constexpr std::uint8_t kNoCatalogIdx = 0xFF;
+
 struct BytePump {
   starcom::ccsds::CoppEndpoint copp{};
   starcom::ccsds::MacSession mac{};
@@ -80,6 +142,23 @@ struct BytePump {
   // APID 0x001 nav. APID 0x003 is this end only (vehicle ACK or station command).
   SpaceSeqLane seq_nav{};
   SpaceSeqLane seq_cmd{};
+  // R-37 logs. The AO reads and clears the *_new flags.
+  TurnCause turn_cause = TurnCause::none;
+  bool cc_sent_new = false;  // a COMM_CHANGE P-frame left (E65 contact)
+  starcom::ccsds::MacState cc_sent_state = starcom::ccsds::MacState::s1;
+  TurnCause cc_sent_turn = TurnCause::none;
+  std::uint16_t cc_sent_n = 0;  // E67 count at the send (Comm_Change_Lifetime)
+  bool cc_drop_new = false;
+  starcom::ccsds::MacState cc_drop_state = starcom::ccsds::MacState::s1;
+  CommChangeDrop cc_drop_why = CommChangeDrop::none;
+  std::uint32_t cc_drop_n = 0;
+  // R-37 logs. pump_init does not clear the ring, so events from before a
+  // hop re-init still reach the log.
+  std::array<PumpEvent, kPumpEventCap> ev{};
+  std::uint8_t ev_head = 0;  // next event to read
+  std::uint8_t ev_len = 0;
+  std::uint32_t ev_lost = 0;  // events not kept because the ring was full
+  starcom::ccsds::MacState ev_state = starcom::ccsds::MacState::s1;
 };
 
 void pump_init(BytePump& p, starcom::ccsds::Scid local,
@@ -128,10 +207,18 @@ starcom::ccsds::MacNotify pump_poll_mac_notify(BytePump& p) noexcept;
 starcom::ccsds::MacCommValue pump_comm_value_for_catalog(
     std::uint8_t idx) noexcept;
 bool pump_catalog_fits(std::uint8_t idx) noexcept;
+// False when idx does not fit, or in S56 with Y=0 (R-37). 211.0 table 6-10
+// E42 leaves S56 only with Y=0, and E62 would set Y=1 there.
 bool pump_begin_comm_change(BytePump& p, std::uint8_t idx,
                             starcom::ccsds::Tick now) noexcept;
+// R-37: end a local hop after MacNotify::comm_change_failed. Clears the hop
+// flags and loads the hail value again. The hail value is a project choice:
+// 211.0 does not say which settings the caller keeps after the abort.
+void pump_cancel_comm_change(BytePump& p) noexcept;
 std::uint8_t pump_catalog_from_pl(
     starcom::ccsds::MacPlExt const& pl) noexcept;
+// R-37 logs. Takes the oldest pump event. False when the ring is empty.
+bool pump_take_event(BytePump& p, PumpEvent& out) noexcept;
 
 }  // namespace rc::starcom_adapt
 
