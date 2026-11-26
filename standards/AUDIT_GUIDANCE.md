@@ -100,7 +100,7 @@ Examine what the code *does* at runtime, not just its static structure. Source: 
 4.1 **Safety-critical path FMEA-lite** (Appendix A.1). Maps to `docs/SAD.md` state machine. Positive-control column required per `HW_GATE_DISCIPLINE.md` Rule 1.
 4.2 **Koopman 5-rule embedded review** on 3-5 flight-critical functions of agent's choice (auditor selects; surfaces conversationally per Appendix B.4 workflow).
 4.3 **Fault injection scenarios**: run `enhanced_fault_injection.py` end-to-end.
-4.4 **AO Commandments full sweep** (per `docs/audits/AO_COMMANDMENTS_AUDIT_*.md` methodology): walk 9 active AOs × 12 commandments in `docs/decisions/AO_COMMANDMENTS.md`.
+4.4 **AO Commandments full sweep** (per `docs/audits/AO_COMMANDMENTS_AUDIT_*.md` methodology): walk 9 active AOs × 12 commandments in `standards/AO_COMMANDMENTS.md`.
 4.5 **CLA + RBM** (per `docs/audits/cla_rbm/CLA_RBM_PLAN.md` deliverables): Computational Load Analysis + Runtime Behavior Map. If most-recent CLA data >3 months old, flag re-collection as remediation item (HW soak; can be queued to a separate session).
 4.6 **LL-entry freshness sweep**: walk `docs/agents/LESSONS_LEARNED.md` Critical/High entries. Each entry's claim ("X is fixed in tree", "Y workaround in place") verified against current code. Stale entries get supersession headers (LL Entry 25 SUPERSEDED 2026-04-22 is the pattern).
 

@@ -30,7 +30,7 @@ const char* link_state_name(LinkState s);
 // ============================================================================
 // RfManagerState — read-only snapshot exposed to consumers.
 //
-// Per AO Commandment V (`docs/decisions/AO_COMMANDMENTS.md`):
+// Per AO Commandment V (`standards/AO_COMMANDMENTS.md`):
 //   **Callable only from Core 0 handler context under cooperative QV
 //   dispatch.** Never from an ISR, never from Core 1, never cached across
 //   AO dispatch boundaries. The pointer returned by

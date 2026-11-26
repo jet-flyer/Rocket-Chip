@@ -1,8 +1,8 @@
 # AO Commandments — Active Object Design Rules for RocketChip
 
-**Status:** Advisory. Authored 2026-04-21 as part of Stage T Batch B prelim (see plan at `.claude/plans/shimmering-twirling-thimble.md`).
+**Status:** Project standard (moved to `standards/` 2026-11-26). Authored 2026-04-21 as part of Stage T Batch B prelim (see plan at `.claude/plans/shimmering-twirling-thimble.md`).
 **Scope:** Rules for designing and writing Active Objects (AOs) in this project, based on QP/C framework conventions, Miro Samek's published guidance, and project-specific lessons-learned.
-**Authority:** Advisory (not JSF-AV-grade normative). Violations should be flagged in review and fixed unless there's a documented exception.
+**Authority:** Binding project rules (not JSF-AV-grade numbered). Violations should be flagged in review and fixed unless there's a documented exception.
 **Out of scope:** Internal QP/C framework requirements (covered by state-machine.com's SRS_QP_AO_* specs). This doc covers how *application* AOs are written, not how the framework behaves.
 
 ---
@@ -11,7 +11,7 @@
 
 Before authoring `AO_RfManager` (Stage T Batch B), the Round 1 council flagged that RocketChip had per-AO rationale in `docs/AO_ARCHITECTURE.md` but no cross-cutting rules. We looked for external published rules we could adopt wholesale (Samek PSiCC2, QP framework docs, Douglass, F´, NASA cFS) and found philosophical guidance plus one project-adjacent normative ruleset — F´'s adoption of JPL Power-of-10 — but nothing JSF-AV-grade that covers application-level AO design specifically. This doc condenses the external guidance and names the project-specific rules with their LL Entry sources.
 
-If a future council elevates this doc to normative (standards/), it becomes `standards/ACTIVE_OBJECT_RULES.md`. Until then it's advisory here.
+This document now lives in `standards/` as the project rule set for application AOs. A later elevation to numbered JSF-AV-grade rules may rename it; the current filename stays `AO_COMMANDMENTS.md`.
 
 ---
 
@@ -111,10 +111,11 @@ If fewer than three hold, it's a module.
 - **New AO proposals:** cite which Commandments apply. Flag any Commandment the new AO breaks with a documented rationale.
 - **Code review:** if a PR introduces a Commandment violation, the reviewer flags it. Merge requires either a fix or an explicit exception entry in `AGENT_WHITEBOARD.md` / `STANDARDS_DEVIATIONS.md`.
 - **Council reviews:** council uses this doc as a shared language (e.g., "that's a Commandment VII violation").
-- **Elevation path:** if over time the project wants a JSF-AV-grade normative ruleset, this doc is the input. It becomes `standards/ACTIVE_OBJECT_RULES.md`, numbered, with severity and remediation for each rule. Until then, advisory is enough.
+- **Further elevation:** a later pass may number each rule with severity and remediation. This file is already the binding project rule set in `standards/`.
 
 ---
 
 ## Revision history
 
-- **2026-04-21** (this version) — Initial authoring. Stage T Batch B prelim.
+- **2026-04-21** — Initial authoring. Stage T Batch B prelim.
+- **2026-11-26** — Moved from `docs/decisions/AO_COMMANDMENTS.md` to `standards/AO_COMMANDMENTS.md`.
