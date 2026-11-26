@@ -31,7 +31,11 @@ void diag_stats_t0_preconditions() {
 
     // [Radio]: RegVersion + IRQ pin, or "not fitted" on a pack with no
     // radio (no spi_bus_init() there, so no SPI read).
+#if defined(ROCKETCHIP_RADIO_OFF)
+    diag_log_radio_precondition(false);  // bench build: SPI never initialized
+#else
     diag_log_radio_precondition(board::kRadioAvailable);
+#endif
     const volatile uint32_t* ispr =
         reinterpret_cast<const volatile uint32_t*>(0xE000E200);
     rc::rc_log("  NVIC_ISPR[0]=0x%08lx [1]=0x%08lx\n",

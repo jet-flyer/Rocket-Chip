@@ -1303,6 +1303,7 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
 static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
+#if !defined(ROCKETCHIP_RADIO_OFF)  // bench build: no Starcom MAC pump
         rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
 #ifndef ROCKETCHIP_HOST_TEST
         starcom_poll_mac_radio();
@@ -1311,6 +1312,9 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
         if constexpr (!job::kRadioModeRx) {
             encode_and_send(me);
         }
+#else
+        (void)encode_and_send;  // kept linked; unused in the radio-off build
+#endif
         gcs_station_tick(me);
         return Q_HANDLED();
     }

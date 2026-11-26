@@ -8,7 +8,9 @@
 //     prior hardfault, prior brownout. Any NO-GO blocks ARM.
 //   Tier 2 profile — GPS, mag cal, radio HW, RF link, pyro HW, battery stub.
 //     NO-GO warns; ARM still allowed. Absent radio/pyro hardware is
-//     GO (not fitted), not a failure.
+//     GO (not fitted), not a failure. A ROCKETCHIP_RADIO_OFF bench
+//     build is GO (disabled by build), not a silent radio GO and not
+//     a hardware NO-GO.
 // CLI preflight must print this poll and use all_go as VERDICT — not a
 // parallel health-byte policy.
 
@@ -44,6 +46,7 @@ struct GoNoGoInput {
     bool mag_calibrated;        // CAL_STATUS_MAG flag set
     bool radio_linked;          // Radio init OK (TX or RX)
     bool radio_fitted;          // board::kRadioAvailable
+    bool radio_disabled;        // ROCKETCHIP_RADIO_OFF bench build
     // Learned RF link from AO_RfManager, not radio_linked (HW init).
     uint8_t rf_link_state;      // rc::LinkState cast to uint8_t
                                 //   0=kAcq, 1=kTentative, 2=kTrack, 3=kTrackDegraded

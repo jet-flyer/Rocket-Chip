@@ -675,7 +675,11 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
     } else {
         s.initialized = false;
         s.tx_active = false;
+#if defined(ROCKETCHIP_RADIO_OFF)
+        DBG_PRINT("RADIO: OFF (ROCKETCHIP_RADIO_OFF bench build) — AO_Radio idle");
+#else
         DBG_PRINT("RADIO: not detected — AO_Radio idle");
+#endif
     }
 
     // Subscribe to SIG_RADIO_TX from AO_Telemetry
