@@ -27,6 +27,7 @@ enum CrashReason : uint32_t {
     kCrashReasonMemManage      = 1,  // MPU stack guard hit (memmanage_fault_handler)
     kCrashReasonMpuConfigFail  = 2,  // R-4: mpu_setup_stack_guard() couldn't configure
     kCrashReasonCore1BootWait  = 3,  // R-1: Core 1 boot-wait loop exceeded vehicle-path bound
+    kCrashReasonQpAssert       = 4,  // Q_onError (QP assert). reserved[] holds id/mask/module
     // Reserved for future fault categories (hardfault, busfault, usagefault).
 };
 
@@ -43,7 +44,14 @@ struct CrashRecord {
     uint32_t stacked_pc;   // PC at fault (from exception stack frame)
     uint32_t stacked_lr;   // LR at fault (from exception stack frame)
     uint32_t reserved[2];  // pad to 32 bytes for future expansion
+                           // kCrashReasonQpAssert: [0] = id (bits 0-15) and a mask
+                           // of AO priorities with a full queue (bits 16-31);
+                           // [1] = QP module index (safety/qp_module_id.h)
 };
+
+// kCrashReasonQpAssert packing of reserved[0].
+static constexpr uint32_t kCrashQpIdMask = 0xFFFFU;
+static constexpr uint32_t kCrashQpFullShift = 16U;
 
 // Capture fault state and trigger reset. Used in NON-handler contexts where
 // a function call is safe (e.g., R-1 Core 1 boot-wait timeout, R-4 MPU

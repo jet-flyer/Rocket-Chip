@@ -163,7 +163,7 @@ TEST(CliEngine, VehicleDebugHasI2cKeysNoStationCalOrFlight) {
 
 #if defined(ROCKETCHIP_DEV_MODE)
 TEST(CliEngine, DebugOForcesOneTxTimeout) {
-    EXPECT_EQ(kVehicleItemCount, 60u);
+    EXPECT_EQ(kVehicleItemCount, 61u);
     Engine e{};
     init(e);
     on_key(e, kVehicleItems, kVehicleItemCount, 'q');
@@ -178,7 +178,7 @@ TEST(CliEngine, DebugOForcesOneTxTimeout) {
 }
 #else
 TEST(CliEngine, FieldDebugHasNoForceTxTimeout) {
-    EXPECT_EQ(kVehicleItemCount, 52u);
+    EXPECT_EQ(kVehicleItemCount, 53u);
     Engine e{};
     init(e);
     on_key(e, kVehicleItems, kVehicleItemCount, 'q');
@@ -188,6 +188,26 @@ TEST(CliEngine, FieldDebugHasNoForceTxTimeout) {
     EXPECT_EQ(r.ev, Event::kUnknown);
 }
 #endif
+
+TEST(CliEngine, DebugWPrintsFlashStallBothRoles) {
+    Engine e{};
+    init(e);
+    on_key(e, kVehicleItems, kVehicleItemCount, 'q');
+    EXPECT_EQ(top(e), MenuId::kDebug);
+    auto r = on_key(e, kVehicleItems, kVehicleItemCount, 'w');
+    EXPECT_EQ(r.ev, Event::kAction);
+    EXPECT_EQ(r.act, ActionId::kDebugFlashStall);
+    // Scratch toggle exists only in ROCKETCHIP_FLASH_STALL_SCRATCH builds.
+    EXPECT_EQ(find(kVehicleItems, kVehicleItemCount, MenuId::kDebug, 'j'), nullptr);
+
+    Engine s{};
+    init(s);
+    on_key(s, kStationItems, kStationItemCount, 'q');
+    EXPECT_EQ(top(s), MenuId::kDebug);
+    r = on_key(s, kStationItems, kStationItemCount, 'w');
+    EXPECT_EQ(r.ev, Event::kAction);
+    EXPECT_EQ(r.act, ActionId::kDebugFlashStall);
+}
 
 TEST(CliEngine, HelpIsNotAPush) {
     Engine e{};

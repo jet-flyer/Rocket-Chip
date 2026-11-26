@@ -32,11 +32,15 @@
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+#include "logging/flash_scratch.h"  // FSK item 2 test build: scratch loop
+#endif
 
 // Forward declarations for non-blocking erase/download completion
 // (actual implementations in rc_os_commands.cpp)
 void cli_do_erase_flights();
 void cli_do_download_flight(int flight_num);
+bool cmd_flush_log_step();
 
 #include "rocketchip/rc_log.h"
 #include "pico/time.h"
@@ -104,6 +108,7 @@ enum class CalUiState : uint8_t {
     kResetConfirm,       // Reading "YES" + Enter for cal reset
     kEraseConfirm,       // Reading "yes" + Enter for flight erase
     kFlightNumInput,     // Reading flight number for download
+    kFlushLog,           // 'l' flush: one flash sector each tick
     // Wizard mode
     kWizardNext,         // Advance to next wizard step
 };
@@ -985,6 +990,20 @@ static void cal_ui_handle_flight_num(RcosAo* me) {
         }
 }
 
+// ---- Ring flush to flash (non-blocking, CLI 'l') ----
+// One sector (erase + program, 45-75 ms) each tick. That is longer than the
+// 50 ms tick period, so do not start a sector when an event is in the
+// queue: the queue gets time to empty (the same guard as flash_scratch).
+static void cal_ui_handle_flush_log(RcosAo* me) {
+    const QEvtPtr volatile* const front = &me->super.eQueue.frontEvt;
+    if (*front != nullptr) {
+        return;
+    }
+    if (cmd_flush_log_step()) {
+        me->cal_ui_state = CalUiState::kIdle;
+    }
+}
+
 // ---- Cal UI dispatcher (20Hz) ----
 static void cal_ui_tick(RcosAo* me) {
     switch (me->cal_ui_state) {
@@ -1001,6 +1020,7 @@ static void cal_ui_tick(RcosAo* me) {
     case CalUiState::kResetConfirm:   cal_ui_handle_reset_confirm(me);    break;
     case CalUiState::kEraseConfirm:   cal_ui_handle_erase_confirm(me);    break;
     case CalUiState::kFlightNumInput: cal_ui_handle_flight_num(me);       break;
+    case CalUiState::kFlushLog:       cal_ui_handle_flush_log(me);        break;
     case CalUiState::kWizardNext:     cal_ui_handle_wizard_next(me);      break;
     }
 }
@@ -1044,6 +1064,10 @@ static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
 
         // Calibration UI state machine
         cal_ui_tick(me);
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+        // Test build only: one scratch flash op per tick (20 Hz).
+        rc::flash_scratch_tick();
+#endif
         return Q_HANDLED();
     }
 
@@ -1242,6 +1266,10 @@ void AO_RCOS_start_erase_flights() {
     g_rcosAo.confirm_idx = 0;
     g_rcosAo.confirm_timeout_ticks = 0;
     g_rcosAo.cal_ui_state = CalUiState::kEraseConfirm;
+}
+
+void AO_RCOS_start_flush_log() {
+    g_rcosAo.cal_ui_state = CalUiState::kFlushLog;
 }
 
 void AO_RCOS_start_download_flight() {

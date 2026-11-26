@@ -35,7 +35,7 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_ok);
 const rc::RingBuffer* AO_Logger_get_ring();
 
 // Mutable access to the ring buffer — needed by CLI flush command
-// (flush_ring_to_flash modifies head).
+// (flush_job_step clears it with ring_reset).
 rc::RingBuffer* AO_Logger_get_ring_mut();
 
 // Read-only access to the flight table (Council A6).
@@ -48,6 +48,11 @@ rc::FlightTableState* AO_Logger_get_flight_table_mut();
 
 // Whether the logging ring buffer has been initialized.
 bool AO_Logger_is_initialized();
+
+// Stop (true) or start (false) frame and event pushes to the ring. The CLI
+// 'l' flush sets it while it copies the ring to flash. Telemetry snapshots
+// continue.
+void AO_Logger_set_ring_hold(bool hold);
 
 // PCM event primitive. SIG_PHASE_CHANGE / SIG_PYRO_FIRED handlers call this.
 // No de-dup: a direct call plus the matching signal writes two frames.

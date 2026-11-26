@@ -7,6 +7,7 @@
 
 #include "safety/health_monitor.h"
 #include "safety/crash_record.h"
+#include "safety/qp_module_id.h"         // prior-boot QP assert module name
 #include "safety/anomalous_boot.h"
 #include "drivers/mcu_temp.h"
 #include "safety/pio_watchdog.h"
@@ -80,6 +81,17 @@ static uint8_t g_eskfFaultTicks = 0;
 // ============================================================================
 // Internal: check if current phase requires fault latch
 // ============================================================================
+
+// Print the QP assert identity from a prior-boot crash record.
+// reserved[1] is the module index from safety/qp_module_id.h.
+static void log_prior_qp_assert(const CrashRecord& prior) {
+    const uint32_t id = prior.reserved[0] & kCrashQpIdMask;
+    const uint32_t full = prior.reserved[0] >> kCrashQpFullShift;
+    DBG_PRINT("HEALTH: prior-boot QP assert module=%s id=%lu full_queue_prio_mask=0x%04lx",
+              qp_module_name(prior.reserved[1]),
+              static_cast<unsigned long>(id),
+              static_cast<unsigned long>(full));
+}
 
 static bool phase_requires_fault_latch() {
     // Latch faults in IDLE (pre-launch) and ARMED through DESCENT.
@@ -313,6 +325,7 @@ void health_monitor_init() {
             case kCrashReasonMemManage:     reason_str = "MemManage";     break;
             case kCrashReasonMpuConfigFail: reason_str = "MpuConfigFail"; break;
             case kCrashReasonCore1BootWait: reason_str = "Core1BootWait"; break;
+            case kCrashReasonQpAssert:      reason_str = "QpAssert";      break;
             case kCrashReasonNone:          reason_str = "none";          break;
         }
         DBG_PRINT("HEALTH: prior-boot hardfault (%s) cfsr=0x%08lx hfsr=0x%08lx pc=0x%08lx lr=0x%08lx",
@@ -321,6 +334,9 @@ void health_monitor_init() {
                   static_cast<unsigned long>(prior.hfsr),
                   static_cast<unsigned long>(prior.stacked_pc),
                   static_cast<unsigned long>(prior.stacked_lr));
+        if (prior.reason == static_cast<uint32_t>(kCrashReasonQpAssert)) {
+            log_prior_qp_assert(prior);
+        }
     }
 
     // Fault-recovery architecture (2026-05-14): if the chip rebooted due to

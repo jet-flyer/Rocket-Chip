@@ -1150,57 +1150,9 @@ void cli_print_station_status() {
 // Logging / Flight Commands
 // ============================================================================
 
-void cmd_flush_log() {
-    if (!AO_Logger_is_initialized()) {
-        rc::rc_log("Logging not initialized.\n");
-        return;
-    }
-    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    if (!ft->loaded) {
-        rc::rc_log("Flight table not loaded.\n");
-        return;
-    }
-
-    rc::RingBuffer* ring = AO_Logger_get_ring_mut();
-    uint32_t stored = rc::ring_stored_count(ring);
-    if (stored == 0) {
-        rc::rc_log("No frames in ring buffer.\n");
-        return;
-    }
-
-    bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
-                     g_psramFlashSafePassed);
-    uint8_t rate = is_psram ? 50U : 25U;
-
-    rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
-
-    rc::FlightMetadata meta = {};
-    rc::FlightSummary summ = {};
-    summ.frame_count = stored;
-
-    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flush op chain
-    // to prevent the LL-31 race. flush_ring_to_flash() invokes
-    // flash_safe_execute() many times; each invocation is a separate
-    // multicore_lockout window. Pausing Core 1 once around the whole flush
-    // is far cheaper than pausing per-invocation.
-    rc::core1_i2c_pause();
-
-    rc::FlushResult result = rc::flush_ring_to_flash(
-        ring, ft, &meta, &summ, rate);
-
-    // R-15 (2026-05-07 audit): flush_ring_to_flash() invokes flash_safe_execute()
-    // many times; per LL Entry 31, runtime flash_safe_execute() leaves the I2C
-    // peripheral in a corrupted state on RP2350 until a peripheral reset clears
-    // it. Apply the same reset pattern that ao_rcos.cpp cal_save_to_flash()
-    // uses (line 338). Run regardless of FlushResult — even a partial flush
-    // means flash_safe_execute() ran. R-17 added the pause BEFORE this point;
-    // the reset is still required as belt-and-suspenders against any in-flight
-    // transaction that didn't drain in time.
-    if (!i2c_master_reset()) {
-        rc::rc_log("[WARN] I2C master reset failed after flush\n");
-    }
-    rc::core1_i2c_resume();
-
+static void print_flush_result(rc::FlushResult result) {
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    const uint32_t stored = rc::flush_job_stored();
     switch (result) {
     case rc::FlushResult::kOk:
         rc::rc_log("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
@@ -1228,6 +1180,83 @@ void cmd_flush_log() {
         rc::rc_log("Flush error: %d\n", static_cast<int>(result));
         break;
     }
+}
+
+// 'l': start the flush. AO_RCOS then calls cmd_flush_log_step one time
+// each 20 Hz tick, so one flash sector stalls Core 0 for one tick only.
+void cmd_flush_log() {
+    if (!AO_Logger_is_initialized()) {
+        rc::rc_log("Logging not initialized.\n");
+        return;
+    }
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    if (!ft->loaded) {
+        rc::rc_log("Flight table not loaded.\n");
+        return;
+    }
+
+    rc::RingBuffer* ring = AO_Logger_get_ring_mut();
+    const uint32_t stored = rc::ring_stored_count(ring);
+    if (stored == 0) {
+        rc::rc_log("No frames in ring buffer.\n");
+        return;
+    }
+    if (AO_RCOS_cal_active() || rc::flush_job_active()) {
+        rc::rc_log("Busy. Try again.\n");
+        return;
+    }
+
+    const bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
+                           g_psramFlashSafePassed);
+    const uint8_t rate = is_psram ? 50U : 25U;
+
+    rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
+
+    const rc::FlightMetadata meta = {};
+    rc::FlightSummary summ = {};
+    summ.frame_count = stored;
+
+    // Stop ring pushes first, so the frame count and indexes stay fixed
+    // until the last sector is written.
+    AO_Logger_set_ring_hold(true);
+    const rc::FlushResult result = rc::flush_job_begin(ring, ft, &meta, &summ, rate);
+    if (result != rc::FlushResult::kOk) {
+        AO_Logger_set_ring_hold(false);
+        print_flush_result(result);
+        return;
+    }
+    AO_RCOS_start_flush_log();
+}
+
+// One flush step (one sector, or the table save at the end). AO_RCOS
+// calls it from its tick. Returns true when the job ended.
+bool cmd_flush_log_step() {
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op to
+    // prevent the LL-31 race. Each step is one or two flash_safe_execute
+    // calls (one multicore_lockout window each). The pause is for this
+    // step only, so Core 1 reads sensors between the steps.
+    rc::core1_i2c_pause();
+
+    const rc::FlushStep step = rc::flush_job_step();
+
+    // R-15 (2026-05-07 audit): per LL Entry 31, runtime flash_safe_execute()
+    // leaves the I2C peripheral in a corrupted state on RP2350 until a
+    // peripheral reset clears it. Apply the same reset pattern that
+    // ao_rcos.cpp cal_save_to_flash() uses, after each step and on each
+    // result. R-17 added the pause BEFORE this point; the reset is still
+    // required as belt-and-suspenders against any in-flight transaction
+    // that didn't drain in time.
+    if (!i2c_master_reset()) {
+        rc::rc_log("[WARN] I2C master reset failed after flush\n");
+    }
+    rc::core1_i2c_resume();
+
+    if (!step.done) {
+        return false;
+    }
+    AO_Logger_set_ring_hold(false);
+    print_flush_result(step.result);
+    return true;
 }
 
 // Erase confirmation prompt + input now in AO_RCOS (non-blocking).

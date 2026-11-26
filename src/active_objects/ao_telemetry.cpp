@@ -50,6 +50,7 @@
 #include "rocketchip/rc_log.h"
 #include "diag/radio_rate_counters.h"
 #include "diag/link_baseline.h"
+#include "logging/flash_gate.h"  // FSK item 2: MAC poll-gap tracker
 #include <string.h>
 #include <span>
 
@@ -452,6 +453,7 @@ static void starcom_log_comm_change_air() {
 }
 
 static void starcom_poll_mac_radio() {
+    rc::flash_gate_note_mac_poll();  // Measurement only (FSK item 2)
     starcom_log_comm_change_air();
     const auto n = rc::starcom_adapt::pump_poll_mac_notify(g_pump);
     if (n == starcom::ccsds::MacNotify::comm_change_apply_rx &&
