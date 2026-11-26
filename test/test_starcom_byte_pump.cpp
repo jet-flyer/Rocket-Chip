@@ -1650,3 +1650,130 @@ TEST(StarcomBytePump, InitForThisJobHostBuild) {
     EXPECT_EQ(pump.remote_scid, starcom::ccsds::Scid{2});
     EXPECT_FALSE(pump.defer_spdu_fifo_empty);
 }
+
+// QF tick skip (diag/tick_skip.h): after a stall the telemetry tick runs
+// one time, not one time for each missed 10 ms period. The MAC timers count
+// the real ms between pump_tick calls (macTick dt = now - last_now), so a
+// skipped-tick burst must not change when a window ends. The RC adapter
+// feeds now_ms() (wall clock), the same as these tests.
+namespace {
+
+namespace sc = starcom::ccsds;
+
+constexpr sc::Tick kTelemTickMs = 10U;  // AO_Telemetry tick (QF 100 Hz)
+
+// 211.0 half duplex connecting_t to S60 (the start of Receive_Duration).
+sc::Tick mac_to_s60(sc::MacSession& s, const sc::MacMib& mib) {
+    sc::macInit(s, mib, sc::MacDuplex::half, nullptr);
+    sc::macSetMode(s, sc::MacMode::connecting_t, 0);
+    sc::Tick now = s.mib.carrier_only_duration;
+    sc::macTick(s, now);
+    now += s.mib.acquisition_idle_duration;
+    sc::macTick(s, now);
+    sc::macOnFifoEmpty(s, now);
+    now += s.mib.tail_idle_duration;
+    sc::macTick(s, now);
+    sc::macOnValidFrame(s, now);
+    return now;
+}
+
+// Tick the MAC every 10 ms from t0. Calls in (gap_at, gap_at + gap_ms) do
+// not occur (the QF ticks that the stall skipped). Returns the first tick
+// time where done(s) is true, or 0 if it does not occur in 10 s.
+template <typename Done>
+sc::Tick run_until(sc::MacSession& s, sc::Tick t0, sc::Tick gap_at,
+                   sc::Tick gap_ms, Done done) {
+    for (sc::Tick now = t0 + kTelemTickMs; now < t0 + 10000U;
+         now += kTelemTickMs) {
+        if (gap_ms != 0U && now > gap_at && now < gap_at + gap_ms) {
+            continue;
+        }
+        sc::macTick(s, now);
+        if (done(s)) {
+            return now;
+        }
+    }
+    return 0U;
+}
+
+sc::MacMib station_flight_mib() {
+    static BytePump station{};
+    pump_init(station, sc::Scid{2}, sc::Scid{1});
+    return station.mac.mib;
+}
+
+sc::Tick round_up_to_tick(sc::Tick t0, sc::Tick d) {
+    return t0 + (((d + kTelemTickMs - 1U) / kTelemTickMs) * kTelemTickMs);
+}
+
+// The window ends at its wall time, or at the first tick after the stall
+// if the wall time is in the stall.
+sc::Tick expected_end(sc::Tick dense_end, sc::Tick gap_at, sc::Tick gap_ms) {
+    sc::Tick t = dense_end;
+    while (t > gap_at && t < gap_at + gap_ms) {
+        t += kTelemTickMs;
+    }
+    return t;
+}
+
+} // namespace
+
+// R-37: station Receive_Duration (1801 ms) ends at the same wall time with
+// or without a 70 ms skipped-tick gap (early, middle, and at the end).
+TEST(StarcomBytePump, ReceiveWindowKeepsWallLengthAcrossTickSkip) {
+    const sc::MacMib mib = station_flight_mib();
+    EXPECT_EQ(mib.receive_duration, 1801U);
+    auto left_s60 = [](const sc::MacSession& m) {
+        return m.state != sc::MacState::s60;
+    };
+
+    sc::MacSession dense{};
+    const sc::Tick t0 = mac_to_s60(dense, mib);
+    ASSERT_EQ(dense.state, sc::MacState::s60);
+    sc::macSetCarrierAcquired(dense, false, t0);
+    const sc::Tick dense_end = run_until(dense, t0, 0U, 0U, left_s60);
+    ASSERT_NE(dense_end, 0U);
+    EXPECT_EQ(dense.state, sc::MacState::s51);  // E48
+    EXPECT_EQ(dense_end, round_up_to_tick(t0, mib.receive_duration));
+
+    const sc::Tick gaps[] = {t0 + 20U, t0 + 900U, dense_end - 40U};
+    for (const sc::Tick gap_at : gaps) {
+        sc::MacSession s{};
+        ASSERT_EQ(mac_to_s60(s, mib), t0);
+        sc::macSetCarrierAcquired(s, false, t0);
+        const sc::Tick end = run_until(s, t0, gap_at, 70U, left_s60);
+        EXPECT_EQ(end, expected_end(dense_end, gap_at, 70U))
+            << "gap at +" << (gap_at - t0) << " ms";
+        EXPECT_EQ(s.state, sc::MacState::s51);
+    }
+}
+
+// Station carrier-loss timer: same wall length across a skipped-tick gap.
+TEST(StarcomBytePump, CarrierLossKeepsWallLengthAcrossTickSkip) {
+    const sc::MacMib mib = station_flight_mib();
+    ASSERT_GT(mib.carrier_loss_timer_duration, 200U);
+    auto expired = [](const sc::MacSession& m) {
+        return m.carrier_loss_left == 0U || m.state != sc::MacState::s60;
+    };
+
+    sc::MacSession dense{};
+    const sc::Tick t0 = mac_to_s60(dense, mib);
+    sc::macSetCarrierAcquired(dense, true, t0);
+    sc::macSetCarrierAcquired(dense, false, t0);
+    ASSERT_EQ(dense.carrier_loss_left, mib.carrier_loss_timer_duration);
+    const sc::Tick dense_end = run_until(dense, t0, 0U, 0U, expired);
+    ASSERT_NE(dense_end, 0U);
+    EXPECT_EQ(dense_end,
+              round_up_to_tick(t0, mib.carrier_loss_timer_duration));
+
+    const sc::Tick gaps[] = {t0 + 20U, t0 + 500U, dense_end - 40U};
+    for (const sc::Tick gap_at : gaps) {
+        sc::MacSession s{};
+        ASSERT_EQ(mac_to_s60(s, mib), t0);
+        sc::macSetCarrierAcquired(s, true, t0);
+        sc::macSetCarrierAcquired(s, false, t0);
+        const sc::Tick end = run_until(s, t0, gap_at, 70U, expired);
+        EXPECT_EQ(end, expected_end(dense_end, gap_at, 70U))
+            << "gap at +" << (gap_at - t0) << " ms";
+    }
+}

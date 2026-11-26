@@ -51,6 +51,11 @@ void AO_RCOS_start_cal_save();
 // Non-blocking erase-all-flights (confirmation via AO tick)
 void AO_RCOS_start_erase_flights();
 
+// cmd_flush_log calls this after flush_job_begin. AO_RCOS then calls
+// cmd_flush_log_step each tick until the flush ends. Caller checks
+// AO_RCOS_cal_active() first.
+void AO_RCOS_start_flush_log();
+
 // Non-blocking flight download (flight number input via AO tick)
 void AO_RCOS_start_download_flight();
 

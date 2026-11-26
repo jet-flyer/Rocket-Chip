@@ -7,7 +7,7 @@
 // Council-reviewed 2026-03-27 (Amendments A1, A2, A4)
 //
 // QV cooperative scheduler BSP for RP2350. Provides:
-//   - QF_onStartup(): 100Hz tick via Pico SDK repeating timer (D1)
+//   - QF_onStartup(): 100Hz tick via diag/qf_tick.cpp (SDK alarm, D1)
 //   - QV_onIdle(): Bridge to existing superloop tick functions (D10)
 //   - QF_onCleanup(): No-op (bare-metal never exits)
 //
@@ -31,27 +31,19 @@
 #include "hardware/sync.h"
 
 //----------------------------------------------------------------------------
-// Tick timer — 100Hz repeating timer via Pico SDK alarm pool (D1)
-
-static repeating_timer_t s_qfTickTimer;
-
-// Tick callback — runs in hardware timer IRQ context on Core 0.
-// Posts QF time events to AO queues. QV dispatches them from main context.
-static bool qf_tick_cb(repeating_timer_t *rt) {
-    (void)rt;
-    QTIMEEVT_TICK_X(0U, (void *)0);
-    return true;  // Keep repeating
-}
+// Tick timer — 100Hz SDK alarm (D1), in src/diag/qf_tick.cpp.
+// The alarm callback runs in hardware timer IRQ context on Core 0 and
+// posts QF time events. After a stall it fires one tick, not a burst
+// (an SDK repeating timer replays each missed period).
+extern bool qf_tick_start(void);
 
 //----------------------------------------------------------------------------
 // QF callbacks
 
 void QF_onStartup(void) {
-    // Configure 100Hz tick timer. Negative delay = edge-aligned (period
-    // measured from start-to-start, not end-to-start). 10000us = 100Hz.
+    // Start the 100Hz tick on a fixed 10 ms grid (start-to-start).
     // Return value checked per Council Amendment A1.
-    bool ok = add_repeating_timer_us(-10000, qf_tick_cb, (void *)0,
-                                      &s_qfTickTimer);
+    bool ok = qf_tick_start();
     if (!ok) {
         // Timer allocation failed — no tick, no AO scheduling.
         // Enter hard fault: disable interrupts and spin for watchdog reset.

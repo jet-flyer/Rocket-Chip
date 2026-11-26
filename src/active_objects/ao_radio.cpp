@@ -29,6 +29,7 @@
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
 #include "diag/link_baseline.h"
+#include "logging/flash_gate.h"  // FSK item 2: RX poll-gap tracker
 #if defined(ROCKETCHIP_DEV_MODE)
 #include "radio_tx_force.h"
 #endif
@@ -542,6 +543,7 @@ static void handle_relay_forward(RadioAo* me, const uint8_t* buf, uint8_t len) {
 }
 
 static void handle_rx_poll(RadioAo* me) {
+    rc::flash_gate_note_radio_poll();  // Measurement only (FSK item 2)
     RadioAoState& s = me->state;
     if (!rfm95w_available(&s.radio)) { return; }
 

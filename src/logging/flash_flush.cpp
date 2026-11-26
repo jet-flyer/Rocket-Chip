@@ -13,6 +13,7 @@
 #include "hardware/flash.h"
 #include "hardware/xip_cache.h"
 #include "safety/pio_watchdog.h"
+#include "logging/flash_gate.h"  // FSK item 2: time each flash_safe_execute
 
 #include <string.h>
 
@@ -47,12 +48,18 @@ static void do_flash_erase(void* param) {
 
 static bool safe_flash_write(uint32_t offset, const uint8_t* data, size_t len) {
     flash_write_params params = {.offset = offset, .data = data, .len = len};
-    return flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs) == PICO_OK;
+    const uint64_t t0 = flash_gate_begin();
+    const int r = flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs);
+    flash_gate_end(FlashOpType::kProgram, t0, r);
+    return r == PICO_OK;
 }
 
 static bool safe_flash_erase(uint32_t offset, size_t len) {
     flash_erase_params params = {.offset = offset, .len = len};
-    return flash_safe_execute(do_flash_erase, &params, kFlashSafeTimeoutMs) == PICO_OK;
+    const uint64_t t0 = flash_gate_begin();
+    const int r = flash_safe_execute(do_flash_erase, &params, kFlashSafeTimeoutMs);
+    flash_gate_end(FlashOpType::kErase, t0, r);
+    return r == PICO_OK;
 }
 
 static void flash_read(uint32_t offset, void* dest, size_t len) {
@@ -220,41 +227,54 @@ bool flight_log_erase_all(const FlightTableState* table) {
 // Ring → Flash flush engine
 // ============================================================================
 
-// Write ring buffer frames to flash, one sector at a time.
-// Sector 0 starts with the flight log header. Frame placement comes from flight_log_layout.h, the same layout the USB
-// download reads back.
-static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
-                                 uint32_t start_sector, uint32_t sectors_needed,
-                                 const FlightLogHeader& header) {
+// One flush in progress (CLI 'l'). Core 0 task context only.
+struct FlushJob {
+    RingBuffer* rb;
+    FlightTableState* table;
+    FlightMetadata metadata;
+    FlightSummary summary;
+    FlightLogHeader header;
+    uint32_t stored;
+    uint32_t frame_size;
+    uint32_t start_sector;
+    uint32_t sectors_needed;
+    uint32_t next_sector;
+    uint8_t log_rate_hz;
+    bool active;
+};
+
+static FlushJob g_flushJob{};
+
+// Write one sector of ring frames to flash. Sector 0 starts with the flight
+// log header. Frame placement comes from flight_log_layout.h, the same
+// layout the USB download reads back.
+static FlushResult flush_one_sector(const FlushJob& job, uint32_t s) {
     static uint8_t g_sectorBuf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
-    uint32_t frame_size = rb->frame_size;
+    const uint32_t frame_size = job.frame_size;
 
-    for (uint32_t s = 0; s < sectors_needed; ++s) {
-        memset(g_sectorBuf, 0xFF, sizeof(g_sectorBuf));
+    memset(g_sectorBuf, 0xFF, sizeof(g_sectorBuf));
+    if (s == 0) {
+        memcpy(g_sectorBuf, &job.header, sizeof(FlightLogHeader));
+    }
 
-        if (s == 0) {
-            memcpy(g_sectorBuf, &header, sizeof(FlightLogHeader));
-        }
-
-        const uint32_t first = flight_log_first_frame_in_sector(s, frame_size);
-        const FlightLogRun run = flight_log_run_at(first, stored, frame_size);
-        uint32_t buf_pos = flight_log_sector_data_start(s);
-        for (uint32_t k = 0; k < run.frames; ++k) {
-            if (!ring_read_sequential(rb, first + k, g_sectorBuf + buf_pos)) {
-                return FlushResult::kWriteError;
-            }
-            buf_pos += frame_size;
-        }
-
-        uint32_t flash_offset = (start_sector + s) * kFlashSectorSize;
-        if (!safe_flash_erase(flash_offset, FLASH_SECTOR_SIZE)) {
-            return FlushResult::kEraseError;
-        }
-        if (!safe_flash_write(flash_offset, g_sectorBuf, FLASH_SECTOR_SIZE)) {
+    const uint32_t first = flight_log_first_frame_in_sector(s, frame_size);
+    const FlightLogRun run = flight_log_run_at(first, job.stored, frame_size);
+    uint32_t buf_pos = flight_log_sector_data_start(s);
+    for (uint32_t k = 0; k < run.frames; ++k) {
+        if (!ring_read_sequential(job.rb, first + k, g_sectorBuf + buf_pos)) {
             return FlushResult::kWriteError;
         }
-        pio_watchdog_feed();
+        buf_pos += frame_size;
     }
+
+    const uint32_t flash_offset = (job.start_sector + s) * kFlashSectorSize;
+    if (!safe_flash_erase(flash_offset, FLASH_SECTOR_SIZE)) {
+        return FlushResult::kEraseError;
+    }
+    if (!safe_flash_write(flash_offset, g_sectorBuf, FLASH_SECTOR_SIZE)) {
+        return FlushResult::kWriteError;
+    }
+    pio_watchdog_feed();
     return FlushResult::kOk;
 }
 
@@ -296,16 +316,19 @@ static FlushResult save_flight_entry(FlightTableState* table,
     return FlushResult::kOk;
 }
 
-FlushResult flush_ring_to_flash(RingBuffer* rb,
-                                FlightTableState* table,
-                                const FlightMetadata* metadata,
-                                const FlightSummary* summary,
-                                uint8_t log_rate_hz) {
+FlushResult flush_job_begin(RingBuffer* rb,
+                            FlightTableState* table,
+                            const FlightMetadata* metadata,
+                            const FlightSummary* summary,
+                            uint8_t log_rate_hz) {
+    if (g_flushJob.active) {
+        return FlushResult::kBusy;
+    }
     if (rb == nullptr || !rb->initialized || table == nullptr || !table->loaded) {
         return FlushResult::kNotInitialized;
     }
 
-    uint32_t stored = ring_stored_count(rb);
+    const uint32_t stored = ring_stored_count(rb);
     if (stored == 0) {
         return FlushResult::kNoFrames;
     }
@@ -313,44 +336,87 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
         return FlushResult::kTableFull;
     }
 
-    uint32_t frame_size = rb->frame_size;
+    const uint32_t frame_size = rb->frame_size;
     if (!flight_log_frame_size_valid(frame_size)) {
         return FlushResult::kNotInitialized;
     }
-    uint32_t sectors_needed = flight_log_sectors_needed(stored, frame_size);
+    const uint32_t sectors_needed = flight_log_sectors_needed(stored, frame_size);
 
-    uint32_t start_sector = flight_table_next_free_sector(table);
+    const uint32_t start_sector = flight_table_next_free_sector(table);
     if (start_sector + sectors_needed > kFlightLogEnd / kFlashSectorSize) {
         return FlushResult::kFlashFull;
     }
 
+    FlushJob& job = g_flushJob;
+    job = FlushJob{};
+    job.rb = rb;
+    job.table = table;
+    if (metadata != nullptr) {
+        job.metadata = *metadata;
+    }
+    if (summary != nullptr) {
+        job.summary = *summary;
+    }
+    job.stored = stored;
+    job.frame_size = frame_size;
+    job.start_sector = start_sector;
+    job.sectors_needed = sectors_needed;
+    job.next_sector = 0;
+    job.log_rate_hz = log_rate_hz;
+
     // Build flight log metadata header [C-A3]
-    FlightLogHeader header;
     const char* prof_name = nullptr;
     const rc::FlightDirector* fd = AO_FlightDirector_get_director();
     if (fd != nullptr && fd->profile != nullptr) {
         prof_name = fd->profile->name;
     }
-    flight_log_header_fill(header, kPcmFrameTypeStandard, log_rate_hz, prof_name);
+    flight_log_header_fill(job.header, kPcmFrameTypeStandard, log_rate_hz,
+                           prof_name);
 
     // Flush dirty PSRAM cache lines before reading the ring into flash.
+    // The caller stops ring pushes (AO_Logger_set_ring_hold) until the
+    // job ends, so no new dirty lines hold frames that the job reads.
     xip_cache_clean_all();
 
-    FlushResult result = flush_sectors(rb, stored, start_sector, sectors_needed,
-                                       header);
-    if (result != FlushResult::kOk) {
-        return result;
-    }
-
-    result = save_flight_entry(table,
-                               {start_sector, sectors_needed, frame_size, stored, log_rate_hz},
-                               metadata, summary);
-    if (result != FlushResult::kOk) {
-        return result;
-    }
-
-    ring_reset(rb);
+    job.active = true;
     return FlushResult::kOk;
+}
+
+FlushStep flush_job_step() {
+    FlushJob& job = g_flushJob;
+    if (!job.active) {
+        return {FlushResult::kNotInitialized, true};
+    }
+    if (job.next_sector < job.sectors_needed) {
+        const FlushResult r = flush_one_sector(job, job.next_sector);
+        if (r != FlushResult::kOk) {
+            job.active = false;
+            return {r, true};
+        }
+        ++job.next_sector;
+        return {FlushResult::kOk, false};  // Table save on the next call
+    }
+
+    // All sectors written: table entry, table save, then clear the ring.
+    job.active = false;
+    const FlushResult r = save_flight_entry(
+        job.table,
+        {job.start_sector, job.sectors_needed, job.frame_size, job.stored,
+         job.log_rate_hz},
+        &job.metadata, &job.summary);
+    if (r != FlushResult::kOk) {
+        return {r, true};
+    }
+    ring_reset(job.rb);
+    return {FlushResult::kOk, true};
+}
+
+bool flush_job_active() {
+    return g_flushJob.active;
+}
+
+uint32_t flush_job_stored() {
+    return g_flushJob.stored;
 }
 
 } // namespace rc

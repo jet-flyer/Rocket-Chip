@@ -34,7 +34,10 @@ void cli_print_eskf_live();
 // Preflight Go/No-Go poll ('p')
 void cli_print_preflight();
 
+// 'l': start a non-blocking flush. AO_RCOS calls cmd_flush_log_step each
+// tick until it returns true (one flash sector each call).
 void cmd_flush_log();
+bool cmd_flush_log_step();
 void cmd_list_flights();
 void cmd_radio_status();
 void cmd_station_gps();

@@ -27,6 +27,8 @@
 #include "tusb.h"
 #include "diag/diag_stats.h"
 #include "diag/radio_rate_counters.h"
+#include "logging/flash_gate.h"
+#include "logging/flash_scratch.h"
 #include "safety/pyro_edge_logger.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/mission_profile.h"
@@ -364,6 +366,14 @@ void run_action(ActionId act) {
         case ActionId::kDebugRfRates:
             radio_rate_counters_dump();
             break;
+        case ActionId::kDebugFlashStall:
+            rc::flash_gate_dump();
+            break;
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+        case ActionId::kDebugFlashScratch:
+            rc::flash_scratch_toggle();
+            break;
+#endif
 #if defined(ROCKETCHIP_DEV_MODE)
         case ActionId::kForceTxTimeout:
             AO_Radio_force_next_tx_timeout();

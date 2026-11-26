@@ -56,9 +56,26 @@ static constexpr uint32_t kFlashRadioCfgSectorB =
 static constexpr uint32_t kFlashSafeTestOffset =
     kFlashRadioCfgSectorA - FLASH_SECTOR_SIZE;
 
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+// TEST BUILD ONLY (FSK pre-plan item 2, logging/flash_scratch.h).
+// Scratch area: 384 sectors (1.5 MB) directly below the flash-safe test
+// sector. In this build the flight log ends at the scratch start.
+static constexpr uint32_t kFlashScratchSectors = 384U;
+static constexpr uint32_t kFlashScratchEnd = kFlashSafeTestOffset;
+static constexpr uint32_t kFlashScratchStart =
+    kFlashScratchEnd - kFlashScratchSectors * FLASH_SECTOR_SIZE;
+static_assert(kFlashScratchStart > kFlashFirmwareReserve,
+              "Flash stall scratch area overlaps firmware reserve");
+#endif
+
 // Flight log region: between firmware and flash-safe test sector
+// (scratch builds: between firmware and the scratch area).
 static constexpr uint32_t kFlashLogStart = kFlashFirmwareReserve;
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+static constexpr uint32_t kFlashLogEnd   = kFlashScratchStart;
+#else
 static constexpr uint32_t kFlashLogEnd   = kFlashSafeTestOffset;
+#endif
 static constexpr uint32_t kFlashLogSize  = kFlashLogEnd - kFlashLogStart;
 static constexpr uint32_t kFlashLogSectors = kFlashLogSize / FLASH_SECTOR_SIZE;
 

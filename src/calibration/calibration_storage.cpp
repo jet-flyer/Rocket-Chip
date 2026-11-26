@@ -7,6 +7,7 @@
 #include "pico/flash.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "logging/flash_gate.h"  // FSK item 2: time each flash_safe_execute
 #include <string.h>
 
 // ============================================================================
@@ -94,7 +95,9 @@ static bool safe_flash_write(uint32_t flash_offset, const uint8_t* data, size_t 
         .len = len
     };
 
+    const uint64_t t0 = rc::flash_gate_begin();
     int result = flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs);
+    rc::flash_gate_end(rc::FlashOpType::kProgram, t0, result);
     return (result == PICO_OK);
 }
 
@@ -112,7 +115,9 @@ static bool safe_flash_erase(uint32_t flash_offset, size_t len) {
         .len = len
     };
 
+    const uint64_t t0 = rc::flash_gate_begin();
     int result = flash_safe_execute(do_flash_erase, &params, kFlashSafeTimeoutMs);
+    rc::flash_gate_end(rc::FlashOpType::kErase, t0, result);
     return (result == PICO_OK);
 }
 

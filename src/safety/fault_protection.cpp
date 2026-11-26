@@ -11,6 +11,7 @@
 #include "hardware/structs/scb.h"  // for SHCSR.MEMFAULTENA write in stack-guard setup
 #include "pico/time.h"   // for busy_wait_us in fault handler delay
 #include "rocketchip/rc_log.h"  // Q_onError — no printf
+#include "safety/qp_module_id.h"  // Q_onError module index (no pointer cast)
 
 // ============================================================================
 // Fault-handler dispatch internals
@@ -86,15 +87,15 @@ __attribute__((always_inline)) static inline void fault_begin() {
 
 __attribute__((always_inline)) static inline void fault_store_record(
     uint32_t cfsr, uint32_t hfsr, uint32_t stacked_pc, uint32_t stacked_lr,
-    uint32_t reason) {
+    uint32_t reason, uint32_t aux0 = 0U, uint32_t aux1 = 0U) {
     volatile rc::CrashRecord* const rec = &rc::g_crash_record;
     rec->cfsr        = cfsr;
     rec->hfsr        = hfsr;
     rec->stacked_pc  = stacked_pc;
     rec->stacked_lr  = stacked_lr;
     rec->reason      = reason;
-    rec->reserved[0] = 0U;
-    rec->reserved[1] = 0U;
+    rec->reserved[0] = aux0;
+    rec->reserved[1] = aux1;
     __asm volatile ("dsb" ::: "memory");
     rec->magic = rc::kCrashRecordMagic;
     __asm volatile ("dsb" ::: "memory");
@@ -138,13 +139,34 @@ void memmanage_fault_handler(void) {
     fault_dispatch_by_phase();
 }
 
+// QP registry of started AOs (qp_pkg.h). Read-only here, IRQs are off.
+extern "C" QActive* QActive_registry_[QF_MAX_ACTIVE + 1U];
+
+// Mask of AO priorities whose event queue is full (nFree == 0). A queue
+// overflow assert (qf_actq id 130) then shows which AO was starved.
+static uint32_t qp_full_queue_mask() {
+    uint32_t mask = 0U;
+    for (uint32_t p = 1U; p <= QF_MAX_ACTIVE; ++p) {
+        const QActive* const a = QActive_registry_[p];
+        if ((a != nullptr) && (a->eQueue.nFree == 0U)) {
+            mask |= (1UL << p);
+        }
+    }
+    return mask;
+}
+
 extern "C" Q_NORETURN Q_onError(
     char const * const module,
     int_t const id)
 {
     fault_begin();
+    // The rc_log line below does not drain before the reset (drain runs in
+    // QV idle), so keep the assert identity in the crash record.
+    const uint32_t aux0 = (static_cast<uint32_t>(id) & rc::kCrashQpIdMask) |
+                          (qp_full_queue_mask() << rc::kCrashQpFullShift);
     fault_store_record(0U, 0U, 0U, 0U,
-                       static_cast<uint32_t>(rc::kCrashReasonNone));
+                       static_cast<uint32_t>(rc::kCrashReasonQpAssert),
+                       aux0, rc::qp_module_index(module));
     rc::rc_log("[QP ASSERT] module=%s, id=%d\n", module, id);
     fault_dispatch_by_phase();
 }

@@ -375,6 +375,35 @@ target_include_directories(test_link_baseline PRIVATE
 target_compile_definitions(test_link_baseline PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_link_baseline)
 
+# FSK item 2: flash stall histogram, poll-gap counters, JEDEC decode.
+add_executable(test_flash_stall_stats
+    test_flash_stall_stats.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/flash_stall_stats.cpp)
+target_link_libraries(test_flash_stall_stats PRIVATE GTest::gtest_main)
+target_include_directories(test_flash_stall_stats PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_flash_stall_stats PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_flash_stall_stats)
+
+# QF tick skip after a stall: one tick, skip count, same phase grid.
+add_executable(test_tick_skip
+    test_tick_skip.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/tick_skip.cpp)
+target_link_libraries(test_tick_skip PRIVATE GTest::gtest_main)
+target_include_directories(test_tick_skip PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_tick_skip PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_tick_skip)
+
+# QP assert module name to crash-record index. Header-only.
+add_executable(test_qp_module_id test_qp_module_id.cpp)
+target_link_libraries(test_qp_module_id PRIVATE GTest::gtest_main)
+target_include_directories(test_qp_module_id PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_qp_module_id)
+
 # Forced radio HW TX timeout latch. Header-only. No SPI.
 add_executable(test_radio_tx_force test_radio_tx_force.cpp)
 target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)

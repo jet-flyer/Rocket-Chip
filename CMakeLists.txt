@@ -14,6 +14,12 @@ option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 option(ROCKETCHIP_DEV_MODE
     "Compile inject, cal-reset, and runtime DEV_MODE toggle into the ELF (OFF for field images)"
     ON)
+# FSK pre-plan item 2. TEST BUILD ONLY: scratch-page flash loop (Debug 'j')
+# in a 1.5 MB area below the flash-safe test sector (logging/flash_scratch.h).
+# The flight-log region gets smaller by that area. Keep OFF for flight images.
+option(ROCKETCHIP_FLASH_STALL_SCRATCH
+    "Compile the flash stall scratch-page loop into the ELF (test build only)"
+    OFF)
 
 # Starcom is core RC air (COP-P + nav/cmd/ACK SDUs). Always nested.
 # Nested ctest stays in the library tree. Host adapters (UDP/file) are
@@ -406,6 +412,9 @@ else()
         src/diag/diag_radio_precondition.cpp  # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp  # R-32 R0: increment-only rate counters
         src/diag/link_baseline.cpp        # baseline LINK line (CLI t)
+        src/diag/flash_stall_stats.cpp    # FSK item 2: flash stall histogram (host-tested)
+        src/diag/tick_skip.cpp            # QF tick skip after a stall (host-tested)
+        src/diag/qf_tick.cpp              # 100 Hz QF tick alarm (bsp_qv.c QF_onStartup)
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -457,6 +466,8 @@ else()
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
         src/logging/psram_init.cpp
+        src/logging/flash_gate.cpp        # FSK item 2: flash_safe_execute timing + poll gaps
+        src/logging/flash_scratch.cpp     # FSK item 2: scratch loop (empty unless option ON)
 
         # -------------------------------------------------------------------------
         # Stage 7: Radio & Telemetry (IVP-57, IVP-58, IVP-59)
@@ -576,6 +587,8 @@ else()
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
         src/logging/psram_init.cpp
+        src/logging/flash_gate.cpp                  # FSK item 2
+        src/logging/flash_scratch.cpp               # FSK item 2 (test build only)
         src/cli/rc_os.cpp
         src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
@@ -594,6 +607,9 @@ else()
         src/diag/diag_radio_precondition.cpp        # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp            # R-32 R0: increment-only rate counters
         src/diag/link_baseline.cpp                  # baseline LINK line (CLI t)
+        src/diag/flash_stall_stats.cpp              # FSK item 2: flash stall histogram
+        src/diag/tick_skip.cpp                      # QF tick skip after a stall
+        src/diag/qf_tick.cpp                        # 100 Hz QF tick alarm
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -797,6 +813,11 @@ else()
         message(STATUS "ROCKETCHIP_DEV_MODE: ON (inject/cal-reset in ELF; runtime v toggle)")
     else()
         message(STATUS "ROCKETCHIP_DEV_MODE: OFF (field: inject/cal-reset omitted)")
+    endif()
+
+    if(ROCKETCHIP_FLASH_STALL_SCRATCH)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_FLASH_STALL_SCRATCH=1)
+        message(STATUS "ROCKETCHIP_FLASH_STALL_SCRATCH: ON (TEST BUILD: scratch flash loop, smaller log region)")
     endif()
 
     # Single flight binary per role. Test affordances (fault_force_*, debug

@@ -1,6 +1,7 @@
 # CMake build artifacts
 build/
 build_flight/
+build_flight_scratch/
 build_station/
 build_station_flight/
 build_vehicle/
