@@ -368,6 +368,7 @@ void run_action(ActionId act) {
             break;
         case ActionId::kDebugFlashStall:
             rc::flash_gate_dump();
+            AO_Radio_rx_quality_dump();
             break;
 #if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
         case ActionId::kDebugFlashScratch:

@@ -127,6 +127,12 @@ struct rfm95w_t {
     uint8_t  mode;           // Current operating mode
     int16_t  last_rssi;      // RSSI of last received packet (dBm)
     int8_t   last_snr;       // SNR of last received packet (dB)
+    // Last RxDone with PayloadCrcErr (FSK open item C). Packet RSSI/SNR
+    // registers read on the CRC-error path; last_rssi/last_snr do not
+    // change there (they stay good-packet only).
+    bool     last_crc_err;   // Last rfm95w_recv saw PayloadCrcErr
+    int16_t  crc_err_rssi;   // Packet RSSI of that packet (dBm)
+    int8_t   crc_err_snr;    // Packet SNR of that packet (dB)
     uint64_t tx_start_us;    // Timestamp of send_start() for timeout
     uint32_t tx_timeout_us;  // Abort threshold for TX polling. Scales with
                              // SF/BW/payload via rfm95w_set_tx_timeout_us().
@@ -328,6 +334,10 @@ int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev);
 
 // RSSI in dBm (negative value, e.g., -80)
 int16_t rfm95w_rssi(const rfm95w_t* dev);
+
+// Carrier frequency the driver sets at init (Hz). Build-time value:
+// CMake RC_RADIO_FREQ_HZ (default 915000000).
+uint32_t rfm95w_carrier_hz();
 
 // Modifies RegModemConfig1[7:4]. Must be called while in Standby or Sleep.
 // Both TX and RX must use the same bandwidth to communicate.

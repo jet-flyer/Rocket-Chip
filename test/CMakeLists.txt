@@ -397,6 +397,28 @@ target_include_directories(test_tick_skip PRIVATE
 target_compile_definitions(test_tick_skip PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_tick_skip)
 
+# FSK open items A/B: 'x' erase order, busy rules, progress, page split.
+add_executable(test_flash_job_plan
+    test_flash_job_plan.cpp
+    ${CMAKE_SOURCE_DIR}/src/logging/flash_job_plan.cpp)
+target_link_libraries(test_flash_job_plan PRIVATE GTest::gtest_main)
+target_include_directories(test_flash_job_plan PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_flash_job_plan PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_flash_job_plan)
+
+# FSK open item C: CRC-fail vs good packet RSSI/SNR stats.
+add_executable(test_rx_quality_stats
+    test_rx_quality_stats.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/rx_quality_stats.cpp)
+target_link_libraries(test_rx_quality_stats PRIVATE GTest::gtest_main)
+target_include_directories(test_rx_quality_stats PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_rx_quality_stats PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_rx_quality_stats)
+
 # QP assert module name to crash-record index. Header-only.
 add_executable(test_qp_module_id test_qp_module_id.cpp)
 target_link_libraries(test_qp_module_id PRIVATE GTest::gtest_main)

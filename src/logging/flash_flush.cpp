@@ -14,6 +14,8 @@
 #include "hardware/xip_cache.h"
 #include "safety/pio_watchdog.h"
 #include "logging/flash_gate.h"  // FSK item 2: time each flash_safe_execute
+#include "logging/flash_job_plan.h"  // FSK open items A/B: erase order, page split
+#include "logging/flight_download.h"  // busy rule: no flash job during a download
 
 #include <string.h>
 
@@ -46,12 +48,34 @@ static void do_flash_erase(void* param) {
     flash_range_erase(p->offset, p->len);
 }
 
+// Program len bytes as one flash_safe_execute call for each 256-byte page
+// (FSK open item B). One IRQ-off window is one page program (about
+// 0.6 ms), not a 4 KB sector (about 9 ms). The gate times each page, so
+// the [FLASH] program max_us is the largest single window. IRQs and the
+// QF tick run between the pages. len must be whole pages, at most one
+// sector (all callers: flush sector, flight-table sector).
 static bool safe_flash_write(uint32_t offset, const uint8_t* data, size_t len) {
-    flash_write_params params = {.offset = offset, .data = data, .len = len};
-    const uint64_t t0 = flash_gate_begin();
-    const int r = flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs);
-    flash_gate_end(FlashOpType::kProgram, t0, r);
-    return r == PICO_OK;
+    static constexpr uint32_t kMaxPages = FLASH_SECTOR_SIZE / FLASH_PAGE_SIZE;
+    if ((len % FLASH_PAGE_SIZE) != 0U) {
+        return false;
+    }
+    const uint32_t pages = flash_program_chunk_count(static_cast<uint32_t>(len),
+                                                     FLASH_PAGE_SIZE);
+    if (pages > kMaxPages) {
+        return false;
+    }
+    for (uint32_t i = 0; i < pages; ++i) {
+        const uint32_t pos = i * FLASH_PAGE_SIZE;
+        flash_write_params params = {.offset = offset + pos, .data = data + pos,
+                                     .len = FLASH_PAGE_SIZE};
+        const uint64_t t0 = flash_gate_begin();
+        const int r = flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs);
+        flash_gate_end(FlashOpType::kProgram, t0, r);
+        if (r != PICO_OK) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool safe_flash_erase(uint32_t offset, size_t len) {
@@ -199,29 +223,12 @@ bool flight_table_save(FlightTableState* state) {
     return true;
 }
 
-bool flight_table_erase_flash() {
-    if (!safe_flash_erase(kFlightTableSectorA, FLASH_SECTOR_SIZE)) {
-        return false;
-    }
-    return safe_flash_erase(kFlightTableSectorB, FLASH_SECTOR_SIZE);
-}
+// ============================================================================
+// Erase all flights (CLI 'x'): one flash operation each AO_RCOS tick
+// ============================================================================
 
-bool flight_log_erase_all(const FlightTableState* table) {
-    // Only erase sectors that have been used (0 to next_free_sector)
-    uint32_t first_sector = kFlightLogStart / kFlashSectorSize;
-    uint32_t used_end = (table != nullptr) ?
-        flight_table_next_free_sector(table) : first_sector + kFlightLogSectors;
-    uint32_t count = (used_end > first_sector) ? (used_end - first_sector) : 0;
-
-    for (uint32_t i = 0; i < count; ++i) {
-        uint32_t offset = kFlightLogStart + i * kFlashSectorSize;
-        if (!safe_flash_erase(offset, FLASH_SECTOR_SIZE)) {
-            return false;
-        }
-        pio_watchdog_feed();
-    }
-    return true;
-}
+static ErasePlan g_erasePlan{};
+static FlightTableState* g_eraseTable = nullptr;
 
 // ============================================================================
 // Ring → Flash flush engine
@@ -321,7 +328,7 @@ FlushResult flush_job_begin(RingBuffer* rb,
                             const FlightMetadata* metadata,
                             const FlightSummary* summary,
                             uint8_t log_rate_hz) {
-    if (g_flushJob.active) {
+    if (g_flushJob.active || g_erasePlan.active || download_job_active()) {
         return FlushResult::kBusy;
     }
     if (rb == nullptr || !rb->initialized || table == nullptr || !table->loaded) {
@@ -417,6 +424,65 @@ bool flush_job_active() {
 
 uint32_t flush_job_stored() {
     return g_flushJob.stored;
+}
+
+FlushResult erase_job_begin(FlightTableState* table) {
+    if (table == nullptr || !table->loaded) {
+        return FlushResult::kNotInitialized;
+    }
+    const uint32_t first_sector = kFlightLogStart / kFlashSectorSize;
+    const EraseLayout layout = {
+        kFlightTableSectorA, kFlightTableSectorB, kFlightLogStart,
+        kFlashSectorSize,
+        erase_log_sector_count(first_sector, flight_table_next_free_sector(table))};
+    if (erase_plan_begin(g_erasePlan, layout,
+                         g_flushJob.active || download_job_active()) != EraseBegin::kOk) {
+        return FlushResult::kBusy;
+    }
+    g_eraseTable = table;
+    return FlushResult::kOk;
+}
+
+FlushStep erase_job_step() {
+    const EraseOp op = erase_plan_op(g_erasePlan);
+    bool ok = false;
+    FlushResult fail = FlushResult::kEraseError;
+    switch (op.kind) {
+    case EraseOpKind::kTableSector:
+    case EraseOpKind::kLogSector:
+        ok = safe_flash_erase(op.offset, FLASH_SECTOR_SIZE);
+        break;
+    case EraseOpKind::kTableReset:
+        flight_table_erase_all(g_eraseTable);
+        g_eraseTable->loaded = true;
+        ok = flight_table_save(g_eraseTable);
+        fail = FlushResult::kTableSaveError;
+        break;
+    case EraseOpKind::kNone:
+    default:
+        return {FlushResult::kNotInitialized, true};
+    }
+    pio_watchdog_feed();
+    const bool ended = erase_plan_advance(g_erasePlan, ok);
+    if (!ok) {
+        return {fail, true};
+    }
+    return {FlushResult::kOk, ended};
+}
+
+bool erase_job_active() {
+    return g_erasePlan.active;
+}
+
+void erase_job_abort() {
+    erase_plan_abort(g_erasePlan);
+}
+
+EraseProgress erase_job_progress() {
+    EraseProgress pr = {erase_plan_done(g_erasePlan), g_erasePlan.total,
+                        g_erasePlan.layout.log_sectors, false};
+    pr.report = erase_plan_progress_due(g_erasePlan);
+    return pr;
 }
 
 } // namespace rc

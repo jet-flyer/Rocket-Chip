@@ -435,7 +435,9 @@ bool rc_os_update() {
         return true;
     }
 
-    if (AO_RCOS_cal_active()) {
+    // A cal or prompt state reads its own keys. The 'l' and 'x' flash jobs
+    // do not, so keys go to dispatch_key and the busy rules reply.
+    if (AO_RCOS_ui_owns_keys()) {
         return false;
     }
 

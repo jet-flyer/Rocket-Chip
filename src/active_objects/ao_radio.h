@@ -67,6 +67,10 @@ struct RadioAoState {
 
 const RadioAoState* AO_Radio_get_state();
 
+// Debug 'w': packet RSSI/SNR (count, min/mean/max) for chip-CRC-good and
+// PayloadCrcErr packets, software CRC-16 failures, carrier frequency.
+void AO_Radio_rx_quality_dump();
+
 // True while a send is in flight. Telemetry must not drain a COP-P AD
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();

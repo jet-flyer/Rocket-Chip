@@ -2,7 +2,8 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // PSRAM/SRAM ring buffer → flash flush engine + flight table I/O
 // Sector-by-sector flush: reads frames from ring buffer, packs into
-// 4KB sectors, erases + programs flash via flash_safe_execute().
+// 4KB sectors, erases + programs flash via flash_safe_execute(). Each
+// program is one flash_safe_execute call for each 256-byte page.
 // The caller does one sector for each call (one AO_RCOS tick), so the
 // QV loop runs between sectors. Watchdog kicked after each sector.
 // xip_cache_clean_all() before flush (write-back dirty PSRAM cache lines).
@@ -30,7 +31,7 @@ enum class FlushResult : uint8_t {
     kWriteError,          // flash_safe_execute program failed
     kTableSaveError,      // Flight table save failed
     kNotInitialized,      // Ring buffer or table not ready
-    kBusy,                // A flush job is already in progress
+    kBusy,                // A flush, erase, or download job is in progress
 };
 
 // Result of one flush_job_step call. done: the job ended (result tells how).
@@ -48,12 +49,34 @@ bool flight_table_load(FlightTableState* state);
 
 bool flight_table_save(FlightTableState* state);
 
-// Used by CLI 'E' erase-all command after flight_table_erase_all().
-bool flight_table_erase_flash();
+// ============================================================================
+// Erase all flights (CLI 'x'), one flash operation for each call
+// ============================================================================
+// Order (logging/flash_job_plan.h): table sector A, table sector B, RAM
+// table reset + save, then each used log sector. AO_RCOS calls
+// erase_job_step one time each tick. The ring buffer is not touched.
 
-// Non-null table: erase used sectors [0, next_free). Null: all log sectors.
-// pio_watchdog_feed between sectors.
-bool flight_log_erase_all(const FlightTableState* table);
+struct EraseProgress {
+    uint32_t done;         // Steps done
+    uint32_t total;        // All steps
+    uint32_t log_sectors;  // Log sectors in the job
+    bool report;           // A new tenth is done: print progress
+};
+
+// kOk: the job started. kBusy: a flush or an erase is in progress.
+// kNotInitialized: no loaded table.
+FlushResult erase_job_begin(FlightTableState* table);
+
+// One operation. done with kOk: all flights erased. An error ends the job.
+FlushStep erase_job_step();
+
+bool erase_job_active();
+
+// Stop before the next operation (the table on flash stays valid).
+void erase_job_abort();
+
+// Progress for the job in progress (or the last job).
+EraseProgress erase_job_progress();
 
 // ============================================================================
 // Ring → Flash flush
@@ -72,6 +95,7 @@ bool flight_log_erase_all(const FlightTableState* table);
 // 6. ring_reset()
 // The caller must stop ring pushes from begin until the step that is done
 // (AO_Logger_set_ring_hold). kOk from begin: the job started.
+// kBusy if a flush or an erase job is in progress.
 FlushResult flush_job_begin(RingBuffer* rb,
                             FlightTableState* table,
                             const FlightMetadata* metadata,
