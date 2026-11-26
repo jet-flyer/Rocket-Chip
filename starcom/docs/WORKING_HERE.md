@@ -134,7 +134,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. **Major pushes only** (see its scope note and `TESTING.md`). | Live |
 | [`VERSIONING.md`](../VERSIONING.md) | SemVer + `STARCOM_VERSION` SSOT. Generated `version.h`. | Live 2026-08-27 |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
-| [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
+| [`LICENSE`](../LICENSE) | Library license: GPL-3.0-or-later, same as Rocket Chip (root LICENSE). | Set (Nathan, 2026-11-25) |
 | [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. | Historical |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Historical — DESIGN.md is the freeze |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
