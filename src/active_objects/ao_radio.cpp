@@ -30,6 +30,7 @@
 #include "diag/radio_rate_counters.h"
 #include "diag/link_baseline.h"
 #include "logging/flash_gate.h"  // FSK item 2: RX poll-gap tracker
+#include "diag/rx_quality_stats.h"  // FSK open item C: CRC-fail RSSI/SNR
 #if defined(ROCKETCHIP_DEV_MODE)
 #include "radio_tx_force.h"
 #endif
@@ -496,6 +497,13 @@ static uint16_t extract_ccsds_seq(const uint8_t* buf) {
         ((buf[2] & 0x3F) << 8) | buf[3]);
 }
 
+// FSK open item C: packet RSSI/SNR for chip-CRC-good packets and for
+// PayloadCrcErr packets, plus the software CRC-16 failure count. Core 0,
+// AO_Radio only. rx_crc_errors still counts both kinds of CRC failure.
+static rc::RxQuality g_rxqOk{};
+static rc::RxQuality g_rxqCrcErr{};
+static uint32_t g_swCrc16Fail = 0;
+
 // Track received packet metadata. CCSDS CRC checked if packet looks like CCSDS.
 // Non-CCSDS packets (MAVLink commands) are passed through — AO_Telemetry decides.
 static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len) {
@@ -515,6 +523,7 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
             s.rx_crc_errors++;
+            g_swCrc16Fail++;
             link_baseline_note_crc_fail();
             if constexpr (job::kRadioModeRx) {
                 radio_rate_inc_rx_crc_fail();
@@ -552,8 +561,19 @@ static void handle_rx_poll(RadioAo* me) {
     if (len == 0) {
         s.rx_crc_errors++;  // empty/CRC-fail RxDone is not counted by the driver
         link_baseline_note_crc_fail();
+        if (s.radio.last_crc_err) {
+            rc::rx_quality_note(g_rxqCrcErr, s.radio.crc_err_rssi,
+                                s.radio.crc_err_snr);
+            // One line for each chip CRC error, to line up bursts with time.
+            rc::rc_log("[CRCERR] t_ms=%lu rssi=%d snr=%d n=%lu\n",
+                       static_cast<unsigned long>(now_ms()),
+                       static_cast<int>(s.radio.crc_err_rssi),
+                       static_cast<int>(s.radio.crc_err_snr),
+                       static_cast<unsigned long>(g_rxqCrcErr.rssi.n));
+        }
         return;
     }
+    rc::rx_quality_note(g_rxqOk, rfm95w_rssi(&s.radio), s.radio.last_snr);
 
     // Stage T — capture state at arrival BEFORE validate (we want CRC errors).
     bool state_at_rx = s.tx_active;
@@ -845,6 +865,24 @@ static QState radio_ao_running(RadioAo * const me, QEvt const * const e) {
 // ============================================================================
 
 QActive * const AO_Radio = &g_radioAo.super;
+
+static void print_rxq(const char* name, const rc::RxQuality& q) {
+    rc::rc_log("[RXQ] %s n=%lu rssi=%d/%d/%d snr=%d/%d/%d (min/mean/max)\n", name,
+               static_cast<unsigned long>(q.rssi.n),
+               static_cast<int>(q.rssi.min), static_cast<int>(rc::rx_qual_mean(q.rssi)),
+               static_cast<int>(q.rssi.max),
+               static_cast<int>(q.snr.min), static_cast<int>(rc::rx_qual_mean(q.snr)),
+               static_cast<int>(q.snr.max));
+}
+
+void AO_Radio_rx_quality_dump() {
+    print_rxq("chip_crc_ok", g_rxqOk);
+    print_rxq("chip_crc_err", g_rxqCrcErr);
+    rc::rc_log("[RXQ] sw_crc16_fail=%lu rx_crc_errors=%lu freq_hz=%lu\n",
+               static_cast<unsigned long>(g_swCrc16Fail),
+               static_cast<unsigned long>(g_radioAo.state.rx_crc_errors),
+               static_cast<unsigned long>(rfm95w_carrier_hz()));
+}
 
 const RadioAoState* AO_Radio_get_state() {
     return &g_radioAo.state;

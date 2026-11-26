@@ -8,6 +8,7 @@
 #if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
 
 #include "logging/flash_gate.h"
+#include "logging/flash_flush.h"  // flush/erase job busy check
 #include "logging/flight_table.h"
 #include "rocketchip/flash_layout.h"
 #include "rocketchip/shared_state.h"  // core1_i2c_pause/resume (R-17)
@@ -168,6 +169,10 @@ void flash_scratch_toggle() {
     }
     if (!AO_FlightDirector_is_ground_state()) {
         rc::rc_log("[SCRATCH] refused: not ground state\n");
+        return;
+    }
+    if (flush_job_active() || erase_job_active()) {
+        rc::rc_log("[SCRATCH] refused: flush or erase job in progress\n");
         return;
     }
     const FlightTableState* ft = AO_Logger_get_flight_table();

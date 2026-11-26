@@ -134,7 +134,7 @@ static void cmd_radio_config_cycle() {
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
 #include "logging/flight_log_layout.h"
-#include "logging/crc32.h"
+#include "logging/flight_download.h"  // 'd' download job
 #include "safety/pio_watchdog.h"
 #include "flight_director/flight_director.h"  // flight_director_launch_abort()
 #include "flight_director/flight_state.h"
@@ -157,7 +157,6 @@ static constexpr float kFullCircleDeg = 360.0F;
 static constexpr double kGpsCoordScale = 1e7;
 static constexpr float kGpsCountsToDegrees = 1.0F / static_cast<float>(kGpsCoordScale);
 // Erase/download input constants removed — blocking input now in AO_RCOS.
-static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
 
@@ -840,7 +839,8 @@ void cli_print_hw_status() {
     hw_validate_sensors();
 
     if (AO_Radio_get_state()->initialized) {
-        rc::rc_log("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
+        rc::rc_log("[PASS] Radio: RFM95W LoRa %lu kHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
+               static_cast<unsigned long>(rfm95w_carrier_hz() / 1000U),
                board::kRadioCsPin, board::kRadioRstPin,
                board::kRadioIrqPin);
         if constexpr (job::kRadioModeRx) {
@@ -1201,7 +1201,7 @@ void cmd_flush_log() {
         rc::rc_log("No frames in ring buffer.\n");
         return;
     }
-    if (AO_RCOS_cal_active() || rc::flush_job_active()) {
+    if (AO_RCOS_cal_active() || rc::flush_job_active() || rc::erase_job_active()) {
         rc::rc_log("Busy. Try again.\n");
         return;
     }
@@ -1259,40 +1259,75 @@ bool cmd_flush_log_step() {
     return true;
 }
 
-// Erase confirmation prompt + input now in AO_RCOS (non-blocking).
-// This function is the completion callback — does the actual erase.
-void cli_do_erase_flights() {
+// 'x' after the "yes" confirm (AO_RCOS kEraseConfirm). Starts the erase
+// job. AO_RCOS then calls cmd_erase_flights_step one time each tick, so
+// one sector erase (45-75 ms) stalls Core 0 for one tick only.
+// Returns true if the job started.
+bool cli_do_erase_flights() {
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    rc::rc_log("Erasing flight log sectors...\n");
-    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op chain
-    // to prevent the LL-31 race (in-flight I2C transactions corrupted by
-    // multicore_lockout). See R-11 SPIN model + ao_rcos.cpp cal_save_to_flash
-    // for the same pattern.
-    rc::core1_i2c_pause();
-    bool ok = true;
-    if (!rc::flight_log_erase_all(ft)) {
-        rc::rc_log("Flash erase error.\n");
-        ok = false;
-    } else if (!rc::flight_table_erase_flash()) {
-        rc::rc_log("Table erase error.\n");
-        ok = false;
-    } else {
-        rc::flight_table_erase_all(ft);
-        ft->loaded = true;
-        rc::flight_table_save(ft);
-        rc::rc_log("All flights erased.\n");
+    const rc::FlushResult r = rc::erase_job_begin(ft);
+    if (r == rc::FlushResult::kBusy) {
+        rc::rc_log("Busy. Try again.\n");
+        return false;
     }
+    if (r != rc::FlushResult::kOk) {
+        rc::rc_log("Flight table not loaded.\n");
+        return false;
+    }
+    const rc::EraseProgress pr = rc::erase_job_progress();
+    rc::rc_log("Erasing flights: table + %lu log sectors, one each tick...\n",
+               (unsigned long)pr.log_sectors);
+    return true;
+}
 
-    // R-15 (2026-05-07 audit): per LL Entry 31, every runtime flash_safe_execute()
-    // must be followed by i2c_master_reset() — matches ao_rcos.cpp cal_save
-    // protocol. Even on partial failure above, flash_safe_execute() ran
-    // for some sectors before bailing, so the reset is required regardless of ok.
-    (void)ok;
+// One erase step (one flash operation). AO_RCOS calls it from its tick.
+// Returns true when the job ended.
+bool cmd_erase_flights_step() {
+    // Never erase while ARMED or in flight. The table goes first, so a
+    // stop here leaves a valid table (logging/flash_job_plan.h).
+    if (!AO_FlightDirector_is_ground_state()) {
+        rc::erase_job_abort();
+        rc::rc_log("Erase stopped: not ground state. Do 'x' again on the ground.\n");
+        return true;
+    }
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op to
+    // prevent the LL-31 race (in-flight I2C transactions corrupted by
+    // multicore_lockout). The pause is for this step only.
+    rc::core1_i2c_pause();
+
+    const rc::FlushStep step = rc::erase_job_step();
+
+    // R-15 (2026-05-07 audit): per LL Entry 31, every runtime
+    // flash_safe_execute() must be followed by i2c_master_reset(), on
+    // each result (same as cal_save_to_flash and cmd_flush_log_step).
     if (!i2c_master_reset()) {
         rc::rc_log("[WARN] I2C master reset failed after erase\n");
     }
     // R-17: resume Core 1 sensor reads.
     rc::core1_i2c_resume();
+
+    const rc::EraseProgress pr = rc::erase_job_progress();
+    if (!step.done) {
+        if (pr.report) {
+            rc::rc_log("Erase %lu/%lu\n", (unsigned long)pr.done,
+                       (unsigned long)pr.total);
+        }
+        return false;
+    }
+    switch (step.result) {
+    case rc::FlushResult::kOk:
+        rc::rc_log("All flights erased (%lu log sectors).\n",
+                   (unsigned long)pr.log_sectors);
+        break;
+    case rc::FlushResult::kTableSaveError:
+        rc::rc_log("Table erase error.\n");
+        break;
+    default:
+        rc::rc_log("Flash erase error (step %lu/%lu).\n",
+                   (unsigned long)(pr.done + 1U), (unsigned long)pr.total);
+        break;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -1332,83 +1367,6 @@ void cmd_list_flights() {
 // read_flight_number() removed — blocking input now in AO_RCOS (non-blocking).
 // Flight number input via AO_RCOS_start_download_flight() → cal_ui_handle_flight_num().
 
-// USB download write bound. The PIO watchdog trips ~2 s after its last feed
-// (pio_watchdog.h: countdown kPioWatchdogCountdown, 3 PIO cycles per step at
-// 1 MHz). The download feeds it only when the host accepts bytes, so a host
-// that holds the port open and stops reading ends the download after this
-// long, well inside the watchdog period, instead of hanging the main loop.
-static constexpr uint32_t kCdcNoProgressTimeoutUs = 1000000U;
-static constexpr uint32_t kPioWatchdogCyclesPerStep = 3U;
-static_assert(kCdcNoProgressTimeoutUs <
-                  rc::kPioWatchdogCountdown * kPioWatchdogCyclesPerStep,
-              "download stall bound must be shorter than the PIO watchdog");
-
-enum class CdcWriteResult : uint8_t {
-    kOk,
-    kDisconnected,  // host closed the port (DTR dropped)
-    kStalled,       // no bytes accepted for kCdcNoProgressTimeoutUs
-};
-
-// Binary download path: waits for CDC backpressure rather than dropping
-// (operator wants complete data), but gives up on disconnect or a stall.
-static CdcWriteResult cdc_write_bounded(const uint8_t* buf, uint32_t len) {
-    uint32_t written = 0;
-    uint32_t last_progress_us = time_us_32();
-    while (written < len) {
-        if (!tud_cdc_connected()) {
-            return CdcWriteResult::kDisconnected;
-        }
-        uint32_t avail = tud_cdc_write_available();
-        uint32_t accepted = 0;
-        if (avail > 0) {
-            uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
-            accepted = tud_cdc_write(buf + written, chunk);
-        }
-        if (accepted > 0) {
-            written += accepted;
-            last_progress_us = time_us_32();
-            rc::pio_watchdog_feed();
-        } else if (time_us_32() - last_progress_us >= kCdcNoProgressTimeoutUs) {
-            return CdcWriteResult::kStalled;
-        }
-    }
-    return CdcWriteResult::kOk;
-}
-
-struct FlightStreamResult {
-    CdcWriteResult status;
-    uint32_t crc;           // valid only when status == kOk
-    uint32_t frames_sent;   // whole sector runs fully handed to USB
-};
-
-// Frame positions come from flight_log_layout.h, the layout flush_sectors
-// wrote: sector 0 starts with the FlightLogHeader, which is not sent.
-static FlightStreamResult stream_flight_binary(const rc::FlightLogEntry& entry) {
-    const uint8_t* xip_base = reinterpret_cast<const uint8_t*>(
-        XIP_BASE + entry.start_sector * rc::kFlashSectorSize);
-
-    uint32_t running_crc = kCrc32InitXor;
-    uint32_t frames_sent = 0;
-
-    while (frames_sent < entry.frame_count) {
-        const rc::FlightLogRun run = rc::flight_log_run_at(
-            frames_sent, entry.frame_count, entry.frame_size);
-        const uint8_t* src = xip_base + run.offset;
-        const uint32_t run_bytes = run.frames * entry.frame_size;
-
-        CdcWriteResult w = cdc_write_bounded(src, run_bytes);
-        if (w != CdcWriteResult::kOk) {
-            return FlightStreamResult{w, 0U, frames_sent};
-        }
-
-        running_crc = rc::crc32_update(running_crc, src, run_bytes);
-        frames_sent += run.frames;
-        rc::pio_watchdog_feed();
-    }
-    return FlightStreamResult{CdcWriteResult::kOk,
-                              running_crc ^ kCrc32InitXor, frames_sent};
-}
-
 // Entry fields come from the CRC-checked table, but a bad frame size would
 // divide by zero in the layout and a bad range would read outside the log
 // region, so check both before touching flash.
@@ -1426,54 +1384,42 @@ static bool flight_entry_layout_ok(const rc::FlightLogEntry& entry) {
            entry.sector_count;
 }
 
-// Download prompt + flight number input now in AO_RCOS (non-blocking).
-// This function is the completion callback — does the actual download.
-// Ends with RCEND:<crc32> on success, or RCERR:<reason>:<frames_sent> if the
-// host stopped reading or disconnected.
-void cli_do_download_flight(int num) {
-    // The download blocks the main loop for its whole length. Only on the
-    // pad: an armed or flying vehicle must keep running its AOs.
-    if (!AO_FlightDirector_is_ground_state()) {
-        rc::rc_log("Download refused: vehicle is not in IDLE. Disarm first.\n");
-        return;
-    }
-
+// Download prompt + flight number input are in AO_RCOS (non-blocking).
+// This starts the download job (logging/flight_download.h). AO_RCOS then
+// calls download_job_step one time each tick. Wire output: the RCBIN
+// line, the payload, then RCEND:<crc32>, or RCERR:<reason>:<frames_sent>
+// if the host disconnects or stops reading. Returns true if the job
+// started.
+bool cli_do_download_flight(int num) {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     uint32_t count = rc::flight_table_count(ft);
     if (num < 1 || static_cast<uint32_t>(num) > count) {
         rc::rc_log("Invalid flight number.\n");
-        return;
+        return false;
     }
 
     rc::FlightLogEntry entry = {};
     if (!rc::flight_table_get_entry(ft, static_cast<uint32_t>(num - 1),
                                      &entry)) {
         rc::rc_log("Failed to read flight entry.\n");
-        return;
+        return false;
     }
     if (!flight_entry_layout_ok(entry)) {
         rc::rc_log("Flight entry has an invalid layout; not downloading.\n");
-        return;
+        return false;
     }
 
-    rc::rc_log("RCBIN:%d:%lu:%u:%lu\n",
-           num,
-           (unsigned long)entry.frame_count,
-           (unsigned)entry.log_rate_hz,
-           (unsigned long)entry.frame_size);
-
-    const FlightStreamResult r = stream_flight_binary(entry);
-    switch (r.status) {
-    case CdcWriteResult::kOk:
-        rc::rc_log("RCEND:%08lX\n", (unsigned long)r.crc);
-        break;
-    case CdcWriteResult::kStalled:
-        rc::rc_log("\nRCERR:STALL:%lu\n", (unsigned long)r.frames_sent);
-        break;
-    case CdcWriteResult::kDisconnected:
-        rc::rc_log("\nRCERR:DISCONNECT:%lu\n", (unsigned long)r.frames_sent);
-        break;
+    const rc::DownloadBegin begin =
+        rc::download_job_begin(entry, static_cast<uint32_t>(num));
+    if (begin == rc::DownloadBegin::kBusy) {
+        rc::rc_log("Busy. Try again.\n");
+        return false;
     }
+    if (begin != rc::DownloadBegin::kOk) {
+        rc::rc_log("Flight entry has an invalid layout; not downloading.\n");
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================

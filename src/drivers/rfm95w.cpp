@@ -29,7 +29,15 @@ static constexpr uint32_t kModeSettleMs = 10;
 // Default 915 MHz. Power default is kDefaultTxPowerDbm.
 // Operator/legal SSOT is standards/RF_COMPLIANCE.md
 // (FCC Part 15.247 US ISM). Not a compliance guarantee.
+// Bench override: CMake -DRC_RADIO_FREQ_HZ=<Hz> (CRC-burst channel A/B).
+// Limits keep a BW500 channel (+/-250 kHz) plus 50 kHz inside 902-928 MHz.
+#if defined(ROCKETCHIP_RADIO_FREQ_HZ)
+static constexpr uint32_t kDefaultFreqHz = ROCKETCHIP_RADIO_FREQ_HZ;
+#else
 static constexpr uint32_t kDefaultFreqHz = 915000000U;
+#endif
+static_assert((kDefaultFreqHz >= 902300000U) && (kDefaultFreqHz <= 927700000U),
+              "RC_RADIO_FREQ_HZ outside 902.3-927.7 MHz (902-928 MHz ISM, BW500 edge)");
 
 // SX1276 crystal oscillator frequency (datasheet Section 3)
 static constexpr uint64_t kFxoscHz = 32000000ULL;
@@ -159,6 +167,9 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     dev->mode        = rfm95w::mode::kSleep;
     dev->last_rssi   = 0;
     dev->last_snr    = 0;
+    dev->last_crc_err = false;
+    dev->crc_err_rssi = 0;
+    dev->crc_err_snr  = 0;
     dev->tx_power_allow_20 = kRfm95Allow20DbmDefault;
 #if defined(ROCKETCHIP_DEV_MODE)
     dev->force_tx_timeout = false;
@@ -300,8 +311,16 @@ uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len) {
     // Clear all IRQ flags
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
 
-    // Check for CRC error
-    if (irq_flags & rfm95w::irq::kPayloadCrcErr) {
+    // Check for CRC error. The packet RSSI/SNR registers hold the values
+    // of this packet (SX1276 5.5.5); read them for the CRC-fail stats.
+    dev->last_crc_err = (irq_flags & rfm95w::irq::kPayloadCrcErr) != 0;
+    if (dev->last_crc_err) {
+        const uint8_t bad_rssi = spi_bus_read_reg(dev->cs_pin,
+                                                  rfm95w::reg::kPktRssiValue);
+        const int8_t bad_snr = static_cast<int8_t>(
+            spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPktSnrValue));
+        dev->crc_err_rssi = static_cast<int16_t>(kRssiOffsetHf + bad_rssi);
+        dev->crc_err_snr = static_cast<int8_t>(bad_snr / kSnrDivisor);
         return 0;
     }
 
@@ -390,6 +409,10 @@ int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev) {
     const uint8_t pa_config = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaConfig);
     const uint8_t pa_dac = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaDac);
     return rfm95w_decode_tx_power_dbm(pa_config, pa_dac);
+}
+
+uint32_t rfm95w_carrier_hz() {
+    return kDefaultFreqHz;
 }
 
 int16_t rfm95w_rssi(const rfm95w_t* dev) {

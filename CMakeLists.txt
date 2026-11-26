@@ -414,6 +414,7 @@ else()
         src/diag/link_baseline.cpp        # baseline LINK line (CLI t)
         src/diag/flash_stall_stats.cpp    # FSK item 2: flash stall histogram (host-tested)
         src/diag/tick_skip.cpp            # QF tick skip after a stall (host-tested)
+        src/diag/rx_quality_stats.cpp     # CRC-fail vs good packet RSSI/SNR (host-tested)
         src/diag/qf_tick.cpp              # 100 Hz QF tick alarm (bsp_qv.c QF_onStartup)
 
         # -------------------------------------------------------------------------
@@ -465,6 +466,8 @@ else()
         src/logging/flight_table.cpp
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
+        src/logging/flash_job_plan.cpp
+        src/logging/flight_download.cpp   # 'd' download job, one USB step each tick
         src/logging/psram_init.cpp
         src/logging/flash_gate.cpp        # FSK item 2: flash_safe_execute timing + poll gaps
         src/logging/flash_scratch.cpp     # FSK item 2: scratch loop (empty unless option ON)
@@ -586,6 +589,8 @@ else()
         src/logging/flight_table.cpp
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
+        src/logging/flash_job_plan.cpp
+        src/logging/flight_download.cpp   # 'd' download job, one USB step each tick
         src/logging/psram_init.cpp
         src/logging/flash_gate.cpp                  # FSK item 2
         src/logging/flash_scratch.cpp               # FSK item 2 (test build only)
@@ -609,6 +614,7 @@ else()
         src/diag/link_baseline.cpp                  # baseline LINK line (CLI t)
         src/diag/flash_stall_stats.cpp              # FSK item 2: flash stall histogram
         src/diag/tick_skip.cpp                      # QF tick skip after a stall
+        src/diag/rx_quality_stats.cpp               # CRC-fail vs good packet RSSI/SNR
         src/diag/qf_tick.cpp                        # 100 Hz QF tick alarm
         src/math/vec3.cpp
         src/math/quat.cpp
@@ -818,6 +824,20 @@ else()
     if(ROCKETCHIP_FLASH_STALL_SCRATCH)
         target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_FLASH_STALL_SCRATCH=1)
         message(STATUS "ROCKETCHIP_FLASH_STALL_SCRATCH: ON (TEST BUILD: scratch flash loop, smaller log region)")
+    endif()
+
+    # Bench channel override (CRC-burst A/B on a second channel). Default
+    # 915000000 adds no define, so normal images do not change. Set the
+    # same value on the vehicle and the station. Limits: 902.3-927.7 MHz
+    # (BW500 edge, standards/RF_COMPLIANCE.md); rfm95w.cpp asserts it too.
+    set(RC_RADIO_FREQ_HZ "915000000" CACHE STRING "LoRa carrier frequency in Hz (902300000-927700000)")
+    if(NOT RC_RADIO_FREQ_HZ MATCHES "^[0-9]+$"
+       OR RC_RADIO_FREQ_HZ LESS 902300000 OR RC_RADIO_FREQ_HZ GREATER 927700000)
+        message(FATAL_ERROR "RC_RADIO_FREQ_HZ=${RC_RADIO_FREQ_HZ} is not 902300000-927700000")
+    endif()
+    if(NOT RC_RADIO_FREQ_HZ STREQUAL "915000000")
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_RADIO_FREQ_HZ=${RC_RADIO_FREQ_HZ}U)
+        message(STATUS "RC_RADIO_FREQ_HZ: ${RC_RADIO_FREQ_HZ} (BENCH CHANNEL, not the 915 MHz default)")
     endif()
 
     # Single flight binary per role. Test affordances (fault_force_*, debug
