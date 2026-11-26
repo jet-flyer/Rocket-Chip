@@ -101,7 +101,12 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
                 input.mag_calibrated ? "GO" : "NO-GO NOT CALIBRATED");
     // Radio HW = SX1276 init / SPI reachable; RF Link = learned link state.
     // A board with no radio (logging-only tracker) is N/A, not a NO-GO.
-    if (!input.radio_fitted) {
+    // A radio-off bench build is labeled disabled, not a silent GO and
+    // not a hardware-init failure.
+    if (input.radio_disabled) {
+        add_station(r, 2, "Radio HW", true, "GO (disabled by build)");
+        add_station(r, 2, "RF Link", true, "GO (disabled by build)");
+    } else if (!input.radio_fitted) {
         add_station(r, 2, "Radio HW", true, "GO (not fitted)");
         add_station(r, 2, "RF Link", true, "GO (not fitted)");
     } else {

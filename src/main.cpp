@@ -209,11 +209,15 @@ static void init_peripherals() {
     // SPI bus + radio init (before USB per LL Entry 4/12)
     // Optional peripheral: absent FeatherWing detected at init time.
     // Skip pin mux when the pack has no radio (local-logging tracker).
+#if defined(ROCKETCHIP_RADIO_OFF)
+    g_spiInitialized = false;  // bench build: radio off, AO_Radio stays idle
+#else
     if constexpr (board::kRadioAvailable) {
         g_spiInitialized = spi_bus_init();
     } else {
         g_spiInitialized = false;
     }
+#endif
     // Radio hardware init moved to AO_Radio_start() — owns its own lifecycle.
 
     // Calibration storage init (before USB per LL Entry 4/12)

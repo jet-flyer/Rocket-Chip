@@ -814,6 +814,15 @@ static void print_led_hw_status() {
     }
 }
 
+#if defined(ROCKETCHIP_RADIO_OFF)
+// Same line on the USB connect banner (cli_print_boot_summary),
+// debug `b` (this function), radio status `t`, and station status.
+// DBG_PRINT in AO_Radio_start is before CDC is up (ao_radio.cpp).
+static void print_radio_disabled_by_build() {
+    rc::rc_log("[OFF ] Radio: disabled by build (ROCKETCHIP_RADIO_OFF), no Starcom MAC\n");
+}
+#endif
+
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
     rc::rc_log("  Build: %s %s %s (%s %s)\n",
@@ -838,6 +847,9 @@ void cli_print_hw_status() {
     hw_validate_i2c_devices();
     hw_validate_sensors();
 
+#if defined(ROCKETCHIP_RADIO_OFF)
+    print_radio_disabled_by_build();
+#else
     if (AO_Radio_get_state()->initialized) {
         rc::rc_log("[PASS] Radio: RFM95W LoRa %lu kHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
                static_cast<unsigned long>(rfm95w_carrier_hz() / 1000U),
@@ -856,6 +868,7 @@ void cli_print_hw_status() {
     } else if (g_spiInitialized) {
         rc::rc_log("[----] Radio: not detected (module unpopulated?)\n");
     }
+#endif
 
     print_psram_status();
     print_logging_status();
@@ -977,6 +990,9 @@ void cli_print_boot_summary() {
            rc::kDefaultRocketProfile.name,
            (unsigned long)(to_ms_since_boot(get_absolute_time()) / 1000));
     rc::rc_log("==============================================\n");
+#if defined(ROCKETCHIP_RADIO_OFF)
+    print_radio_disabled_by_build();
+#endif
 
     if (rc::flight_director_launch_abort()) {
         rc::rc_log("[WARN] LAUNCH ABORT — power cycle required to clear\n");
@@ -1111,7 +1127,11 @@ void cli_print_station_status() {
 
     rc::rc_log("\n=== RocketChip Station ===\n");
     if (!rs->initialized) {
+#if defined(ROCKETCHIP_RADIO_OFF)
+        print_radio_disabled_by_build();
+#else
         rc::rc_log("Radio: not initialized\n");
+#endif
         return;
     }
     {
@@ -1429,7 +1449,11 @@ bool cli_do_download_flight(int num) {
 void cmd_radio_status() {
     const auto* rs = AO_Radio_get_state();
     if (!rs->initialized) {
+#if defined(ROCKETCHIP_RADIO_OFF)
+        print_radio_disabled_by_build();
+#else
         rc::rc_log("Radio not initialized.\n");
+#endif
         return;
     }
 

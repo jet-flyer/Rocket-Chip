@@ -220,6 +220,37 @@ TEST_F(GoNoGoTest, RadioNotFittedIsGoNotNoGo) {
     EXPECT_TRUE(link);
 }
 
+TEST_F(GoNoGoTest, RadioDisabledByBuildIsLabeledNotSilentGoOrNoGo) {
+    // Fitted board, radio not up: without the flag this is T2 NO-GO NOT INIT.
+    // With radio_disabled, preflight must say disabled by build, not a
+    // silent radio GO and not a hardware failure.
+    GoNoGoInput gng = all_go_input();
+    gng.radio_fitted = true;
+    gng.radio_linked = false;
+    gng.rf_anchor_valid = false;
+    gng.radio_disabled = true;
+    GoNoGoResult r = go_nogo_evaluate(gng);
+
+    EXPECT_TRUE(r.all_go);
+    EXPECT_EQ(r.tier2_go, r.tier2_total);
+    bool radio = false;
+    bool link = false;
+    for (uint8_t i = 0; i < r.num_checks; ++i) {
+        if (strcmp(r.checks[i].name, "Radio HW") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (disabled by build)");
+            radio = true;
+        }
+        if (strcmp(r.checks[i].name, "RF Link") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (disabled by build)");
+            link = true;
+        }
+    }
+    EXPECT_TRUE(radio);
+    EXPECT_TRUE(link);
+}
+
 TEST_F(GoNoGoTest, PyroFittedIsReportedNotMonitored) {
     GoNoGoResult r = go_nogo_evaluate(all_go_input());
     bool found = false;

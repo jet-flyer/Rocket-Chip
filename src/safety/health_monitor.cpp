@@ -774,6 +774,9 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     gng->mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
     gng->radio_linked   = (g_health.secondary & kHealthRadioOk) != 0;
     gng->radio_fitted   = board::kRadioAvailable;
+#if defined(ROCKETCHIP_RADIO_OFF)
+    gng->radio_disabled = true;
+#endif
     gng->pyro_fitted    = board::kPyroAvailable;
 
     // Stage T Batch B IVP-T14: RF link-health for pre-arm check.

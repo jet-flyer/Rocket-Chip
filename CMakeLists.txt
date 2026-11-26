@@ -20,6 +20,11 @@ option(ROCKETCHIP_DEV_MODE
 option(ROCKETCHIP_FLASH_STALL_SCRATCH
     "Compile the flash stall scratch-page loop into the ELF (test build only)"
     OFF)
+# Bench isolation build: radio and Starcom MAC pump fully off. TEST/BENCH
+# ONLY. OFF adds no define, so normal images do not change. Never for flight.
+option(ROCKETCHIP_RADIO_OFF
+    "Bench build: radio and Starcom MAC pump disabled"
+    OFF)
 
 # Starcom is core RC air (COP-P + nav/cmd/ACK SDUs). Always nested.
 # Nested ctest stays in the library tree. Host adapters (UDP/file) are
@@ -824,6 +829,14 @@ else()
     if(ROCKETCHIP_FLASH_STALL_SCRATCH)
         target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_FLASH_STALL_SCRATCH=1)
         message(STATUS "ROCKETCHIP_FLASH_STALL_SCRATCH: ON (TEST BUILD: scratch flash loop, smaller log region)")
+    endif()
+
+    # Bench isolation build: radio fully off. No SPI/RFM95W init (so no
+    # SX1276 IRQ or polling) and no Starcom MAC pump. OFF adds no define,
+    # so normal images do not change. Never for flight.
+    if(ROCKETCHIP_RADIO_OFF)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_RADIO_OFF=1)
+        message(STATUS "ROCKETCHIP_RADIO_OFF: ON (BENCH BUILD: no radio, no Starcom MAC pump)")
     endif()
 
     # Bench channel override (CRC-burst A/B on a second channel). Default
