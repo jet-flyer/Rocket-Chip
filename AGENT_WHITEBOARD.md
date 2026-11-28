@@ -264,7 +264,7 @@ Design and ground-path options (Yamcs, network forwarding, SLE, XTCE): `starcom/
 - The gate vehicle flight-sim needs the DEV_MODE inject, so it cannot bench a field image.
 - `o` does not use the runtime `v` toggle (it has no `inject_allowed()` check), unlike inject and cal reset.
 - Later: (1) add a `ROCKETCHIP_DEV_MODE=OFF` cross-compile for both roles; (2) Buzz does a one-off bench of a field image: boot, preflight, radio link, and USB ARM refused.
-- Proposed milestone check: `docs/agents/SESSION_CHECKLIST.md` item 18, "Field-image check" (Session End: Milestone). Build both roles with `-DROCKETCHIP_DEV_MODE=OFF`, flash, Buzz checks boot, preflight, radio link and the USB ARM refusal, flash the dev images back, record it in the CHANGELOG. The item is proposed in `rc-stash-archive/session_checklist_6a.patch`; it is not in the checklist yet.
+- Proposed milestone check, "Field-image check" (Session End: Milestone), deferred to the SESSION_CHECKLIST audit (patch kept at `rc-stash-archive/session_checklist_6a.patch`). Build both roles with `-DROCKETCHIP_DEV_MODE=OFF`, flash, Buzz checks boot, preflight, radio link and the USB ARM refusal, flash the dev images back, record it in the CHANGELOG. It is not in the checklist yet.
 
 ### Analog FPV OSD for the Telestar expansion (Nathan, 2026-11-23)
 

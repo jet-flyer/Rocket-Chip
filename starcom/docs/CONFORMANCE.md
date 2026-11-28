@@ -31,7 +31,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | CLCW 32-bit field codec | 232.0-B-4 §4.2.1 | Full | In scope (MVP codecs) | Pack/unpack only. Lives in a USLP OCF later; still a pure codec now. Tests: `tests/unit/test_ocf.cpp`. |
 | COP-P procedures (FOP-P / FARM-P) | 211.0-B-6 §7 | Partial (211.0-B-6 DLL-125, DLL-131, DLL-133 Planned) | In scope (MVP + IVP 11 USLP VC) | Tables + `CoppEndpoint` / `coppInitUslp` (`tests/unit/test_copp.cpp`). SET V(R) persistent is MAC — increment 13. Not a whole-book 211.0-B-6 PICS tick (timing, segment reassembly, most Type-1 SPDUs are 0; see `COVERAGE.md`). No SC-NNN. Not demonstrated at shall level: 19 of 22 §7 shalls UNVERIFIED (audit 2026-10-29). |
 | COP-1 procedures (FOP-1 / FARM-1) | 232.1-B-2 | Full (implemented options) | In scope (MVP + IVP 10 Table 5-1 remainder) | FARM-1 Table 6-1 + FOP-1 E23/S4/S5/E29 + Resume E30–E34, E35–E39, LLIF E42 (`tests/unit/test_cop1.cpp`). LLIF E41, E43–E46 implemented (`src/ccsds/cop1.cpp` fop1Ad/Bc/BdAccept/Reject), not tested. Not TC 232.0-B-4 frames. No SC-NNN. |
-| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Partial | In scope (IVP 13 full module) | Owner pick 2026-08-27: full §6, not turnaround helper, not consumer-only. Tables 6-2–6-13 + SET V(R) 7.2.3.2. Annex B SET TX/RX/CONTROL/PL EXTENSIONS **octets** on hail, token, and 6-11 COMM_CHANGE (`tests/unit/test_mac.cpp`). No radio objects in the core. 211.1 fields not enacted. Not a whole-book 211.0-B-6 PICS tick (see `COVERAGE.md` gaps). No SC-NNN. Gaps (PICS M, not implemented; audit 2026-10-29 F-4..F-7): RECEIVING_SCID_BUFFER and SET RECEIVING SCID BUFFER (6.2.3.9, 6.3.3.1.7); RECEIVING_PCID_BUFFER (6.2.3.10); Test_Source source-SCID test and INVALID FRAME SOURCE (6.2.4.2, 6.6.1.2, Annex D); Comm_Change_Waiting_Period (6.2.4.7). Comm_Change_Lifetime (6.2.4.10) is Supported (211.0-B-6 DLL-153): Rocket Chip sets 2 repeats (`kCommChangeLifetime`, R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `366d70da`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). |
+| Prox-1 session / MAC / hailing | 211.0-B-6 §6 | Partial | In scope (IVP 13 full module) | Owner pick 2026-08-27: full §6, not turnaround helper, not consumer-only. Tables 6-2–6-13 + SET V(R) 7.2.3.2. Annex B SET TX/RX/CONTROL/PL EXTENSIONS **octets** on hail, token, and 6-11 COMM_CHANGE (`tests/unit/test_mac.cpp`). No radio objects in the core. 211.1 fields not enacted. Not a whole-book 211.0-B-6 PICS tick (see `COVERAGE.md` gaps). No SC-NNN. Gaps (PICS M, not implemented; audit 2026-10-29 F-4..F-7): RECEIVING_SCID_BUFFER and SET RECEIVING SCID BUFFER (6.2.3.9, 6.3.3.1.7); RECEIVING_PCID_BUFFER (6.2.3.10); Test_Source source-SCID test and INVALID FRAME SOURCE (6.2.4.2, 6.6.1.2, Annex D); Comm_Change_Waiting_Period (6.2.4.7). Comm_Change_Lifetime (6.2.4.10) is Supported (211.0-B-6 DLL-153): Rocket Chip sets 2 repeats (`kCommChangeLifetime`, R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `4780ecbb`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). |
 | Host UDP / file replay | — | Best effort (bearer) | In scope (IVP 15) | Port, no Blue Book claim. `replayPltuFile` / `udp_*` in `starcom::adapters`. No sockets in the core (`tests/unit/test_host_io.cpp`). No SC-NNN. |
 | Generic SPI/GPIO radio port | — | Best effort (bearer) | In scope (IVP 16) | Port, no Blue Book claim, not 211.1. `BusOps` + `radio_bus_shift_*` (`tests/unit/test_radio_bus.cpp`). No Pico SDK in `include/starcom`. RFM95W/LoRa is a later ISM adapter, not this row. No SC-NNN. |
 | PIO PLTU symbol pipe | — | Best effort (bearer) | In scope (IVP 17) | Port, no Blue Book PHY claim. `pioShiftOut` / `pioShiftIn` (`tests/unit/test_pio_port.cpp`). Same 0+1 PLTU octets. Not 211.1 PM. No `hardware/pio.h` in `include/starcom`. No SC-NNN. |
@@ -48,7 +48,7 @@ Book cites here are pointers. The Blue Book is the claim; this table is the inde
 | ChannelAccess service primitives | 211.2-B-3 Annex B | 0 | Stated deviation | I/O-free core API (encode / decode / hunt) per DESIGN.md (F-3). |
 | I/O sublayer and segment reassembly | 211.0-B-6 §4.4, §8 (DLL-37–51, 42/43) | 0 | Stated deviation | I/O-free core: the caller owns queues; DFC 01 unused (D-1). |
 | Receive-side source validation | 211.0-B-6 6.2.3.9, 6.2.3.10, 6.2.4.2, 6.3.3.1.7, 6.6.1.2, Annex D | 0 | Gap (MAC row Partial) | No RECEIVING_SCID/PCID buffers or Test_Source; receive checks destination SCID only (F-4..F-6). |
-| COMM_CHANGE timers | 211.0-B-6 6.2.4.7, 6.2.4.10, 4.2.2.5.4–4.2.2.5.5 | Partial | Gap (MAC row Partial) | F-7. Comm_Change_Lifetime (6.2.4.10) is Supported (211.0-B-6 DLL-153). Rocket Chip sets 2 repeats (R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `366d70da`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). `MacMib::comm_change_lifetime` is Comm_Change_Lifetime (6.2.4.10.2) as a repeat count. Default 0. Expiry: 4.2.2.5.4–4.2.2.5.5 (`halfExpiredMiss`, `halfExpiredS52`). Project-specific: `comm_change_failed` after E49 at Y=3 (`halfExpiredS52`). It exists only because of the echo gate (see "COMM_CHANGE echo"). Tests: `tests/unit/test_mac.cpp` `test_half_comm_change_lifetime_repeats`, `test_half_comm_change_token_aborts_at_lifetime`. Open: Comm_Change_Waiting_Period (6.2.4.7). |
+| COMM_CHANGE timers | 211.0-B-6 6.2.4.7, 6.2.4.10, 4.2.2.5.4–4.2.2.5.5 | Partial | Gap (MAC row Partial) | F-7. Comm_Change_Lifetime (6.2.4.10) is Supported (211.0-B-6 DLL-153). Rocket Chip sets 2 repeats (R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `4780ecbb`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). `MacMib::comm_change_lifetime` is Comm_Change_Lifetime (6.2.4.10.2) as a repeat count. Default 0. Expiry: 4.2.2.5.4–4.2.2.5.5 (`halfExpiredMiss`, `halfExpiredS52`). Project-specific: `comm_change_failed` after E49 at Y=3 (`halfExpiredS52`). It exists only because of the echo gate (see "COMM_CHANGE echo"). Tests: `tests/unit/test_mac.cpp` `test_half_comm_change_lifetime_repeats`, `test_half_comm_change_token_aborts_at_lifetime`. Open: Comm_Change_Waiting_Period (6.2.4.7). |
 | COMM_CHANGE echo (half duplex) | 211.0-B-6 Table 6-11 E63/E64, E68, E69 | Best effort | Stated deviation (Rocket Chip) | Book method: Table 6-11 E63/E64 (SET RECEIVER PARAMETERS before the request) and E68. Ours: E69 also sets Y=2, so the responder sends the COMM_CHANGE back (`src/ccsds/mac.cpp`, E69 block). While the caller waits at Y=3, the Rocket Chip adapter lets only that echo run E68 (`src/starcom_adapt/byte_pump.cpp`, `hop_wait`, `handle_air_frame`). The core E68 is unchanged. Reason: the current driver writes one modem configuration for TX and RX. The book method is deferred to the driver rewrite (FSK pre-plan step 3). Known gap: a lost echo splits the two ends (Rocket Chip R-37). The fallback needs the responder session kept across the apply, then E85 (Table 6-10) and a retune to the initial hail settings. The half-duplex retune is taken from Table 6-7 E82: Table 6-10 E85 omits it, and the caller rows E80 and E83 keep it. Informative support only: 210.0-G-2 2.3.4.2 (the responder listens with its default physical parameters). |
 | CARRIER_LOSS_TIMER (half duplex) | 211.0-B-6 6.2.4.6, 6.3.1.3, Table 6-10 E85 | Partial | Gap | Deviations: (1) A CARRIER_ACQUIRED true-to-false edge arms the timer, not the 6.3.1.3.2 conditions (`macSetCarrierAcquired`). (2) After an expiry outside S60 the timer stays spent and does not reload (`macTickCarrierLoss`). (3) No controller notify at E85 (note under 6.3.1.3.1). (4) Rocket Chip: a remote COMM_CHANGE apply restarts the session, so the timer does not run after a hop (R-37). |
 | Constant-rate C&S output | 211.2-B-3 §3.5.5 | Best effort | Open (bench) | FSK/LoRa bearer delivery rate not verified as constant R_cs (O-2). |
@@ -191,7 +191,7 @@ Each row has the key "211.0-B-6 DLL-n". The draft Pink Book 211.0-P-6.2 (April 2
 | PICS serial number | TBD (none issued) |
 | System conformance statement cross-reference | The claims table at the top of this file |
 | Implementation name | `starcom::ccsds`: V-3 codec, COP-P (`CoppEndpoint`), MAC (`MacSession`), PLCW and Annex B codecs |
-| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 4780ecbb. |
 | Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
 | Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
 | Supplier | Starcom (`starcom/` directory) |
@@ -450,7 +450,7 @@ O.1 For the Transfer Frame Data Field at least one must be chosen.
 | 211.0-B-6 DLL-150 | DLL-150 | Acquisition_Idle_Duration | 6.2.4.4 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables`. The MAC uses the duration. The C&S Idle PN pattern is not generated (see the "C&S Idle / Acquisition / Tail sequence" row, audit F-1). |
 | 211.0-B-6 DLL-151 | DLL-151 | Carrier_Loss_Timer_Duration | 6.2.4.6 | M |  | | Supported. `tests/unit/test_mac.cpp::test_carrier_loss_caller`. See DLL-81. |
 | 211.0-B-6 DLL-152 | DLL-152 | Carrier_Only_Duration | 6.2.4.3 | M |  | | Supported. `tests/unit/test_mac.cpp::test_full_hail_tables` |
-| 211.0-B-6 DLL-153 | DLL-153 | Comm_Change_Lifetime | 6.2.4.10 | M |  | | Supported. Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `366d70da`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). `tests/unit/test_mac.cpp::test_half_comm_change_lifetime_repeats`; `tests/unit/test_mac.cpp::test_half_comm_change_token_aborts_at_lifetime`. A repeat count (6.2.4.10.2). Default 0. |
+| 211.0-B-6 DLL-153 | DLL-153 | Comm_Change_Lifetime | 6.2.4.10 | M |  | | Supported. Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `4780ecbb`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). `tests/unit/test_mac.cpp::test_half_comm_change_lifetime_repeats`; `tests/unit/test_mac.cpp::test_half_comm_change_token_aborts_at_lifetime`. A repeat count (6.2.4.10.2). Default 0. |
 | 211.0-B-6 DLL-154 | DLL-154 | Comm_Change_Notification | 6.2.4.9 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok`; `tests/unit/test_mac.cpp::test_half_comm_change_token_aborts_at_lifetime` |
 | 211.0-B-6 DLL-155 | DLL-155 | Comm_Change_Response | 6.2.4.8 | M |  | | Supported. `tests/unit/test_mac.cpp::test_half_comm_change_ok` (E68); `tests/unit/test_mac.cpp::test_valid_frame_s48_e17` (E17) |
 | 211.0-B-6 DLL-156 | DLL-156 | Comm_Change_Waiting_Period | 6.2.4.7 | M |  | | Planned (no stage set). Audit F-7, open. No code. |
@@ -520,7 +520,7 @@ The Implementation Under Test is the Starcom core. The core has no radio, and St
 | PICS serial number | TBD (none issued) |
 | System conformance statement cross-reference | The claims table at the top of this file |
 | Implementation name | `starcom::ccsds` MAC PHY view (`macPhy`) and `starcom::adapters` PHY declaration (`PhyDecl`). No radio. |
-| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 4780ecbb. |
 | Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
 | Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
 | Supplier | Starcom (`starcom/` directory) |
@@ -572,7 +572,7 @@ Draft and unsigned. Book: CCSDS 211.2-B-3, Issue 3, October 2019, file `standard
 | PICS serial number | TBD (none issued) |
 | System conformance statement cross-reference | The claims table at the top of this file |
 | Implementation name | `starcom::ccsds` PLTU (`encodePltu`, `decodePltu`, `huntPltu`), convolutional and LDPC encoders |
-| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 134db12d. |
+| Implementation version | Starcom 0.2.25 (`starcom/STARCOM_VERSION`), repository commit 4780ecbb. |
 | Special configuration | Sans-I/O. The caller supplies every MIB value, the clock, and the PHY inputs. No radio objects in the core. |
 | Other information | Host ctest suite `starcom/tests/unit`. Tests run on the host only, not over the air. |
 | Supplier | Starcom (`starcom/` directory) |
@@ -609,7 +609,7 @@ Cross-reference notes:
 
 ## Rocket-Chip configuration exceptions (RFM95, half duplex)
 
-This subsection is the consumer layer. The configuration is Rocket-Chip 0.16.3-dev (`RC_VERSION`) at commit 134db12d, with the Starcom core, one RFM95 (SX1276) radio, 902-928 MHz, half duplex, LoRa now and FSK planned. Adapter: `src/starcom_adapt/byte_pump.cpp`. Rocket-Chip MIB values: see "Related Prox-1 managed parameters".
+This subsection is the consumer layer. The configuration is Rocket-Chip 0.16.3-dev (`RC_VERSION`) at commit 4780ecbb, with the Starcom core, one RFM95 (SX1276) radio, 902-928 MHz, half duplex, LoRa now and FSK planned. Adapter: `src/starcom_adapt/byte_pump.cpp`. Rocket-Chip MIB values: see "Related Prox-1 managed parameters".
 
 A1.3: "If a mandatory requirement is not satisfied, exception information must be supplied by entering a reference Xi". Each mandatory row that this configuration does not meet has a reference Xi below. A row that is not Supported in the core is also not met here. Item 211.1-B-4 1.2 (O.1 group) is listed because the group needs one category.
 
@@ -647,7 +647,7 @@ Terms: carrier is the RF signal from the partner. The CARRIER_ACQUIRED stand-in 
 | X28 | 211.0-B-6 DLL-63 | Core stated deviation (see the core row). |
 | X29 | 211.0-B-6 DLL-64 | Core stated deviation (see the core row). |
 | X30 | 211.0-B-6 DLL-70 | Core Supported. The Rocket-Chip adapter lets only the COMM_CHANGE echo run E68 (`src/starcom_adapt/byte_pump.cpp`, `hop_wait`, `handle_air_frame`). See the "COMM_CHANGE echo (half duplex)" row. |
-| X31 | 211.0-B-6 DLL-71 | Core Supported. Symbol lock for LoRa is RegModemStat bit 1 (211.1-B-4 §3.2.3.4.1). Observed at 134db12d: `byte_pump.cpp` sets SYMBOL_INLOCK true together with CARRIER_ACQUIRED, never sets it false, and does not read RegModemStat bit 1. |
+| X31 | 211.0-B-6 DLL-71 | Core Supported. Symbol lock for LoRa is RegModemStat bit 1 (211.1-B-4 §3.2.3.4.1). Observed at 4780ecbb: `byte_pump.cpp` sets SYMBOL_INLOCK true together with CARRIER_ACQUIRED, never sets it false, and does not read RegModemStat bit 1. |
 | X32 | 211.0-B-6 DLL-75 | Core Planned (see the core row). |
 | X33 | 211.0-B-6 DLL-77 | Core Planned (see the core row). |
 | X34 | 211.0-B-6 DLL-78 | Core Planned (see the core row). |
@@ -696,14 +696,14 @@ Terms: carrier is the RF signal from the partner. The CARRIER_ACQUIRED stand-in 
 | X77 | 211.1-B-4 3.3.1 | Rocket Chip uses 902-928 MHz. That is outside 435-450 MHz and 390-405 MHz. |
 | X78 | 211.1-B-4 4 | The antennas are not shown to be RHCP. No record of the antenna polarization. |
 | X79 | 211.1-B-4 5 | The RFM95 cannot do PM, also with the Forgix FPGA. No Bi-Phase-L PM onto a residual carrier. |
-| X80 | 211.1-B-4 6.1 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 134db12d, and no test. The FSK bearer is "Future path" in IVP.md. |
-| X81 | 211.1-B-4 6.2 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 134db12d, and no test. The FSK bearer is "Future path" in IVP.md. |
+| X80 | 211.1-B-4 6.1 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 4780ecbb, and no test. The FSK bearer is "Future path" in IVP.md. |
+| X81 | 211.1-B-4 6.2 | Planned (no stage set). LoRa symbol rates do not map to this row. No FSK preset at exactly 2000 or 4000 symbols/s at 4780ecbb, and no test. The FSK bearer is "Future path" in IVP.md. |
 | X82 | 211.1-B-4 6.3 | Planned (no stage set). Bench measurement. No bench record. |
 | X83 | 211.1-B-4 6.4 | Planned (no stage set). Bench measurement. No bench record. |
 | X84 | 211.1-B-4 7 | Partial deviation. Parts of 3.4 assume PM at UHF (3.4.2 residual AM of the PM signal, 3.4.3 template at 437.1 MHz, 3.4.5 UHF Doppler). They do not apply to the RFM95. The oscillator-stability parts (3.4.1) have no bench record. |
 | X85 | 211.2-B-3 1 | Core Supported. On LoRa, the SX1276 packet framing (preamble, header, LoRa CRC) wraps each PLTU. The PLTU is not sent as a continuous C&S symbol stream. |
 | X86 | 211.2-B-3 2 | Core stated deviation (see the core row). |
-| X87 | 211.0-B-6 DLL-153 | Closed 2026-11-25: the core row is Supported and Rocket Chip sets Comm_Change_Lifetime 2 (R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `366d70da`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). Not an exception now. |
+| X87 | 211.0-B-6 DLL-153 | Closed 2026-11-25: the core row is Supported and Rocket Chip sets Comm_Change_Lifetime 2 (R-37). Two-board bench PASS 2026-11-25 (Buzz, Rocket Chip commit `4780ecbb`, tree `424346afd168`: bench script 9/9, 20-hop sweep 20/20; logs `bench_424346af`). Not an exception now. |
 
 Rocket Chip sends only Version-3 frames. Rows 211.2-B-3 7.2 and 7.3 (USLP frame length) are not used in this configuration. They are not exceptions.
 

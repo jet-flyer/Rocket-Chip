@@ -8,7 +8,7 @@ Rules: 211.0-B-6, 211.1-B-4 and 211.2-B-3 govern. **[draft]** marks a Pink sheet
 
 - Book: CARRIER_ACQUIRED (211.1-B-4 §3.2.3.3) and SYMBOL_INLOCK_STATUS (211.1-B-4 §3.2.3.4). Table 3-2 gives the carrier-only state (note 2, Carrier_Only_Duration) and the acquisition sequence (note 3).
 - Mapping (Duke, Goddard, 2026-11-25): preamble detect stands in for CARRIER_ACQUIRED. Sync-word or valid-header detect stands in for SYMBOL_INLOCK_STATUS. The register map for FSK and LoRa is in the proposed update of the CARRIER_LOSS_TIMER row, `starcom/docs/CONFORMANCE.md` (proposal waits for Nathan).
-- Code fact (branch `grok/r37-commchange`, 2ee912d6): the driver reads only RxDone and CRC error (`src/drivers/rfm95w.cpp`). CARRIER_ACQUIRED is a software flag. A decoded frame sets it. It clears after `tail_idle_duration` (10 ms) with no decoded frame (`byte_pump.cpp`, `pump_tick`).
+- Code fact (branch `grok/r37-commchange`, now 738741f1 on main): the driver reads only RxDone and CRC error (`src/drivers/rfm95w.cpp`). CARRIER_ACQUIRED is a software flag. A decoded frame sets it. It clears after `tail_idle_duration` (10 ms) with no decoded frame (`byte_pump.cpp`, `pump_tick`).
 - Inference (not tested): in half duplex, the carrier-loss timer can re-arm after each frame.
 - Plan links: N2 (the RFM95 cannot send the plain carrier that book hailing needs), T3-B (book PHY features), K5 and the PD3 note ("The FSK code must define" the carrier-only tick), D8 (chip preamble).
 
