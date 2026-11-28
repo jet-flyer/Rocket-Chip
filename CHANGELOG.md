@@ -47,6 +47,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-11-27-003 | Grok Hamilton (Grok Bot) | documentation
+
+**Stale R-35 whiteboard row removed.** The Open row "R-35 Standby-before-write parked on `grok/r35-standby`" is gone. R-35 is on main in `4780ecbb` and was benched 12/12 in the 11-27 push run (see `2026-11-27-002`). The local branch `grok/r35-standby` (`93e1fe62`) was left in place: it is not an ancestor of main, because the fix was folded rather than merged by SHA.
+
 ### 2026-11-27-002 | Grok Hamilton (Grok Bot) | documentation, hardware
 
 **The 11-25 through 11-27 unpushed range is now on origin/main at `2c43e4ca` (12 split pushes).** That supersedes the "local, not pushed" lines in `2026-11-25-001`, `2026-11-26-001` and `2026-11-27-001`. The radio-link gate check (`scripts/radio_link_bench.py`) ran on each radio push that needed a bench, and each of those was 12/12 PASS (logs under `logs/radio_link_bench/`). The last flash is flight-65d74be5, firmware tree `3eb9945d1014`, both boards at 250/10 and 2 dBm with COP-P lock. Push 5 (`6d457625`) failed once at hop-500/10 (station no echo) and passed 12/12 on the rerun. An earlier push-1 refusal at the same hop also passed on a later run. Backup branches `backup/pre-r37-fold-2026-11-28` and `backup/pre-r35-fold-2026-11-28` are kept. SESSION_CHECKLIST 6a still says "Not built yet"; that edit waits for the checklist audit (Nathan, 2026-11-27). Field builds were never built for boards or benched.
