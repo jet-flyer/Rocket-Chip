@@ -1,12 +1,17 @@
-// IVP increment 14 — V-3 DFC 11 User Defined Data + simplex without hailing.
+// Host checks for Version-3 user-defined data.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
+// IVP increment 14 - V-3 DFC 11 User Defined Data + simplex without hailing.
 // 211.0-B-6 Table 3-1, 3.2.3.5, 2.2.2.3; simplex 211.0 section 6.
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/copp.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/copp.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>
@@ -51,23 +56,29 @@ using starcom::ccsds::Scid;
 using starcom::ccsds::v3IsUserDefined;
 using starcom::ccsds::V3Fields;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
-void test_constants() {
+void test_constants()
+{
   CHECK(kDfcPackets == 0);
   CHECK(kDfcReserved == 2);
   CHECK(kDfcUserDefined == 3);
@@ -75,7 +86,8 @@ void test_constants() {
   CHECK(kV3HeaderSize + kV3DataMax == 2048u);
 }
 
-void test_dfc11_opaque_and_empty() {
+void test_dfc11_opaque_and_empty()
+{
   V3Fields f{};
   f.scid = Scid{0x15};
   f.pcid = Pcid{1};
@@ -112,7 +124,8 @@ void test_dfc11_opaque_and_empty() {
   CHECK(v->data[1] == std::byte{0xAD});
 }
 
-void test_pltu_wrap_dfc11() {
+void test_pltu_wrap_dfc11()
+{
   V3Fields f{};
   f.port_id = PortId{1};
   const std::array<std::byte, 2> opaque{std::byte{0x11}, std::byte{0x22}};
@@ -131,7 +144,8 @@ void test_pltu_wrap_dfc11() {
   CHECK(v->data.size() == 2u);
 }
 
-void test_not_space_packet() {
+void test_not_space_packet()
+{
   V3Fields f{};
   const std::array<std::byte, 3> garbage{std::byte{0xFF}, std::byte{0x00},
                                         std::byte{0x01}};
@@ -145,7 +159,8 @@ void test_not_space_packet() {
   CHECK(!sp.has_value());
 }
 
-void test_split_sdu_no_reassembly() {
+void test_split_sdu_no_reassembly()
+{
   V3Fields f{};
   f.fsn = 0;
   const std::array<std::byte, 3> a{std::byte{0xAA}, std::byte{0xBB},
@@ -170,7 +185,8 @@ void test_split_sdu_no_reassembly() {
   CHECK(va->data.size() != 6u);
 }
 
-void test_pframe_forces_dfc_packets() {
+void test_pframe_forces_dfc_packets()
+{
   V3Fields f{};
   f.p_frame = true;
   f.dfc_id = kDfcUserDefined;
@@ -187,7 +203,8 @@ void test_pframe_forces_dfc_packets() {
   CHECK(!v3IsUserDefined(v->fields));
 }
 
-void test_reserved_dfc_not_a_service() {
+void test_reserved_dfc_not_a_service()
+{
   V3Fields f{};
   f.dfc_id = kDfcReserved;
   const std::array<std::byte, 1> data{std::byte{0x99}};
@@ -200,7 +217,8 @@ void test_reserved_dfc_not_a_service() {
   CHECK(!v3IsUserDefined(v->fields));
 }
 
-void test_user_defined_length_oob() {
+void test_user_defined_length_oob()
+{
   V3Fields f{};
   std::array<std::byte, kV3DataMax + 1> too_big{};
   std::array<std::byte, 8> tiny{};
@@ -209,7 +227,8 @@ void test_user_defined_length_oob() {
   CHECK(r.error() == Error::v3_length_oob);
 }
 
-void test_simplex_no_hail() {
+void test_simplex_no_hail()
+{
   MacMib mib{};
   MacSession s{};
   macInit(s, mib, MacDuplex::simplex_transmit, nullptr);
@@ -241,7 +260,8 @@ void test_simplex_no_hail() {
 }
 
 void drainOpeningPlcw(CoppEndpoint& a, CoppEndpoint& b,
-                        std::span<std::byte> wire) {
+                        std::span<std::byte> wire)
+{
   const auto n0 = coppBytesToSend(a, wire);
   CHECK(n0.has_value());
   CHECK(*n0 > 0);
@@ -252,7 +272,8 @@ void drainOpeningPlcw(CoppEndpoint& a, CoppEndpoint& b,
   coppReceiveBytes(a, std::span<const std::byte>(wire.data(), *n1));
 }
 
-void test_copp_user_defined_host_loop() {
+void test_copp_user_defined_host_loop()
+{
   CoppMib mib{};
   mib.transmission_window = 4;
   CoppEndpoint rx{};
@@ -311,7 +332,8 @@ void test_copp_user_defined_host_loop() {
   CHECK(*t1 != 6u);
 }
 
-void test_copp_default_still_packets() {
+void test_copp_default_still_packets()
+{
   CoppMib mib{};
   CoppEndpoint rx{};
   CoppEndpoint tx{};
@@ -331,7 +353,8 @@ void test_copp_default_still_packets() {
   CHECK(!v3IsUserDefined(v->fields));
 }
 
-void test_copp_empty_user_defined_on_wire() {
+void test_copp_empty_user_defined_on_wire()
+{
   CoppMib mib{};
   CoppEndpoint rx{};
   CoppEndpoint tx{};
@@ -351,7 +374,8 @@ void test_copp_empty_user_defined_on_wire() {
   CHECK(v->data.empty());
 }
 
-void test_heap() {
+void test_heap()
+{
   V3Fields f{};
   const std::array<std::byte, 2> opaque{std::byte{0x01}, std::byte{0x02}};
   std::array<std::byte, 32> frame{};
@@ -362,7 +386,8 @@ void test_heap() {
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   const auto n = encodeV3UserDefined(frame, f, asSpan(opaque));
-  if (n) {
+  if (n)
+  {
     (void)decodeV3(std::span<const std::byte>(frame.data(), *n));
     (void)encodePltu(pltu, std::span<const std::byte>(frame.data(), *n));
   }
@@ -374,7 +399,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_user_defined_tests() {
+int run_user_defined_tests()
+{
   test_constants();
   test_dfc11_opaque_and_empty();
   test_pltu_wrap_dfc11();

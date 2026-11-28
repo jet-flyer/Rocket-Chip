@@ -1,95 +1,48 @@
-#include "starcom/adapters/file_replay.hpp"
+// Slides a host file buffer forward and reads the next bytes.
+// No state.
+// The caller owns the scratch and the file stream.
+// Book: none.
 
-#include "starcom/ccsds/pltu.hpp"
+#include "starcom/adapters/file_replay.h"
 
-#include <cstdio>
 #include <cstring>
 
-namespace starcom::adapters {
-namespace {
+namespace starcom::adapters
+{
 
-struct ReplayBuf {
-  std::span<std::byte> scratch;
-  std::size_t fill = 0;
-};
-
-void compactFill(ReplayBuf& b, std::size_t consumed) noexcept {
-  const std::size_t keep = b.fill - consumed;
-  if (keep > 0) {
-    std::memmove(b.scratch.data(), b.scratch.data() + consumed, keep);
+void replayCompactFill(std::span<std::byte> scratch, std::size_t& fill,
+                       std::size_t consumed) noexcept
+{
+  const std::size_t keep = fill - consumed;
+  if (keep > 0)
+  {
+    const auto src = scratch.subspan(consumed, keep);
+    const auto dst = scratch.first(keep);
+    std::memmove(dst.data(), src.data(), keep);
   }
-  b.fill = keep;
+  fill = keep;
 }
 
-ccsds::Result<std::size_t> replayDeliver(ReplayBuf& b, ccsds::PltuHunt const& hunt,
-                                         PltuSink sink, void* ctx) noexcept {
-  const std::size_t n =
-      ccsds::kPltuAsmSize + hunt.pltu->frame.size() + ccsds::kPltuCrcSize;
-  const std::size_t start = hunt.consumed - n;
-  const auto env = std::span<const std::byte>(b.scratch.data() + start, n);
-  const auto sr = sink(ctx, env);
-  if (!sr) {
-    return tl::unexpected(sr.error());
-  }
-  compactFill(b, hunt.consumed);
-  return std::size_t{1};
-}
-
-bool replayRefill(ReplayBuf& b, std::FILE* f, bool& eof) noexcept {
-  const std::size_t room = b.scratch.size() - b.fill;
-  if (room == 0) {
+bool replayRefill(std::span<std::byte> scratch, std::size_t& fill,
+                  std::ifstream& in, bool& eof) noexcept
+{
+  const std::size_t room = scratch.size() - fill;
+  if (room == 0)
+  {
     return false;
   }
-  const std::size_t nread = std::fread(b.scratch.data() + b.fill, 1, room, f);
-  if (nread == 0) {
+  const auto dest = scratch.subspan(fill, room);
+  // basic_istream::read takes char*.
+  char* const raw = reinterpret_cast<char*>(dest.data());  // istream::read takes char*
+  in.read(raw, static_cast<std::streamsize>(room));
+  const auto nread = static_cast<std::size_t>(in.gcount());
+  if (nread == 0)
+  {
     eof = true;
     return true;
   }
-  b.fill += nread;
+  fill += nread;
   return true;
-}
-
-}  // namespace
-
-ccsds::Result<std::size_t> replayPltuFile(char const* path,
-                                            std::span<std::byte> scratch,
-                                            PltuSink sink, void* ctx) noexcept {
-  if (scratch.size() < kAdapterFrameMax) {
-    return tl::unexpected(ccsds::Error::buffer_too_small);
-  }
-  if (path == nullptr || path[0] == '\0' || sink == nullptr) {
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  std::FILE* f = std::fopen(path, "rb");
-  if (f == nullptr) {
-    return tl::unexpected(ccsds::Error::truncated);
-  }
-  ReplayBuf b{scratch, 0};
-  std::size_t delivered = 0;
-  bool eof = false;
-  for (;;) {
-    const auto hunt =
-        ccsds::huntPltu(std::span<const std::byte>(b.scratch.data(), b.fill));
-    if (hunt.pltu.has_value()) {
-      const auto one = replayDeliver(b, hunt, sink, ctx);
-      if (!one) {
-        std::fclose(f);
-        return tl::unexpected(one.error());
-      }
-      ++delivered;
-      continue;
-    }
-    if (hunt.pltu.error() == ccsds::Error::bad_crc ||
-        (hunt.consumed > 0 && hunt.consumed <= b.fill)) {
-      compactFill(b, hunt.consumed);
-      continue;
-    }
-    if (eof || !replayRefill(b, f, eof)) {
-      break;
-    }
-  }
-  std::fclose(f);
-  return delivered;
 }
 
 }  // namespace starcom::adapters

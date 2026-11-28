@@ -1,0 +1,30 @@
+#ifndef STARCOM_VERSION_H_
+#define STARCOM_VERSION_H_
+
+// GENERATED. Do not edit. Template: include/starcom/version.h.in
+// Product numbers: STARCOM_VERSION. Git identity: the build. VERSIONING.md.
+
+#include <cstdint>
+
+namespace starcom
+{
+
+inline constexpr std::uint8_t  kVersionMajor = @STARCOM_VERSION_MAJOR@;
+inline constexpr std::uint8_t  kVersionMinor = @STARCOM_VERSION_MINOR@;
+inline constexpr std::uint8_t  kVersionPatch = @STARCOM_VERSION_PATCH@;
+inline constexpr std::uint32_t kBuildNumber  = @STARCOM_BUILD_NUMBER@;
+
+// MAJOR.MINOR.PATCH (no EXTRA). CMake writes the text.
+// starcom/cmake/starcom_version.cmake sets STARCOM_LIBRARY_VERSION
+// before configure_file.
+inline constexpr char const* kLibraryVersion = "@STARCOM_LIBRARY_VERSION@";
+
+// MAJOR.MINOR.PATCH[-EXTRA]
+inline constexpr char const* kVersionString = "@STARCOM_VERSION_STRING@";
+
+inline constexpr char const* kGitHash       = "@STARCOM_GIT_HASH@";
+inline constexpr char const* kBuildIdentity = "@STARCOM_BUILD_IDENTITY@";
+
+}  // namespace starcom
+
+#endif  // STARCOM_VERSION_H_

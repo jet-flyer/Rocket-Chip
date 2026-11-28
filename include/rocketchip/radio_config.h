@@ -29,7 +29,7 @@ struct RadioConfig {
     RadioRole   mode;           // TX, RX, or Relay
     EncoderType protocol;       // kCcsds or kMavlink
     uint8_t     nav_rate_hz;    // Hz; legal 1-50 (radio_config_sx1276_legal)
-    uint8_t     power_dbm;      // 2-20
+    uint8_t     power_dbm;      // Applied dBm after rfm95w_set_tx_power.
     uint8_t     spreading_factor;  // 7-12
     uint16_t    bandwidth_khz;     // 125, 250, or 500
     uint8_t     coding_rate;       // 5-8 (CR 4/x)
@@ -55,7 +55,7 @@ inline constexpr RadioConfig kDefaultRadioConfig = {
     .mode             = RadioRole::kTx,
     .protocol         = EncoderType::kCcsds,
     .nav_rate_hz      = 2,
-    .power_dbm        = 20,
+    .power_dbm        = 15,
     .spreading_factor = 7,
     .bandwidth_khz    = 125,
     .coding_rate      = 5,

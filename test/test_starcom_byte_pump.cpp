@@ -5,18 +5,29 @@
 #include <gtest/gtest.h>
 
 #include "starcom_adapt/byte_pump.h"
+#include "starcom_adapt/cmd_sdu.h"
 #include "starcom_adapt/nav_sdu.h"
+#include "rocketchip/radio_config_airtime.h"
 #include "rocketchip/radio_config_table.h"
+#include "rocketchip/job.h"
+#include "rocketchip/host_build.h"
 #include "flight_director/mission_profile_data.h"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/mac.hpp"
-#include "starcom/ccsds/plcw.hpp"
-#include "starcom/version.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/mac.h"
+#include "starcom/ccsds/plcw.h"
+#include "starcom/version.h"
 
 #include <algorithm>
 #include <array>
+
+static_assert(rc::starcom_adapt::kMacIdleTickMs == 10U);
+static_assert(rc::starcom_adapt::kHailWaitSlackMs == 20U);
+static_assert(rc::starcom_adapt::kDropCarrierMs == 20U);
+static_assert(rc::starcom_adapt::kReportPltuBytes == 14U);
+static_assert(rc::kCmdSduP2Offset == 12U);
+static_assert(rc::kCmdSduP4Offset == 20U);
 #include <cstring>
 
 using rc::starcom_adapt::BytePump;
@@ -25,6 +36,7 @@ using rc::starcom_adapt::pump_bytes_to_send;
 using rc::starcom_adapt::pump_encode_nav;
 using rc::starcom_adapt::pump_encode_pltu;
 using rc::starcom_adapt::pump_init;
+using rc::starcom_adapt::pump_init_for_this_job;
 using rc::starcom_adapt::pump_receive_bytes;
 using rc::starcom_adapt::pump_repeat_pltu;
 using rc::starcom_adapt::pump_submit_sdu;
@@ -49,6 +61,29 @@ using rc::starcom_adapt::pump_note_rx_seq;
 using rc::starcom_adapt::pump_pack_nav_packet;
 using rc::starcom_adapt::pump_pack_cmd_packet;
 using rc::starcom_adapt::pump_pack_ack_packet;
+
+TEST(StarcomBytePump, PinsKnownCommandPacketBytes) {
+    // Same user fields as CmdSdu.PinsKnownCommandBytes, first seq count 0.
+    constexpr uint8_t kPinned[6u + rc::kCmdSduUserBytes] = {
+        0x10, 0x03, 0xC0, 0x00, 0x00, 0x17,
+        0x90, 0x01, 0x07, 0x00,
+        0x00, 0x00, 0x80, 0x3F,
+        0x00, 0x00, 0x00, 0x40,
+        0x00, 0x00, 0x40, 0x40,
+        0x00, 0x00, 0x90, 0xC0,
+        0x00, 0x24, 0x74, 0x49,
+    };
+    static BytePump station{};
+    pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
+    std::array<std::byte, 64> pkt{};
+    const rc::CmdSduFields fields{400, 7, {1.0F, 2.0F, 3.0F, -4.5F, 1.0e6F}};
+    const auto n = pump_pack_cmd_packet(station, pkt, fields);
+    ASSERT_TRUE(n.has_value());
+    ASSERT_EQ(*n, sizeof(kPinned));
+    for (std::size_t i = 0; i < sizeof(kPinned); ++i) {
+        EXPECT_EQ(pkt[i], std::byte{kPinned[i]}) << i;
+    }
+}
 
 TEST(StarcomBytePump, NoRadioIncludesInPumpHeader) {
     // Compile-time: this TU includes the pump and never the radio.
@@ -176,7 +211,7 @@ TEST(StarcomBytePump, CoppCommandSduRoundTrip) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> pkt{};
-    const auto pn = pump_pack_cmd_packet(station, pkt, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto pn = pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(pn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(pkt.data(), *pn), false)
@@ -238,7 +273,7 @@ TEST(StarcomBytePump, CoppCommandAfterVehicleNav) {
     pump_receive_bytes(vehicle, std::span<const std::byte>(wire.data(), *s_plcw));
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -260,7 +295,7 @@ TEST(StarcomBytePump, PlcwThenSeqInOneContact) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -513,6 +548,66 @@ TEST(StarcomBytePump, HailSetTxFirstStillE30) {
     EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
 }
 
+// dispatch_p_frame_spdu: a chunk whose type is not SET PL / TX / RX /
+// CONTROL is skipped. The next chunk still runs. A short buffer ends
+// the loop with nothing consumed.
+TEST(StarcomBytePump, DispatchSkipsUnknownChunk) {
+    static BytePump vehicle{};
+    pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    pump_start_session(vehicle, false, 0);
+    const auto state_before = vehicle.mac.state;
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    const std::array<std::byte, 1> one{std::byte{0x00}};
+    starcom::ccsds::V3Fields hdr{};
+    hdr.p_frame = true;
+    hdr.qos_expedited = true;
+    hdr.pcid = rc::starcom_adapt::kSoakPcid;
+    hdr.scid = vehicle.local_scid;
+    hdr.destination = true;
+    std::array<std::byte, 32> frame{};
+    auto vn = starcom::ccsds::encodeV3(frame, hdr, one);
+    ASSERT_TRUE(vn.has_value());
+    std::array<std::byte, 255> wire{};
+    auto pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_NE(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_EQ(vehicle.mac.state, state_before);
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    const std::array<std::byte, 2> unknown{std::byte{0x00}, std::byte{0x07}};
+    vn = starcom::ccsds::encodeV3(frame, hdr, unknown);
+    ASSERT_TRUE(vn.has_value());
+    pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_NE(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_EQ(vehicle.mac.state, state_before);
+    EXPECT_FALSE(pump_mac_phy(vehicle).transmit);
+
+    starcom::ccsds::MacPhyParams phy{};
+    phy.encoding = starcom::ccsds::kPhyEncodingBypass;
+    phy.modulation = 1;
+    std::array<std::byte, 4> spdu{};
+    spdu[0] = std::byte{0x00};
+    spdu[1] = std::byte{0x07};
+    ASSERT_TRUE(starcom::ccsds::encodeSetPhy(
+                    std::span<std::byte>(spdu.data() + 2, 2), phy, true)
+                    .has_value());
+    vn = starcom::ccsds::encodeV3(frame, hdr, spdu);
+    ASSERT_TRUE(vn.has_value());
+    pn = starcom::ccsds::encodePltu(
+        wire, std::span<const std::byte>(frame.data(), *vn));
+    ASSERT_TRUE(pn.has_value());
+    pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_TRUE(pump_mac_phy(vehicle).transmit);
+    EXPECT_EQ(vehicle.mac.state, starcom::ccsds::MacState::s51);
+}
+
 TEST(StarcomBytePump, HailCatalogIsNotE69) {
     static BytePump vehicle{};
     pump_init(vehicle, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
@@ -550,7 +645,12 @@ TEST(StarcomBytePump, HailCatalogIsNotE69) {
         wire, std::span<const std::byte>(frame.data(), *vn));
     ASSERT_TRUE(pn.has_value());
     pump_handle_air(vehicle, std::span<const std::byte>(wire.data(), *pn));
-    EXPECT_NE(vehicle.mac.state, starcom::ccsds::MacState::s51);
+    // R-37: E47 (S62 to S61) runs before dispatch (211.0 table 6-10). A
+    // hail catalog in S61 is the station reconnect (project step to S2,
+    // not E85/E82; then E30 to S51), not E69 (that would set Y=2 and arm a
+    // remote apply).
+    EXPECT_EQ(pump_poll_mac_notify(vehicle), starcom::ccsds::MacNotify::hail_ok);
+    EXPECT_FALSE(vehicle.remote_apply_now);
     EXPECT_EQ(vehicle.mac.y, 0u);
 }
 
@@ -559,7 +659,7 @@ TEST(StarcomBytePump, ConnectingTDoesNotLeakSeq) {
     pump_init(station, starcom::ccsds::Scid{2}, starcom::ccsds::Scid{1});
     pump_start_session(station, true, 0);
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -878,7 +978,7 @@ TEST(StarcomBytePump, TokenPassThenStationSeqAd) {
     rc::TelemetryState telem{};
     telem.q_w = 32767;
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     bool cmd_queued = false;
     bool saw_token = false;
@@ -1157,7 +1257,7 @@ TEST(StarcomBytePump, FarmSeqCmdAfterLockViaHandleAir) {
     EXPECT_EQ(vehicle.copp.farm.v_r, 0u);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 1, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 1, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     ASSERT_TRUE(pump_submit_sdu(
                     station, std::span<const std::byte>(cmd.data(), *cn), false)
@@ -1196,7 +1296,7 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     pump_start_session(vehicle, false, 0);
 
     std::array<std::byte, 64> cmd{};
-    const auto cn = pump_pack_cmd_packet(station, cmd, 400, 0, 1.0F, 0, 0, 0, 0);
+    const auto cn = pump_pack_cmd_packet(station, cmd, rc::CmdSduFields{400, 0, {1.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
     ASSERT_TRUE(cn.has_value());
     rc::ccsds::CommandAckPayload ack{};
     ack.cmd_id = 400;
@@ -1301,9 +1401,27 @@ TEST(StarcomBytePump, HalfDuplexSessionCmdAck) {
     EXPECT_EQ(vehicle.copp.fop.v_s, 0u);
 }
 
+// R-37: the radio port query gives the SX1276 4.1.1.6 time on air for a
+// preset. Known values for SF7, CR 4/5, explicit header, CRC on, 8-symbol
+// preamble: 69-octet nav PLTU and 14-octet report PLTU.
+TEST(StarcomBytePump, PresetAirtimeKnownValues) {
+    const rc::RadioConfigEntry e125{125, 5, 7, 5, 2};
+    const rc::RadioConfigEntry e250{250, 10, 7, 5, 2};
+    const rc::RadioConfigEntry e500{500, 10, 7, 5, 2};
+    EXPECT_EQ(rc::radio_preset_airtime_us(e125, 69), 128256u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e250, 69), 64128u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e500, 69), 32064u);
+    EXPECT_EQ(rc::radio_preset_airtime_us(e125, 14), 46336u);
+}
+
 // 211.0 6.2.4.17–18: vehicle Send_Duration is the long side.
-// Receive_Duration is the peer's S51–S58 contact: that send, the open
-// and tail, plus the PLCW and the pass token that leave after E38.
+// Vehicle Receive_Duration is the station S51–S58 contact: that send, the open
+// and tail, one frame still on air at E38, plus the PLCW and the pass
+// token that leave after E38. Station Receive_Duration also holds a vehicle
+// timer contact after a lost station frame: vehicle receive, the E48/E50
+// turn idles, then that contact (R-37 hop 12). Carrier loss stays at the
+// contact (E85 is responder only). R-37: sized once for the slowest preset in
+// the rate table (annex C: session static).
 TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     static BytePump station{};
     static BytePump vehicle{};
@@ -1315,15 +1433,25 @@ TEST(StarcomBytePump, AsymmetricHdSendDuration) {
     constexpr uint8_t kReportPltuBytes = static_cast<uint8_t>(
         starcom::ccsds::kPltuAsmSize + starcom::ccsds::kV3HeaderSize + 2U +
         starcom::ccsds::kPltuCrcSize);
-    const auto report_us = rc::radio_config_nav_airtime_us(
-        rc::kDefaultRocketRadioConfig.spreading_factor,
-        rc::kDefaultRocketRadioConfig.bandwidth_khz, kReportPltuBytes);
+    uint32_t report_us = 0;
+    uint32_t frame_us = 0;
+    for (const auto& e : rc::kRadioConfigTable) {
+        const auto r = rc::radio_config_nav_airtime_us(e.sf, e.bw_khz,
+                                                       kReportPltuBytes);
+        const auto f = rc::radio_config_nav_airtime_us(
+            e.sf, e.bw_khz, rc::kRadioConfigNavPltuBytes);
+        report_us = (r > report_us) ? r : report_us;
+        frame_us = (f > frame_us) ? f : frame_us;
+    }
     const starcom::ccsds::Tick report_ms =
         static_cast<starcom::ccsds::Tick>((report_us + 999U) / 1000U);
-    const auto contact_tail = turn + (2U * report_ms);
+    const starcom::ccsds::Tick frame_ms =
+        static_cast<starcom::ccsds::Tick>((frame_us + 999U) / 1000U);
+    const auto contact_tail = turn + frame_ms + (2U * report_ms);
     EXPECT_GT(vehicle.mac.mib.send_duration, station.mac.mib.send_duration);
     EXPECT_EQ(station.mac.mib.receive_duration,
-              vehicle.mac.mib.send_duration + contact_tail);
+              vehicle.mac.mib.receive_duration + turn +
+                  vehicle.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(vehicle.mac.mib.receive_duration,
               station.mac.mib.send_duration + contact_tail);
     EXPECT_EQ(station.mac.mib.carrier_loss_timer_duration,
@@ -1401,7 +1529,7 @@ TEST(StarcomBytePump, SpaceSeqNavCmdAckIndependent) {
     EXPECT_EQ(decoded_seq(pkt), 1u);
 
     ASSERT_TRUE(
-        pump_pack_cmd_packet(station, pkt, 400, 1, 0, 0, 0, 0, 0).has_value());
+        pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 1, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}}).has_value());
     EXPECT_EQ(decoded_seq(pkt), 0u);
     const auto cmd = starcom::ccsds::decodeSpacePacket(pkt);
     ASSERT_TRUE(cmd.has_value());
@@ -1409,7 +1537,7 @@ TEST(StarcomBytePump, SpaceSeqNavCmdAckIndependent) {
     EXPECT_EQ(cmd->fields.apid, kCmdApid);
 
     ASSERT_TRUE(
-        pump_pack_cmd_packet(station, pkt, 400, 2, 0, 0, 0, 0, 0).has_value());
+        pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 2, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}}).has_value());
     EXPECT_EQ(decoded_seq(pkt), 1u);
     ASSERT_TRUE(pump_pack_ack_packet(vehicle, pkt, ack).has_value());
     EXPECT_EQ(decoded_seq(pkt), 2u);
@@ -1450,7 +1578,7 @@ TEST(StarcomBytePump, SpaceSeqRxLostOnGap) {
     std::uint16_t cmd_seq[4] = {};
     for (int i = 0; i < 4; ++i) {
         const auto n =
-            pump_pack_cmd_packet(station, pkt, 400, 0, 0, 0, 0, 0, 0);
+            pump_pack_cmd_packet(station, pkt, rc::CmdSduFields{400, 0, {0.0F, 0.0F, 0.0F, 0.0F, 0.0F}});
         ASSERT_TRUE(n.has_value());
         cmd_seq[i] = decoded_seq(std::span<const std::byte>(pkt.data(), *n));
     }
@@ -1495,4 +1623,157 @@ TEST(StarcomBytePump, IdleApidSecondaryHeaderFlagClear) {
     const auto kn = starcom::ccsds::encodeSpacePacket(out, kept, data);
     ASSERT_TRUE(kn.has_value());
     EXPECT_EQ(out[0], std::byte{0x08});
+}
+
+// A radio setting change calls pump_init again. The link counts since boot stay.
+TEST(StarcomBytePump, PumpInitKeepsLinkCounts) {
+    static BytePump pump{};
+    pump_init(pump, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    EXPECT_EQ(starcom::ccsds::coppRetransmitCount(pump.copp), 0u);
+    EXPECT_EQ(starcom::ccsds::coppSyncLossCount(pump.copp), 0u);
+    pump.copp.retransmit_n = 7u;
+    pump.copp.sync_loss_n = 3u;
+    pump_init(pump, starcom::ccsds::Scid{1}, starcom::ccsds::Scid{2});
+    EXPECT_EQ(starcom::ccsds::coppRetransmitCount(pump.copp), 7u);
+    EXPECT_EQ(starcom::ccsds::coppSyncLossCount(pump.copp), 3u);
+}
+
+// Host build is the vehicle role. Local SCID 1, remote SCID 2.
+// The host build does not defer the empty FIFO.
+static_assert(rc::kHostTest);
+static_assert(job::kRole == job::DeviceRole::kVehicle);
+
+TEST(StarcomBytePump, InitForThisJobHostBuild) {
+    static BytePump pump{};
+    pump_init_for_this_job(pump);
+    EXPECT_EQ(pump.local_scid, starcom::ccsds::Scid{1});
+    EXPECT_EQ(pump.remote_scid, starcom::ccsds::Scid{2});
+    EXPECT_FALSE(pump.defer_spdu_fifo_empty);
+}
+
+// QF tick skip (diag/tick_skip.h): after a stall the telemetry tick runs
+// one time, not one time for each missed 10 ms period. The MAC timers count
+// the real ms between pump_tick calls (macTick dt = now - last_now), so a
+// skipped-tick burst must not change when a window ends. The RC adapter
+// feeds now_ms() (wall clock), the same as these tests.
+namespace {
+
+namespace sc = starcom::ccsds;
+
+constexpr sc::Tick kTelemTickMs = 10U;  // AO_Telemetry tick (QF 100 Hz)
+
+// 211.0 half duplex connecting_t to S60 (the start of Receive_Duration).
+sc::Tick mac_to_s60(sc::MacSession& s, const sc::MacMib& mib) {
+    sc::macInit(s, mib, sc::MacDuplex::half, nullptr);
+    sc::macSetMode(s, sc::MacMode::connecting_t, 0);
+    sc::Tick now = s.mib.carrier_only_duration;
+    sc::macTick(s, now);
+    now += s.mib.acquisition_idle_duration;
+    sc::macTick(s, now);
+    sc::macOnFifoEmpty(s, now);
+    now += s.mib.tail_idle_duration;
+    sc::macTick(s, now);
+    sc::macOnValidFrame(s, now);
+    return now;
+}
+
+// Tick the MAC every 10 ms from t0. Calls in (gap_at, gap_at + gap_ms) do
+// not occur (the QF ticks that the stall skipped). Returns the first tick
+// time where done(s) is true, or 0 if it does not occur in 10 s.
+template <typename Done>
+sc::Tick run_until(sc::MacSession& s, sc::Tick t0, sc::Tick gap_at,
+                   sc::Tick gap_ms, Done done) {
+    for (sc::Tick now = t0 + kTelemTickMs; now < t0 + 10000U;
+         now += kTelemTickMs) {
+        if (gap_ms != 0U && now > gap_at && now < gap_at + gap_ms) {
+            continue;
+        }
+        sc::macTick(s, now);
+        if (done(s)) {
+            return now;
+        }
+    }
+    return 0U;
+}
+
+sc::MacMib station_flight_mib() {
+    static BytePump station{};
+    pump_init(station, sc::Scid{2}, sc::Scid{1});
+    return station.mac.mib;
+}
+
+sc::Tick round_up_to_tick(sc::Tick t0, sc::Tick d) {
+    return t0 + (((d + kTelemTickMs - 1U) / kTelemTickMs) * kTelemTickMs);
+}
+
+// The window ends at its wall time, or at the first tick after the stall
+// if the wall time is in the stall.
+sc::Tick expected_end(sc::Tick dense_end, sc::Tick gap_at, sc::Tick gap_ms) {
+    sc::Tick t = dense_end;
+    while (t > gap_at && t < gap_at + gap_ms) {
+        t += kTelemTickMs;
+    }
+    return t;
+}
+
+} // namespace
+
+// R-37: station Receive_Duration (1801 ms) ends at the same wall time with
+// or without a 70 ms skipped-tick gap (early, middle, and at the end).
+TEST(StarcomBytePump, ReceiveWindowKeepsWallLengthAcrossTickSkip) {
+    const sc::MacMib mib = station_flight_mib();
+    EXPECT_EQ(mib.receive_duration, 1801U);
+    auto left_s60 = [](const sc::MacSession& m) {
+        return m.state != sc::MacState::s60;
+    };
+
+    sc::MacSession dense{};
+    const sc::Tick t0 = mac_to_s60(dense, mib);
+    ASSERT_EQ(dense.state, sc::MacState::s60);
+    sc::macSetCarrierAcquired(dense, false, t0);
+    const sc::Tick dense_end = run_until(dense, t0, 0U, 0U, left_s60);
+    ASSERT_NE(dense_end, 0U);
+    EXPECT_EQ(dense.state, sc::MacState::s51);  // E48
+    EXPECT_EQ(dense_end, round_up_to_tick(t0, mib.receive_duration));
+
+    const sc::Tick gaps[] = {t0 + 20U, t0 + 900U, dense_end - 40U};
+    for (const sc::Tick gap_at : gaps) {
+        sc::MacSession s{};
+        ASSERT_EQ(mac_to_s60(s, mib), t0);
+        sc::macSetCarrierAcquired(s, false, t0);
+        const sc::Tick end = run_until(s, t0, gap_at, 70U, left_s60);
+        EXPECT_EQ(end, expected_end(dense_end, gap_at, 70U))
+            << "gap at +" << (gap_at - t0) << " ms";
+        EXPECT_EQ(s.state, sc::MacState::s51);
+    }
+}
+
+// Station carrier-loss timer: same wall length across a skipped-tick gap.
+TEST(StarcomBytePump, CarrierLossKeepsWallLengthAcrossTickSkip) {
+    const sc::MacMib mib = station_flight_mib();
+    ASSERT_GT(mib.carrier_loss_timer_duration, 200U);
+    auto expired = [](const sc::MacSession& m) {
+        return m.carrier_loss_left == 0U || m.state != sc::MacState::s60;
+    };
+
+    sc::MacSession dense{};
+    const sc::Tick t0 = mac_to_s60(dense, mib);
+    sc::macSetCarrierAcquired(dense, true, t0);
+    sc::macSetCarrierAcquired(dense, false, t0);
+    ASSERT_EQ(dense.carrier_loss_left, mib.carrier_loss_timer_duration);
+    const sc::Tick dense_end = run_until(dense, t0, 0U, 0U, expired);
+    ASSERT_NE(dense_end, 0U);
+    EXPECT_EQ(dense_end,
+              round_up_to_tick(t0, mib.carrier_loss_timer_duration));
+
+    const sc::Tick gaps[] = {t0 + 20U, t0 + 500U, dense_end - 40U};
+    for (const sc::Tick gap_at : gaps) {
+        sc::MacSession s{};
+        ASSERT_EQ(mac_to_s60(s, mib), t0);
+        sc::macSetCarrierAcquired(s, true, t0);
+        sc::macSetCarrierAcquired(s, false, t0);
+        const sc::Tick end = run_until(s, t0, gap_at, 70U, expired);
+        EXPECT_EQ(end, expected_end(dense_end, gap_at, 70U))
+            << "gap at +" << (gap_at - t0) << " ms";
+    }
 }

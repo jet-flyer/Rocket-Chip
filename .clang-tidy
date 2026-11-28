@@ -20,13 +20,87 @@
 #
 # See: standards/CODING_STANDARDS.md, standards/STANDARDS_AUDIT_2026-02-07.md
 
+# Checks-block section comments (moved here: a # line inside the folded
+# Checks: > block is part of the string and disables the checks after it).
+# Same text and order as before the move.
+# ═══════════════════════════════════════════════════════════════
+# BUGPRONE — Bug-prone code patterns
+# Maps to: JSF AV general safety, MISRA-adjacent, CERT
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: bugprone-easily-swappable-parameters — too noisy for embedded
+# SKIPPED: bugprone-exception-escape — exceptions disabled
+# SKIPPED: bugprone-reserved-identifier — SDK names trigger false positives
+# ═══════════════════════════════════════════════════════════════
+# CERT — SEI CERT Secure Coding Guidelines
+# Maps to: JSF AV safety rules, P10 defensive coding
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: cert-err58-cpp, cert-err60-cpp — exceptions disabled
+# ═══════════════════════════════════════════════════════════════
+# C++ CORE GUIDELINES
+# Maps to: JSF AV Rules 188-189 (goto), 206 (no heap), 209 (types)
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: cppcoreguidelines-avoid-c-arrays — static C arrays are intentional (AP-1)
+# SKIPPED: cppcoreguidelines-pro-bounds-* — incompatible with SDK C APIs
+# SKIPPED: cppcoreguidelines-pro-type-reinterpret-cast — needed for MPU/HW registers
+# SKIPPED: cppcoreguidelines-pro-type-vararg — printf allowed in Ground/IVP code
+# SKIPPED: cppcoreguidelines-avoid-non-const-global-variables — g_ globals are by design
+# SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner in bare-metal
+# ═══════════════════════════════════════════════════════════════
+# GOOGLE
+# Maps to: JSF AV Rule 209 (fixed-width types)
+# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# HICPP — High Integrity C++
+# Maps to: JSF AV safety, P10-1 (no goto), JSF 14 (literal suffixes)
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: hicpp-no-assembler — __asm volatile needed for BASEPRI (LL Entry 3)
+# SKIPPED: hicpp-vararg — alias for pro-type-vararg (printf allowed)
+# NOTE: hicpp-avoid-goto, hicpp-no-malloc etc. are aliases — already covered
+# ═══════════════════════════════════════════════════════════════
+# MISC — Miscellaneous quality checks
+# Maps to: P10-6 (scope), JSF AV general, LOC-3 (defensive coding)
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: misc-include-cleaner — too noisy with SDK cross-includes
+# SKIPPED: misc-confusable-identifiers — slow, not safety-critical
+# ═══════════════════════════════════════════════════════════════
+# MODERNIZE — C++20 best practices
+# Maps to: JSF AV Rule 29-31 (constexpr over #define), C++ modernization
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: modernize-use-auto — explicit types preferred in embedded (audit A.4)
+# SKIPPED: modernize-use-trailing-return-type — not our style
+# SKIPPED: modernize-use-nodiscard — C++17 feature, evaluate later
+# SKIPPED: modernize-use-std-print — no std::print on bare-metal
+# ═══════════════════════════════════════════════════════════════
+# PERFORMANCE
+# Maps to: embedded real-time constraints
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: performance-avoid-endl — no iostream usage
+# SKIPPED: performance-inefficient-string-concatenation — no std::string
+# SKIPPED: performance-inefficient-vector-operation — no std::vector
+# ═══════════════════════════════════════════════════════════════
+# READABILITY
+# Maps to: JSF AV Rules 1 (size), 50-53 (naming), 59 (braces),
+#          151 (magic numbers), 152 (one var per decl)
+# ═══════════════════════════════════════════════════════════════
+# DISABLED: readability-math-missing-parentheses — stricter than JSF AV Rule 213,
+# which explicitly allows arithmetic precedence ("below arithmetic operators").
+# CERT SEI EXP00-C-EX1 confirms: algebraic order parens are redundant.
+# ArduPilot's AP_Math (our upstream reference) relies on * before + throughout.
+# SKIPPED: readability-identifier-length — single-char loop vars are fine
+# SKIPPED: readability-qualified-auto — we don't use auto
+# ═══════════════════════════════════════════════════════════════
+# CLANG STATIC ANALYZER
+# Maps to: P10-10 (static analysis), LOC-3 (defensive coding)
+# Deep flow analysis — catches null deref, div-by-zero, leaks
+# ═══════════════════════════════════════════════════════════════
+# SKIPPED: clang-analyzer-osx.* — macOS only
+# SKIPPED: clang-analyzer-unix.Malloc — no heap usage
+# SKIPPED: clang-analyzer-optin.mpi.* — no MPI
+# Only report warnings in our source files, not SDK/third-party headers
+
 Checks: >
   -*,
 
-  # ═══════════════════════════════════════════════════════════════
-  # BUGPRONE — Bug-prone code patterns
-  # Maps to: JSF AV general safety, MISRA-adjacent, CERT
-  # ═══════════════════════════════════════════════════════════════
   bugprone-assert-side-effect,
   bugprone-assignment-in-if-condition,
   bugprone-bool-pointer-implicit-conversion,
@@ -61,14 +135,7 @@ Checks: >
   bugprone-unhandled-self-assignment,
   bugprone-unused-return-value,
   bugprone-use-after-move,
-  # SKIPPED: bugprone-easily-swappable-parameters — too noisy for embedded
-  # SKIPPED: bugprone-exception-escape — exceptions disabled
-  # SKIPPED: bugprone-reserved-identifier — SDK names trigger false positives
 
-  # ═══════════════════════════════════════════════════════════════
-  # CERT — SEI CERT Secure Coding Guidelines
-  # Maps to: JSF AV safety rules, P10 defensive coding
-  # ═══════════════════════════════════════════════════════════════
   cert-dcl50-cpp,
   cert-dcl58-cpp,
   cert-err33-c,
@@ -83,12 +150,7 @@ Checks: >
   cert-oop57-cpp,
   cert-oop58-cpp,
   cert-str34-c,
-  # SKIPPED: cert-err58-cpp, cert-err60-cpp — exceptions disabled
 
-  # ═══════════════════════════════════════════════════════════════
-  # C++ CORE GUIDELINES
-  # Maps to: JSF AV Rules 188-189 (goto), 206 (no heap), 209 (types)
-  # ═══════════════════════════════════════════════════════════════
   cppcoreguidelines-avoid-goto,
   cppcoreguidelines-init-variables,
   cppcoreguidelines-interfaces-global-init,
@@ -100,17 +162,7 @@ Checks: >
   cppcoreguidelines-pro-type-static-cast-downcast,
   cppcoreguidelines-slicing,
   cppcoreguidelines-special-member-functions,
-  # SKIPPED: cppcoreguidelines-avoid-c-arrays — static C arrays are intentional (AP-1)
-  # SKIPPED: cppcoreguidelines-pro-bounds-* — incompatible with SDK C APIs
-  # SKIPPED: cppcoreguidelines-pro-type-reinterpret-cast — needed for MPU/HW registers
-  # SKIPPED: cppcoreguidelines-pro-type-vararg — printf allowed in Ground/IVP code
-  # SKIPPED: cppcoreguidelines-avoid-non-const-global-variables — g_ globals are by design
-  # SKIPPED: cppcoreguidelines-owning-memory — no gsl::owner in bare-metal
 
-  # ═══════════════════════════════════════════════════════════════
-  # GOOGLE
-  # Maps to: JSF AV Rule 209 (fixed-width types)
-  # ═══════════════════════════════════════════════════════════════
   google-build-explicit-make-pair,
   google-build-namespaces,
   google-build-using-namespace,
@@ -118,21 +170,10 @@ Checks: >
   google-explicit-constructor,
   google-runtime-int,
 
-  # ═══════════════════════════════════════════════════════════════
-  # HICPP — High Integrity C++
-  # Maps to: JSF AV safety, P10-1 (no goto), JSF 14 (literal suffixes)
-  # ═══════════════════════════════════════════════════════════════
   hicpp-signed-bitwise,
   hicpp-uppercase-literal-suffix,
   hicpp-multiway-paths-covered,
-  # SKIPPED: hicpp-no-assembler — __asm volatile needed for BASEPRI (LL Entry 3)
-  # SKIPPED: hicpp-vararg — alias for pro-type-vararg (printf allowed)
-  # NOTE: hicpp-avoid-goto, hicpp-no-malloc etc. are aliases — already covered
 
-  # ═══════════════════════════════════════════════════════════════
-  # MISC — Miscellaneous quality checks
-  # Maps to: P10-6 (scope), JSF AV general, LOC-3 (defensive coding)
-  # ═══════════════════════════════════════════════════════════════
   misc-const-correctness,
   misc-definitions-in-headers,
   misc-misplaced-const,
@@ -144,13 +185,7 @@ Checks: >
   misc-unused-parameters,
   misc-unused-using-decls,
   misc-use-internal-linkage,
-  # SKIPPED: misc-include-cleaner — too noisy with SDK cross-includes
-  # SKIPPED: misc-confusable-identifiers — slow, not safety-critical
 
-  # ═══════════════════════════════════════════════════════════════
-  # MODERNIZE — C++20 best practices
-  # Maps to: JSF AV Rule 29-31 (constexpr over #define), C++ modernization
-  # ═══════════════════════════════════════════════════════════════
   modernize-deprecated-headers,
   modernize-loop-convert,
   modernize-macro-to-enum,
@@ -162,15 +197,7 @@ Checks: >
   modernize-use-nullptr,
   modernize-use-override,
   modernize-use-using,
-  # SKIPPED: modernize-use-auto — explicit types preferred in embedded (audit A.4)
-  # SKIPPED: modernize-use-trailing-return-type — not our style
-  # SKIPPED: modernize-use-nodiscard — C++17 feature, evaluate later
-  # SKIPPED: modernize-use-std-print — no std::print on bare-metal
 
-  # ═══════════════════════════════════════════════════════════════
-  # PERFORMANCE
-  # Maps to: embedded real-time constraints
-  # ═══════════════════════════════════════════════════════════════
   performance-enum-size,
   performance-for-range-copy,
   performance-implicit-conversion-in-loop,
@@ -182,15 +209,7 @@ Checks: >
   performance-type-promotion-in-math-fn,
   performance-unnecessary-copy-initialization,
   performance-unnecessary-value-param,
-  # SKIPPED: performance-avoid-endl — no iostream usage
-  # SKIPPED: performance-inefficient-string-concatenation — no std::string
-  # SKIPPED: performance-inefficient-vector-operation — no std::vector
 
-  # ═══════════════════════════════════════════════════════════════
-  # READABILITY
-  # Maps to: JSF AV Rules 1 (size), 50-53 (naming), 59 (braces),
-  #          151 (magic numbers), 152 (one var per decl)
-  # ═══════════════════════════════════════════════════════════════
   readability-avoid-const-params-in-decls,
   readability-avoid-nested-conditional-operator,
   readability-braces-around-statements,
@@ -207,10 +226,6 @@ Checks: >
   readability-inconsistent-declaration-parameter-name,
   readability-isolate-declaration,
   readability-magic-numbers,
-  # DISABLED: readability-math-missing-parentheses — stricter than JSF AV Rule 213,
-  # which explicitly allows arithmetic precedence ("below arithmetic operators").
-  # CERT SEI EXP00-C-EX1 confirms: algebraic order parens are redundant.
-  # ArduPilot's AP_Math (our upstream reference) relies on * before + throughout.
   readability-misleading-indentation,
   readability-misplaced-array-index,
   readability-named-parameter,
@@ -221,24 +236,13 @@ Checks: >
   readability-simplify-boolean-expr,
   readability-static-accessed-through-instance,
   readability-uppercase-literal-suffix,
-  # SKIPPED: readability-identifier-length — single-char loop vars are fine
-  # SKIPPED: readability-qualified-auto — we don't use auto
 
-  # ═══════════════════════════════════════════════════════════════
-  # CLANG STATIC ANALYZER
-  # Maps to: P10-10 (static analysis), LOC-3 (defensive coding)
-  # Deep flow analysis — catches null deref, div-by-zero, leaks
-  # ═══════════════════════════════════════════════════════════════
   clang-analyzer-core.*,
   clang-analyzer-cplusplus.*,
   clang-analyzer-deadcode.*,
   clang-analyzer-security.ArrayBound,
   clang-analyzer-security.FloatLoopCounter,
-  # SKIPPED: clang-analyzer-osx.* — macOS only
-  # SKIPPED: clang-analyzer-unix.Malloc — no heap usage
-  # SKIPPED: clang-analyzer-optin.mpi.* — no MPI
 
-# Only report warnings in our source files, not SDK/third-party headers
 HeaderFilterRegex: '.*(src/.+\.(h|hpp)|include/rocketchip/.*)'
 
 CheckOptions:

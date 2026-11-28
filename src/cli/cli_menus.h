@@ -76,6 +76,15 @@ inline constexpr Item kVehicleItems[] = {
     {MenuId::kDebug, 'e', false, "ESKF live",  MenuId::kNone, ActionId::kDebugEskfLive},
     {MenuId::kDebug, 'y', true,  "pyro log",   MenuId::kNone, ActionId::kDebugPyroLog},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
+    {MenuId::kDebug, 'w', true,  "flash stall", MenuId::kNone, ActionId::kDebugFlashStall},
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+    {MenuId::kDebug, 'f', true,  "scratch loop", MenuId::kNone,
+     ActionId::kDebugFlashScratch},
+#endif
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'j', true,  "DIO1/DIO2 jumper", MenuId::kNone, ActionId::kDebugDioToggle},
+    {MenuId::kDebug, 'n', true,  "Q31 FIFO depth",   MenuId::kNone, ActionId::kDebugFifoDepth},
+#endif
 #if defined(ROCKETCHIP_DEV_MODE)
     {MenuId::kDebug, 'o', true,  "force 1 TX timeout", MenuId::kNone,
      ActionId::kForceTxTimeout, Gate::kDevRuntime},
@@ -134,6 +143,11 @@ inline constexpr Item kStationItems[] = {
     {MenuId::kDebug, 'u', true,  "I2C park (probe flash)", MenuId::kNone, ActionId::kDebugI2cPark},
     {MenuId::kDebug, 'b', true,  "boot/HW",    MenuId::kNone, ActionId::kDebugBootHw},
     {MenuId::kDebug, 'd', true,  "diag",       MenuId::kNone, ActionId::kDebugDiag},
+    {MenuId::kDebug, 'w', true,  "flash stall", MenuId::kNone, ActionId::kDebugFlashStall},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {MenuId::kDebug, 'j', true,  "DIO1/DIO2 jumper", MenuId::kNone, ActionId::kDebugDioToggle},
+    {MenuId::kDebug, 'n', true,  "Q31 FIFO depth",   MenuId::kNone, ActionId::kDebugFifoDepth},
+#endif
     {MenuId::kDebug, 'h', true,  "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, '?', false, "help",       MenuId::kNone, ActionId::kHelp},
     {MenuId::kDebug, 'z', true,  "back",       MenuId::kNone, ActionId::kBack},

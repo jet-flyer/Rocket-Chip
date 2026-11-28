@@ -1,0 +1,25 @@
+{
+  "_comment": "Expected hardware per board (Nathan, 2026-11-23). Tracked. boards.local.json names each USB serial's profile with \"board\". Levels: required = must be detected, cannot be marked not fitted (the IMU and baro: the parts that will become integral to every board, Nathan 2026-11-23). Parts are generic: imu means whichever IMU is fitted, baro whichever baro, not a particular chip; expected = must be detected unless scripts/ci/gate_inhibits.json marks it not fitted for a branch; optional = the usual setup but never mandatory: checked when detected, N/A by name when not (radio, GPS). A push that changes radio code ([radio] in firmware_paths.txt) requires the radio on every benched board (Nathan 2026-11-23: require what the code under test needs); absent = not expected, a detection is a warning only. Typical setup source: docs/hardware/HARDWARE.md, Typical Bench Setup table (expected = Typical there).",
+  "profiles": {
+    "feather_rp2350": {
+      "role": "vehicle",
+      "parts": {
+        "imu": "required",
+        "baro": "required",
+        "radio": "optional",
+        "gps": "optional"
+      },
+      "_note": "IMU and baro are required but sit on separate STEMMA breakouts for now and may change (Nathan, 2026-11-23). GPS: PA1010D on the STEMMA chain is the usual setup (HARDWARE.md, Qwiic chain order Board, GPS, Baro, IMU) but optional."
+    },
+    "fruit_jam": {
+      "role": "station",
+      "parts": {
+        "imu": "absent",
+        "baro": "absent",
+        "radio": "optional",
+        "gps": "optional"
+      },
+      "_note": "GPS optional: a spare PA1010D is sometimes fitted for range and extra sensor tests; the station is built to work without it (Nathan, 2026-11-23)."
+    }
+  }
+}

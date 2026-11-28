@@ -1,11 +1,16 @@
-// IVP increment 0+1 — Space Packet (docs/TESTING.md, docs/IVP.md)
+// Host checks for the Space Packet codec.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
+// IVP increment 0+1 - Space Packet (docs/TESTING.md, docs/IVP.md)
 // Accept: sp-idle; v3-one-sp-n (PLTU 18+N)
 // Reject: sp-too-short, sp-pvn, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>
@@ -28,23 +33,29 @@ using starcom::ccsds::kSpacePacketMinSize;
 using starcom::ccsds::SpacePacketFields;
 using starcom::ccsds::V3Fields;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
-void test_sp_idle() {
+void test_sp_idle()
+{
   // IVP sp-idle: APID all-ones, secondary header 0
   SpacePacketFields f{};
   f.apid = kIdleApid;
@@ -70,7 +81,7 @@ void test_sp_idle() {
   CHECK(v->fields.seq_flags == 0b11);
   CHECK(v->data.size() == 1u);
 
-  // 133.0-B-2 §4.1.3.3.3.4: a set flag is still forced off for APID 0x7FF.
+  // 133.0-B-2 section 4.1.3.3.3.4: a set flag is still forced off for APID 0x7FF.
   f.secondary_header = true;
   const auto forced = encodeSpacePacket(out, f, asSpan(data));
   CHECK(forced.has_value());
@@ -82,7 +93,8 @@ void test_sp_idle() {
   CHECK(fv->fields.apid == kIdleApid);
 }
 
-void test_roundtrip() {
+void test_roundtrip()
+{
   SpacePacketFields f{};
   f.telecommand = true;
   f.secondary_header = true;
@@ -106,7 +118,8 @@ void test_roundtrip() {
   CHECK(v->data[0] == std::byte{0xAA});
 }
 
-void test_reject_sp_too_short() {
+void test_reject_sp_too_short()
+{
   // IVP sp-too-short
   const auto empty = decodeSpacePacket({});
   CHECK(!empty.has_value());
@@ -132,7 +145,8 @@ void test_reject_sp_too_short() {
   CHECK(enc.error() == Error::sp_too_short);
 }
 
-void test_reject_sp_pvn() {
+void test_reject_sp_pvn()
+{
   // IVP sp-pvn
   std::array<std::byte, 7> pkt{
       std::byte{0x20}, std::byte{0x00}, std::byte{0xC0}, std::byte{0x00},
@@ -142,7 +156,8 @@ void test_reject_sp_pvn() {
   CHECK(r.error() == Error::sp_pvn);
 }
 
-void test_encode_buffer_too_small() {
+void test_encode_buffer_too_small()
+{
   SpacePacketFields f{};
   const std::array<std::byte, 1> data{std::byte{0x00}};
   std::array<std::byte, 6> too_small{};
@@ -151,7 +166,8 @@ void test_encode_buffer_too_small() {
   CHECK(r.error() == Error::buffer_too_small);
 }
 
-void test_v3_one_sp_n() {
+void test_v3_one_sp_n()
+{
   // IVP v3-one-sp-n: PLTU = 18+N
   constexpr std::size_t n_user = 4;
   SpacePacketFields sp{};
@@ -187,14 +203,16 @@ void test_v3_one_sp_n() {
   CHECK(spv->data.size() == n_user);
 }
 
-void test_heap() {
+void test_heap()
+{
   SpacePacketFields f{};
   const std::array<std::byte, 1> data{std::byte{0x00}};
   std::array<std::byte, 16> out{};
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   const auto n = encodeSpacePacket(out, f, asSpan(data));
-  if (n.has_value()) {
+  if (n.has_value())
+  {
     (void)decodeSpacePacket(std::span<const std::byte>(out.data(), *n));
   }
   starcom::test::heapTrapDisarm();
@@ -204,7 +222,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_space_packet_tests() {
+int run_space_packet_tests()
+{
   test_sp_idle();
   test_roundtrip();
   test_reject_sp_too_short();

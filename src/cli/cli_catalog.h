@@ -27,6 +27,10 @@ enum class CatalogId : uint16_t {
     kUsbArmInh  = 4,
     kUsbCfgEn   = 5,
     kStationOut = 6,
+#if defined(ROCKETCHIP_DEV_MODE)
+    kDioToggle  = 7,
+    kFifoDepth  = 8,
+#endif
 };
 
 struct CatalogRow {
@@ -46,6 +50,10 @@ inline constexpr CatalogRow kCatalog[] = {
     {CatalogId::kUsbArmInh,  "USB_ARM_INH", WriteClass::kLocked, true,  false, "",      true},
     {CatalogId::kUsbCfgEn,   "USB_CFG_EN",  WriteClass::kLocked, true,  false, "",      true},
     {CatalogId::kStationOut, "STN_OUTPUT",  WriteClass::kBasic,  false, true,  "",      false},
+#if defined(ROCKETCHIP_DEV_MODE)
+    {CatalogId::kDioToggle,  "DIO_TOGGLE",  WriteClass::kRead,   true,  true,  "",      false},
+    {CatalogId::kFifoDepth,  "FIFO_DEPTH",  WriteClass::kRead,   true,  true,  "",      false},
+#endif
 };
 
 inline constexpr size_t kCatalogCount = sizeof(kCatalog) / sizeof(kCatalog[0]);

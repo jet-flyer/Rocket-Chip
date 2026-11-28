@@ -18,8 +18,10 @@
 #include "hardware/sync.h"
 #include "hardware/structs/mpu.h"
 #include "drivers/ws2812_status.h"
+#include "drivers/status_led.h"
 #include "drivers/i2c_master.h"
 #include "drivers/icm20948.h"
+#include "core1/imu_recover_policy.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
 #include "drivers/gps_uart.h"
@@ -43,8 +45,8 @@ static constexpr uint32_t kCore1GpsDivider = 100;               // GPS poll ~10H
 static constexpr uint32_t kCore1McuTempDivider = 1000;          // MCU temp at ~1Hz (Stage 16C IVP-142a)
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // Caller debounce; backend owns slave timing
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
-static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
-static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
+static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold (baro, zero-reject)
+static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // Baro re-init threshold (IMU: imu_recover_policy.h)
 static constexpr uint32_t kBaroMaxReinitAttempts = 3;           // Max baro re-inits before declaring dead
 // Pad/1g gravity-floor heuristic (9.8 * cos(72 deg) = 3.0 m/s^2).
 // Free-fall/coast can be below this; the body still treats it as IMU death.
@@ -76,6 +78,14 @@ uint32_t core1_imu_zero_reject_count() {
     return g_imuZeroRejectCount;
 }
 
+static uint32_t g_imuReinitCount = 0;
+static uint32_t g_imuLastReinitUs = 0;
+static bool g_imuReinitTried = false;
+
+uint32_t core1_imu_reinit_count() {
+    return g_imuReinitCount;
+}
+
 // Fault protection and MPU stack guard now provided by safety/fault_protection.h
 // (OPT-IVP-01). core1_entry() calls the shared mpu_setup_stack_guard().
 
@@ -85,25 +95,47 @@ uint32_t core1_imu_zero_reject_count() {
 // Each helper writes into localData (passed by pointer). The seqlock_write()
 // call stays in the sensor loop -- NOT inside these helpers (council rule).
 
-// IMU error path: increment fail counter, invalidate accel/gyro, attempt recovery.
+// IMU re-init (plan section 4 gap 1). Only into idle lines, so the
+// re-init transfers do not go out on a stuck bus. Calibration is Core 1's
+// local_cal and is not touched; the driver re-applies the pack's full
+// scale and loads the scale from the chip.
+static void core1_imu_reinit(uint32_t* imu_consec_fail) {
+    if (!i2c_master_lines_idle()) {
+        return;
+    }
+    g_imuReinitCount++;
+    (void)icm20948_reinit(&g_imu);
+    g_imuLastReinitUs = time_us_32();
+    g_imuReinitTried = true;
+    *imu_consec_fail = 0;
+}
+
+// IMU error path: count, invalidate accel/gyro, then the recover policy
+// (core1/imu_recover_policy.h). NACK is a finished transfer; bus recover
+// is for a stuck line (UM10204). Never DEVICE_RESET in the 1 kHz path
+// (DS-000189: needs an ACK, can set I2C_IF_DIS). Stuck lines: ABORT+STOP,
+// never reset_block.
 static void core1_imu_error_recovery(uint32_t* imu_consec_fail,
                                       shared_sensor_data_t* local_data) {
     (*imu_consec_fail)++;
     local_data->accel_valid = false;
     local_data->gyro_valid = false;
     local_data->imu_error_count++;
-    // NACK is a finished transfer. Recover is for a stuck line (UM10204).
-    // DEVICE_RESET is bring-up (DS-000189) and needs an ACK — do not fire
-    // it every 50 failed data reads on a live stretching bus.
-    // Do not DEVICE_RESET in the 1 kHz path (DS-000189 reset needs ACK and
-    // can set I2C_IF_DIS). Stuck lines: ABORT+STOP, never reset_block.
-    if (*imu_consec_fail >= kCore1ConsecFailBusRecover
-        && (*imu_consec_fail % kCore1ConsecFailBusRecover) == 0) {
-        if (!i2c_master_lines_idle()) {
-            i2c_master_abort_and_idle();
-            i2c_master_reattach();
-        }
-        *imu_consec_fail = 0;
+    if (!imu_recover::is_check_point(*imu_consec_fail)) {
+        return;
+    }
+    const bool due = imu_recover::reinit_due(time_us_32(), g_imuLastReinitUs,
+                                             g_imuReinitTried);
+    const imu_recover::Action act =
+        imu_recover::decide(*imu_consec_fail, i2c_master_lines_idle(), due);
+    if (act == imu_recover::Action::kBusRecover ||
+        act == imu_recover::Action::kBusRecoverThenReinit) {
+        i2c_master_abort_and_idle();
+        i2c_master_reattach();
+    }
+    if (act == imu_recover::Action::kBusRecoverThenReinit ||
+        act == imu_recover::Action::kReinit) {
+        core1_imu_reinit(imu_consec_fail);
     }
 }
 
@@ -194,38 +226,38 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
     core1_apply_imu_cal(imu_data, local_data, local_cal);
 }
 
-static void core1_read_baro(shared_sensor_data_t* local_data) {
-    static uint32_t g_baroConsecFail = 0;
-    static uint32_t g_baroReinitAttempts = 0;
+// Baro new-sample watch (drivers/baro_sample.h). Core 1 only.
+static BaroSampleWatch g_baroWatch{kBaroDps310MaxSampleGapUs};
+static uint32_t g_baroConsecFail = 0;
+static uint32_t g_baroReinitAttempts = 0;
 
-    // Read directly via ruuvi driver -- no MEAS_CFG pre-check.
-    // The DPS310 in continuous mode alternates PRS_RDY and TMP_RDY;
-    // requiring both simultaneously is too strict and produces false errors.
-    // The ruuvi driver reads raw registers; I2C failure returns !valid.
-    baro_dps310_data_t baro_data;
-    if (baro_dps310_read(&baro_data) && baro_data.valid) {
-        local_data->pressure_pa = baro_data.pressure_pa;
-        local_data->baro_temperature_c = baro_data.temperature_c;
-        local_data->baro_timestamp_us = time_us_32();
-        local_data->baro_read_count++;
-        local_data->baro_valid = true;
-        g_baroConsecFail = 0;
-        g_baroReinitAttempts = 0;  // Successful read proves sensor is alive
+static void core1_baro_publish(shared_sensor_data_t* local_data,
+                               const baro_dps310_data_t& baro_data,
+                               uint32_t now_us) {
+    local_data->pressure_pa = baro_data.pressure_pa;
+    local_data->baro_temperature_c = baro_data.temperature_c;
+    local_data->baro_timestamp_us = now_us;
+    local_data->baro_read_count++;
+    local_data->baro_valid = true;
+    g_baroConsecFail = 0;
+    g_baroReinitAttempts = 0;  // A new conversion proves the sensor is alive
 
-        // Feed baro calibration with raw data from Core 1
-        if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
-            calibration_feed_baro(baro_data.pressure_pa,
-                                  baro_data.temperature_c);
-        }
-        return;
+    // Feed baro calibration with raw data from Core 1
+    if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
+        calibration_feed_baro(baro_data.pressure_pa,
+                              baro_data.temperature_c);
     }
+}
 
-    // I2C failure or driver error -- escalate (mirrors IMU pattern)
+// I2C failure, driver error, or conversions stopped -- escalate (mirrors IMU
+// pattern).
+static void core1_baro_fault(shared_sensor_data_t* local_data, uint32_t now_us) {
     g_baroConsecFail++;
     local_data->baro_error_count++;
     if (g_baroConsecFail >= kCore1ConsecFailDevReset) {
         if (g_baroReinitAttempts < kBaroMaxReinitAttempts) {
             baro_dps310_start_continuous();
+            g_baroWatch.restart(now_us);
             g_baroReinitAttempts++;
         } else {
             g_baroInitialized.store(false, std::memory_order_release);  // Declare baro dead
@@ -237,6 +269,35 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
             i2c_master_abort_and_idle();
             i2c_master_reattach();
         }
+    }
+}
+
+static void core1_read_baro(shared_sensor_data_t* local_data) {
+    // Publish only new conversions. The poll and the DPS310's conversion
+    // clock are not locked together, so a poll can land before the next
+    // result; re-reading the result registers then returns the previous
+    // sample again (datasheet §4.7) and the ESKF, which fuses on every
+    // baro_read_count change, would take a repeat as a new measurement.
+    // The gate needs PRS_RDY only. The old rejected pre-check required
+    // PRS_RDY and TMP_RDY together, which is rarely true because the
+    // temperature converts at 2 Hz and pressure at 32 Hz; that check was
+    // too strict, not the idea. A no-new poll counts nothing and is not a
+    // fault; only a gap past kBaroDps310MaxSampleGapUs is.
+    // Exact repeats of a new conversion still happen (quantization at
+    // OS=8) and are valid samples; they are not filtered.
+    const uint32_t now_us = time_us_32();
+    baro_dps310_data_t baro_data = {};
+    const BaroSampleStatus status = baro_dps310_poll(&baro_data);
+    switch (g_baroWatch.on_poll(status, now_us)) {
+        case BaroSampleAction::kPublish:
+            core1_baro_publish(local_data, baro_data, now_us);
+            break;
+        case BaroSampleAction::kSkip:
+            break;
+        case BaroSampleAction::kFault:
+        default:
+            core1_baro_fault(local_data, now_us);
+            break;
     }
 }
 
@@ -352,6 +413,62 @@ static void apply_gps_nmea_utc(shared_sensor_data_t* local_data,
     local_data->gps_date_valid = true;
 }
 
+static void copy_gps_position(shared_sensor_data_t* local_data,
+                             const gps_data_t* d) {
+    // Hold-on-valid (ArduPilot GPS backend new_data): keep the last fix
+    // between NMEA bursts. Overwrite only when the driver says valid.
+    if (!d->valid) {
+        return;
+    }
+    double lat = d->latitude;
+    double lon = d->longitude;
+    if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
+    if (lat < kLatMinDeg) { lat = kLatMinDeg; }
+    if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
+    if (lon < kLonMinDeg) { lon = kLonMinDeg; }
+    local_data->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+    local_data->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
+    local_data->gps_alt_msl_m = d->altitudeM;
+    local_data->gps_ground_speed_mps = d->speedMps;
+    local_data->gps_course_deg = d->courseDeg;
+    local_data->gps_valid = true;
+    local_data->gps_hdop = d->hdop;
+    local_data->gps_vdop = d->vdop;
+}
+
+static void copy_gps_diag(shared_sensor_data_t* local_data, const gps_data_t* d) {
+    local_data->gps_fix_type = static_cast<uint8_t>(d->fix);
+    local_data->gps_satellites = d->satellites;
+    local_data->gps_gga_fix = d->ggaFix;
+    local_data->gps_gsa_fix_mode = d->gsaFixMode;
+    local_data->gps_rmc_valid = d->rmcValid;
+}
+
+static void commit_gps_sample(shared_sensor_data_t* local_data,
+                              const gps_data_t* d,
+                              bool parsed,
+                              uint32_t now_us,
+                              bool count_read) {
+    if (count_read) {
+        // Counts driver polls, not valid fixes.
+        local_data->gps_read_count++;
+        local_data->gps_timestamp_us = now_us;
+    }
+    copy_gps_position(local_data, d);
+    apply_gps_nmea_utc(local_data, *d);
+    copy_gps_diag(local_data, d);
+    if (count_read && !parsed) {
+        local_data->gps_error_count++;
+    }
+    if (!count_read) {
+        core1_update_best_gps_fix(local_data);
+        return;
+    }
+    core1_gps_staleness_check(parsed, now_us);
+    core1_update_best_gps_fix(local_data);
+    poll_i2c_gps_sidecar();
+}
+
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
 void core1_read_gps(shared_sensor_data_t* local_data,
                     uint32_t* last_gps_read_us) {
@@ -367,49 +484,17 @@ void core1_read_gps(shared_sensor_data_t* local_data,
     if (!poll_bound_gps(&d, &parsed)) {
         return;
     }
+    commit_gps_sample(local_data, &d, parsed, gps_now_us, true);
+}
 
-    // gps_read_count always increments -- counts driver polls, not valid fixes.
-    local_data->gps_read_count++;
-    local_data->gps_timestamp_us = gps_now_us;
-
-    // Hold-on-valid pattern (ArduPilot GPS backend `new_data` flag):
-    // Between 1Hz NMEA bursts at 10Hz polling, 9/10 cycles have d.valid==false.
-    // Only overwrite position/velocity fields when the driver reports valid data.
-    // localData retains last-valid values between bursts.
-    if (d.valid) {
-        double lat = d.latitude;
-        double lon = d.longitude;
-        if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
-        if (lat < kLatMinDeg) { lat = kLatMinDeg; }
-        if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
-        if (lon < kLonMinDeg) { lon = kLonMinDeg; }
-
-        local_data->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
-        local_data->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
-        local_data->gps_alt_msl_m = d.altitudeM;
-        local_data->gps_ground_speed_mps = d.speedMps;
-        local_data->gps_course_deg = d.courseDeg;
-        local_data->gps_valid = true;
-        local_data->gps_hdop = d.hdop;
-        local_data->gps_vdop = d.vdop;
+void core1_accept_i2c_gps(shared_sensor_data_t* local_data, bool count_read) {
+    gps_data_t d{};
+    bool parsed = true;
+    if (count_read) {
+        parsed = gps_pa1010d_consume_read_ok();
     }
-
-    apply_gps_nmea_utc(local_data, d);
-
-    // Always update diagnostic fields (satellites, fix type, raw sentence flags)
-    local_data->gps_fix_type = static_cast<uint8_t>(d.fix);
-    local_data->gps_satellites = d.satellites;
-    local_data->gps_gga_fix = d.ggaFix;
-    local_data->gps_gsa_fix_mode = d.gsaFixMode;
-    local_data->gps_rmc_valid = d.rmcValid;
-
-    if (!parsed) {
-        local_data->gps_error_count++;
-    }
-
-    core1_gps_staleness_check(parsed, gps_now_us);
-    core1_update_best_gps_fix(local_data);
-    poll_i2c_gps_sidecar();
+    (void)gps_pa1010d_get_data(&d);
+    commit_gps_sample(local_data, &d, parsed, time_us_32(), count_read);
 }
 
 // ============================================================================
@@ -429,14 +514,14 @@ static bool core1_check_pause_and_reload(calibration_store_t* local_cal) {
 
     if (g_core1PauseI2C.load(std::memory_order_acquire)) {
         g_core1I2CPaused.store(true, std::memory_order_release);
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
-        ws2812_update();
+        status_led_set_mode(WS2812_MODE_SOLID, kColorOrange);
+        status_led_update();
         while (g_core1PauseI2C.load(std::memory_order_acquire)) {
             sleep_ms(1);
         }
         g_core1I2CPaused.store(false, std::memory_order_release);
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
-        ws2812_update();
+        status_led_set_mode(WS2812_MODE_SOLID, kColorBlue);
+        status_led_update();
         return true;
     }
     return false;

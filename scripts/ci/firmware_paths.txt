@@ -13,7 +13,21 @@
 #   dir/       every path under dir/
 #   name       that exact path, or every path under name/ (git literal pathspec)
 #   prefix*    any path that starts with prefix (NOT allowed in [elf])
+#   !glob      global exclude. It is not a path. It applies to every section,
+#              wherever the line sits ([elf], [radio], [gate], [isolate:*], ...).
+#              Excludes are global, not per-section. Write each glob once.
+#              * does not match /. ** matches across /. The match is
+#              case-sensitive. A path that matches is in no section, and the
+#              firmware-tree listing leaves it out (it does not change the
+#              build ID and it does not force a bench).
 # Lines starting with '#' are comments. Paths are repo-relative, '/' only.
+#
+# Markdown under a firmware path is not firmware.
+!**/*.md
+# Per-branch gate inhibits (data, not gate code). A not-fitted entry changes
+# the bench's expected hardware, which the bench note records (expect: line),
+# so a stale note is not reused; a warning entry changes no bench result.
+!scripts/ci/gate_inhibits.json
 #
 # Changing this file changes which commits get a bench run. Removing a path
 # needs the repo owner's OK (and a council, per the matrix policy).
@@ -65,6 +79,8 @@ scripts/bench_sim.py
 scripts/station_bench_sim.py
 scripts/_rc_test_common.py
 scripts/flash_elf_halt_write.py
+# The two-board radio bench. The gate runs it on a [radio] push.
+scripts/radio_link_bench.py
 
 [station-only]
 # Role rule (Nathan, 2026-10-08): a firmware ([elf]) change benches BOTH
@@ -90,6 +106,7 @@ src/telemetry/
 src/starcom_adapt/
 src/logging/radio_config_storage*
 src/diag/radio_rate_counters*
+src/diag/link_baseline*
 include/rocketchip/radio_config*
 include/rocketchip/telemetry_encoder*
 starcom/include/
@@ -117,4 +134,4 @@ starcom/adapters/rp2350/
 
 [isolate:turnaround]
 starcom/src/ccsds/mac.cpp
-starcom/include/starcom/ccsds/mac.hpp
+starcom/include/starcom/ccsds/mac.h

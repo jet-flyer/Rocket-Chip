@@ -13,6 +13,7 @@
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/ao_signals.h"
 #include "fusion/wmm_tables.h"
+#include "fusion/wmm_persist.h"
 #include "calibration/calibration_manager.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/mission_profile.h"
@@ -277,10 +278,31 @@ static void init_wmm_field(float lat_deg, float lon_deg, WmmSource source) {
     g_wmmSource = source;
 }
 
-// Persist WMM position to cal storage (survives reboot)
-static void save_wmm_position(float lat_deg, float lon_deg) {
-    calibration_set_wmm_position(lat_deg, lon_deg);
-    calibration_save();
+// First GPS 3D fix this boot: field applied now, flash persist held for kIdle.
+static rc::WmmGpsPersist g_wmmGpsPersist;
+
+// Write the held GPS WMM position to cal storage once the FD is in kIdle
+// (wmm_persist.h). Runs from qv_idle_bridge, not an AO handler (AO
+// Commandment IV); QV dispatch cannot change the phase mid-call.
+static void service_wmm_persist() {
+    rc::WmmPosition pos{};
+    if (!g_wmmGpsPersist.take_persist(rc::flight_phase_observable_get(), &pos)) {
+        return;
+    }
+    calibration_set_wmm_position(pos.lat_deg, pos.lon_deg);
+    // One-shot: a failed write is not retried; the next boot re-acquires.
+    (void)calibration_save();
+}
+
+// Adopt a live GPS 3D fix as the WMM source: RAM now, flash when disarmed.
+static void adopt_gps_wmm(const shared_sensor_data_t& snap) {
+    const float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
+    const float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
+    if (!g_wmmGpsPersist.accept_fix(lat, lon)) {
+        return;
+    }
+    init_wmm_field(lat, lon, WmmSource::kGps);
+    service_wmm_persist();
 }
 
 // Try to auto-enable 3-axis mag states
@@ -293,10 +315,7 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
     // WMM position priority: GPS 3D fix → stored cal → profile default
     if (g_wmmSource == WmmSource::kNone) {
         if (snap.gps_valid && snap.gps_fix_type >= 3) {
-            float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
-            float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
-            init_wmm_field(lat, lon, WmmSource::kGps);
-            save_wmm_position(lat, lon);
+            adopt_gps_wmm(snap);
         } else if ((cal->cal_flags & CAL_STATUS_WMM_SET) != 0) {
             init_wmm_field(cal->wmm_lat_deg, cal->wmm_lon_deg, WmmSource::kStored);
         } else if (g_profile != nullptr && g_profile->has_default_location) {
@@ -325,10 +344,7 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
 
     // Upgrade WMM source to GPS on first 3D fix (even if already using stored/default)
     if (snap.gps_valid && snap.gps_fix_type >= 3 && g_wmmSource != WmmSource::kGps) {
-        float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
-        float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
-        init_wmm_field(lat, lon, WmmSource::kGps);
-        save_wmm_position(lat, lon);
+        adopt_gps_wmm(snap);
     }
 
     // 3-axis is opt-in (mag cal + WMM). Mag-less / no-WMM stays heading-only
@@ -544,6 +560,7 @@ static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
 
     eskf_tick_baro(snap);
     eskf_tick_mag(snap);
+    service_wmm_persist();  // held GPS WMM write, once back in kIdle
     eskf_tick_zupt(snap);
     eskf_tick_gps(snap);
     eskf_tick_mahony(snap);

@@ -1,8 +1,9 @@
 # RocketChip CMake Build System
 #
 # Two build modes:
-#   Target build (default): cmake -B build -G Ninja
-#   Host tests:             cmake -B build_host -G Ninja -DBUILD_TESTS=ON
+#   Target build (default Feather): cmake -B build -G Ninja
+#   Tiny 2350 vehicle:              cmake -B build_tiny -G Ninja -DPICO_BOARD=pimoroni_tiny2350
+#   Host tests:                     cmake -B build_host -G Ninja -DBUILD_TESTS=ON
 #
 # The BUILD_TESTS gate selects between Pico SDK target build and
 # host-side test build. They are mutually exclusive.
@@ -13,6 +14,17 @@ option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 option(ROCKETCHIP_DEV_MODE
     "Compile inject, cal-reset, and runtime DEV_MODE toggle into the ELF (OFF for field images)"
     ON)
+# FSK pre-plan item 2. TEST BUILD ONLY: scratch-page flash loop (Debug 'j')
+# in a 1.5 MB area below the flash-safe test sector (logging/flash_scratch.h).
+# The flight-log region gets smaller by that area. Keep OFF for flight images.
+option(ROCKETCHIP_FLASH_STALL_SCRATCH
+    "Compile the flash stall scratch-page loop into the ELF (test build only)"
+    OFF)
+# Bench isolation build: radio and Starcom MAC pump fully off. TEST/BENCH
+# ONLY. OFF adds no define, so normal images do not change. Never for flight.
+option(ROCKETCHIP_RADIO_OFF
+    "Bench build: radio and Starcom MAC pump disabled"
+    OFF)
 
 # Starcom is core RC air (COP-P + nav/cmd/ACK SDUs). Always nested.
 # Nested ctest stays in the library tree. Host adapters (UDP/file) are
@@ -128,8 +140,10 @@ if(BUILD_TESTS)
         src/starcom_adapt/nav_sdu.cpp
         src/starcom_adapt/cmd_sdu.cpp
         src/starcom_adapt/byte_pump.cpp
+        src/drivers/rfm95w_airtime.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
+        ${RC_VERSION_GENERATED_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
@@ -234,6 +248,9 @@ else()
     else()
         set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
     endif()
+    # Tiny 2350 (PIM721) is opt-in only: -DPICO_BOARD=pimoroni_tiny2350
+    # (or the vehicle-tiny preset). Default vehicle board stays Feather.
+    # set(... CACHE) does not overwrite a -D or existing cache value.
 
     # Pull in SDK (must be before project())
     include(pico_sdk_import.cmake)
@@ -350,6 +367,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
+        src/drivers/status_led.cpp
         src/drivers/i2c_master.cpp
 
         # -------------------------------------------------------------------------
@@ -396,7 +414,13 @@ else()
         #   src/dev/replay_inject.{cpp,h}
         #   src/dev/station_replay.{cpp,h}
         src/diag/diag_stats.cpp
+        src/diag/diag_radio_precondition.cpp  # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp  # R-32 R0: increment-only rate counters
+        src/diag/link_baseline.cpp        # baseline LINK line (CLI t)
+        src/diag/flash_stall_stats.cpp    # FSK item 2: flash stall histogram (host-tested)
+        src/diag/tick_skip.cpp            # QF tick skip after a stall (host-tested)
+        src/diag/rx_quality_stats.cpp     # CRC-fail vs good packet RSSI/SNR (host-tested)
+        src/diag/qf_tick.cpp              # 100 Hz QF tick alarm (bsp_qv.c QF_onStartup)
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -447,13 +471,18 @@ else()
         src/logging/flight_table.cpp
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
+        src/logging/flash_job_plan.cpp
+        src/logging/flight_download.cpp   # 'd' download job, one USB step each tick
         src/logging/psram_init.cpp
+        src/logging/flash_gate.cpp        # FSK item 2: flash_safe_execute timing + poll gaps
+        src/logging/flash_scratch.cpp     # FSK item 2: scratch loop (empty unless option ON)
 
         # -------------------------------------------------------------------------
         # Stage 7: Radio & Telemetry (IVP-57, IVP-58, IVP-59)
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/drivers/rfm95w_airtime.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/mavlink_rx.cpp
         src/station/gcs_mavlink.cpp
@@ -543,6 +572,7 @@ else()
         src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
+        src/drivers/status_led.cpp
         src/drivers/i2c_master.cpp
         src/drivers/icm20948.cpp
         src/drivers/baro_dps310.cpp
@@ -551,6 +581,7 @@ else()
         src/drivers/mcu_temp.cpp
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/drivers/rfm95w_airtime.cpp
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
@@ -563,7 +594,11 @@ else()
         src/logging/flight_table.cpp
         src/logging/log_decimator.cpp
         src/logging/flash_flush.cpp
+        src/logging/flash_job_plan.cpp
+        src/logging/flight_download.cpp   # 'd' download job, one USB step each tick
         src/logging/psram_init.cpp
+        src/logging/flash_gate.cpp                  # FSK item 2
+        src/logging/flash_scratch.cpp               # FSK item 2 (test build only)
         src/cli/rc_os.cpp
         src/cli/cli_actions.cpp
         src/cli/rc_os_dashboard.cpp
@@ -579,7 +614,13 @@ else()
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
         src/diag/diag_stats.cpp                     # R-25-exec step 4
+        src/diag/diag_radio_precondition.cpp        # [Radio] T=0 lines (host-tested)
         src/diag/radio_rate_counters.cpp            # R-32 R0: increment-only rate counters
+        src/diag/link_baseline.cpp                  # baseline LINK line (CLI t)
+        src/diag/flash_stall_stats.cpp              # FSK item 2: flash stall histogram
+        src/diag/tick_skip.cpp                      # QF tick skip after a stall
+        src/diag/rx_quality_stats.cpp               # CRC-fail vs good packet RSSI/SNR
+        src/diag/qf_tick.cpp                        # 100 Hz QF tick alarm
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -618,6 +659,13 @@ else()
         src/station/station_idle_tick.cpp
         src/log/rc_log.cpp                      # R-5 Unit B (2026-05-16): bounded log channel replacing stdio
     )
+    # Dev-only DIO jumper / FIFO debug (j/n). Omitted from field images so
+    # the object and symbols are not in the ELF. Appended before the
+    # pedantic set_source_files_properties so a dev build still gates it.
+    if(ROCKETCHIP_DEV_MODE)
+        target_sources(rocketchip PRIVATE src/diag/station_dio_bench.cpp)
+        list(APPEND ROCKETCHIP_SOURCES src/diag/station_dio_bench.cpp)
+    endif()
     # L2-P5 (2026-06-24): -Wshadow / -Wfloat-equal finalized as hard errors (via the
     # global -Werror) after remediation cleared all sites — was warning-only (-Wno-error)
     # during the measurement phase. See docs/plans/L2P5_WALK_PLAN.md Phase B.
@@ -683,6 +731,7 @@ else()
         pico_stdlib
         hardware_gpio
         hardware_pio         # For NeoPixel/WS2812 PIO driver
+        hardware_pwm         # For discrete RGB status LED
         hardware_clocks      # For clock_get_hz()
         hardware_i2c         # For I2C/QWIIC sensors
         hardware_uart        # For UART GPS (IVP-46)
@@ -721,7 +770,7 @@ else()
     # `tinyusb_common` are the SDK-public wrappers. Marking them all
     # belt-and-suspenders ensures tinyusb never leaks -I into user code.
     set(PICO_SDK_INTERFACE_LIBS
-        pico_stdlib hardware_gpio hardware_pio hardware_clocks hardware_i2c
+        pico_stdlib hardware_gpio hardware_pio hardware_pwm hardware_clocks hardware_i2c
         hardware_uart hardware_flash pico_flash pico_multicore
         hardware_exception hardware_watchdog pico_rand hardware_spi
         hardware_xip_cache hardware_adc
@@ -782,6 +831,33 @@ else()
         message(STATUS "ROCKETCHIP_DEV_MODE: ON (inject/cal-reset in ELF; runtime v toggle)")
     else()
         message(STATUS "ROCKETCHIP_DEV_MODE: OFF (field: inject/cal-reset omitted)")
+    endif()
+
+    if(ROCKETCHIP_FLASH_STALL_SCRATCH)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_FLASH_STALL_SCRATCH=1)
+        message(STATUS "ROCKETCHIP_FLASH_STALL_SCRATCH: ON (TEST BUILD: scratch flash loop, smaller log region)")
+    endif()
+
+    # Bench isolation build: radio fully off. No SPI/RFM95W init (so no
+    # SX1276 IRQ or polling) and no Starcom MAC pump. OFF adds no define,
+    # so normal images do not change. Never for flight.
+    if(ROCKETCHIP_RADIO_OFF)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_RADIO_OFF=1)
+        message(STATUS "ROCKETCHIP_RADIO_OFF: ON (BENCH BUILD: no radio, no Starcom MAC pump)")
+    endif()
+
+    # Bench channel override (CRC-burst A/B on a second channel). Default
+    # 915000000 adds no define, so normal images do not change. Set the
+    # same value on the vehicle and the station. Limits: 902.3-927.7 MHz
+    # (BW500 edge, standards/RF_COMPLIANCE.md); rfm95w.cpp asserts it too.
+    set(RC_RADIO_FREQ_HZ "915000000" CACHE STRING "LoRa carrier frequency in Hz (902300000-927700000)")
+    if(NOT RC_RADIO_FREQ_HZ MATCHES "^[0-9]+$"
+       OR RC_RADIO_FREQ_HZ LESS 902300000 OR RC_RADIO_FREQ_HZ GREATER 927700000)
+        message(FATAL_ERROR "RC_RADIO_FREQ_HZ=${RC_RADIO_FREQ_HZ} is not 902300000-927700000")
+    endif()
+    if(NOT RC_RADIO_FREQ_HZ STREQUAL "915000000")
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_RADIO_FREQ_HZ=${RC_RADIO_FREQ_HZ}U)
+        message(STATUS "RC_RADIO_FREQ_HZ: ${RC_RADIO_FREQ_HZ} (BENCH CHANNEL, not the 915 MHz default)")
     endif()
 
     # Single flight binary per role. Test affordances (fault_force_*, debug

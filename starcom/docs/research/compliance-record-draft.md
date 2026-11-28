@@ -34,7 +34,7 @@ Repo state: `jet-flyer/Rocket-Chip`, branch `main`, commit `44bb0f23f828608d4dfe
 
 ## 2. Scope line
 
-**Books and issues that Starcom follows today.** Sources: CONF lines 176–196 (checked on ccsds.org 2026-10-01); `standards/starcom/ccsds/README.md` lines 13–21; `current-issue-recheck.md` section 1 (live check 2026-10-05, same issues).
+**Books and issues that Starcom follows today.** Sources: CONF lines 176–196 (checked on ccsds.org 2026-10-01); `starcom/standards/ccsds/README.md` lines 13–21; `current-issue-recheck.md` section 1 (live check 2026-10-05, same issues).
 
 | Book | Issue Starcom follows | What Starcom claims today | Source |
 |---|---|---|---|

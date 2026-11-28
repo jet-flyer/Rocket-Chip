@@ -1,10 +1,15 @@
-// IVP increment 0+1 — PLCW / CLCW pack (docs/TESTING.md, docs/IVP.md)
+// Host checks for the PLCW and the CLCW.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
+// IVP increment 0+1 - PLCW / CLCW pack (docs/TESTING.md, docs/IVP.md)
 // Accept: plcw-zero-report, clcw-cop1
 // Reject: truncated, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/plcw.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/plcw.h"
 
 #include <array>
 #include <cstddef>
@@ -23,19 +28,24 @@ using starcom::ccsds::kPlcwSize;
 using starcom::ccsds::Pcid;
 using starcom::ccsds::Plcw16;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-void test_plcw_zero_report() {
+void test_plcw_zero_report()
+{
   // IVP plcw-zero-report: Format ID 1, Type ID 0, spare 0
   Plcw16 z{};
   std::array<std::byte, 2> out{};
@@ -53,7 +63,8 @@ void test_plcw_zero_report() {
   CHECK(v->report_value == 0);
 }
 
-void test_plcw_roundtrip() {
+void test_plcw_roundtrip()
+{
   Plcw16 w{};
   w.retransmit = true;
   w.pcid = Pcid{1};
@@ -70,7 +81,8 @@ void test_plcw_roundtrip() {
   CHECK(v->report_value == 0xA5);
 }
 
-void test_clcw_cop1() {
+void test_clcw_cop1()
+{
   // IVP clcw-cop1: Control Word Type 0, version 00, COP in Effect 01
   Clcw32 z{};
   z.cop_in_effect = 0b01;
@@ -90,7 +102,8 @@ void test_clcw_cop1() {
   CHECK(!v->lockout);
 }
 
-void test_clcw_roundtrip() {
+void test_clcw_roundtrip()
+{
   Clcw32 w{};
   w.status = 0b101;
   w.cop_in_effect = 0b01;
@@ -119,7 +132,8 @@ void test_clcw_roundtrip() {
   CHECK(v->report_value == 0x7E);
 }
 
-void test_truncated_and_small() {
+void test_truncated_and_small()
+{
   const auto p = decodePlcw({});
   CHECK(!p.has_value());
   CHECK(p.error() == Error::truncated);
@@ -132,7 +146,8 @@ void test_truncated_and_small() {
   CHECK(encodeClcw(tiny, Clcw32{}).error() == Error::buffer_too_small);
 }
 
-void test_heap() {
+void test_heap()
+{
   std::array<std::byte, 4> out{};
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
@@ -146,7 +161,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_ocf_tests() {
+int run_ocf_tests()
+{
   test_plcw_zero_report();
   test_plcw_roundtrip();
   test_clcw_cop1();

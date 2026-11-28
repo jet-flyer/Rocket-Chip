@@ -107,7 +107,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
   Idle Bridge (qv_idle_bridge, when all AO queues empty):
     1. test-mode fault inject   -- no-op unless probe-armed
     2. watchdog_kick_tick()     -- permanent
-    3. GPS UART reinit          -- if Core 1 requested
+    3. GPS UART reinit          -- one slice if Core 1 requested
     4. eskf_runner_tick()       -- fusion + publish SIG_SENSOR_DATA
     5. station only             -- Telem cmd retry + station_idle_tick
     6. diag_stats_msp_tick()
@@ -245,9 +245,9 @@ Start order is **not** priority order: Radio starts before FD (`start_active_obj
 
 1. Test-mode fault inject — no-op unless probe-armed (`rc::test_mode_active()`)
 2. **watchdog_kick_tick()** — permanent, never moves to AO (Council A2, Stage 9)
-3. GPS UART reinit if Core 1 requested (`gps_uart_take_reinit_request`)
+3. GPS UART reinit, one slice (`gps_uart_reinit_service`). No busy-wait.
 4. **eskf_runner_tick()** — permanent, zero-latency seqlock polling (Council A1, Stage 13); publishes `SIG_SENSOR_DATA`
-5. Station only: `AO_Telemetry_cmd_retry_tick()` + `station_idle_tick()`
+5. Station only: `AO_Telemetry_cmd_retry_tick()` + `station_idle_tick()` (PA1010D read is armed here; the I2C IRQ finishes it)
 6. `diag_stats_msp_tick()` — sampled in idle, so it does not see handler depth
 7. `rc_log_drain_to_cdc()` — empty-ring fast path (LL 39)
 8. **__wfi()** — sleep until next IRQ (100 Hz QF tick / USB / other)

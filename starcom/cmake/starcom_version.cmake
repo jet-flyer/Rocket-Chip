@@ -1,4 +1,4 @@
-# Generate ${CMAKE_CURRENT_BINARY_DIR}/generated/starcom/version.hpp
+# Generate ${CMAKE_CURRENT_BINARY_DIR}/generated/starcom/version.h
 #
 # Product numbers: starcom/STARCOM_VERSION (humans edit at increment close
 # or a tagged cut). Git identity is captured every configure.
@@ -145,8 +145,8 @@ endif()
 set(STARCOM_VERSION_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${STARCOM_VERSION_GENERATED_DIR}/starcom")
 configure_file(
-  "${STARCOM_ROOT}/include/starcom/version.hpp.in"
-  "${STARCOM_VERSION_GENERATED_DIR}/starcom/version.hpp"
+  "${STARCOM_ROOT}/include/starcom/version.h.in"
+  "${STARCOM_VERSION_GENERATED_DIR}/starcom/version.h"
   @ONLY)
 
 message(STATUS "Starcom ${STARCOM_VERSION_STRING}  git ${STARCOM_GIT_HASH}  identity ${STARCOM_BUILD_IDENTITY}  build ${STARCOM_BUILD_NUMBER}")

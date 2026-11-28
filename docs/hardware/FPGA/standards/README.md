@@ -2,24 +2,24 @@
 
 This shelf is FPGA / space-electronics references for Rocket Chip. Mission-style rename of `docs/hardware/FPGA/` is TBD — do not invent a mission name. **Not a cert kit.**
 
-Index only. Do **not** copy PDFs here. NASA/ESA handbooks already live in `standards/starcom/fpga/`. CCSDS Blue Books stay under `standards/starcom/ccsds/` (comms, not FPGA form-factor).
+Index only. Do **not** copy PDFs here. NASA/ESA handbooks already live in `starcom/standards/fpga/`. CCSDS Blue Books stay under `starcom/standards/ccsds/` (comms, not FPGA form-factor).
 
-## In-tree PDFs (`standards/starcom/fpga/`)
+## In-tree PDFs (`starcom/standards/fpga/`)
 
 Point at the existing files; do not duplicate them.
 
 | Document | Path |
 |----------|------|
-| NASA-HDBK-4011 VHDL Style Handbook | [`standards/starcom/fpga/NASA-HDBK-4011.pdf`](../../../../standards/starcom/fpga/NASA-HDBK-4011.pdf) |
-| NASA-HDBK-4008 PLD Handbook | [`standards/starcom/fpga/NASA-HDBK-4008.pdf`](../../../../standards/starcom/fpga/NASA-HDBK-4008.pdf) |
-| ESA ASIC/001 VHDL Modelling Guidelines | [`standards/starcom/fpga/ESA-ASIC-001.pdf`](../../../../standards/starcom/fpga/ESA-ASIC-001.pdf) |
-| GSFC 500-PG-8700.2.7 Design of Space Flight FPGAs | [`standards/starcom/fpga/GSFC-500-PG-8700.2.7.pdf`](../../../../standards/starcom/fpga/GSFC-500-PG-8700.2.7.pdf) |
+| NASA-HDBK-4011 VHDL Style Handbook | [`starcom/standards/fpga/NASA-HDBK-4011.pdf`](../../../../starcom/standards/fpga/NASA-HDBK-4011.pdf) |
+| NASA-HDBK-4008 PLD Handbook | [`starcom/standards/fpga/NASA-HDBK-4008.pdf`](../../../../starcom/standards/fpga/NASA-HDBK-4008.pdf) |
+| ESA ASIC/001 VHDL Modelling Guidelines | [`starcom/standards/fpga/ESA-ASIC-001.pdf`](../../../../starcom/standards/fpga/ESA-ASIC-001.pdf) |
+| GSFC 500-PG-8700.2.7 Design of Space Flight FPGAs | [`starcom/standards/fpga/GSFC-500-PG-8700.2.7.pdf`](../../../../starcom/standards/fpga/GSFC-500-PG-8700.2.7.pdf) |
 
-Catalog, provenance, and why we have them: [`standards/starcom/README.md`](../../../../standards/starcom/README.md) and [`standards/starcom/fpga/README.md`](../../../../standards/starcom/fpga/README.md).
+Catalog, provenance, and why we have them: [`starcom/standards/README.md`](../../../../starcom/standards/README.md) and [`starcom/standards/fpga/README.md`](../../../../starcom/standards/fpga/README.md).
 
 ## URL-only (gated; no PDF in tree)
 
-Already listed in `standards/starcom/README.md`. Do not scrape ECSS logins.
+Already listed in `starcom/standards/README.md`. Do not scrape ECSS logins.
 
 | Document | URL |
 |----------|-----|
@@ -38,4 +38,4 @@ Our note: [`PMOD.md`](PMOD.md)
 
 ## CCSDS
 
-Blue Books stay under [`standards/starcom/ccsds/`](../../../../standards/starcom/ccsds/). Comms, not FPGA form-factor. Do not relocate them here.
+Blue Books stay under [`starcom/standards/ccsds/`](../../../../starcom/standards/ccsds/). Comms, not FPGA form-factor. Do not relocate them here.

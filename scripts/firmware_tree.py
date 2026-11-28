@@ -10,11 +10,14 @@ build ID and the gate agree on what "firmware" means.
 Firmware-tree hash
 ------------------
 ``git ls-tree -r <rev> -- <[elf] entries>`` lists every firmware blob and
-submodule commit at ``rev``. The git blob id of that listing
-(``git hash-object --stdin``) is the firmware-tree hash. It changes when a
-firmware byte changes, and it does NOT change for a docs-only commit. CMake
-computes the same value at configure time (``--no-filters``, same git
-options), so ``kFirmwareTreeId`` in version.h can be compared with it.
+submodule commit at ``rev``. Lines whose path matches a global ``!`` exclude
+are removed (``firmware_paths.txt``; the exclude applies to every section).
+The git blob id of that listing (``git hash-object --stdin``) is the
+firmware-tree hash. It changes when a firmware byte changes, and it does
+NOT change for a docs-only commit or for an excluded file (for example
+``**/*.md``). CMake computes the same value at configure time
+(``--no-filters``, same git options, same exclude filter), so
+``kFirmwareTreeId`` in version.h can be compared with it.
 
 Bench key (format ``rc-bench-key v2``)
 -------------------------------------
@@ -32,9 +35,9 @@ A blob id over this text, in this order:
                          --recursive, sorted; state ok|uninit|moved|conflict)
     preset: <role>=<CMake preset> ...   (sorted by role)
     [elf]
-    <git ls-tree -r <rev> -- [elf] entries>
+    <git ls-tree -r <rev> -- [elf] entries, global ! excludes removed>
     [gate]
-    <git ls-tree -r <rev> -- [gate] entries>
+    <git ls-tree -r <rev> -- [gate] entries, global ! excludes removed>
 
 The pre-push gate stores each bench PASS as a git note
 (``refs/notes/rc-bench``) on that blob. A push finds the note only when
@@ -77,6 +80,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
 LIST_REL = 'scripts/ci/firmware_paths.txt'
+# Global exclude globs from '!' lines. Not a real section.
+EXCLUDE_KEY = '!'
 _GIT_OPTS = ('-c', 'core.quotePath=true')
 BENCH_KEY_FORMAT = 'rc-bench-key v2'
 _EXE = '.exe' if os.name == 'nt' else ''
@@ -97,8 +102,13 @@ class FirmwareTreeError(RuntimeError):
 
 
 def parse(text: str) -> Dict[str, List[str]]:
-    """Parse the list file text into {section: [entries]}."""
-    sections: Dict[str, List[str]] = {}
+    """Parse the list file text into {section: [entries]}.
+
+    A line that starts with ``!`` is a global exclude glob (see
+    ``EXCLUDE_KEY``). It is not stored on the section it sits in. The same
+    globs apply to every section.
+    """
+    sections: Dict[str, List[str]] = {EXCLUDE_KEY: []}
     current: Optional[str] = None
     for lineno, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
@@ -106,7 +116,19 @@ def parse(text: str) -> Dict[str, List[str]]:
             continue
         if line.startswith('[') and line.endswith(']'):
             current = line[1:-1].strip()
+            if not current or current == EXCLUDE_KEY:
+                raise FirmwareTreeError(
+                    f'{LIST_REL}:{lineno}: bad section name {current!r}')
             sections.setdefault(current, [])
+            continue
+        if line.startswith('!'):
+            glob = line[1:].strip()
+            if not glob:
+                raise FirmwareTreeError(f'{LIST_REL}:{lineno}: empty exclude')
+            if '\\' in glob:
+                raise FirmwareTreeError(f'{LIST_REL}:{lineno}: use / not \\')
+            if glob not in sections[EXCLUDE_KEY]:
+                sections[EXCLUDE_KEY].append(glob)
             continue
         if current is None:
             raise FirmwareTreeError(f'{LIST_REL}:{lineno}: entry before any [section]')
@@ -144,9 +166,140 @@ def load(repo: Path, rev: Optional[str] = None) -> Dict[str, List[str]]:
     return parse(_git(Path(repo), 'show', f'{rev}:{LIST_REL}').decode('utf-8'))
 
 
-def entry_matches(path: str, entry: str) -> bool:
-    """Match one repo-relative path against one list entry."""
+_GLOB_CACHE: Dict[str, 're.Pattern[str]'] = {}
+
+
+def glob_to_regex(pattern: str) -> str:
+    """Git pathspec glob to a full-match regex. ``*`` does not match ``/``.
+    ``**`` matches across ``/``. Case-sensitive."""
+    parts = ['^']
+    i = 0
+    n = len(pattern)
+    while i < n:
+        if pattern.startswith('**/', i):
+            parts.append('(.*/)?')
+            i += 3
+            continue
+        if pattern.startswith('/**/', i):
+            parts.append('/(.*/)?')
+            i += 4
+            continue
+        if pattern.startswith('/**', i) and i + 3 == n:
+            parts.append('/.*')
+            i += 3
+            continue
+        if pattern.startswith('**', i):
+            parts.append('.*')
+            i += 2
+            continue
+        ch = pattern[i]
+        i += 1
+        if ch == '*':
+            parts.append('[^/]*')
+        elif ch == '?':
+            parts.append('[^/]')
+        else:
+            parts.append(re.escape(ch))
+    parts.append('$')
+    return ''.join(parts)
+
+
+def glob_matches(path: str, pattern: str) -> bool:
+    """True when ``path`` matches one exclude glob."""
     path = path.replace('\\', '/')
+    rx = _GLOB_CACHE.get(pattern)
+    if rx is None:
+        rx = re.compile(glob_to_regex(pattern))
+        _GLOB_CACHE[pattern] = rx
+    return rx.fullmatch(path) is not None
+
+
+def _exclude_patterns(excludes: Iterable[str]) -> List[str]:
+    out: List[str] = []
+    for raw in excludes:
+        glob = raw[1:].strip() if raw.startswith('!') else raw
+        if glob and glob not in out:
+            out.append(glob)
+    return out
+
+
+def _excluded(path: str, excludes: Iterable[str]) -> bool:
+    return any(glob_matches(path, g) for g in _exclude_patterns(excludes))
+
+
+def _git_unquote(field: bytes) -> bytes:
+    """Undo git C-quoting (``core.quotePath``) on one path field."""
+    if len(field) < 2 or not field.startswith(b'"') or not field.endswith(b'"'):
+        return field
+    body = field[1:-1]
+    out = bytearray()
+    i = 0
+    while i < len(body):
+        if body[i] != 0x5c:  # backslash
+            out.append(body[i])
+            i += 1
+            continue
+        i += 1
+        if i >= len(body):
+            break
+        esc = body[i]
+        i += 1
+        if esc in (0x5c, 0x22):  # \\ or \"
+            out.append(esc)
+        elif esc == 0x6e:  # \n
+            out.append(0x0a)
+        elif esc == 0x74:  # \t
+            out.append(0x09)
+        elif 0x30 <= esc <= 0x37:  # octal byte
+            octs = bytes((esc,))
+            for _ in range(2):
+                if i < len(body) and 0x30 <= body[i] <= 0x37:
+                    octs += bytes((body[i],))
+                    i += 1
+                else:
+                    break
+            out.append(int(octs, 8))
+        else:
+            out.append(esc)
+    return bytes(out)
+
+
+def _ls_tree_path(line: bytes) -> str:
+    raw = line[:-1] if line.endswith(b'\n') else line
+    if raw.endswith(b'\r'):
+        raw = raw[:-1]
+    tab = raw.find(b'\t')
+    if tab < 0:
+        return ''
+    field = _git_unquote(raw[tab + 1:])
+    return field.decode('utf-8', 'surrogateescape')
+
+
+def _filter_listing(data: bytes, excludes: Iterable[str]) -> bytes:
+    """Drop ls-tree lines whose path matches a global exclude."""
+    patterns = _exclude_patterns(excludes)
+    if not patterns or not data:
+        return data
+    kept: List[bytes] = []
+    for line in data.splitlines(keepends=True):
+        path = _ls_tree_path(line)
+        if path and _excluded(path, patterns):
+            continue
+        kept.append(line)
+    return b''.join(kept)
+
+
+def entry_matches(path: str, entry: str, excludes: Iterable[str] = ()) -> bool:
+    """Match one repo-relative path against one list entry.
+
+    An entry that starts with ``!`` is an exclude glob, not an include.
+    A path that matches ``excludes`` does not match.
+    """
+    path = path.replace('\\', '/')
+    if entry.startswith('!'):
+        return False
+    if excludes and _excluded(path, excludes):
+        return False
     if entry.endswith('*'):
         return path.startswith(entry[:-1])
     if entry.endswith('/'):
@@ -155,20 +308,24 @@ def entry_matches(path: str, entry: str) -> bool:
 
 
 def in_section(path: str, sections: Dict[str, List[str]], name: str) -> bool:
-    return any(entry_matches(path, e) for e in sections.get(name, ()))
+    ex = sections.get(EXCLUDE_KEY, ())
+    return any(entry_matches(path, e, ex) for e in sections.get(name, ()))
 
 
 def classes(path: str, sections: Dict[str, List[str]]) -> List[str]:
     """Isolation classes ([isolate:<name>]) that this path belongs to."""
+    ex = sections.get(EXCLUDE_KEY, ())
     out = []
     for name, entries in sections.items():
-        if name.startswith('isolate:') and any(entry_matches(path, e) for e in entries):
+        if name.startswith('isolate:') and any(entry_matches(path, e, ex) for e in entries):
             out.append(name.split(':', 1)[1])
     return out
 
 
-def _listing(repo: Path, rev: str, entries: Iterable[str]) -> bytes:
-    return _git(repo, 'ls-tree', '-r', rev, '--', *entries)
+def _listing(repo: Path, rev: str, entries: Iterable[str],
+             excludes: Iterable[str] = ()) -> bytes:
+    data = _git(repo, 'ls-tree', '-r', rev, '--', *entries)
+    return _filter_listing(data, excludes)
 
 
 def _hash(repo: Path, data: bytes, write: bool) -> str:
@@ -188,7 +345,8 @@ def elf_tree_id(repo: Path, rev: str = 'HEAD',
     repo = Path(repo)
     if sections is None:
         sections = load(repo, None if rev == 'HEAD' else rev)
-    return _hash(repo, _listing(repo, rev, sections['elf']), write=False)
+    return _hash(repo, _listing(repo, rev, sections['elf'],
+                                sections.get(EXCLUDE_KEY, ())), write=False)
 
 
 def _pins(repo: Path, rev: str) -> Dict[str, str]:
@@ -449,9 +607,10 @@ def bench_key(repo: Path, rev: str, presets: Mapping[str, str],
     sections = load(repo, rev)
     if versions is None:
         versions = tool_versions(repo, rev)
+    ex = sections.get(EXCLUDE_KEY, ())
     data = (key_input_header(versions, presets)
-            + b'[elf]\n' + _listing(repo, rev, sections['elf'])
-            + b'[gate]\n' + _listing(repo, rev, sections.get('gate', [])))
+            + b'[elf]\n' + _listing(repo, rev, sections['elf'], ex)
+            + b'[gate]\n' + _listing(repo, rev, sections.get('gate', []), ex))
     return _hash(repo, data, write=write)
 
 
@@ -473,15 +632,17 @@ def dirty_firmware_paths(repo: Path) -> List[str]:
         if 'R' in status or 'C' in status:
             i += 1  # skip the rename/copy source field
         paths.append(path)
-    return paths
+    ex = sections.get(EXCLUDE_KEY, ())
+    return [p for p in paths if not _excluded(p, ex)]
 
 
 __all__ = [
-    'LIST_REL', 'BENCH_KEY_FORMAT', 'TOOLS', 'SDK_KEYS', 'FLIGHT_BUILD_DIRS',
-    'FirmwareTreeError', 'parse', 'load', 'entry_matches', 'in_section',
-    'classes', 'elf_tree_id', 'cache_value', 'tool_from_cache', 'resolve_tool',
-    'tool_version', 'sdk_path', 'normalize_submodules', 'sdk_inputs',
-    'tool_versions', 'key_input_header', 'bench_key', 'dirty_firmware_paths',
+    'LIST_REL', 'EXCLUDE_KEY', 'BENCH_KEY_FORMAT', 'TOOLS', 'SDK_KEYS',
+    'FLIGHT_BUILD_DIRS', 'FirmwareTreeError', 'parse', 'load', 'glob_matches',
+    'entry_matches', 'in_section', 'classes', 'elf_tree_id', 'cache_value',
+    'tool_from_cache', 'resolve_tool', 'tool_version', 'sdk_path',
+    'normalize_submodules', 'sdk_inputs', 'tool_versions', 'key_input_header',
+    'bench_key', 'dirty_firmware_paths',
 ]
 
 

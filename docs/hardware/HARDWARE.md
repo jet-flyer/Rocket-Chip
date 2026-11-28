@@ -57,6 +57,21 @@ the GPS clock only.
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
 
+### Typical Bench Setup
+
+What each gate role normally has fitted (Nathan, 2026-11-23). Parts get moved between boards; the gate's board profiles (`scripts/ci/board_profiles.json`) follow this table, and per-branch not-fitted entries (`scripts/ci/gate_inhibits.json`) cover temporary changes. Required = a part of this class (any supported IMU or baro driver) must be detected, and a missing one fails. Typical = normally fitted, and a missing one fails unless a not-fitted entry covers it. Optional = checked when present, N/A when absent, never a fail for being missing; a push that changes radio code requires the radio. Not expected = fitting one is only a warning.
+
+| Board | Part | Level | Notes |
+|---|---|---|---|
+| Feather RP2350 HSTX (vehicle) | IMU (any supported, today the ICM-20948 #4554 on STEMMA QT, 0x69) | Required | Off-board for now; will become integral |
+| Feather RP2350 HSTX (vehicle) | Baro (any supported, today the DPS310 #4494 on STEMMA QT) | Required | Off-board for now; will become integral |
+| Feather RP2350 HSTX (vehicle) | LoRa Radio FeatherWing RFM95W 915 MHz (#3231) | Optional | Required when the push changes radio code |
+| Feather RP2350 HSTX (vehicle) | PA1010D GPS (#4415, I2C 0x10) | Optional | When fitted, first on the QT chain: board, GPS, baro, IMU |
+| Fruit Jam (station) | RFM95W 915 MHz radio | Optional | Required when the push changes radio code |
+| Fruit Jam (station) | PA1010D GPS (I2C) | Optional | Spare unit; used for range and extra sensor testing |
+| Fruit Jam (station) | IMU / baro | Not expected | Fitting one is only a warning |
+| Tiny 2350 | (not a gate role yet) | | Shares the Qwiic IMU and baro with the Feather |
+
 ### Onboard Features Used
 - PSRAM (8MB) - High-speed data buffering
 - Flash - Persistent storage
@@ -154,14 +169,8 @@ Source: product page https://shop.pimoroni.com/products/tiny-2350, and SDK 2.2.0
 - BOOT button: user switch on GP23, active low (product page).
 - Qw/St (Qwiic) I2C: GP12 SDA, GP13 SCL (SDK: "routed to Qw/St connector").
 - Stepping is per unit. The product page says current stock is A4. Measured unit: "Important Notes" item 2 below.
-- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2. `include/rocketchip/board_tiny_2350_plus.h` l.3 ("Pimoroni Tiny 2350+ (the Plus variant)") is a mix-up.
-
-Known conflicts in the repo map (`include/rocketchip/board_tiny_2350_common.h`):
-
-- l.24, l.84: GPIO 21 is both I2C SCL and PSRAM CS (CW-B02-03). The product page lists no PSRAM, so remove the PSRAM CS line.
-- l.23-24: I2C is on GPIO 20 / 21. GPIO 20 is the blue LED. The Qwiic I2C is on GPIO 12 / 13.
-- l.54: `kLedPin` is 25. The LED is RGB on GPIO 18-20, active low.
-- l.44: `kNeoPixelPin` is 23. GPIO 23 is the BOOT switch. The board has no NeoPixel.
+- Pimoroni has no Tiny 2350 Plus variant (Buzz, 2026-10-08). The Pimoroni PIM721 wholesale page lists only "4MB" and "4MB Headered". The `pimoroni-pico-rp2350` README lists PSRAM only for the Pico Plus 2. The Pimoroni board with PSRAM is the Pico Plus 2.
+- Board pack: `include/rocketchip/board_tiny_2350.h` (`kBoardName` "Pimoroni Tiny 2350", `kPsramAvailable` false). Selected by `-DPICO_BOARD=pimoroni_tiny2350`. Qw/ST I2C is GP12/13 (i2c0); RGB LED is GP18-20 active low; no WS2812 (`kNeoPixelCount` 0); BOOT is GP23; pyro defaults are GP26/27 (off the Qwiic pins, unverified, no pyro fitted). Radio SPI is an expansion default and is unverified. There is no onboard radio, GPS, or PSRAM.
 
 ### Sensors
 | Part | Adafruit P/N | Notes |
@@ -238,7 +247,7 @@ UBX output parsing is identical across M8/M9/M10 — only configuration commands
 |------|--------------|-------|
 | ADXL375 High-G Accelerometer | #5374 | ±200g for high-power rockets — **on hand** |
 | BMP580 | #6407 | 2cm noise @ 85Hz, upgrade from DPS310 |
-| Pyro channels | TBD | MOSFET drivers or dedicated board |
+| Pyro channels | TBD | MOSFET drivers or dedicated board; **post-MVP** (Nathan 2026-10-22: no pyro for MVP) |
 
 ### Storage Options
 | Part | Notes |
@@ -266,6 +275,30 @@ Studied for hardware/software architecture:
 | Board | Relevance |
 |-------|-----------|
 | madflight FC3v2 | RP2350B flight controller with ICM-45686, BMP580, FreeRTOS - close to RocketChip Pro target |
+| OpenFC Lite Mini | OpenDrone-hw RP2354A Betaflight FC (20x20), analog+digital OSD, bidirectional DShot - relevant to Pegasus |
+| RPI_UAVFC | Raspberry Pi RP2350B FC in open ArduPilot PR #32995 (also Betaflight); flown, no known for-sale page |
+
+### OpenFC Lite Mini (pointer, 2026-11-23)
+
+Nathan, 2026-11-23: add OpenFC Lite Mini to the reference designs, especially regarding Pegasus.
+
+**Facts.** [OpenFC Lite Mini](https://github.com/OpenDrone-hw/OpenFC-Lite-Mini) is an open-source 20x20 mm FPV flight controller in the OpenDrone / Incutec line. MCU: RP2354A (QFN-60). IMU: BMI270 on SPI1, with a separate 1.8 V analog supply. No onboard barometer; I2C0 is brought out. Blackbox: microSD on SPI0. Four motor outputs on an 8-pin Betaflight-standard ESC connector (GPIO22-25); the board's Betaflight target runs bidirectional DShot on them. Betaflight's RP2350A platform assigns PIO0 to DShot for motors 1-4 (`PIO_DSHOT_INDEX 0` in `src/platform/PICO/target/RP2350A/target.h`). Analog OSD is generated by the MCU through PIO and mixed by a discrete front end (TLV7031 comparator, SN74LVC1G3157 SPDT switch, op-amp) on GPIO14-16; digital OSD is also supported. Power: 3-6S input (also runs on 2S, with the 10 V rail then following the battery), switchable 10 V plus always-on 5 V BECs at 3 A, current sense, USB-C. Size: 26.9x26.9 mm board, 20x20 mm mounting with 3.0 mm holes, 6-layer 1.6 mm PCB. Three UARTs (two hardware, one PIO). Firmware target `OPENFC_LITE_MINI_RP2350A`, manufacturer `OPDR`. Hardware license [CERN-OHL-S-2.0](https://github.com/OpenDrone-hw/OpenFC-Lite-Mini/blob/main/LICENSE). Shipped firmware is Betaflight (GPLv3); a prebuilt-uf2 commit in that repo states the binary stays under GPL-3.0. OSHWA [BE000027](https://certification.oshwa.org/be000027.html). Shop: https://opendrone.be/products/openfc-lite. Maturity: the repo revision table says Rev2 was flown; Rev3.3 is listed as the first Incutec production run. Sources: the repo [README](https://github.com/OpenDrone-hw/OpenFC-Lite-Mini/blob/main/README.md) and [AGENTS.md](https://github.com/OpenDrone-hw/OpenFC-Lite-Mini/blob/main/AGENTS.md). The official Betaflight config PR for this target ([betaflight/config#1242](https://github.com/betaflight/config/pull/1242), opened 2026-10-25) had not landed when this row was written; until it does, the OpenFC repo points at its own uf2 images.
+
+**Sibling.** [OpenFC Lite 30x30](https://github.com/OpenDrone-hw/OpenFC-Lite) is the RP2354B board (30.5x30.5 mm mount, 37.9x37.9 mm, 3-8S, four UARTs, target `OPENFC_LITE_RP2350B`). Also a BMI270, no onboard barometer, analog+digital OSD, CERN-OHL-S-2.0 hardware, OSHWA [BE000026](https://certification.oshwa.org/be000026.html). Same shop page.
+
+**Relevance to Pegasus (inference).** In this repo, Pegasus appears only as a future, separate product line: a full flight controller for drones and glide-back boosters, not part of the rocketry-focused Rocket Chip board family, and free to choose its own architecture (`docs/PROJECT_STATUS.md`, Side Projects & Future Product Lines). OpenFC is a real, openly documented RP235x drone FC already running Betaflight with DShot motors and analog+digital OSD, so it is a closer hardware/firmware reference for that drone/glide-back line than the Rocket Chip avionics stack. Nothing is decided; this is a pointer, not a design choice.
+
+### RPI_UAVFC (pointer, 2026-11-23)
+
+Nathan, 2026-11-23: add RPI_UAVFC to the reference designs as well. There is no known for-sale page.
+
+**Facts.** The board README in ArduPilot PR [#32995](https://github.com/ArduPilot/ardupilot/pull/32995) (open, not merged, checked 2026-11-23; head `5e97be25`; PR author [davidbuzz](https://github.com/davidbuzz)) describes the Raspberry Pi UAV Flight Controller (`RPI_UAVFC`) as an RP2350B (QFN-80) flight controller from Raspberry Pi, a pinout revision of the Laurel bring-up carrier. The PR reports it has flown: three flights on 2026-11-07, including RTL by switch and a first Auto mission, at 200 MHz (above the 150 MHz datasheet limit) with a 100 MHz flash clock. Hardware as documented in that PR's [hwdef.dat](https://github.com/ArduPilot/ardupilot/blob/5e97be2505d4f6f03df98b369dfb7b338d10a747/libraries/AP_HAL_ChibiOS/hwdef/RPI_UAVFC/hwdef.dat), [HARDWARE.md](https://github.com/ArduPilot/ardupilot/blob/5e97be2505d4f6f03df98b369dfb7b338d10a747/libraries/AP_HAL_ChibiOS/hwdef/RPI_UAVFC/HARDWARE.md), and [README.md](https://github.com/ArduPilot/ardupilot/blob/5e97be2505d4f6f03df98b369dfb7b338d10a747/libraries/AP_HAL_ChibiOS/hwdef/RPI_UAVFC/README.md): 4 MB QSPI flash; IMU is an ICM-56686 on SPI0 (earlier samples an ICM-42688-P; the driver accepts either); onboard DPS368 barometer on I2C0 (driven as DPS310) at 0x76; no builtin compass (external on I2C1 / the GPS connector); microSD logging on SPI1; four motor outputs on GPIO9-6 (descending ESC order) with PIO-generated DShot150/300/600 and bidirectional DShot at 300 or 600; analog OSD via PIO1 on GPIO21-23 (`OSD_W` / `OSD_EN` / `OSD_SYNC`), plus MSP DisplayPort on hardware UART0; two hardware UARTs and two PIO UARTs; switched 5 V and 9 V rails; battery voltage and current ADCs; WS2812 LED-strip connector. The analog OSD and the LED strip share a PIO block. Pin assignments follow an "R2 Rev C schematic" named as the authority in the hwdef; that schematic file is not in the PR, which does include top and bottom board photos. A matching Betaflight target `RASPBERRY_PI_UAVFC` (MCU RP2350B, manufacturer `RASP`, ICM56686, DPS310, FB OSD on the same three GPIOs) is on [betaflight/config master](https://github.com/betaflight/config/blob/master/configs/RASP/RASPBERRY_PI_UAVFC/config.h). No public KiCad or PDF hardware tree and no shop or for-sale page were found (2026-11-23); it is a development board documented in an open ArduPilot PR. Do not confuse it with other RP2350 FCs sold separately (for example KORAX Bare FC).
+
+**Relevance to Pegasus (inference).** Like OpenFC, this is a real RP235x drone-style FC (IMU, baro, PIO DShot, analog and digital OSD) rather than a Rocket Chip avionics board, so it is a useful architecture pointer for the Pegasus drone/glide-back line (`docs/PROJECT_STATUS.md`). The lack of published manufacturing files and a store page limits how far it can be copied. Nothing is decided; this is a pointer, not a design choice.
+
+### Twiggs Space Lab (pointer, 2026-10-25)
+
+Nathan, 2026-10-25: add Twiggs Space Lab as a hardware reference goal; STEM-focused small-sat hardware (supplier for the Aldrin Family Foundation S-Cubed program, per Goddard). Links (Goddard): [FlatSat kit](https://twiggs-space-lab.myshopify.com/products/tsl-flatsat-kit) (add-on connector for LoRa/GPS/SD), [TSLPB payload board](https://github.com/VCSFA-MARS/TSLPB/wiki) (Arduino Pro Mini); Mini Ground Station takes RF98 LoRa modules (SX127x family, but RFM98 is usually the 433 MHz part vs our 902-928 MHz RFM95; band unconfirmed, not plug-in compatible until their spec says so). Current FlatSat MCU and design-file openness not found. Pointer only, nothing decided; no outreach.
 
 ## Ground Station Hardware
 
@@ -297,9 +330,17 @@ Radio parameters are configured in `src/hal/Radio_RFM95W.cpp`:
 | Bandwidth | 125 kHz | Standard LoRa |
 | Coding Rate | 4/5 | Minimum error correction |
 | Sync Word | 0x12 | Private network |
-| TX Power | +20 dBm | Maximum legal for ISM |
+| TX Power (module max) | +20 dBm | SX1276 datasheet, duty-cycled; see RFM95W / SX1276 PA limits below |
+| TX Power (firmware limit) | 2-17 dBm, +20 dBm opt-in | Clamp since `7abfea14`; boot 2 dBm |
 
 **Note**: Ground station must use matching settings. See `ground_station/radio_rx.cpp` for reference implementation (deprecated).
+
+### RFM95W / SX1276 PA limits (datasheet, not measured)
+
+- SX1276 DS Rev 7 p.83: continuous operation up to +17 dBm, duty-cycled operation up to +20 dBm.
+- Table 35 p.84: duty at +20 dBm is 1% maximum, VSWR at the antenna port is 3:1 maximum, over −40 to +85 °C. The page names no heat, no other damage mode, and no time window.
+- Table 6: 120 mA typical at +20 dBm, 87 mA typical at +17 dBm.
+- Default over-current trim is 100 mA (p.95).
 
 ## Market Benchmarks
 
@@ -325,8 +366,8 @@ Comparable rocket flight computers for feature/positioning reference:
 | **I2C** | ✓ | ✓ | ✓ | GPS, Qwiic expansion, low-rate sensors |
 | **UART** | ✓ | ✓ | ✓ | Debug console, GPS (alt), some radios |
 | **PIO** | ✓ | ✓ | ✓ | PWM output, WS2812 LEDs, custom protocols |
-| **GPIO** | ✓ | ✓ | ✓ | Arm switch, LEDs, pyro fire, continuity sense |
-| **ADC** | ✓ | ✓ | ✓ | Battery voltage, pyro continuity |
+| **GPIO** | ✓ | ✓ | ✓ | Arm switch, LEDs, pyro fire, continuity sense (pyro: post-MVP, Nathan 2026-10-22: no pyro for MVP) |
+| **ADC** | ✓ | ✓ | ✓ | Battery voltage, pyro continuity (pyro: post-MVP, Nathan 2026-10-22: no pyro for MVP) |
 | **CAN** | - | - | ✓ | Multi-board communication, Titan tier |
 | **HSTX** | - | - | ✓ | High-speed video/data output, Titan tier |
 
@@ -363,6 +404,7 @@ General-purpose digital I/O for discrete signals.
 - **Outputs**: Pyro fire channels (via MOSFET), status LEDs, enable signals
 - **Inputs**: Arm switch (debounced), continuity sense (with pull-ups), limit switches
 - **Note**: Pyro channels require hardware interlocks - see Safety section
+- **Post-MVP**: the pyro outputs and interlocks above are post-MVP (Nathan 2026-10-22: no pyro for MVP)
 
 #### ADC
 Analog input for voltage monitoring.
@@ -480,7 +522,7 @@ When Adafruit documentation says "CS on pin 10", they mean GPIO10 (silkscreen la
 | - | SPI CS (multiple) | Per-device chip selects TBD |
 | - | PIO PWM | TVC/deployment servos TBD |
 | - | Arm Switch | Input with debounce TBD |
-| - | Pyro Fire | Output via MOSFET TBD |
+| - | Pyro Fire | Output via MOSFET TBD; **post-MVP** (Nathan 2026-10-22: no pyro for MVP) |
 | - | Battery ADC | Voltage monitoring TBD |
 
 ### HSTX Connector (Back of Board)
@@ -600,7 +642,7 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 
 ### Range hardline and flight termination
 
-NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `standards/starcom/README.md`.
+NASA and the US ranges do not put ascent telemetry on the proximity books. The radio book is RCC 106 (IRIG 106). Chapter 2 of 106-22 standardizes PCM/FM, SOQPSK-TG, and ARTM CPM. Launch vehicles and sounding rockets use 2200–2290 MHz, one-way, to a range antenna. The pad path until disconnect is the umbilical. Book context and the SatNOGS / CCSDS 401 split: `starcom/docs/DESIGN.md` note 2026-10-01. Shelf URLs: `starcom/standards/README.md`.
 
 The sounding-rocket umbilical reference is NASA/TP–20230006855, *NASA Sounding Rockets User Handbook*, May 2023, document 810-HB-SRP:
 
@@ -620,6 +662,8 @@ Agency release is a lanyard or a latch, with vehicle motion as the backup. A mag
 Flight termination is a second radio. RCC 319-25 (June 2025) requires the termination uplink to operate independently of the telemetry transmitter and of the flight-control command link. Telemetry, or this hardline while it is mated, reports receiver signal strength, power, command-output state, and safe-and-arm. Once that receiver’s fail-safe is enabled, loss of its uplink is a termination condition. Command tones and the ordnance path stay in 319. They are not part of the proximity modem.
 
 ### Pyro Channels
+> **Post-MVP (Nathan 2026-10-22: no pyro for MVP).** Kept for later tiers; not part of the MVP.
+
 - Safety interlocks required in firmware
 - Physical arm switch recommended for Pro tier
 - Follow NAR/TRA safety codes for high-power rocketry

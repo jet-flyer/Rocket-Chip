@@ -57,6 +57,7 @@
 | 46 | Post-flash extra restart / GDB attach are process, not a new E2 |
 | 47 | FPV-twist of STEMMA 4-core freezes I2C (not GPS-last) |
 | 48 | Gate that talks to a DUT can PASS on leftover / wrong artifact |
+| 49 | A fast audit that looks finished is worse than a slow one |
 
 Process / tooling cluster (gates, citations, worktrees): **36–46, 48**. HW-debug journal continues around them; this index is the map.
 
@@ -999,6 +1000,8 @@ The ICM-20948 returns to a sleep/reset state (cause unknown — possibly power g
 3. **Add velocity-divergence sentinel to filter health** — catches any undetected sensor fault that biases acceleration
 
 ---
+
+**2026-11-22 note (pending a wider LL audit):** this entry's XIP cache figure ("2KB") and datasheet section ("5.5.3") are likely wrong. The in-tree RP2350 datasheet §4.4.1 (p.341) says "The cache is 16 kB, two-way set-associative, 1 cycle hit", and §5.5.3 is "UF2 targeting rules". Both were written in a81e20ff (2026-02-21) before the datasheet was in the repo. The 398 → 59 µs measurement is not re-benched.
 
 ## Entry 30: RP2350 XIP Cache Thrashing — Use `.time_critical` for Hot Functions >2KB
 
@@ -1996,3 +1999,38 @@ Do not treat "OpenOCD is up," "CDC enumerated," "ctest 894/894," or "2/2 PASS" a
 - LL 43 — "clean" without proving the check applied. Same negative evidence, hardware edition.
 - LL 46 — first resume after `load` is not a counted boot; leftover CDC can lie the same way.
 - `standards/HW_GATE_DISCIPLINE.md` Rule 5; `standards/VERSIONING.md` SWE-084; `docs/FLASHING.md`.
+
+---
+
+## Entry 49: A Fast Audit That Looks Finished Is Worse Than a Slow One
+
+**What happened (2026-10-29).** An overnight Starcom audit was committed six minutes after its pinned-tool numbers came in. Several defects reached the commit:
+- script-graded CCSDS PASS rows, some citing assertions of the opposite value;
+- "by read" PASS rows that a compiler disproved (JSF 181: 12 redundant casts);
+- a count taken from the wrong clang-tidy version (12 instead of 10 for the RC root config);
+- 23 `clang-analyzer-core.*` checks counted as live because `--list-checks` listed them, though both shipped configs silence them;
+- a claim sync that only grepped known strings;
+- edits to a Hard-Protected and a frozen file. (The 3 `STANDARDS_AUDIT.md` history rows are now proposed. They wait for owner approval in the audit archive.)
+The RC master audit that was asked for never ran.
+
+**Why.** Scope was narrowed in the brief, not by the owner. PASS was allowed without reading the evidence against the rule. Counts were derived once. There was no second reader. A complete-looking report gave false confidence. Report: `starcom/docs/audits/STARCOM_AUDIT_2026-10-29.md`.
+
+### Prevention
+For any audit: owner-quoted scope; hand-read evidence for every PASS; two derivations of every count on the pinned tool and platform; a planted-defect probe before trusting a check; per-file permission for protected files; and a second reader before commit or post. No deadline skips these (`standards/AUDIT_GUIDANCE.md`, "Audit integrity rules"). If something fails, it is a FAIL to fix, not "not a fail" because it gets fixed eventually (Nathan, 2026-10-29).
+
+### Related
+- LL 36: an honor-system gate. Here a check was listed but silenced.
+- LL 43: "clean" without proving the check applied. The same negative evidence, in clang-tidy config.
+- LL 48: gate PASS on the wrong artifact.
+
+## Entry 50: Code Left Behind by a Removed Link Flag Looks Live
+
+**What happened (2026-11-24).** The Tiny 2350 Phase 1 stage-close clang-tidy sweep flagged 4 reserved identifiers: `__wrap_watchdog_reboot`, `__wrap_rom_reset_usb_boot_extra` and their `__real_` declarations in `src/drivers/i2c_bus_legacy.cpp`. The `--wrap` link flags had been removed on 2026-09-03 (`6dcea56e`) because they broke `picotool -f` on the Fruit Jam, and the file has not been built since `0f53a02c` kept it as an uncompiled reference. Reviewers read the wrappers as live and asked for a repeated-flash bench to protect the I2C quiesce on picotool reboots. `arm-none-eabi-nm` on both flight ELFs showed none of those symbols, so the quiesce had been off on those paths for months.
+
+**Why.** Removing the link flag did not remove the code that only it reached. Unbuilt code is still read and still linted, so it misleads both people and gates.
+
+### Prevention
+When removing a linker flag, build option or hook, remove the code that only it reached in the same commit. Before reasoning about whether code runs, check the ELF symbols (`arm-none-eabi-nm`) or the compile list, not the source alone.
+
+### Related
+- LL 43: prove a check applies to the real artifact before trusting "clean".

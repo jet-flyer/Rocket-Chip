@@ -14,6 +14,12 @@ constexpr uint8_t kIcm20948AddrDefault = kI2cAddrIcm20948;
 constexpr uint8_t kIcm20948AddrAlt     = kI2cAddrIcm20948Alt;
 constexpr uint8_t kIcm20948WhoAmI      = 0xEA;
 constexpr uint8_t kAk09916WhoAmI       = 0x09;
+// ACCEL_XOUT_H..TEMP_OUT_L burst (accel, gyro, temp).
+constexpr uint8_t kIcm20948ImuBurstBytes = 14;
+// Longest transfer the driver makes: address + register, repeated-start
+// address, then the burst. Sizes board::kImuI2cTimeoutUs.
+constexpr uint8_t kIcm20948LongestXferBytes =
+    static_cast<uint8_t>(3U + kIcm20948ImuBurstBytes);
 
 typedef enum {
     ICM20948_ACCEL_FS_2G  = 0,
@@ -61,6 +67,11 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr);
 bool icm20948_ready(icm20948_t* dev);
 // CLKSEL + sensors on + bypass. No DEVICE_RESET (STEMMA has no nRESET).
 bool icm20948_ensure_awake(icm20948_t* dev);
+// Core 1 re-init after a bus fault (plan section 4 gap 1): WHO_AM_I, wake,
+// the pack's full scale (scale loaded from the chip), bypass and mag mode.
+// Keeps addr and the init flags. No DEVICE_RESET, no AK09916 soft reset.
+// A chip that does not ACK fails on the first transfers, with no sleeps.
+bool icm20948_reinit(icm20948_t* dev);
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data);
 bool icm20948_read_config_registers(icm20948_t* dev, uint8_t* accel_config,
                                     uint8_t* gyro_config1, uint8_t* gyro_smplrt);

@@ -1,11 +1,13 @@
 # CMake build artifacts
 build/
 build_flight/
+build_flight_scratch/
 build_station/
 build_station_flight/
 build_vehicle/
 build_gs/
 build_host/
+build_tiny/
 build_host_cov/
 build_stack/
 build_test/
@@ -41,6 +43,9 @@ desktop.ini
 # Logs and temps
 *.log
 logs/*
+# Local board roles (scripts/ci/board_config.py); boards.example.json is tracked.
+scripts/ci/boards.local.json
+
 # Exception: Stage T diagnostic CSVs are committed for fix-council review
 !logs/stage_t/
 !logs/stage_t/**

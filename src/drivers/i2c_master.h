@@ -64,11 +64,21 @@ void i2c_master_unlock(void);
 [[nodiscard]] bool i2c_master_lines_idle(void);
 [[nodiscard]] bool i2c_master_probe(uint8_t addr, uint32_t timeout_us);
 
+// IRQ-driven read for the station idle hook. Returns after arming the
+// DW_apb FIFO; the I2C IRQ clocks the bytes. Poll: 0 = busy, 1 = done
+// (*result is the byte count), -1 = error (*result is a Pico error).
+// A later blocking transfer finishes an open async read first.
+[[nodiscard]] bool i2c_master_read_async_start(uint8_t addr, uint8_t* data,
+                                               size_t len, uint32_t timeout_us);
+[[nodiscard]] int i2c_master_read_async_poll(int* result);
+
 // ABORT → STOP, disable, SIO pull-up. SDA-stuck: 9 clocks + STOP.
 void i2c_master_abort_and_idle(void);
 void i2c_master_reattach(void);
 // After flash_safe_execute (LL 31): abort + reattach. Not a slave reset.
 [[nodiscard]] bool i2c_master_reset(void);
+// Unconditional 9 clocks + STOP + reattach. For a slave that stopped ACKing.
+[[nodiscard]] bool i2c_master_recover_bus(void);
 
 void i2c_master_quiesce(uint32_t via);
 void i2c_master_park(void);  // quiesce + WFI until MCU reset (probe flash)

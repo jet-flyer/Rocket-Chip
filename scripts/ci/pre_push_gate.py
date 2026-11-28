@@ -35,6 +35,8 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     when ALL of these are true:
       - it says "result: PASS";
       - its roles: line covers the roles this push needs (+ radio-link);
+      - for a radio push, its radio_bench: line names the same blob of
+        RADIO_LINK_BENCH as the gate's own checkout;
       - its boards: line names a USB serial for each needed board, and
         each of those serials is attached now (USB enumeration only; no
         port is opened). A swapped MCU board gives no match;
@@ -54,16 +56,42 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     unless its build already has the pushed firmware-tree hash, require a
     flash record for that exact ELF (the gate does NOT flash; it prints
     the flash steps: Path 1, picotool load -f over USB, for both setups;
-    the OpenOCD step names the main worktree from git worktree list),
+    Path 2 (probe) only when OpenOCD is already on :3333; the probe is
+    optional, so a board with no debug port benches the same way),
     then run bench_sim / station_bench_sim
     with --commit <sha>.
- 5. Radio push ([radio] path changed). The radio rule is ACTIVE only
-    when the pushed commit contains RADIO_LINK_BENCH. Then BOTH boards are
-    benched and the two-board round trip must pass. Until that script
-    lands, the gate only WARNS and benches the roles the matrix names
-    (both roles, because a [radio] path is a firmware path). The
-    script and the blocking rule land in the same commit (DRAFT.md).
- 6. On PASS: write the git note and print the Rule 3 citation line.
+ 5. Radio push ([radio] path changed). The radio rule is ACTIVE when the
+    gate's own checkout has RADIO_LINK_BENCH committed at HEAD and
+    unchanged (radio_bench_blob). It does not look at the pushed commit,
+    so it covers every sha of a split push. The script is host tooling:
+    the gate runs the checkout's copy (not the bench worktree's) with
+    --vehicle-serial and --station-serial of the two boards the role
+    benches used. BOTH boards are benched and the two-board radio check
+    must pass: 2 dBm readback on both, a forced TX timeout on the vehicle,
+    a round trip, and one preset hop and back. Without the script in the
+    checkout, the gate only WARNS and benches the roles the matrix names
+    (both roles, because a [radio] path is a firmware path).
+ 5b. Expected hardware (Nathan, 2026-11-23; docs/FLASHING.md, "Expected
+    hardware"). A board in boards.local.json that names a "board" profile
+    (board_profiles.json, read from the pushed commit) is benched against
+    that profile with --expect; without one its bench keeps the legacy
+    rules. gate_inhibits.json (pushed commit) entries for the pushed-to
+    branch mark a part not fitted or show a warning id as INHIBITED. A
+    not-fitted part is N/A by name only while it reads absent; a failure
+    (wrong chip, [FAIL]) still fails, and a part that reads present and
+    healthy warns. A [radio] change requires the radio fitted and passing
+    on every benched board with a profile: an absent or not-fitted radio
+    BLOCKS before the bench, and a missing radio fails the bench (station
+    RegVersion=0x12; vehicle T2 Radio HW GO, since the preflight VERDICT
+    is Tier 1 only). This is separate from rule 5, which stays a warning
+    until RADIO_LINK_BENCH exists. Missing required or expected hardware
+    fails in the bench; unexpected hardware only warns.
+    Warnings never block, and each carries a fixed id: shape-max-firmware,
+    shape-isolate, radio-gap, unknown-serial, probe-not-flagged,
+    no-board-serial, inhibit-unused, hw-unexpected:<role>:<part>.
+ 6. On PASS: write the git note (with expect: and na: lines when profiles
+    are in use; a note is reused only for the same expect: line) and print
+    the Rule 3 citation line, naming any N/A checks.
  7. Release tags (refs/tags/vX.Y.Z exactly, the standards/VERSIONING.md
     "How to cut a release" form; starcom-v*, pre-*, archive/* and other
     tags are not release tags): the tagged commit must have a bench PASS
@@ -90,7 +118,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Set, Tuple
 
 _SCRIPTS = Path(__file__).resolve().parents[1]
 for _p in (_SCRIPTS, _SCRIPTS / 'ci'):
@@ -99,6 +127,7 @@ for _p in (_SCRIPTS, _SCRIPTS / 'ci'):
 import check_elf_paths as cep  # noqa: E402
 import firmware_tree as ft  # noqa: E402
 import pre_commit_matrix as matrix  # noqa: E402
+import board_config  # noqa: E402
 
 ZERO = '0' * 40
 NOTES_REF = 'refs/notes/rc-bench'
@@ -106,11 +135,15 @@ MAX_FIRMWARE_COMMITS = 5
 # standards/VERSIONING.md: annotated vMAJOR.MINOR.PATCH on the release commit.
 # Anchored and exact, so starcom-v0.2.25 and v1-scratch do not match.
 RELEASE_TAG = re.compile(r'^refs/tags/v\d+\.\d+\.\d+$')
-RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'   # GAP: not built yet
+RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'
 
 # Flash paths (docs/FLASHING.md). FLASH_SWD: the debug probe is on this
 # board, so the flash script (OpenOCD) is path 2 and picotool is path 1.
 # FLASH_USB: no probe on this board; picotool over USB only.
+# The probe is optional and is NOT assumed to be on a FLASH_SWD board: the
+# gate offers Path 2 only for the role whose USB serial matches the probe
+# target's chip ID (probe_target_ids). Unknown target -> USB only. Only the
+# flash transport changes; the bench is the same.
 FLASH_SWD = 'swd'
 FLASH_USB = 'usb'
 # The ONE role table: role -> (build dir, CMake preset, bench script, flash
@@ -221,8 +254,21 @@ def subject(repo: Path, c: str) -> str:
     return git(repo, 'log', '-1', '--format=%h %s', c)
 
 
-def warn(msg: str) -> None:
-    print(f'pre-push: WARNING: {msg}', flush=True)
+# Warning inhibits active for the branch being pushed (gate_inhibits.json in
+# the pushed commit, kind "warning"): id -> reason. Set per pushed ref.
+WARN_INHIBITS: Dict[str, str] = {}
+
+
+def warn(msg: str, wid: Optional[str] = None) -> None:
+    """Print a warning. Warnings never block (only GateFail does). A warning
+    with an id named in an active inhibit prints as INHIBITED, still shown."""
+    if wid and wid in WARN_INHIBITS:
+        first = msg.splitlines()[0] if msg else ''
+        print(f'pre-push: INHIBITED [{wid}] ({WARN_INHIBITS[wid]}): {first}',
+              flush=True)
+        return
+    tag = f' [{wid}]' if wid else ''
+    print(f'pre-push: WARNING{tag}: {msg}', flush=True)
 
 
 def check_shape(repo: Path, plan: PushPlan) -> List[str]:
@@ -236,6 +282,7 @@ def check_shape(repo: Path, plan: PushPlan) -> List[str]:
             f'{MAX_FIRMWARE_COMMITS}). One bench run covers them all, so a '
             f'failure is harder to trace. Next time split the push: '
             f'git push <remote> <sha>:<branch>.\n  {listing}')
+    ids = ['shape-max-firmware'] if out else []
     if plan.isolate and len(fw) > 1:
         lines = [f'{subject(repo, c)}  [{", ".join(cls)}]'
                  for c, cls in plan.isolate.items()]
@@ -243,8 +290,9 @@ def check_shape(repo: Path, plan: PushPlan) -> List[str]:
             'agent rule: a pyro/deploy, guard, radio-adapter or turnaround '
             'commit goes in a push with no other firmware commit.\n  '
             + '\n  '.join(lines))
-    for m in out:
-        warn(m)
+        ids.append('shape-isolate')
+    for m, wid in zip(out, ids):
+        warn(m, wid)
     return out
 
 
@@ -294,16 +342,40 @@ def note_boards(note: str) -> Dict[str, str]:
     return out
 
 
+def note_expect_line(expects: Mapping[str, Optional[Dict[str, str]]]) -> str:
+    """'expect: station=imu=absent,... vehicle=...'; roles without a board
+    profile are left out. '' when no role has one (legacy note)."""
+    items = [f'{r}={board_config.format_expect(e)}'
+             for r, e in sorted(expects.items()) if e is not None]
+    return ('expect: ' + ' '.join(items)) if items else ''
+
+
 def note_covers(note: str, roles: List[str], radio: bool,
-                attached: Optional[Set[str]]) -> Tuple[bool, str]:
-    """(reuse?, reason). See the module docstring, step 3."""
+                attached: Optional[Set[str]],
+                expect_line: str = '',
+                radio_bench: str = '') -> Tuple[bool, str]:
+    """(reuse?, reason). See the module docstring, step 3. A note is reused
+    only for the same expected hardware (its expect: line) and, for a radio
+    push, the same radio bench script (its radio_bench: line)."""
     if 'result: PASS' not in note:
         return False, 'note is not a PASS'
+    m = re.search(r'^expect: .*$', note, re.MULTILINE)
+    if (m.group(0) if m else '') != expect_line:
+        return False, ('expected hardware differs from the note '
+                       f'({m.group(0) if m else "no expect line"} vs '
+                       f'{expect_line or "no expect line"})')
     m = re.search(r'^roles: (.*)$', note, re.MULTILINE)
     have = set(m.group(1).split()) if m else set()
     need = set(roles) | ({'radio-link'} if radio else set())
     if not need <= have:
         return False, f'note covers {sorted(have)}, push needs {sorted(need)}'
+    if radio:
+        m = re.search(r'^radio_bench: (\S+)$', note, re.MULTILINE)
+        noted = m.group(1) if m else ''
+        if not radio_bench or noted != radio_bench:
+            return False, ('radio bench script differs from the note '
+                           f'({noted or "no radio_bench line"} vs '
+                           f'{radio_bench or "none"})')
     boards = set(roles) | (set(ROLES) if radio else set())
     recorded = note_boards(note)
     if attached is None:
@@ -471,12 +543,14 @@ def flash_recorded(elf: Path) -> bool:
 
 
 def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
-                       picotool: str = 'picotool') -> str:
+                       picotool: str = 'picotool', probe: bool = True) -> str:
     """Flash text for one role. Both setups flash by Path 1 (picotool over
-    USB). ``main`` is main_worktree() (None -> MAIN_FALLBACK)."""
+    USB). ``main`` is main_worktree() (None -> MAIN_FALLBACK). ``probe``:
+    the probe is identified on THIS role's board, so Path 2 is offered."""
     uf2 = elf.with_suffix('.uf2')
     flash = wt / 'scripts' / 'flash_elf_halt_write.py'
     swd = ROLES[role][3] == FLASH_SWD
+    swd = swd and probe
     setup = ('debug probe on this board' if swd else 'USB only, no debug probe')
     text = (
         f'  {role} setup ({setup}):\n'
@@ -491,17 +565,169 @@ def flash_instructions(main: Optional[Path], wt: Path, role: str, elf: Path,
         return text
     step = '\n'.join('      ' + ln for ln in openocd_step(main).splitlines())
     return text + (
-        '\n    The debug probe does not flash in this procedure. It serves only\n'
-        '    the OpenOCD check.\n'
-        '    Path 2 (alternative, this setup only; docs/FLASHING.md\n'
+        '\n    The probe is identified on this board (chip ID = USB serial).\n'
+        '    Path 2 (alternative; docs/FLASHING.md\n'
         '    "Iterative flash"): probe halt-write, needs OpenOCD:\n'
         f'      python {flash} --elf {elf}\n'
         + step)
 
 
 def needs_openocd(roles: List[str]) -> bool:
-    """OpenOCD is needed when a role flashes over the debug probe (ROLES)."""
+    """A role can use the debug probe (ROLES). The probe is optional."""
     return any(ROLES[r][3] == FLASH_SWD for r in roles)
+
+
+def flash_transport(role: str, probe_role: Optional[str],
+                    listening: bool = False) -> str:
+    """Name of the flash transport for one role, printed by the gate."""
+    if probe_role == role:
+        return 'probe on this board (chip ID match): Path 1 USB or Path 2 SWD'
+    if listening and probe_role is None:
+        return 'USB (picotool load -f, Path 1); probe present, target unknown: USB only'
+    return 'USB (picotool load -f, Path 1)'
+
+
+OPENOCD_TCL = ('127.0.0.1', 6666)
+# RP2350 OTP CHIPID0..3 (rows 0-3). pico_get_unique_board_id (pico-sdk
+# unique_id.c, RP2350) = ROM get_sys_info CHIP_INFO DEVICE_ID/WAFER_ID, which
+# the USB serial prints as WAFER_ID then DEVICE_ID in hex.
+OTP_DATA_BASE = 0x40130000      # ECC reads, 2 rows per 32-bit word
+OTP_DATA_RAW_BASE = 0x40134000  # raw reads, 1 row per 32-bit word
+
+
+def openocd_tcl(cmd: str, timeout: float = 2.0) -> Optional[str]:
+    """One command on the OpenOCD Tcl port (6666), never the GDB port 3333
+    (a GDB connect halts the core). None on any socket error."""
+    import socket
+    try:
+        with socket.create_connection(OPENOCD_TCL, timeout=timeout) as s:
+            s.sendall(cmd.encode() + b'\x1a')
+            buf = b''
+            while not buf.endswith(b'\x1a'):
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
+            return buf.rstrip(b'\x1a').decode('utf-8', errors='replace')
+    except OSError:
+        return None
+
+
+def _hex_words(text: Optional[str], n: int) -> Optional[List[int]]:
+    try:
+        w = [int(t, 16) for t in (text or '').split()]
+    except ValueError:
+        return None
+    return w if len(w) == n else None
+
+
+def probe_target_ids(tcl=openocd_tcl) -> Set[str]:
+    """Chip IDs of the probe target, formatted as the board USB serial.
+    Read-only: read_memory of OTP over the debug AP. No halt, no reset.
+    Empty set when OpenOCD cannot read them (then: USB only)."""
+    ids: Set[str] = set()
+    w = _hex_words(tcl(f'read_memory {OTP_DATA_BASE:#x} 32 2'), 2)
+    if w:
+        ids.add(f'{w[1]:08X}{w[0]:08X}')
+    r = _hex_words(tcl(f'read_memory {OTP_DATA_RAW_BASE:#x} 32 4'), 4)
+    if r:
+        r = [x & 0xFFFF for x in r]
+        ids.add(f'{r[3]:04X}{r[2]:04X}{r[1]:04X}{r[0]:04X}')
+    ids.discard('0' * 16)
+    ids.discard('F' * 16)
+    return ids
+
+
+def board_ports() -> Dict[str, str]:
+    """USB serial -> COM port of attached RocketChip CDC ports.
+    Enumeration only."""
+    try:
+        import serial.tools.list_ports as lp  # type: ignore
+        from _rc_test_common import ROCKETCHIP_USB_PID, ROCKETCHIP_USB_VID
+    except Exception:  # noqa: BLE001
+        return {}
+    return {i.serial_number: i.device for i in lp.comports()
+            if i.vid == ROCKETCHIP_USB_VID and i.pid == ROCKETCHIP_USB_PID
+            and i.serial_number}
+
+
+def port_role(port: str) -> Optional[str]:
+    """Role from the firmware banner of one port (one peek)."""
+    try:
+        from _rc_test_common import Role, peek_banner
+        b = peek_banner(port)
+    except Exception:  # noqa: BLE001
+        return None
+    return {Role.VEHICLE: 'vehicle', Role.STATION: 'station'}.get(
+        getattr(b, 'role', None))
+
+
+def identify_probe_role(ids_fn=probe_target_ids, ports_fn=board_ports,
+                        role_fn=port_role,
+                        cfg_fn=board_config.load) -> Optional[str]:
+    """Role of the board the probe is on, or None (unknown: USB only).
+    The probe target is always identified by chip ID = USB serial. With
+    boards.local.json the role comes from the file and the board must be
+    flagged "probe": true; an unlisted serial is reported, never guessed.
+    Without the file: one banner peek (unchanged)."""
+    ids = ids_fn()
+    if not ids:
+        return None
+    hits = [(s, p) for s, p in ports_fn().items() if s.upper() in ids]
+    if len(hits) != 1:
+        return None
+    ser, port = hits[0]
+    try:
+        cfg = cfg_fn()
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    if cfg is None:
+        role = role_fn(port)
+        return role if role in ROLES else None
+    role = board_config.role_of(ser, cfg)
+    if role is None:
+        warn(board_config.unknown_message(ser.upper()) + ' Probe: USB only.',
+             'unknown-serial')
+        return None
+    if not board_config.probe_flagged(ser, cfg):
+        warn(f'probe chip ID matches the {role} board ({ser.upper()}) but '
+             'boards.local.json has "probe": false for it. USB only.',
+             'probe-not-flagged')
+        return None
+    return role if role in ROLES else None
+
+
+def early_board_check(roles: List[str], serials: Optional[Set[str]],
+                      cfg_fn=lambda: None) -> None:
+    """Before the build: fewer attached RocketChip ports than roles is a
+    hard fail now (the bench still checks each board by banner later).
+    With boards.local.json: each role's listed serial must be attached, and
+    attached serials the file does not list are reported (never used).
+    None (no pyserial) -> no early check."""
+    try:
+        cfg = cfg_fn()
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    if serials is not None and cfg is not None:
+        for u in board_config.unknown_serials(serials, cfg):
+            warn(board_config.unknown_message(u), 'unknown-serial')
+        up = {s.upper() for s in serials}
+        for r in roles:
+            ser, _, _ = board_config.role_serial(r, cfg)
+            if ser is None:
+                raise GateFail(f'board missing: no {r} board listed in '
+                               f'{board_config.config_path()}. Add it, then run '
+                               'git push again. (A skip is a fail.)')
+            if ser not in up:
+                raise GateFail(f'board missing: {r} board {ser} '
+                               '(boards.local.json) is not attached. Attach '
+                               'it, then run git push again. (A skip is a fail.)')
+        return
+    if serials is not None and len(serials) < len(roles):
+        raise GateFail(f'board missing: this push benches {len(roles)} board(s) '
+                       f'({", ".join(roles)}) but {len(serials)} RocketChip USB '
+                       'port(s) are attached. Attach and flash every board, then '
+                       'run git push again. (A skip is a fail.)')
 
 
 def openocd_listening() -> bool:
@@ -514,38 +740,198 @@ def openocd_listening() -> bool:
     return bool(re.search(r'127\.0\.0\.1:3333\s+\S+\s+LISTENING', r.stdout))
 
 
-def run_bench(wt: Path, script: str, sha: str, label: str) -> Tuple[str, str]:
-    """(result text, USB serial of the benched board or UNKNOWN_SERIAL)."""
+def run_bench(wt: Path, script: str, sha: str, label: str,
+              expect: Optional[Dict[str, str]] = None,
+              na_out: Optional[List[str]] = None,
+              extra: Optional[List[str]] = None) -> Tuple[str, str]:
+    """(result text, USB serial of the benched board or UNKNOWN_SERIAL).
+    expect: the board's expected hardware (--expect); None = legacy rules.
+    na_out: collects the bench's N/A checks by name (hw_na: lines).
+    extra: more arguments for the bench script. wt is the directory whose
+    scripts/ folder holds the script and the working directory of the run."""
     cmd = [sys.executable, '-u', str(wt / 'scripts' / script), '--commit', sha]
+    if expect is not None:
+        cmd += ['--expect', board_config.format_expect(expect)]
+    cmd += list(extra or [])
     say(f'{label}: $ ' + ' '.join(cmd))
-    r = subprocess.run(cmd, cwd=str(wt), capture_output=True, text=True)
-    out = (r.stdout or '') + (r.stderr or '')
-    print(out, flush=True)
+    # Stream the child live (each line echoed and flushed as it arrives) so
+    # long runs such as RC_UPTIME_HOLD_S show progress; the text is still
+    # collected for the result / board-serial parse below.
+    env = dict(os.environ, PYTHONUNBUFFERED='1')
+    p = subprocess.Popen(cmd, cwd=str(wt), stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, bufsize=1,
+                         errors='replace', env=env)
+    lines: List[str] = []
+    for line in p.stdout:
+        print(line, end='', flush=True)
+        lines.append(line)
+    r = subprocess.CompletedProcess(cmd, p.wait())
+    out = ''.join(lines)
     if r.returncode == 2:
         raise GateFail(f'{label}: exit 2 (board not found / tool self-check / '
                        f'watchdog). The push needs this bench: a skip is a fail.')
+    if r.returncode == 3:
+        raise GateFail(f'{label}: exit 3 (board uptime did not rise: frozen '
+                       f'firmware; or no banner / uptime reading after retries; or '
+                       f'port lost mid-check and not back within RC_PORT_WAIT_S). '
+                       f'Hard fail; the USB fault block above names which.')
+    if r.returncode == 4:
+        raise GateFail(f'{label}: exit 4 (board uptime dropped during the uptime '
+                       f'check: the board reset). Hard fail; '
+                       f'see the USB fault block above.')
     if r.returncode != 0:
         raise GateFail(f'{label}: FAIL (exit {r.returncode})')
     m = _RE_RESULT.search(out)
     b = _RE_BOARD.findall(out)
     if not b:
         warn(f'{label}: no board_usb_serial line. The note records '
-             f'"{UNKNOWN_SERIAL}", so it is never reused.')
+             f'"{UNKNOWN_SERIAL}", so it is never reused.', 'no-board-serial')
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith(board_config.HW_NA_PREFIX) and na_out is not None:
+            na_out.append(f'{label}: ' + line[len(board_config.HW_NA_PREFIX):].strip())
+        elif line.startswith(board_config.HW_WARN_PREFIX):
+            wid, _, what = line[len(board_config.HW_WARN_PREFIX):].strip().partition(' ')
+            warn(f'{label}: {what} (a warning only; Nathan 2026-11-23)', wid)
     return (f'{m.group(1)}/{m.group(2)} PASS' if m else 'PASS'), (b[-1] if b else UNKNOWN_SERIAL)
 
 
 RADIO_GAP = (
     'RADIO PUSH: this push changes radio/link code ([radio] in\n'
-    'scripts/ci/firmware_paths.txt). The two-board round trip\n'
-    f'({RADIO_LINK_BENCH}) is not in this commit, so the radio rule is not\n'
-    'active and this push is NOT radio-benched. Agent rule (SESSION_CHECKLIST\n'
-    '6a): run the two-board soak by hand and cite it.')
+    'scripts/ci/firmware_paths.txt). The two-board radio check is NOT done:\n'
+    f'{RADIO_LINK_BENCH} is not committed and unchanged at HEAD of the\n'
+    'checkout that runs this gate.\n'
+    'This push is NOT radio-benched. The radio change is NOT verified on\n'
+    'air. This is an open gap. Report it in the push report and in the\n'
+    'bench citation (SESSION_CHECKLIST 6a).')
 
 
-def radio_rule_active(repo: Path, sha: str) -> bool:
-    """The blocking radio rule lands with the round-trip bench, not before."""
-    return subprocess.run(['git', 'cat-file', '-e', f'{sha}:{RADIO_LINK_BENCH}'],
-                          cwd=str(repo), capture_output=True).returncode == 0
+def radio_bench_blob(repo: Path) -> Optional[str]:
+    """Blob id of RADIO_LINK_BENCH at HEAD of the gate's own checkout, or
+    None when it is not committed there or the working copy differs from
+    HEAD (changed, staged or untracked). The gate runs this copy, so the
+    blob id says which script produced a bench PASS."""
+    r = subprocess.run(['git', 'rev-parse', '--verify', '--quiet',
+                        f'HEAD:{RADIO_LINK_BENCH}'], cwd=str(repo),
+                       capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    st = subprocess.run(['git', 'status', '--porcelain', '--', RADIO_LINK_BENCH],
+                        cwd=str(repo), capture_output=True, text=True)
+    if st.returncode != 0 or st.stdout.strip():
+        return None
+    return r.stdout.strip()
+
+
+def radio_rule_active(repo: Path) -> bool:
+    """The blocking radio rule is on when the gate's own checkout has the
+    two-board radio bench (radio_bench_blob). It does not depend on the
+    pushed sha: the script is host tooling, so a push of an older sha of a
+    split push is checked too."""
+    return radio_bench_blob(repo) is not None
+
+
+# ---------------------------------------------------------------------------
+# Expected hardware (board_profiles.json + gate_inhibits.json, Nathan 2026-11-23)
+# ---------------------------------------------------------------------------
+
+def committed_file(repo: Path, sha: str, name: str) -> Optional[str]:
+    """scripts/ci/<name> as committed in sha (the pushed tree, not the
+    working tree), or None when that commit has no such file."""
+    r = subprocess.run(['git', 'show', f'{sha}:scripts/ci/{name}'], cwd=str(repo),
+                       capture_output=True, text=True, encoding='utf-8')
+    return r.stdout if r.returncode == 0 else None
+
+
+def load_inhibits(repo: Path, sha: str, branch: str,
+                  today: datetime.date) -> List['board_config.Inhibit']:
+    """Active inhibits for a push to branch; sets WARN_INHIBITS and prints
+    every active and date-expired entry, so nothing is silenced unseen."""
+    WARN_INHIBITS.clear()
+    text = committed_file(repo, sha, board_config.INHIBITS_FILE)
+    if text is None:
+        return []
+    try:
+        rows = board_config.parse_inhibits(text)
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    active, expired = board_config.active_inhibits(rows, branch, today)
+    for x in expired:
+        say(f'inhibit expired {x.until}, not applied: {x.kind} {x.target} '
+            f'({x.reason}). Remove it from {board_config.INHIBITS_FILE}.')
+    for x in active:
+        until = f', until {x.until}' if x.until else ', until the branch merges'
+        say(f'inhibit active for {branch}: {x.kind} {x.target} ({x.reason}{until})')
+        if x.kind == 'warning':
+            WARN_INHIBITS[x.target] = x.reason
+    return active
+
+
+def role_expectations(repo: Path, sha: str, roles: List[str],
+                      active: List['board_config.Inhibit'],
+                      cfg_fn=board_config.load) -> Dict[str, Optional[Dict[str, str]]]:
+    """role -> expected hardware for its bench, or None (no board profile
+    named in boards.local.json: the bench keeps its legacy rules)."""
+    try:
+        cfg = cfg_fn()
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    out: Dict[str, Optional[Dict[str, str]]] = {r: None for r in roles}
+    named = {b.role: b for b in (cfg or {}).values() if b.board}
+    if not any(r in named for r in roles):
+        if any(x.kind == 'not-fitted' for x in active):
+            warn('not-fitted inhibits are set but no board in boards.local.json '
+                 'names a board profile, so they change nothing', 'inhibit-unused')
+        return out
+    text = committed_file(repo, sha, board_config.PROFILES_FILE)
+    if text is None:
+        raise GateFail(f'boards.local.json names board profiles, but '
+                       f'{sha[:12]} has no scripts/ci/{board_config.PROFILES_FILE}')
+    try:
+        profiles = board_config.parse_profiles(text)
+        for r in roles:
+            b = named.get(r)
+            if b is None:
+                say(f'{r}: no board profile in boards.local.json: legacy bench rules')
+                continue
+            if b.board not in profiles:
+                raise board_config.BoardConfigError(
+                    f'{r} board {b.serial} names profile {b.board!r}, which is not '
+                    f'in {board_config.PROFILES_FILE} ({", ".join(sorted(profiles))})')
+            out[r] = board_config.expectations(profiles[b.board], r, active)
+            say(f'{r} expected hardware ({b.board}): '
+                f'{board_config.format_expect(out[r])}')
+    except board_config.BoardConfigError as e:
+        raise GateFail(str(e))
+    return out
+
+
+def radio_needs_radio(expects: Mapping[str, Optional[Dict[str, str]]]
+                      ) -> Dict[str, Optional[Dict[str, str]]]:
+    """A [radio] change requires a radio on every benched board that has a
+    profile: an optional radio becomes fitted for this push (Nathan
+    2026-11-23: a missing radio is not a fail, but radio code needs a radio).
+    Returns the updated expectations; an absent or not-fitted radio blocks.
+    Both benches then fail a missing radio: the station on RegVersion, the
+    vehicle on its T2 Radio HW line (bench_sim.judge_preflight_radio)."""
+    out: Dict[str, Optional[Dict[str, str]]] = {}
+    off = []
+    for r, e in sorted(expects.items()):
+        if e is None:
+            out[r] = None
+            continue
+        if e['radio'] in (board_config.ABSENT, board_config.NOT_FITTED):
+            off.append(f'{r} ({e["radio"]})')
+        out[r] = dict(e, radio=board_config.FITTED)
+    if off:
+        raise GateFail(f'this push changes radio/link code ([radio] in '
+                       f'firmware_paths.txt), which needs a radio, but the radio '
+                       f'is {" and ".join(off)} on the benched board. Fit it (and '
+                       f'drop any not-fitted inhibit), then push again.')
+    for r, e in out.items():
+        if e is not None:
+            say(f'{r}: radio code changed, so the radio is required for this push')
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -572,19 +958,28 @@ def handle_tag(repo: Path, local_ref: str, local_sha: str) -> None:
 
 
 def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
-                  remote_sha: str, plan_only: bool, fresh: bool = False) -> None:
+                  remote_sha: str, plan_only: bool, fresh: bool = False,
+                  remote_ref: str = '') -> None:
     plan = make_plan(repo, remote, local_ref, local_sha, remote_sha)
+    branch = board_config.branch_of(remote_ref or local_ref)
+    active = load_inhibits(repo, local_sha, branch, datetime.date.today())
     say(f'{local_ref} @ {local_sha[:12]}: {len(plan.commits)} commit(s), '
         f'{len(plan.firmware_commits)} firmware, roles={plan.roles or "none"}'
         f'{", RADIO PUSH" if plan.radio else ""}'
         f'{", isolate=" + str(plan.isolate) if plan.isolate else ""}')
     check_shape(repo, plan)
-    if plan.radio and not radio_rule_active(repo, local_sha):
-        warn(RADIO_GAP)
+    radio_paths = plan.radio
+    if plan.radio and not radio_rule_active(repo):
+        warn(RADIO_GAP, 'radio-gap')
         plan.radio = False
     if not plan.roles:
         say('no firmware or gate path changed: no bench needed.')
         return
+    bench_roles = sorted(set(plan.roles) | (set(ROLES) if plan.radio else set()))
+    expects = role_expectations(repo, local_sha, bench_roles, active)
+    if radio_paths:
+        expects = radio_needs_radio(expects)
+    expect_line = note_expect_line(expects)
     key, versions = bench_key(repo, local_sha, write=not plan_only)
     say(f'bench key {key[:12]} ({ft.BENCH_KEY_FORMAT}): '
         + '; '.join(f'{t} "{v}"' for t, v in versions.items())
@@ -595,7 +990,8 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     elif not note:
         why = f'no note for key {key[:12]}'
     else:
-        ok, why = note_covers(note, plan.roles, plan.radio, attached_board_serials())
+        ok, why = note_covers(note, plan.roles, plan.radio, attached_board_serials(),
+                              expect_line, radio_bench_blob(repo) or '')
         if ok:
             say(f'bench note {key[:12]} covers this firmware tree, tools and '
                 f'{why}: skip flash and bench.')
@@ -610,9 +1006,11 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     primary = primary_tree(repo)
     wt = bench_worktree(primary)
     main_wt = main_worktree(repo)
-    if needs_openocd(plan.roles) and not openocd_listening():
-        raise GateFail('OpenOCD is not on 127.0.0.1:3333 (the debug-probe setup '
-                       'needs it for the OpenOCD check).\n' + openocd_step(main_wt))
+    # The probe is optional. Only the flash transport changes; the build,
+    # flash record, bench and radio checks below are the same either way.
+    listening = openocd_listening()
+    early_board_check(sorted(set(plan.roles) | (set(ROLES) if plan.radio else set())),
+                      attached_board_serials(), cfg_fn=board_config.load)
     prepare_worktree(primary, wt, local_sha)
     want = ft.elf_tree_id(wt, local_sha)
     built: Dict[str, Tuple[Path, str]] = {r: build_role(wt, r, want, versions)
@@ -624,8 +1022,15 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
                 built[r] = build_role(wt, r, want, versions)
     # Flash with the picotool whose version is in the bench key.
     picotool = str(ft.resolve_tool('picotool', repo, local_sha))
-    missing = [flash_instructions(main_wt, wt, r, elf, picotool)
-               for r, (elf, _) in built.items() if not flash_recorded(elf)]
+    need = [r for r, (elf, _) in built.items() if not flash_recorded(elf)]
+    # Identify the probe board only when a flash step is printed (the gate
+    # blocks then, so the one banner peek never runs before a bench).
+    probe_role = identify_probe_role() if (need and listening) else None
+    for r in built:
+        say(f'{r} flash transport: ' + (flash_transport(r, probe_role, listening)
+                                         if r in need else 'flash already recorded'))
+    missing = [flash_instructions(main_wt, wt, r, built[r][0], picotool,
+                                  probe_role == r) for r in need]
     if missing:
         raise GateFail('flash the pushed build (Path 1, picotool over USB, for '
                        'each setup), record it, wait LED+CDC (docs/FLASHING.md), '
@@ -634,11 +1039,23 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
 
     results: Dict[str, str] = {}
     boards: Dict[str, str] = {}
+    na: List[str] = []
     for r in built:
-        results[r], boards[r] = run_bench(wt, ROLES[r][2], local_sha, f'{r} bench')
+        results[r], boards[r] = run_bench(wt, ROLES[r][2], local_sha, f'{r} bench',
+                                          expect=expects.get(r), na_out=na)
     if plan.radio:
-        results['radio-link'], _ = run_bench(wt, Path(RADIO_LINK_BENCH).name,
-                                             local_sha, 'radio link')
+        # The radio bench is host tooling: run the gate checkout's copy (the
+        # bench worktree has the pushed sha, which may be older than the
+        # script). Same boards as the role benches.
+        radio_blob = radio_bench_blob(repo) or ''
+        say(f'radio link bench: {RADIO_LINK_BENCH} blob {radio_blob[:12]} '
+            f'from the gate checkout {repo}')
+        same = [a for r, f in (('vehicle', '--vehicle-serial'),
+                               ('station', '--station-serial'))
+                for a in ((f, boards[r]) if boards.get(r, UNKNOWN_SERIAL)
+                          != UNKNOWN_SERIAL else ())]
+        results['radio-link'], _ = run_bench(repo, Path(RADIO_LINK_BENCH).name,
+                                             local_sha, 'radio link', extra=same)
 
     stamp = datetime.datetime.now().astimezone().isoformat(timespec='seconds')
     rng = f'{plan.commits[0][:12]}..{plan.commits[-1][:12]}' if plan.commits else '-'
@@ -647,6 +1064,11 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
              f'range: {rng} ({len(plan.commits)} commits)',
              f'roles: {" ".join(results)}',
              'boards: ' + ' '.join(f'{r}={s}' for r, s in boards.items())]
+    if plan.radio:
+        lines.append(f'radio_bench: {radio_blob}')
+    if expect_line:
+        lines.append(expect_line)
+    lines += [f'na: {x}' for x in na]
     lines += [f'{t}: {v}' for t, v in versions.items()]
     lines.append('preset: ' + ' '.join(f'{r}={p}' for r, p in sorted(PRESETS.items())))
     if fresh:
@@ -657,8 +1079,9 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
     cite = ', '.join(f'{r} {res}' + (f' (flight-{built[r][1]})' if r in built else '')
                      for r, res in results.items())
     say('PASS. Rule 3 citation for the last commit or CHANGELOG entry:')
-    print(f'  Verified at push: {cite}; firmware tree {want[:12]}; range {rng}.',
-          flush=True)
+    na_cite = f'; N/A (not fitted): {"; ".join(na)}' if na else ''
+    print(f'  Verified at push: {cite}; firmware tree {want[:12]}; range {rng}'
+          f'{na_cite}.', flush=True)
 
 
 def main(argv: List[str]) -> int:
@@ -687,14 +1110,15 @@ def main(argv: List[str]) -> int:
             parts = line.split()
             if len(parts) != 4:
                 continue
-            local_ref, local_sha, _remote_ref, remote_sha = parts
+            local_ref, local_sha, remote_ref, remote_sha = parts
             if local_sha == ZERO or local_ref.startswith('refs/notes/'):
                 continue
             if local_ref.startswith('refs/tags/'):
                 handle_tag(repo, local_ref, local_sha)
                 continue
             handle_branch(repo, remote, local_ref, local_sha, remote_sha,
-                          plan_only, fresh)
+                          plan_only, fresh,
+                          remote_ref if remote_ref != '-' else '')
     except (GateFail, ft.FirmwareTreeError) as exc:
         print(f'\nPRE-PUSH BLOCKED: {exc}\n', flush=True)
         print('Nothing was pushed. Fix an unpushed commit with\n'

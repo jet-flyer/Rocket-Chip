@@ -100,6 +100,12 @@ add_executable(test_log_decimator test_log_decimator.cpp)
 target_link_libraries(test_log_decimator PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_log_decimator)
 
+# DPS310 new-sample gate + baro new-sample watch (header-only, pure)
+add_executable(test_baro_poll test_baro_poll.cpp)
+target_include_directories(test_baro_poll PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_baro_poll PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_baro_poll)
+
 # IVP-53a: CRC-32 + Flight log table tests
 add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
@@ -163,13 +169,30 @@ add_executable(test_starcom_byte_pump
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
     ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp
 )
 target_link_libraries(test_starcom_byte_pump PRIVATE Starcom::starcom GTest::gtest_main)
 target_include_directories(test_starcom_byte_pump PRIVATE
+    ${RC_VERSION_GENERATED_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src
 )
 gtest_discover_tests(test_starcom_byte_pump)
+
+add_executable(test_starcom_comm_change
+    test_starcom_comm_change.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/nav_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/cmd_sdu.cpp
+    ${CMAKE_SOURCE_DIR}/src/starcom_adapt/byte_pump.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp
+)
+target_link_libraries(test_starcom_comm_change PRIVATE Starcom::starcom GTest::gtest_main)
+target_include_directories(test_starcom_comm_change PRIVATE
+    ${RC_VERSION_GENERATED_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+gtest_discover_tests(test_starcom_comm_change)
 
 add_executable(test_space_packet_service
     test_space_packet_service.cpp
@@ -313,6 +336,96 @@ target_include_directories(test_radio_pa_decode PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_pa_decode)
 
+# Radio HW TX power clamp. Header-only plan. No SPI.
+add_executable(test_radio_tx_power_clamp test_radio_tx_power_clamp.cpp)
+target_link_libraries(test_radio_tx_power_clamp PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_power_clamp PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_radio_tx_power_clamp)
+
+# Same header with the +20 dBm compile-time opt-in defined.
+add_executable(test_radio_tx_power_allow20 test_radio_tx_power_allow20.cpp)
+target_link_libraries(test_radio_tx_power_allow20 PRIVATE GTest::gtest_main)
+target_include_directories(test_radio_tx_power_allow20 PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(test_radio_tx_power_allow20 PRIVATE
+    RC_RFM95_ALLOW_20DBM=1)
+gtest_discover_tests(test_radio_tx_power_allow20)
+
+# Pad RX Hz: 2 s sliding window over CRC-ok counts. No Pico time.
+add_executable(test_radio_rx_window
+    test_radio_rx_window.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/radio_rate_counters.cpp)
+target_link_libraries(test_radio_rx_window PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_radio_rx_window PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_radio_rx_window PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_radio_rx_window)
+
+# LINK baseline counters. Sequence gap, airtime remainder, COP-P resend.
+add_executable(test_link_baseline
+    test_link_baseline.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/link_baseline.cpp)
+target_link_libraries(test_link_baseline PRIVATE rc_log Starcom::starcom GTest::gtest_main)
+target_include_directories(test_link_baseline PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_link_baseline PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_link_baseline)
+
+# FSK item 2: flash stall histogram, poll-gap counters, JEDEC decode.
+add_executable(test_flash_stall_stats
+    test_flash_stall_stats.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/flash_stall_stats.cpp)
+target_link_libraries(test_flash_stall_stats PRIVATE GTest::gtest_main)
+target_include_directories(test_flash_stall_stats PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_flash_stall_stats PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_flash_stall_stats)
+
+# QF tick skip after a stall: one tick, skip count, same phase grid.
+add_executable(test_tick_skip
+    test_tick_skip.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/tick_skip.cpp)
+target_link_libraries(test_tick_skip PRIVATE GTest::gtest_main)
+target_include_directories(test_tick_skip PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_tick_skip PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_tick_skip)
+
+# FSK open items A/B: 'x' erase order, busy rules, progress, page split.
+add_executable(test_flash_job_plan
+    test_flash_job_plan.cpp
+    ${CMAKE_SOURCE_DIR}/src/logging/flash_job_plan.cpp)
+target_link_libraries(test_flash_job_plan PRIVATE GTest::gtest_main)
+target_include_directories(test_flash_job_plan PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_flash_job_plan PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_flash_job_plan)
+
+# FSK open item C: CRC-fail vs good packet RSSI/SNR stats.
+add_executable(test_rx_quality_stats
+    test_rx_quality_stats.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/rx_quality_stats.cpp)
+target_link_libraries(test_rx_quality_stats PRIVATE GTest::gtest_main)
+target_include_directories(test_rx_quality_stats PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_rx_quality_stats PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_rx_quality_stats)
+
+# QP assert module name to crash-record index. Header-only.
+add_executable(test_qp_module_id test_qp_module_id.cpp)
+target_link_libraries(test_qp_module_id PRIVATE GTest::gtest_main)
+target_include_directories(test_qp_module_id PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_qp_module_id)
+
 # Forced radio HW TX timeout latch. Header-only. No SPI.
 add_executable(test_radio_tx_force test_radio_tx_force.cpp)
 target_link_libraries(test_radio_tx_force PRIVATE GTest::gtest_main)
@@ -320,13 +433,119 @@ target_include_directories(test_radio_tx_force PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 gtest_discover_tests(test_radio_tx_force)
 
+# SPI helper refuses register access before spi_bus_init() (Tiny: no radio,
+# SPI never set up). Real spi_bus.cpp against counting SDK stubs.
+add_executable(test_spi_bus_guard
+    test_spi_bus_guard.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/spi_bus.cpp)
+target_link_libraries(test_spi_bus_guard PRIVATE GTest::gtest_main)
+target_include_directories(test_spi_bus_guard PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_spi_bus_guard PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_spi_bus_guard)
+
+# R-35: config apply goes RX -> Standby -> writes -> RX. Real rfm95w.cpp
+# against a register-recording fake of spi_bus (SX1276 Rev. 4 p.38).
+add_executable(test_rfm95w_config_standby
+    test_rfm95w_config_standby.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/rfm95w_airtime.cpp)
+target_link_libraries(test_rfm95w_config_standby PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_rfm95w_config_standby PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_rfm95w_config_standby PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_rfm95w_config_standby)
+
+# Diag T=0 [Radio] lines: "fitted=NO" and no read when no radio is fitted.
+add_executable(test_diag_radio_precondition
+    test_diag_radio_precondition.cpp
+    ${CMAKE_SOURCE_DIR}/src/diag/diag_radio_precondition.cpp)
+target_link_libraries(test_diag_radio_precondition PRIVATE rc_log GTest::gtest_main)
+target_include_directories(test_diag_radio_precondition PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_diag_radio_precondition PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_diag_radio_precondition)
+
+# ICM-20948 full-scale codes / scale factors and the pack range (±16 g /
+# ±2000 dps, Council 2026-11-21). Header-only; board.h via host stubs.
+add_executable(test_icm20948_fs test_icm20948_fs.cpp)
+target_link_libraries(test_icm20948_fs PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_fs PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_fs PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_fs)
+
+# IMU I2C transfer budget (~2 ms pack value vs the burst's bus time).
+add_executable(test_imu_i2c_budget test_imu_i2c_budget.cpp)
+target_link_libraries(test_imu_i2c_budget PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_i2c_budget PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_i2c_budget PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_i2c_budget)
+
+# Core 1 IMU recover policy (plan section 4 gap 1): pure decision logic.
+add_executable(test_imu_recover_policy test_imu_recover_policy.cpp)
+target_link_libraries(test_imu_recover_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_imu_recover_policy PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_imu_recover_policy PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_imu_recover_policy)
+
+# icm20948_reinit against a register-level fake of the i2c_master calls.
+add_executable(test_icm20948_reinit
+    test_icm20948_reinit.cpp
+    ${CMAKE_SOURCE_DIR}/src/drivers/icm20948.cpp)
+target_link_libraries(test_icm20948_reinit PRIVATE GTest::gtest_main)
+target_include_directories(test_icm20948_reinit PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_stubs
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_icm20948_reinit PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_icm20948_reinit)
+
 # RC_OS sitting 0: live CLI key inventory (header-only, no firmware dispatch)
 add_executable(test_cli_keymap test_cli_keymap.cpp)
 target_link_libraries(test_cli_keymap PRIVATE GTest::gtest_main)
 target_include_directories(test_cli_keymap PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_keymap PRIVATE ROCKETCHIP_DEV_MODE=1)
 gtest_discover_tests(test_cli_keymap)
+
+add_executable(test_station_dio_eval test_station_dio_eval.cpp)
+target_link_libraries(test_station_dio_eval PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_eval PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_station_dio_eval)
+
+# Vehicle DIO bench wait-for-TX-idle latch. Header-only. No SPI.
+add_executable(test_station_dio_pending test_station_dio_pending.cpp)
+target_link_libraries(test_station_dio_pending PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_pending PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_station_dio_pending PRIVATE ROCKETCHIP_DEV_MODE=1)
+gtest_discover_tests(test_station_dio_pending)
+
+add_executable(test_station_dio_pending_field test_station_dio_pending.cpp)
+target_link_libraries(test_station_dio_pending_field PRIVATE GTest::gtest_main)
+target_include_directories(test_station_dio_pending_field PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_station_dio_pending_field)
 
 add_executable(test_cli_engine test_cli_engine.cpp)
 target_link_libraries(test_cli_engine PRIVATE GTest::gtest_main)
@@ -348,6 +567,7 @@ target_link_libraries(test_cli_catalog PRIVATE GTest::gtest_main)
 target_include_directories(test_cli_catalog PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_cli_catalog PRIVATE ROCKETCHIP_DEV_MODE=1)
 gtest_discover_tests(test_cli_catalog)
 
 # Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
@@ -356,6 +576,14 @@ target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)
 target_include_directories(test_prearm_fail_ticks PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_prearm_fail_ticks)
+
+# WMM GPS-fix persist gate (pure, header-only): a fix after ARM is applied
+# in RAM but its cal-storage flash write waits for kIdle.
+add_executable(test_wmm_persist test_wmm_persist.cpp)
+target_link_libraries(test_wmm_persist PRIVATE GTest::gtest_main)
+target_include_directories(test_wmm_persist PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+gtest_discover_tests(test_wmm_persist)
 
 # R-6c (2026-05-07 audit): Levenberg-Marquardt solver host coverage.
 # Pure-function module extracted from calibration_manager.cpp; tests pin
@@ -381,6 +609,23 @@ gtest_discover_tests(test_rc_log)
 add_executable(test_rc_snprintf test_rc_snprintf.cpp)
 target_link_libraries(test_rc_snprintf PRIVATE rc_log GTest::gtest_main)
 gtest_discover_tests(test_rc_snprintf)
+
+# Status LED backend selection + RGB animation (Tiny discrete LED path).
+add_executable(test_status_led_policy test_status_led_policy.cpp)
+target_link_libraries(test_status_led_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_status_led_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_status_led_policy)
+
+# Boot hardware check: PSRAM counted only when the pack fits it.
+add_executable(test_psram_check_policy test_psram_check_policy.cpp)
+target_link_libraries(test_psram_check_policy PRIVATE GTest::gtest_main)
+target_include_directories(test_psram_check_policy PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_psram_check_policy)
+
+add_executable(test_rgb_led_animate test_rgb_led_animate.cpp)
+target_link_libraries(test_rgb_led_animate PRIVATE GTest::gtest_main)
+target_include_directories(test_rgb_led_animate PRIVATE ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_rgb_led_animate)
 
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
@@ -422,6 +667,29 @@ if(Python3_Interpreter_FOUND)
     add_test(
         NAME scripts_pre_commit_fixture
         COMMAND ${Python3_EXECUTABLE} scripts/audit/pre_commit_fixture_test.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    add_test(
+        NAME scripts_firmware_tree
+        COMMAND ${Python3_EXECUTABLE} scripts/test_firmware_tree.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    add_test(
+        NAME scripts_decode_flight_log
+        COMMAND ${Python3_EXECUTABLE} scripts/test_decode_flight_log.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    add_test(
+        NAME scripts_warm_reboot_audit
+        COMMAND ${Python3_EXECUTABLE} scripts/test_warm_reboot_audit.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    # Starcom core does not include Pico SDK or RP2350 hardware headers
+    # (PR-9). The nested Starcom build has its tests off, so the RC host
+    # ctest (pre-commit hook) runs the same check here.
+    add_test(
+        NAME scripts_starcom_core_includes
+        COMMAND ${Python3_EXECUTABLE} starcom/tests/check_core_includes.py starcom
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
     # L2-P3 citation inventory — informational. Produces a deduplicated
@@ -475,6 +743,9 @@ if(Python3_Interpreter_FOUND)
         scripts_python_compileall
         scripts_fault_force_gate_audit
         scripts_pre_commit_fixture
+        scripts_firmware_tree
+        scripts_decode_flight_log
+        scripts_warm_reboot_audit
         scripts_list_citations
         PROPERTIES LABELS "python"
     )

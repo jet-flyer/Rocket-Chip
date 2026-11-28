@@ -18,6 +18,7 @@ add_executable(starcom_tests
   unit/test_pio_port.cpp
   unit/test_phy.cpp
   unit/test_coding.cpp
+  unit/test_constants.cpp
 )
 
 target_include_directories(starcom_tests PRIVATE unit)
@@ -35,3 +36,37 @@ if(NOT MSVC AND NOT STARCOM_SANITIZE)
 endif()
 
 add_test(NAME starcom.unit COMMAND starcom_tests)
+
+# Known-bad tidy probe. The sources are not a build target.
+find_program(STARCOM_CLANG_TIDY NAMES clang-tidy clang-tidy.exe
+  HINTS "C:/Program Files/LLVM/bin")
+# The test is always registered, so a missing tool shows in the CTest result.
+# The script exits 2 when clang-tidy 21.1.x is not found; CTest reports that
+# as "Skipped", not as a pass.
+find_program(STARCOM_BASH NAMES bash
+  HINTS "C:/Program Files/Git/bin" "C:/Program Files/Git/usr/bin")
+if(STARCOM_BASH)
+  add_test(NAME starcom.tidy_selftest
+    COMMAND "${STARCOM_BASH}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/tidy_selftest.sh")
+  if(STARCOM_CLANG_TIDY)
+    set_property(TEST starcom.tidy_selftest PROPERTY ENVIRONMENT
+      "CLANG_TIDY=${STARCOM_CLANG_TIDY}")
+  else()
+    set_property(TEST starcom.tidy_selftest PROPERTY ENVIRONMENT
+      "CLANG_TIDY=clang-tidy-not-found")
+  endif()
+  set_property(TEST starcom.tidy_selftest PROPERTY SKIP_RETURN_CODE 2)
+else()
+  add_test(NAME starcom.tidy_selftest COMMAND "${CMAKE_COMMAND}" -E echo "no bash")
+  set_property(TEST starcom.tidy_selftest PROPERTY DISABLED TRUE)
+  message(STATUS "tidy_selftest disabled: no bash")
+endif()
+
+# Core sources do not include Pico SDK or RP2350 hardware headers.
+# Same interpreter lookup as the Rocket-Chip host Python tests.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME starcom.core_includes
+  COMMAND ${Python3_EXECUTABLE}
+          "${CMAKE_CURRENT_SOURCE_DIR}/check_core_includes.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/..")

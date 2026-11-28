@@ -28,7 +28,17 @@ constexpr uint32_t kSpiBusFreqHz = 5000000;  // 5 MHz (SX1276 supports up to 10 
 // ============================================================================
 
 // 5 MHz, Mode 0, MSB first. Pins from board::. Always returns true.
+// Packs without a radio never call this (main.cpp init_peripherals).
 bool spi_bus_init(void);
+
+// True once spi_bus_init() has run. Before that the SPI block is never
+// configured and an SDK transfer faults, so every register call below
+// refuses without touching GPIO or SPI: reads return kSpiBusNotReadyValue
+// (0x00, the no-chip value rfm95w_init already rejects), burst reads
+// zero-fill, writes do nothing. Each refusal adds 1 to g_spi_error_count.
+bool spi_bus_ready(void);
+
+constexpr uint8_t kSpiBusNotReadyValue = 0x00U;
 
 // ============================================================================
 // Register Operations (GPIO-controlled CS)
@@ -47,7 +57,8 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len);
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len);
 
-// Incremented on short SDK SPI count. Those APIs have no timeout (hardware_spi.h).
+// Incremented on short SDK SPI count (those APIs have no timeout,
+// hardware_spi.h) and on each call refused before spi_bus_init().
 #ifdef __cplusplus
 #include <atomic>
 extern std::atomic<uint32_t> g_spi_error_count;

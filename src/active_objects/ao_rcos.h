@@ -51,10 +51,19 @@ void AO_RCOS_start_cal_save();
 // Non-blocking erase-all-flights (confirmation via AO tick)
 void AO_RCOS_start_erase_flights();
 
+// cmd_flush_log calls this after flush_job_begin. AO_RCOS then calls
+// cmd_flush_log_step each tick until the flush ends. Caller checks
+// AO_RCOS_cal_active() first.
+void AO_RCOS_start_flush_log();
+
 // Non-blocking flight download (flight number input via AO tick)
 void AO_RCOS_start_download_flight();
 
 // Is a calibration or input UI sequence currently running?
 bool AO_RCOS_cal_active();
+
+// Does the AO_RCOS UI read the USB keys now? False during the 'l' flush
+// and 'x' erase jobs, so the CLI reads keys and the busy rules can reply.
+bool AO_RCOS_ui_owns_keys();
 
 #endif // ROCKETCHIP_AO_RCOS_H

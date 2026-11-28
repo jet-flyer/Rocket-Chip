@@ -104,7 +104,7 @@ Systems flagged for study: ExpressLRS failsafe + binding, MAVLink v2 extension f
 |---|---|---|---|
 | 1 | Implementation plan correctness | ⚠ revise | Reinit-recovery fix + whitelist + setter audit |
 | 2 | Second-command-during-revert race | ⚠ revise | Reject with visible message, don't queue |
-| 3 | Power-change-order | ⚠ revise | Power LAST, ±6 dB max per command |
+| 3 | Power-change-order | ⚠ revise | Power LAST, ±6 dB max per command. SUPERSEDED 2026-10-21 per Nathan: removed; no datasheet/regulatory basis. |
 | 4 | NVM persisted-config fallback | ✗ defer | Boot-restore of compile-time default suffices |
 | 5 | Packet-count thresholds | ⚠ revise | Formula `max(6, ceil(1.5 × nav_hz))` |
 | 6 | Auto-reconfigure mode | ✗ defer | Not in T5.5; future IVP |
@@ -175,7 +175,7 @@ Systems flagged for study: ExpressLRS failsafe + binding, MAVLink v2 extension f
 - Channel-find CLI handler (`c` key) **DEFERRED** to future IVP per user direction 2026-04-19.
 - New `cmd_query_config` handler. Bind to `q` if free, else next available letter. Sends MAV_CMD_USER_3 QUERY_RADIO_CONFIG and displays the reply (synchronous probe, per smell-test addition).
 - **Station command state machine (per correctness council edit #3):** single `s_radio_cmd_in_progress` flag set on SET send, cleared on LOS-committed or LOS-timeout-reverted. While set, station CLI rejects further `r`/`q` with "config change in progress — wait N packets." Prevents the second-command-during-revert race.
-- **Power-change-order discipline (per correctness council edit #3 item 3):** when SET command contains multiple param changes, station and vehicle apply power_dbm LAST in the setter sequence — `rfm95w_set_bandwidth`, `rfm95w_set_spreading_factor`, `rfm95w_set_coding_rate`, `scheduler.set_rate()`, *then* `rfm95w_set_tx_power`. Additional restriction: any single SET command limited to ±6 dB power change from current. Larger changes rejected with denied-ACK — forces operator to make multi-step changes explicitly visible.
+- **Power-change-order discipline (per correctness council edit #3 item 3):** when SET command contains multiple param changes, station and vehicle apply power_dbm LAST in the setter sequence — `rfm95w_set_bandwidth`, `rfm95w_set_spreading_factor`, `rfm95w_set_coding_rate`, `scheduler.set_rate()`, *then* `rfm95w_set_tx_power`. Additional restriction: any single SET command limited to ±6 dB power change from current. Larger changes rejected with denied-ACK — forces operator to make multi-step changes explicitly visible. SUPERSEDED 2026-10-21 per Nathan: removed; no datasheet/regulatory basis.
 - Station-side `SIG_RADIO_CONFIG_APPLY` for its own radio reconfigure on ACK receipt to SET.
 - LOS watchdog: QTimeEvt armed on ACK sent, disarmed on first successful packet on new config with "config just changed" flag. **Packet-count-based**, not wall-clock — station tracks "expected packets at new rate" and reverts after ~6 missed. Per smell-test B revision.
 
@@ -216,7 +216,7 @@ Systems flagged for study: ExpressLRS failsafe + binding, MAVLink v2 extension f
 1. **SET round-trip works:** operator presses `r`, enters desired config. Station TX on old → vehicle ACK received → TxDone fires → vehicle applies → first nav packet on new config received within the computed packet-count watchdog window (`max(6, ceil(1.5 × nav_hz))`) with "config just changed" flag set → dashboard shows new config committed. Vehicle RX still works (post-switch DISARM command ACKs at same rate as pre-switch).
 2. **Symmetric revert works:** deliberately induce station-side failure (e.g., operator cancels before switching own radio). Vehicle reverts to prev_config after its own longer window (`max(15, ceil(3 × nav_hz))` packets). Boot-restore to compile-time default also verified as final fallback.
 3. **Flight-state gate works at BOTH phases:** (a) command sent during ARMED → rejected with denied-ACK at receive. (b) command sent during IDLE, but ARM command arrives during pending-apply → apply handler re-validates and aborts config change, system stays on old config.
-4. **Whitelist + concurrent-command guards:** (a) SET with a config tuple not in `radio_config_table.h` → rejected with denied-ACK. (b) SET sent while `s_radio_cmd_in_progress` is true → rejected with "config change in progress" without touching the pending operation. (c) SET with >6 dB power change → rejected with denied-ACK explaining the step limit.
+4. **Whitelist + concurrent-command guards:** (a) SET with a config tuple not in `radio_config_table.h` → rejected with denied-ACK. (b) SET sent while `s_radio_cmd_in_progress` is true → rejected with "config change in progress" without touching the pending operation. (c) SET with >6 dB power change → rejected with denied-ACK explaining the step limit. SUPERSEDED 2026-10-21 per Nathan: removed; no datasheet/regulatory basis.
 5. **QUERY works:** operator presses `q`. Vehicle responds with current config payload. Station dashboard shows explicit authoritative current config.
 6. **Reinit-recovery preserves RuntimeRadioConfig (T5.5 prerequisite gate):** force `kTxFailReinitThresh` via fault inject, verify GDB shows `RuntimeRadioConfig` survives with its most recent SET-applied values (not snapped back to `kDefaultRocketRadioConfig`).
 

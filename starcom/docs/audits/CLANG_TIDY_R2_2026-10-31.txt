@@ -1,0 +1,313 @@
+﻿---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/crc32.cpp ----
+clang-tidy.exe : 17275 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (17275 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\crc32.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 17275 warnings (17275 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/pltu.cpp ----
+clang-tidy.exe : 41665 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41665 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\pltu.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\pltu.cpp:108:26: warning: conditional operator is used as sub-expression of parent conditional operator, refrain from using nested conditional operators [readability-avoid-nested-conditional-operator]
+  108 |                        : (tfvn2 == 0b11U) ? uslpFrameLen(rest, uslp_truncated_len)
+      |                          ^
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\pltu.cpp:107:26: note: parent conditional operator here
+  107 |   const auto frame_len = (tfvn2 == 0b10U) ? v3FrameLen(rest)
+      |                          ^
+Suppressed 41664 warnings (41664 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/v3.cpp ----
+clang-tidy.exe : 41446 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41446 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\v3.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 41446 warnings (41446 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/space_packet.cpp ----
+clang-tidy.exe : 41423 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41423 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\space_packet.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\space_packet.cpp:52:7: warning: the 'empty' method should be used to check for emptiness instead of 'size' [readability-container-size-empty]
+   52 |   if (data.size() < 1 || data.size() > kSpacePacketDataMax)
+      |       ^~~~~~~~~~~~~~~
+      |       data.empty()
+C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include\span:567:31: note: method 'span'::empty() defined here
+  567 |     _NODISCARD constexpr bool empty() const noexcept {
+      |                               ^
+Suppressed 41422 warnings (41422 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/space_packet_service.cpp ----
+clang-tidy.exe : 41609 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41609 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\space_packet_service.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\space_packet_service.cpp:66:68: warning: all parameters should be named in a function [readability-named-parameter]
+   66 | [[nodiscard]] Result<std::size_t> packetRequest(SpacePacketService&,
+      |                                                                    ^
+      |                                                                     /*unused*/
+   67 |                                   std::span<std::byte> out,
+   68 |                                   std::span<const std::byte> packet,
+   69 |                                   Apid) noexcept
+      |                                       
+      |                                        /*unused*/
+Suppressed 41608 warnings (41608 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/plcw.cpp ----
+clang-tidy.exe : 32563 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32563 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\plcw.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 32563 warnings (32563 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/clcw.cpp ----
+clang-tidy.exe : 32563 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32563 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\clcw.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 32563 warnings (32563 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/copp.cpp ----
+clang-tidy.exe : 41615 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41615 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\copp.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\copp.cpp:429:42: warning: variable 'g_tfScratch' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
+  429 | std::array<std::byte, kTransferFrameMax> g_tfScratch{};
+      |                                          ^
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\copp.cpp:443:6: warning: invalid case style for function 'dest_is_local' [readability-identifier-naming]
+  443 | bool dest_is_local(CoppEndpoint const& e, bool destination,
+      |      ^~~~~~~~~~~~~
+      |      destIsLocal
+Suppressed 41613 warnings (41613 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/uslp.cpp ----
+clang-tidy.exe : 41446 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41446 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\uslp.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 41446 warnings (41446 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/cop1.cpp ----
+clang-tidy.exe : 41638 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41638 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\cop1.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\cop1.cpp:21:42: warning: variable 'g_cop1TfScratch' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
+   21 | std::array<std::byte, kTransferFrameMax> g_cop1TfScratch{};
+      |                                          ^
+Suppressed 41637 warnings (41637 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/mac.cpp ----
+clang-tidy.exe : 32797 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32797 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\mac.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 32797 warnings (32797 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/conv.cpp ----
+clang-tidy.exe : 32767 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32767 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\conv.cpp.
+Suppressed 32767 warnings (32767 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/src/ccsds/ldpc.cpp ----
+clang-tidy.exe : 32807 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32807 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\src\ccsds\ldpc.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 32807 warnings (32807 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/host/loopback.cpp ----
+clang-tidy.exe : 41613 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (41613 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\loopback.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 41613 warnings (41613 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/host/file_replay.cpp ----
+clang-tidy.exe : 40468 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (40468 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\file_replay.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\file_replay.cpp:36:21: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
+   36 |   char* const raw = reinterpret_cast<char*>(dest.data());  // istream::read takes char*
+      |                     ^
+Suppressed 40467 warnings (40467 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/host/udp.cpp ----
+clang-tidy.exe : 69104 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (69104 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\udp.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\udp.cpp:32:5: warning: variable 'g_wsa' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
+   32 | int g_wsa = 0;
+      |     ^
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\udp.cpp:92:10: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
+   92 |   return reinterpret_cast<sockaddr*>(&storage);
+      |          ^
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\udp.cpp:110:10: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
+  110 |   return reinterpret_cast<char const*>(octets.data());  // Winsock takes char const*
+      |          ^
+C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\host\udp.cpp:115:10: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
+  115 |   return reinterpret_cast<char*>(octets.data());  // Winsock takes char*
+      |          ^
+Suppressed 69100 warnings (69100 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/rp2350/radio_bus.cpp ----
+clang-tidy.exe : 32750 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32750 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\rp2350\radio_bus.cpp.
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+Suppressed 32750 warnings (32750 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/rp2350/pio_port.cpp ----
+clang-tidy.exe : 32515 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32515 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\rp2350\pio_port.cpp.
+Suppressed 32515 warnings (32515 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]
+---- C:/Users/pow-w/Documents/Rocket-Chip/starcom/adapters/rp2350/phy.cpp ----
+clang-tidy.exe : 32726 warnings and 2 errors generated.
+At C:\Users\pow-w\Documents\rc-audit-logs\tidy_run.ps1:6 char:78
++ ...  utf8 $out; & $ct -p "$logs\scbuild" --config-file "$rc\starcom\.clan ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (32726 warnings and 2 errors generated.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error while processing C:\Users\pow-w\Documents\Rocket-Chip\starcom\adapters\rp2350\phy.cpp.
+Suppressed 32726 warnings (32726 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system 
+headers as well.
+Found compiler error(s).
+error: unknown warning option '-Wstack-usage=1024'; did you mean '-Wstack-protector'? [clang-diagnostic-unknown-warning-option]

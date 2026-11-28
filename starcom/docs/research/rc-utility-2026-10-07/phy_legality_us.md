@@ -153,6 +153,7 @@ Prepared 2026-10-02 (CT) for Nathan Powell. Web and primary-source research only
 - **Frequency:** yes for 435–450 MHz (secondary, with the 50 W PEP cap in NM/AZ/FL/west TX, Line A applies only below 430 MHz). **No for 390–405 MHz** (not an amateur band, and 399.9–410 is a Part 15 restricted band).
 - **Prox-1 waveform on amateur:** nothing in 97.305/97.307 names a modulation. INFERENCE: a PCM/PM Bi-Phase-L signal would be a "data" emission (97.3(a)(2): designators with 1 as second symbol and D as third), which 97.305(c)(5)(i) authorizes on 70 cm; FCC emission-designator classification of it is UNVERIFIED.
 - **Return link on 390–405 MHz is the blocker.** A Prox-1 style duplex pair (435–450 fwd / 390–405 return) cannot be run entirely in amateur spectrum. A half-duplex single-frequency link on 435–450 MHz is legal for a licensed amateur, but then it is no longer the Prox-1 band plan.
+- Prox-1 Channel 0 and Channel 1 return frequencies (401.585625 MHz and 404.4 MHz, 211.1-B-4 §3.3.2.4.1 / §3.3.2.3.1) sit in the 401–406 MHz meteorological-aids allocation in the 47 CFR 2.106 table above, not in amateur 70 cm. Open licence note; not legal advice.
 - **Do the ITU notes matter?** §3.3.1 of the standard says the UHF channels "cannot be used for this purpose in the vicinity of the Earth". Nathan's launch sites are in the US, where 435–450 MHz hosts Federal radiolocation (primary) and amateur (secondary). INFERENCE: compliance with the standard's own caution would be to avoid the Mars-plan channels on Earth.
 - No test or prior FCC ruling was found on Prox-1-style amateur use; UNVERIFIED.
 
@@ -286,7 +287,7 @@ Checkout: /workspace/audit_rc2 (remote https://github.com/jet-flyer/Rocket-Chip,
 - `starcom/docs/comparison.md` (lines 51, 117–121): two-tier source rule; "Grok's specific values are profile-sourced, not CCSDS-primary-verified".
 - `starcom/docs/DESIGN.md:172`: "Pluto … is not a JPL User Terminal and does not hail MRO/Pathfinder … RHCP is explicit in 211.1-B-4 §3.3.4 (current HW is linear)."
 - `starcom/docs/CONFORMANCE.md:41`: JPL User Terminal / Electra interop "Out of scope" as a product claim.
-- `standards/starcom/ccsds/` holds the local CCSDS-211.0-B-6, 211.1-B-4 and 211.2-B-3 PDFs.
+- `starcom/standards/ccsds/` holds the local CCSDS-211.0-B-6, 211.1-B-4 and 211.2-B-3 PDFs.
 
 **Checks of repo legal text against eCFR.**
 - ccsds_domain_claude.md §7.2:

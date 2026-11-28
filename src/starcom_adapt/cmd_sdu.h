@@ -7,6 +7,7 @@
 #define ROCKETCHIP_CMD_SDU_H
 
 #include <stdint.h>
+#include <array>
 #include "rocketchip/telemetry_encoder.h"
 
 namespace rc {
@@ -14,15 +15,20 @@ namespace rc {
 // cmd_id u16, seq u8, pad u8, p1..p5 float. MAVLink COMMAND_LONG fields
 // already used on LoRa; same numbers, not a new air dialect.
 constexpr uint8_t kCmdSduUserBytes = 24;
+// source not found. Not in a CCSDS book or starcom/docs/DESIGN.md.
+constexpr uint8_t kCmdSduP2Offset = 12;
+constexpr uint8_t kCmdSduP4Offset = 20;
 constexpr uint8_t kAckSduUserBytes = ccsds::kCmdAckPayloadLen;  // 10
 
-uint8_t pack_cmd_sdu_user(uint8_t* out, uint8_t out_len, uint16_t cmd_id,
-                          uint8_t seq, float p1, float p2, float p3, float p4,
-                          float p5);
+struct CmdSduFields {
+    uint16_t cmd_id;
+    uint8_t seq;
+    std::array<float, 5> p;
+};
 
-bool unpack_cmd_sdu_user(const uint8_t* in, uint8_t in_len, uint16_t* cmd_id,
-                         uint8_t* seq, float* p1, float* p2, float* p3,
-                         float* p4, float* p5);
+uint8_t pack_cmd_sdu_user(uint8_t* out, uint8_t out_len, const CmdSduFields& f);
+
+bool unpack_cmd_sdu_user(const uint8_t* in, uint8_t in_len, CmdSduFields& f);
 
 uint8_t pack_ack_sdu_user(uint8_t* out, uint8_t out_len,
                           const ccsds::CommandAckPayload& ack);

@@ -18,6 +18,7 @@
 #include "pico/flash.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "logging/flash_gate.h"  // FSK item 2: time each flash_safe_execute
 #include <string.h>
 
 static constexpr uint32_t kSectorA = rc::kFlashRadioCfgSectorA;
@@ -80,14 +81,20 @@ static bool safe_write(uint32_t offset, const uint8_t* data, size_t len) {
     if ((offset % FLASH_PAGE_SIZE) != 0) { return false; }
     if ((len % FLASH_PAGE_SIZE) != 0) { return false; }
     WriteParams p{offset, data, len};
-    return flash_safe_execute(do_flash_write, &p, kFlashTimeoutMs) == PICO_OK;
+    const uint64_t t0 = rc::flash_gate_begin();
+    const int r = flash_safe_execute(do_flash_write, &p, kFlashTimeoutMs);
+    rc::flash_gate_end(rc::FlashOpType::kProgram, t0, r);
+    return r == PICO_OK;
 }
 
 static bool safe_erase(uint32_t offset, size_t len) {
     if ((offset % FLASH_SECTOR_SIZE) != 0) { return false; }
     if ((len % FLASH_SECTOR_SIZE) != 0) { return false; }
     EraseParams p{offset, len};
-    return flash_safe_execute(do_flash_erase, &p, kFlashTimeoutMs) == PICO_OK;
+    const uint64_t t0 = rc::flash_gate_begin();
+    const int r = flash_safe_execute(do_flash_erase, &p, kFlashTimeoutMs);
+    rc::flash_gate_end(rc::FlashOpType::kErase, t0, r);
+    return r == PICO_OK;
 }
 
 static void flash_read(uint32_t offset, void* dest, size_t len) {

@@ -1,11 +1,16 @@
-// IVP increment 3 + 9 — USLP Version-4 (732.1 §4.1 / annex D / annex B).
+// Host checks for the USLP transfer frame.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/clcw.hpp"
-#include "starcom/ccsds/crc.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/uslp.hpp"
+// IVP increment 3 + 9 - USLP Version-4 (732.1 section 4.1 / annex D / annex B).
+
+#include "heap_trap.h"
+#include "starcom/ccsds/clcw.h"
+#include "starcom/ccsds/crc.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/uslp.h"
 
 #include <algorithm>
 #include <array>
@@ -29,6 +34,7 @@ using starcom::ccsds::kPltuAsmSize;
 using starcom::ccsds::kPltuCrcSize;
 using starcom::ccsds::kUslpConstructionNoSeg;
 using starcom::ccsds::kUslpFrameMin;
+using starcom::ccsds::kUslpPrimaryHeaderMin;
 using starcom::ccsds::kUslpUpidSpacePacket;
 using starcom::ccsds::MapId;
 using starcom::ccsds::SpacePacketFields;
@@ -37,19 +43,24 @@ using starcom::ccsds::UslpMib;
 using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
@@ -58,7 +69,8 @@ constexpr std::array<std::byte, 8> kUslpMin{
     std::byte{0xC0}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
     std::byte{0x00}, std::byte{0x07}, std::byte{0x00}, std::byte{0xE0}};
 
-void test_decode_min() {
+void test_decode_min()
+{
   const auto v = decodeUslp(asSpan(kUslpMin));
   CHECK(v.has_value());
   CHECK(v->fields.scid == UslpScid{0});
@@ -75,7 +87,8 @@ void test_decode_min() {
   CHECK(v->ocf.empty());
 }
 
-void test_encode_min_matches_golden() {
+void test_encode_min_matches_golden()
+{
   std::array<std::byte, 16> out{};
   const auto n = encodeUslp(out, UslpFields{}, {});
   CHECK(n.has_value());
@@ -83,7 +96,8 @@ void test_encode_min_matches_golden() {
   CHECK(std::equal(kUslpMin.begin(), kUslpMin.end(), out.begin()));
 }
 
-void test_roundtrip_populated() {
+void test_roundtrip_populated()
+{
   UslpFields f{};
   f.scid = UslpScid{0xABCD};
   f.destination = true;
@@ -113,7 +127,8 @@ void test_roundtrip_populated() {
   CHECK(std::equal(tfdz.begin(), tfdz.end(), v->tfdz.begin()));
 }
 
-void test_pointer_rule_and_ocf() {
+void test_pointer_rule_and_ocf()
+{
   UslpFields f{};
   f.tfdz_construction = 0b001;
   f.tfdz_pointer = 0x0002;
@@ -139,7 +154,27 @@ void test_pointer_rule_and_ocf() {
   CHECK(v->ocf[3] == std::byte{9});
 }
 
-void test_pltu_composition() {
+// Bit 15 of the 16-bit TFDF pointer. The other pointer test uses 0x0002.
+void test_pointer_top_bit()
+{
+  UslpFields f{};
+  f.tfdz_construction = 0b001;
+  f.tfdz_pointer = 0x80FF;
+  const std::array<std::byte, 1> tfdz{std::byte{0x5A}};
+  std::array<std::byte, 32> out{};
+  const auto n = encodeUslp(out, f, asSpan(tfdz));
+  CHECK(n.has_value());
+  // 7 + 3 TFDF + 1 TFDZ = 11. Pointer octets are TFDF[1] and TFDF[2].
+  CHECK(*n == 11u);
+  CHECK(out[kUslpPrimaryHeaderMin + 1] == std::byte{0x80});
+  CHECK(out[kUslpPrimaryHeaderMin + 2] == std::byte{0xFF});
+  const auto v = decodeUslp(std::span<const std::byte>(out.data(), *n));
+  CHECK(v.has_value());
+  CHECK(v->fields.tfdz_pointer == 0x80FF);
+}
+
+void test_pltu_composition()
+{
   std::array<std::byte, 8> frame{};
   const auto fn = encodeUslp(frame, UslpFields{}, {});
   CHECK(fn.has_value());
@@ -155,7 +190,8 @@ void test_pltu_composition() {
   CHECK(u->tfdz.empty());
 }
 
-void test_space_packet_in_uslp_pltu() {
+void test_space_packet_in_uslp_pltu()
+{
   SpacePacketFields sp{};
   const std::array<std::byte, 1> user{std::byte{0xAA}};
   std::array<std::byte, 16> pkt{};
@@ -179,7 +215,8 @@ void test_space_packet_in_uslp_pltu() {
   CHECK(u->tfdz.size() == *pn);
 }
 
-void test_reject_tfvn() {
+void test_reject_tfvn()
+{
   auto bad = kUslpMin;
   bad[0] = std::byte{0x80};  // V-3 TFVN
   CHECK(decodeUslp(asSpan(bad)).error() == Error::tfvn_unknown);
@@ -187,7 +224,8 @@ void test_reject_tfvn() {
   CHECK(decodeUslp(asSpan(bad)).error() == Error::tfvn_unknown);
 }
 
-void test_reject_truncated_header() {
+void test_reject_truncated_header()
+{
   auto t = kUslpMin;
   t[3] = std::byte{0x01};  // End of Frame Primary Header Flag
   CHECK(decodeUslp(asSpan(t)).error() == Error::uslp_truncated);
@@ -206,17 +244,19 @@ void test_reject_truncated_header() {
   CHECK(r.error() == Error::uslp_truncated);
 }
 
-void test_reject_short_and_length() {
+void test_reject_short_and_length()
+{
   CHECK(decodeUslp({}).error() == Error::truncated);
   auto short_c = kUslpMin;
-  short_c[5] = std::byte{0x06};  // C = 6 → 7-octet frame, below min 8
+  short_c[5] = std::byte{0x06};  // C = 6 -> 7-octet frame, below min 8
   CHECK(decodeUslp(asSpan(short_c)).error() == Error::uslp_length_oob);
 
   std::array<std::byte, 4> tiny{};
   CHECK(encodeUslp(tiny, UslpFields{}, {}).error() == Error::buffer_too_small);
 }
 
-void test_truncated_roundtrip_and_pltu() {
+void test_truncated_roundtrip_and_pltu()
+{
   UslpFields f{};
   f.truncated = true;
   const std::array<std::byte, 1> tfdz{std::byte{0xAA}};
@@ -250,7 +290,8 @@ void test_truncated_roundtrip_and_pltu() {
   CHECK(pv->frame.size() == kUslpTruncatedMin);
 }
 
-void test_insert_zone() {
+void test_insert_zone()
+{
   UslpMib mib{};
   mib.insert_zone_length = 2;
   const std::array<std::byte, 2> iz{std::byte{0x11}, std::byte{0x22}};
@@ -266,7 +307,8 @@ void test_insert_zone() {
   CHECK(v->tfdz.empty());
 }
 
-void test_fecf_roundtrip_and_bad() {
+void test_fecf_roundtrip_and_bad()
+{
   UslpMib mib{};
   mib.fecf_present = true;
   std::array<std::byte, 32> out{};
@@ -288,7 +330,8 @@ void test_fecf_roundtrip_and_bad() {
         Error::uslp_bad_fecf);
 }
 
-void test_truncated_rejects_insert_or_fecf() {
+void test_truncated_rejects_insert_or_fecf()
+{
   UslpFields f{};
   f.truncated = true;
   const std::array<std::byte, 1> tfdz{std::byte{0xAA}};
@@ -300,12 +343,14 @@ void test_truncated_rejects_insert_or_fecf() {
         Error::uslp_length_oob);
 }
 
-void test_heap() {
+void test_heap()
+{
   std::array<std::byte, 32> out{};
   starcom::test::heapTrapReset();
   starcom::test::heapTrapArm();
   const auto n = encodeUslp(out, UslpFields{}, {});
-  if (n.has_value()) {
+  if (n.has_value())
+  {
     (void)decodeUslp(std::span<const std::byte>(out.data(), *n));
     UslpFields tr{};
     tr.truncated = true;
@@ -321,11 +366,13 @@ void test_heap() {
 
 }  // namespace
 
-int run_uslp_tests() {
+int run_uslp_tests()
+{
   test_decode_min();
   test_encode_min_matches_golden();
   test_roundtrip_populated();
   test_pointer_rule_and_ocf();
+  test_pointer_top_bit();
   test_pltu_composition();
   test_space_packet_in_uslp_pltu();
   test_reject_tfvn();

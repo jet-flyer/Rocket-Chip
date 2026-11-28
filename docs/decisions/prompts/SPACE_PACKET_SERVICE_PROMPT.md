@@ -1,18 +1,18 @@
 # Grok Build task: CCSDS 133.0-B-2 Space Packet Protocol service layer
 
-**Status: Not started. Must wait for `docs/decisions/prompts/SEQ_COUNT_FIX_PROMPT.md` (per-APID, per-direction sequence count) to be verified on the board.**
+**Status: Host-tested, not wired into the air path (CHANGELOG 2026-10-01-003). The sequence-count prerequisite was board-verified 2026-10-20.**
 
 TASK: Add the CCSDS 133.0-B-2 Space Packet Protocol service layer to Starcom (host-testable, no board dependency).
 
 READ FIRST
 - starcom/docs/CONFORMANCE.md (Space Packet row, Annex A PICS, managed-parameter table, APID table, Known gaps)
 - src/starcom_adapt/byte_pump.cpp (current pack/unpack code)
-- standards/starcom/ccsds/CCSDS-133.0-B-2-EC2.pdf (133.0-B-2 with EC1 and EC2; the clauses quoted below)
+- starcom/standards/ccsds/CCSDS-133.0-B-2-EC2.pdf (133.0-B-2 with EC1 and EC2; the clauses quoted below)
 - AGENT_WHITEBOARD.md (open items)
 Use the branch/worktree already set up. Do NOT touch the ~12 modified files from the other session (src/flight_director/*, test/*, scripts/config_wizard/core/*). No git push. Never use --no-verify.
 
 PREREQUISITE
-The per-APID, per-direction 14-bit sequence-count fix (pump_pack_nav_packet, pump_pack_cmd_packet, pump_pack_ack_packet; 133.0-B-2 4.1.3.4.3.3/.4) must already be in the tree. If it is not, stop and report; do not build on a counter that is always 0.
+The per-APID, per-direction 14-bit sequence-count fix (pump_pack_nav_packet, pump_pack_cmd_packet, pump_pack_ack_packet; 133.0-B-2 4.1.3.4.3.3/.4) must already be in the tree. If it is not, stop and report; do not build on a counter that is always 0 (historical: that was the pre-fix state; the count is no longer always 0).
 
 SCOPE (mandatory Annex A rows only: SPP-2, 6, 7, 8, 10, 11, 12, 13, 19-22; SPP-9 is optional, skip it)
 The codec (clause 4.1 packet structure) already exists. Add the service layer on top of it:

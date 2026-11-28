@@ -26,6 +26,12 @@ extern RadioRateCounters g_radioRateCounters;
 const RadioRateCounters* radio_rate_counters();
 void radio_rate_counters_dump();
 
+// Pad RF Link RX Hz. Sliding 2 s span of rx_crc_ok_n.
+// Blank means the span is still under 1 s. A quiet span returns 0.
+constexpr uint32_t kRadioRxWindowBlankHz10 = 0xFFFFFFFFU;
+void radio_rate_rx_window_reset(uint32_t now_ms);
+uint32_t radio_rate_rx_window_hz10(uint32_t now_ms);
+
 inline void radio_rate_inc_nav_submit(void) {
     g_radioRateCounters.nav_submit_n++;
 }

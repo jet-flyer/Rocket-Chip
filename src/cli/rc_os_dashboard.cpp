@@ -160,6 +160,7 @@ struct DisplayFields {
     char bar[16];
     // Radio config row (station vs last vehicle echo).
     uint16_t stn_bw;  uint8_t stn_nav;  uint8_t stn_sf;  uint8_t stn_cr;
+    uint8_t  stn_pwr;
     uint16_t veh_bw;  uint8_t veh_nav;  uint8_t veh_sf;  uint8_t veh_cr;
     bool     veh_cfg_known;    // false -> dashboard shows "?" for vehicle
     bool     cfg_mismatch;     // true -> yellow-highlight the row
@@ -248,18 +249,20 @@ static void decode_telem_fields(const rc::TelemetryState& t,
 static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
     if (!d.veh_cfg_known) {
         return rc::rc_snprintf(out, n,
-            "Radio: BW%u %uHz SF%u CR%u",
+            "Radio: BW%u %uHz SF%u CR%u pwr%u",
             static_cast<unsigned>(d.stn_bw),
             static_cast<unsigned>(d.stn_nav),
             static_cast<unsigned>(d.stn_sf),
-            static_cast<unsigned>(d.stn_cr));
+            static_cast<unsigned>(d.stn_cr),
+            static_cast<unsigned>(d.stn_pwr));
     }
     return rc::rc_snprintf(out, n,
-        "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: BW%u %uHz SF%u CR%u%s",
+        "Radio: BW%u %uHz SF%u CR%u pwr%u  |  Vehicle: BW%u %uHz SF%u CR%u%s",
         static_cast<unsigned>(d.stn_bw),
         static_cast<unsigned>(d.stn_nav),
         static_cast<unsigned>(d.stn_sf),
         static_cast<unsigned>(d.stn_cr),
+        static_cast<unsigned>(d.stn_pwr),
         static_cast<unsigned>(d.veh_bw),
         static_cast<unsigned>(d.veh_nav),
         static_cast<unsigned>(d.veh_sf),
@@ -284,19 +287,16 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour,
     const bool rf_live = (rxn > 0U) && (gap < kStationBarHoldMs);
     const bool copp_lock = sc.peer_plcw && (sc.mac_mode == 3U) && rf_live;
 #ifndef ROCKETCHIP_HOST_TEST
-    const uint32_t window_ms = to_ms_since_boot(get_absolute_time());
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 #else
-    const uint32_t window_ms = 0;
+    const uint32_t now_ms = 0;
 #endif
     const uint32_t ok = g_radioRateCounters.rx_crc_ok_n;
     const uint32_t fail = g_radioRateCounters.rx_crc_fail_n;
     const uint8_t lq = rc::dash::crc_lq_pct(ok, fail);
-    const bool hz_ok = (window_ms >= 1000U);
-    uint32_t hz10 = 0;
-    if (hz_ok) {
-        hz10 = static_cast<uint32_t>(
-            (static_cast<uint64_t>(ok) * 10U) / (window_ms / 1000U));
-    }
+    // Last 2 s of CRC-ok packets. The span stays up across the edge.
+    const uint32_t hz10 = radio_rate_rx_window_hz10(now_ms);
+    const bool hz_ok = (hz10 != kRadioRxWindowBlankHz10);
     if (copp_lock) {
         colour = kGreen;
     } else if (rf_live) {
@@ -550,7 +550,7 @@ static void format_starcom_row(char* out, int n, const char*& colour) {
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq, uint32_t met_ms) {
     // Radio row colour: cyan one frame after a change, yellow if mismatch.
-    char radio_row[96];
+    char radio_row[128];
     format_radio_row(radio_row, sizeof(radio_row), d);
     const char* radio_clr = kReset;
     if (d.cfg_just_changed)      { radio_clr = kCyan;   }
@@ -672,6 +672,7 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
     d.stn_nav = rs->runtime_config.nav_rate_hz;
     d.stn_sf  = rs->runtime_config.spreading_factor;
     d.stn_cr  = rs->runtime_config.coding_rate;
+    d.stn_pwr = rs->runtime_config.power_dbm;
     d.veh_cfg_known = (rx != nullptr && rx->echo_bw_khz != 0);
     if (d.veh_cfg_known) {
         d.veh_bw  = rx->echo_bw_khz;

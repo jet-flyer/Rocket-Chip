@@ -37,6 +37,10 @@ inline constexpr uint8_t kRadioCsPin       = 17;
 inline constexpr uint8_t kRadioRstPin      = 20;
 inline constexpr uint8_t kRadioIrqPin      = 21;
 inline constexpr bool    kRadioTrustDio0   = false;
+// No DIO1 / DIO2 jumpers on this pack. The DIO bench refuses.
+inline constexpr bool    kRadioDioJumpered = false;
+inline constexpr uint8_t kRadioDio1Pin     = 0;   // unused when kRadioDioJumpered is false
+inline constexpr uint8_t kRadioDio2Pin     = 0;
 
 // --- NeoPixel ---
 // Pico 2: GPIO LED only. Count 0 skips WS2812. Pin 0 is UART GPS TX — do not mux PIO.
@@ -77,9 +81,24 @@ inline constexpr bool    kPsramAvailable       = false;  // no onboard PSRAM
 inline constexpr bool    kDvmAvailable         = false;  // no DVI
 inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
 inline constexpr bool    kI2cStemmaAvailable   = false;  // external breakout needed
+inline constexpr bool    kPyroAvailable        = false;  // no pyro hardware; pins were unverified bench defaults
+inline constexpr bool    kRadioAvailable       = true;   // LoRa breakout is the pack's intended expansion
+inline constexpr bool    kRgbLedAvailable      = false;  // single GPIO LED, not RGB
+inline constexpr uint8_t kLedRedPin            = 0;      // unused when kRgbLedAvailable is false
+inline constexpr uint8_t kLedGreenPin          = 0;
+inline constexpr uint8_t kLedBluePin           = 0;
+inline constexpr bool    kLedRgbActiveLow      = false;
 
 // Same ICM-20948 Z-up convention until this pack is bring-up verified (WN-124).
 inline constexpr bool    kImuZUpNed            = true;
+// IMU full scale (Council 2026-11-21, plan 3.4): a boost must not clip.
+// ICM-20948 accepts 2/4/8/16 g and 250/500/1000/2000 dps (DS-000189).
+inline constexpr uint16_t kImuAccelRangeG   = 16U;    // +/- g
+inline constexpr uint16_t kImuGyroRangeDps  = 2000U;  // +/- deg/s
+// IMU I2C transfer budget (Council 2026-11-21, plan 3.4): a hung IMU or
+// AK09916 transfer pays this, not the 50 ms GPS-sized default
+// (kI2cMasterDefaultTimeoutUs). icm20948.cpp static_asserts the margin.
+inline constexpr uint32_t kImuI2cTimeoutUs  = 2000U;
 inline constexpr uint8_t kMcuTempAdcInput      = 4;  // RP2350A die sensor
 
 // --- Board identity ---

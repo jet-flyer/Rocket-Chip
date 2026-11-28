@@ -28,8 +28,12 @@
 #include "station_bar_mode.h"
 #include "crc16_ccitt.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
+#include "logging/flash_gate.h"  // FSK item 2: RX poll-gap tracker
+#include "diag/rx_quality_stats.h"  // FSK open item C: CRC-fail RSSI/SNR
 #if defined(ROCKETCHIP_DEV_MODE)
 #include "radio_tx_force.h"
+#include "diag/station_dio_bench.h"
 #endif
 #include <string.h>
 
@@ -159,6 +163,8 @@ static inline void stage_t_log_tx_done(TxPollResult) {}
 
 static uint8_t g_heldTx[sizeof(rc::RadioTxEvt::buf)];
 static uint8_t g_heldTxLen = 0;
+// Modem payload length of the TX that is on the air. 0 means none.
+static uint8_t g_onairLen = 0;
 static bool g_macReceive = true;
 static bool g_macTransmit = false;
 static bool g_macSessionActive = false;
@@ -170,10 +176,31 @@ static RadioTxForceLatch g_txForce = {};
 // Hail: always-on. Active: 211.0 table 6-12 send then receive; 211.1 T3-3
 // RX off while TX.
 
+// SX1276 §4.1.1.6 via rfm95w_airtime_us. That function assumes CR 4/5.
+// bytes is the modem payload length. A timeout does not add.
+static void note_completed_air(const RadioAoState& s) {
+    const uint8_t len = g_onairLen;
+    g_onairLen = 0;
+    if (len == 0U) {
+        return;
+    }
+    const uint32_t us = rfm95w_airtime_us(
+        s.runtime_config.spreading_factor,
+        s.runtime_config.bandwidth_khz,
+        len);
+    link_baseline_note_air(us, len);
+}
+
 static bool radio_start_tx(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     if (len == 0 || !s.initialized) { return false; }
+#if defined(ROCKETCHIP_DEV_MODE)
+    if (dio_bench_blocks_tx()) {
+        return false;
+    }
+#endif
     if (rfm95w_send_start(&s.radio, buf, len)) {
         s.tx_active = true;
+        g_onairLen = len;
 #if defined(ROCKETCHIP_DEV_MODE)
         if (radio_tx_force_on_start(g_txForce, true)) {
             s.radio.force_tx_timeout = true;
@@ -226,6 +253,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
 
 static void handle_tx_done(RadioAo* me) {
     RadioAoState& s = me->state;
+    note_completed_air(s);
     radio_rate_inc_tx_done();
     s.tx_consec_fail = 0;
     s.tx_count++;
@@ -257,6 +285,7 @@ static void handle_tx_done(RadioAo* me) {
 }
 
 static void handle_tx_timeout(RadioAoState& s) {
+    g_onairLen = 0;
 #if defined(ROCKETCHIP_DEV_MODE)
     if (!radio_tx_timeout_counts(g_txForce, s.tx_consec_fail)) {
         rc::rc_log("RADIO: TX timeout fired\n");
@@ -307,8 +336,9 @@ static void handle_tx_poll(RadioAo* me) {
 // Called from BOTH RadioAo_initial (fresh boot) AND the reinit-recovery branch
 // in handle_tx_poll() — without this, rfm95w_init() during TX-fail recovery
 // silently snapped radio back to configure_modem() compile-time defaults
-// (SF7/BW125/CR5/+20dBm) while RuntimeRadioConfig tracked something else.
-// Setters only, no reinit. Does NOT enter RX mode — caller handles RX/TX mode.
+// (SF7/BW125/CR5/+15 dBm) while RuntimeRadioConfig tracked something else.
+// Setters only, no reinit. From RX the driver goes to Standby for the
+// config writes and back to RX (R-35). From Standby it stays in Standby.
 //
 // Per correctness council edit #3: power_dbm setter is called LAST so a
 // power increase or decrease doesn't affect the ACK transmission we just
@@ -320,9 +350,14 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
                      (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
                                                  rfm95w::kBw125;
-    rfm95w_set_bandwidth(&s.radio, bw_reg);
-    rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
-    rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
+    // Power LAST inside the driver call — per correctness council edit #3.
+    // Store the dBm the driver wrote. CFG and the saved config read it.
+    const int8_t applied = rfm95w_apply_modem_config(
+        &s.radio, bw_reg, rc.spreading_factor, rc.coding_rate,
+        static_cast<int8_t>(rc.power_dbm));
+    if (applied >= 0) {
+        s.runtime_config.power_dbm = static_cast<uint8_t>(applied);
+    }
     // Nav cadence is AO_Telemetry interval_ms; caller owns RX-mode transition.
     if (rc.nav_rate_hz != 0) {
         // Stage T Batch B prelim: actually wire nav_rate_hz into the vehicle TX
@@ -357,8 +392,6 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     if (ack_retry_ms < 200U)  { ack_retry_ms = 200U; }
     if (ack_retry_ms > 1000U) { ack_retry_ms = 1000U; }
     AO_Telemetry_set_ack_retry_timeout_ms(ack_retry_ms);
-    // Power LAST — per correctness council edit #3 item 3.
-    rfm95w_set_tx_power(&s.radio, rc.power_dbm);
 }
 
 // Stage T IVP-T5.5 sub 2b/2d: commit a pending config to the radio.
@@ -470,6 +503,13 @@ static uint16_t extract_ccsds_seq(const uint8_t* buf) {
         ((buf[2] & 0x3F) << 8) | buf[3]);
 }
 
+// FSK open item C: packet RSSI/SNR for chip-CRC-good packets and for
+// PayloadCrcErr packets, plus the software CRC-16 failure count. Core 0,
+// AO_Radio only. rx_crc_errors still counts both kinds of CRC failure.
+static rc::RxQuality g_rxqOk{};
+static rc::RxQuality g_rxqCrcErr{};
+static uint32_t g_swCrc16Fail = 0;
+
 // Track received packet metadata. CCSDS CRC checked if packet looks like CCSDS.
 // Non-CCSDS packets (MAVLink commands) are passed through — AO_Telemetry decides.
 static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len) {
@@ -489,6 +529,8 @@ static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len)
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
             s.rx_crc_errors++;
+            g_swCrc16Fail++;
+            link_baseline_note_crc_fail();
             if constexpr (job::kRadioModeRx) {
                 radio_rate_inc_rx_crc_fail();
             }
@@ -516,6 +558,7 @@ static void handle_relay_forward(RadioAo* me, const uint8_t* buf, uint8_t len) {
 }
 
 static void handle_rx_poll(RadioAo* me) {
+    rc::flash_gate_note_radio_poll();  // Measurement only (FSK item 2)
     RadioAoState& s = me->state;
     if (!rfm95w_available(&s.radio)) { return; }
 
@@ -523,8 +566,20 @@ static void handle_rx_poll(RadioAo* me) {
     uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
     if (len == 0) {
         s.rx_crc_errors++;  // empty/CRC-fail RxDone is not counted by the driver
+        link_baseline_note_crc_fail();
+        if (s.radio.last_crc_err) {
+            rc::rx_quality_note(g_rxqCrcErr, s.radio.crc_err_rssi,
+                                s.radio.crc_err_snr);
+            // One line for each chip CRC error, to line up bursts with time.
+            rc::rc_log("[CRCERR] t_ms=%lu rssi=%d snr=%d n=%lu\n",
+                       static_cast<unsigned long>(now_ms()),
+                       static_cast<int>(s.radio.crc_err_rssi),
+                       static_cast<int>(s.radio.crc_err_snr),
+                       static_cast<unsigned long>(g_rxqCrcErr.rssi.n));
+        }
         return;
     }
+    rc::rx_quality_note(g_rxqOk, rfm95w_rssi(&s.radio), s.radio.last_snr);
 
     // Stage T — capture state at arrival BEFORE validate (we want CRC errors).
     bool state_at_rx = s.tx_active;
@@ -626,7 +681,11 @@ static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
     } else {
         s.initialized = false;
         s.tx_active = false;
+#if defined(ROCKETCHIP_RADIO_OFF)
+        DBG_PRINT("RADIO: OFF (ROCKETCHIP_RADIO_OFF bench build) — AO_Radio idle");
+#else
         DBG_PRINT("RADIO: not detected — AO_Radio idle");
+#endif
     }
 
     // Subscribe to SIG_RADIO_TX from AO_Telemetry
@@ -721,9 +780,9 @@ static void tick_symmetric_revert(RadioAoState& s) {
 #endif  // ROCKETCHIP_RADIO_PERSIST
 }
 
-// Sub-persist: debounced flash write. flash_safe_execute() is blocking
-// (~100 ms) but QV cooperative scheduling means it only delays the next
-// tick — no AO queues race with us.
+// Sub-persist: debounced flash write. flash_safe_execute() is blocking.
+// The block time is unmeasured. QV cooperative scheduling means it only
+// delays the next tick — no AO queues race with us.
 // Stage T IVP-T6 — gated by ROCKETCHIP_RADIO_PERSIST. When disabled, any
 // set/apply simply clears the persist-requested state and never reaches
 // flash_safe_execute. Keeps boards deterministic across reboots during
@@ -790,6 +849,10 @@ static void handle_radio_tick(RadioAo* me) {
 
     handle_link_quality(me);
     handle_rssi_bar(me);
+
+#if defined(ROCKETCHIP_DEV_MODE)
+    dio_bench_pending_tick(s.tx_active);
+#endif
 }
 
 static QState radio_ao_running(RadioAo * const me, QEvt const * const e) {
@@ -817,9 +880,46 @@ static QState radio_ao_running(RadioAo * const me, QEvt const * const e) {
 
 QActive * const AO_Radio = &g_radioAo.super;
 
+static void print_rxq(const char* name, const rc::RxQuality& q) {
+    rc::rc_log("[RXQ] %s n=%lu rssi=%d/%d/%d snr=%d/%d/%d (min/mean/max)\n", name,
+               static_cast<unsigned long>(q.rssi.n),
+               static_cast<int>(q.rssi.min), static_cast<int>(rc::rx_qual_mean(q.rssi)),
+               static_cast<int>(q.rssi.max),
+               static_cast<int>(q.snr.min), static_cast<int>(rc::rx_qual_mean(q.snr)),
+               static_cast<int>(q.snr.max));
+}
+
+void AO_Radio_rx_quality_dump() {
+    print_rxq("chip_crc_ok", g_rxqOk);
+    print_rxq("chip_crc_err", g_rxqCrcErr);
+    rc::rc_log("[RXQ] sw_crc16_fail=%lu rx_crc_errors=%lu freq_hz=%lu\n",
+               static_cast<unsigned long>(g_swCrc16Fail),
+               static_cast<unsigned long>(g_radioAo.state.rx_crc_errors),
+               static_cast<unsigned long>(rfm95w_carrier_hz()));
+}
+
 const RadioAoState* AO_Radio_get_state() {
     return &g_radioAo.state;
 }
+
+#if defined(ROCKETCHIP_DEV_MODE)
+bool AO_Radio_restore_lora_rx() {
+    RadioAoState& s = g_radioAo.state;
+    s.tx_active = false;
+    const bool ok = rfm95w_init(&s.radio,
+                                 s.radio.cs_pin,
+                                 s.radio.rst_pin,
+                                 s.radio.irq_pin);
+    if (!ok) {
+        s.initialized = false;
+        return false;
+    }
+    s.initialized = true;
+    ao_radio_apply_runtime_config(s);
+    rfm95w_start_rx(&s.radio);
+    return true;
+}
+#endif
 
 bool AO_Radio_tx_active() {
     return g_radioAo.state.tx_active;
@@ -877,6 +977,10 @@ void AO_Radio_apply_config_now(const rc::RadioConfig& cfg) {
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {
     return &g_radioAo.state.runtime_config;
+}
+
+bool AO_Radio_tx_high_power_enabled() {
+    return g_radioAo.state.radio.tx_power_allow_20;
 }
 
 bool AO_Radio_consume_just_changed() {

@@ -88,8 +88,8 @@ bool i2c_bus_reset(void);
 // Who last called i2c_bus_quiesce(). Lives in .uninitialized_data so the
 // next boot can print it (picotool FLASH vs BOOTSEL vs CLI).
 constexpr uint32_t kI2cQuiesceMagic     = 0x31435149u;  // 'IQC1'
-constexpr uint32_t kI2cQuiesceViaWdog   = 1u;  // wrap of watchdog_reboot
-constexpr uint32_t kI2cQuiesceViaBootSel = 2u;  // wrap of rom_reset_usb_boot_extra
+constexpr uint32_t kI2cQuiesceViaWdog   = 1u;  // former linker wrap of watchdog_reboot (wrap removed 2026-09-03, 6dcea56e)
+constexpr uint32_t kI2cQuiesceViaBootSel = 2u;  // former linker wrap of rom_reset_usb_boot_extra (removed 2026-09-03)
 constexpr uint32_t kI2cQuiesceViaCli    = 3u;  // debug-menu MCU reboot
 
 struct i2c_quiesce_trace_t {

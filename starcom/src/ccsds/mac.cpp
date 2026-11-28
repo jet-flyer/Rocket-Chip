@@ -1,21 +1,34 @@
-#include "starcom/ccsds/mac.hpp"
+// Proximity-1 session control and its directive SPDUs.
+// No state.
+// The caller owns MacSession.
+// Book: CCSDS 211.0-B-6 section 4.2 (MAC sublayer) and section 6 (state tables).
 
-namespace starcom::ccsds {
-namespace {
+#include "starcom/ccsds/mac.h"
 
-void loadWait(MacSession& m, Tick dur) noexcept {
+namespace starcom::ccsds
+{
+namespace
+{
+
+void loadWait(MacSession& m, Tick dur) noexcept
+{
   m.wait_left = dur;
   m.wait_armed = dur != 0;
 }
 
-void clearWait(MacSession& m) noexcept {
+void clearWait(MacSession& m) noexcept
+{
   m.wait_left = 0;
   m.wait_armed = false;
 }
 
-void notify(MacSession& m, MacNotify n) noexcept { m.notify = n; }
+void notify(MacSession& m, MacNotify n) noexcept
+{
+  m.notify = n;
+}
 
-void applyTable66(MacSession& m) noexcept {
+void applyTable66(MacSession& m) noexcept
+{
   m.transmit_on = false;
   m.modulation = false;
   m.persistence = false;
@@ -37,7 +50,8 @@ void applyTable66(MacSession& m) noexcept {
   m.need_status_report = true;
 }
 
-struct StateFx {
+struct StateFx
+{
   MacState state;
   MacMode mode;
   bool tx;
@@ -45,54 +59,59 @@ struct StateFx {
 };
 
 constexpr StateFx kStateFx[] = {
-    {MacState::s1, MacMode::inactive, false, 0},
-    {MacState::s2, MacMode::connecting_l, false, 0},
-    {MacState::s80, MacMode::active, false, 0},
-    {MacState::s31, MacMode::connecting_t, true, 1},
-    {MacState::s11, MacMode::connecting_t, true, 1},
-    {MacState::s32, MacMode::connecting_t, true, 2},
-    {MacState::s12, MacMode::connecting_t, true, 2},
-    {MacState::s33, MacMode::connecting_t, true, 3},
-    {MacState::s13, MacMode::connecting_t, true, 3},
-    {MacState::s34, MacMode::connecting_t, true, 4},
-    {MacState::s14, MacMode::connecting_t, true, 4},
-    {MacState::s35, MacMode::connecting_t, false, 5},
-    {MacState::s36, MacMode::connecting_t, false, 5},
-    {MacState::s41, MacMode::active, true, 1},
-    {MacState::s51, MacMode::active, true, 1},
-    {MacState::s42, MacMode::active, true, 2},
-    {MacState::s52, MacMode::active, true, 2},
-    {MacState::s40, MacMode::active, true, 0},
-    {MacState::s50, MacMode::active, true, 0},
-    {MacState::s48, MacMode::active, true, 6},
-    {MacState::s56, MacMode::active, true, 6},
-    {MacState::s45, MacMode::active, true, 4},
-    {MacState::s58, MacMode::active, true, 4},
-    {MacState::s54, MacMode::active, true, 3},
-    {MacState::s55, MacMode::active, true, 7},
-    {MacState::s60, MacMode::active, false, 0},
-    {MacState::s61, MacMode::active, false, 1},
-    {MacState::s62, MacMode::active, false, 2},
+    {MacState::s1, MacMode::inactive, false, kMacSs0},
+    {MacState::s2, MacMode::connecting_l, false, kMacSs0},
+    {MacState::s80, MacMode::active, false, kMacSs0},
+    {MacState::s31, MacMode::connecting_t, true, kMacSs1},
+    {MacState::s11, MacMode::connecting_t, true, kMacSs1},
+    {MacState::s32, MacMode::connecting_t, true, kMacSs2},
+    {MacState::s12, MacMode::connecting_t, true, kMacSs2},
+    {MacState::s33, MacMode::connecting_t, true, kMacSs3},
+    {MacState::s13, MacMode::connecting_t, true, kMacSs3},
+    {MacState::s34, MacMode::connecting_t, true, kMacSs4},
+    {MacState::s14, MacMode::connecting_t, true, kMacSs4},
+    {MacState::s35, MacMode::connecting_t, false, kMacSs5},
+    {MacState::s36, MacMode::connecting_t, false, kMacSs5},
+    {MacState::s41, MacMode::active, true, kMacSs1},
+    {MacState::s51, MacMode::active, true, kMacSs1},
+    {MacState::s42, MacMode::active, true, kMacSs2},
+    {MacState::s52, MacMode::active, true, kMacSs2},
+    {MacState::s40, MacMode::active, true, kMacSs0},
+    {MacState::s50, MacMode::active, true, kMacSs0},
+    {MacState::s48, MacMode::active, true, kMacSs6},
+    {MacState::s56, MacMode::active, true, kMacSs6},
+    {MacState::s45, MacMode::active, true, kMacSs4},
+    {MacState::s58, MacMode::active, true, kMacSs4},
+    {MacState::s54, MacMode::active, true, kMacSs3},
+    {MacState::s55, MacMode::active, true, kMacSs7},
+    {MacState::s60, MacMode::active, false, kMacSs0},
+    {MacState::s61, MacMode::active, false, kMacSs1},
+    {MacState::s62, MacMode::active, false, kMacSs2},
 };
 
-void applyState(MacSession& m, MacState s) noexcept {
+void applyState(MacSession& m, MacState s) noexcept
+{
   m.state = s;
-  if (s == MacState::s71) {
+  if (s == MacState::s71)
+  {
     m.duplex = MacDuplex::simplex_transmit;
     m.mode = MacMode::active;
     m.transmit_on = true;
     m.ss = 0;
     return;
   }
-  if (s == MacState::s72) {
+  if (s == MacState::s72)
+  {
     m.duplex = MacDuplex::simplex_receive;
     m.mode = MacMode::active;
     m.transmit_on = false;
     m.ss = 0;
     return;
   }
-  for (StateFx const& row : kStateFx) {
-    if (row.state == s) {
+  for (StateFx const& row : kStateFx)
+  {
+    if (row.state == s)
+    {
       m.mode = row.mode;
       m.transmit_on = row.tx;
       m.ss = row.ss;
@@ -101,16 +120,20 @@ void applyState(MacSession& m, MacState s) noexcept {
   }
 }
 
-void startHailLife(MacSession& m) noexcept {
+void startHailLife(MacSession& m) noexcept
+{
   m.hail_life_left = m.mib.hail_lifetime;
 }
 
-void queueSetVr(MacSession& m) noexcept {
-  if (m.copp == nullptr) {
+void queueSetVr(MacSession& m) noexcept
+{
+  if (m.copp == nullptr)
+  {
     return;
   }
   const auto n = encodeSetVr(m.mac_queue, m.copp->fop.nn_r, m.copp->pcid);
-  if (!n) {
+  if (!n)
+  {
     return;
   }
   m.mac_queue_len = *n;
@@ -118,92 +141,110 @@ void queueSetVr(MacSession& m) noexcept {
   m.persistence = true;
 }
 
-std::uint8_t rev8(std::uint8_t x) noexcept {
-  x = static_cast<std::uint8_t>(((x & 0xF0u) >> 4) | ((x & 0x0Fu) << 4));
-  x = static_cast<std::uint8_t>(((x & 0xCCu) >> 2) | ((x & 0x33u) << 2));
-  x = static_cast<std::uint8_t>(((x & 0xAAu) >> 1) | ((x & 0x55u) << 1));
+std::uint8_t rev8(std::uint8_t x) noexcept
+{
+  x = static_cast<std::uint8_t>(((x & kRev8NibbleHi) >> 4U) | ((x & kRev8NibbleLo) << 4U));
+  x = static_cast<std::uint8_t>(((x & kRev8PairHi) >> 2U) | ((x & kRev8PairLo) << 2U));
+  x = static_cast<std::uint8_t>(((x & kRev8BitHi) >> 1U) | ((x & kRev8BitLo) << 1U));
   return x;
 }
 
-Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept {
-  if (out.size() < 2) {
+// Book bits 0-7 go to octet 0 as is; bits 8-15 to octet 1 bit-reversed.
+[[nodiscard]] Result<std::size_t> writeBook16(std::span<std::byte> out, std::uint16_t book) noexcept
+{
+  if (out.size() < 2)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   out[0] = std::byte{static_cast<std::uint8_t>(book)};
-  out[1] = std::byte{rev8(static_cast<std::uint8_t>(book >> 8))};
+  out[1] = std::byte{rev8(static_cast<std::uint8_t>(book >> 8U))};
   return std::size_t{2};
 }
 
-Result<std::uint16_t> readBook16(std::span<const std::byte> octets) noexcept {
-  if (octets.size() < 2) {
+[[nodiscard]] Result<std::uint16_t> readBook16(std::span<const std::byte> octets) noexcept
+{
+  if (octets.size() < 2)
+  {
     return tl::unexpected(Error::truncated);
   }
   const auto lo = std::to_integer<std::uint8_t>(octets[0]);
   const auto hi = rev8(std::to_integer<std::uint8_t>(octets[1]));
-  return static_cast<std::uint16_t>(lo | (static_cast<std::uint16_t>(hi) << 8));
+  return static_cast<std::uint16_t>(lo | (static_cast<std::uint32_t>(hi) << 8U));
 }
 
-bool appendQueue(MacSession& m, std::span<const std::byte> src) noexcept {
-  if (src.empty() || m.mac_queue_len + src.size() > kMacQueueCap) {
+bool appendQueue(MacSession& m, std::span<const std::byte> src) noexcept
+{
+  if (src.empty() || m.mac_queue_len + src.size() > kMacQueueCap)
+  {
     return false;
   }
-  for (std::size_t i = 0; i < src.size(); ++i) {
+  for (std::size_t i = 0; i < src.size(); ++i)
+  {
     m.mac_queue[m.mac_queue_len + i] = src[i];
   }
   m.mac_queue_len += src.size();
   return true;
 }
 
-void clearMacQueue(MacSession& m) noexcept {
+void clearMacQueue(MacSession& m) noexcept
+{
   m.mac_queue_len = 0;
   m.mac_frame_pending = false;
   m.fifo_empty = true;
 }
 
-void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept {
+void appendEncoded(MacSession& m, std::array<std::byte, 2> const& buf,
+                   Result<std::size_t> const n) noexcept
+{
+  if (n)
+  {
+    if (!appendQueue(m, std::span<const std::byte>(buf.data(), *n)))
+    {
+      /* No action. queueFromCv starts at length 0. Each directive is
+         2 octets, and four of them fit in kMacQueueCap. 211.0-B-6
+         B1.1.2 names concatenation. It does not name a local-buffer
+         failure. */
+    }
+  }
+}
+
+void queueFromCv(MacSession& m, MacCommValue const& cv) noexcept
+{
   m.mac_queue_len = 0;
   std::array<std::byte, 2> buf{};
-  if (cv.has_pl_tx) {
-    const auto n = encodeSetPlExt(buf, cv.pl_tx);
-    if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
-    }
-  }
+  if (cv.has_pl_tx)
   {
-    const auto n = encodeSetPhy(buf, cv.tx, true);
-    if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
-    }
+    appendEncoded(m, buf, encodeSetPlExt(buf, cv.pl_tx));
   }
-  if (cv.has_pl_rx) {
-    const auto n = encodeSetPlExt(buf, cv.pl_rx);
-    if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
-    }
-  }
+  appendEncoded(m, buf, encodeSetPhy(buf, cv.tx, true));
+  if (cv.has_pl_rx)
   {
-    const auto n = encodeSetPhy(buf, cv.rx, false);
-    if (n) {
-      (void)appendQueue(m, std::span<const std::byte>(buf.data(), *n));
-    }
+    appendEncoded(m, buf, encodeSetPlExt(buf, cv.pl_rx));
   }
+  appendEncoded(m, buf, encodeSetPhy(buf, cv.rx, false));
   m.mac_frame_pending = m.mac_queue_len > 0;
   m.fifo_empty = !m.mac_frame_pending;
 }
 
-void queueHailSpdus(MacSession& m) noexcept { queueFromCv(m, m.hail_cv); }
+void queueHailSpdus(MacSession& m) noexcept
+{
+  queueFromCv(m, m.hail_cv);
+}
 
-void queueCommChangeSpdus(MacSession& m) noexcept {
+void queueCommChangeSpdus(MacSession& m) noexcept
+{
   queueFromCv(m, m.pending_cv_valid ? m.pending_cv : m.hail_cv);
 }
 
-void queueControl(MacSession& m, bool pass, bool rnmd) noexcept {
+void queueControl(MacSession& m, bool pass, bool rnmd) noexcept
+{
   MacControlParams p{};
   p.pass = pass;
   p.rnmd = rnmd;
   m.mac_queue_len = 0;
   const auto n = encodeSetControl(m.mac_queue, p);
-  if (!n) {
+  if (!n)
+  {
     return;
   }
   m.mac_queue_len = *n;
@@ -211,47 +252,60 @@ void queueControl(MacSession& m, bool pass, bool rnmd) noexcept {
   m.fifo_empty = false;
 }
 
-void enterS1(MacSession& m, Tick /*now*/, bool end) noexcept {
+void enterS1(MacSession& m, Tick /*now*/, bool end) noexcept
+{
   applyTable66(m);
   applyState(m, MacState::s1);
-  if (m.copp != nullptr) {
+  if (m.copp != nullptr)
+  {
     farmPInit(m.copp->farm);
     fopPInit(m.copp->fop, m.copp->fop.mib);
   }
-  if (end) {
+  if (end)
+  {
     notify(m, MacNotify::end_session);
   }
 }
 
-bool tickDec(Tick& t, Tick dt) noexcept {
-  if (t == 0 || dt == 0) {
+// Counts t down by dt. True only on the call that takes t to 0.
+bool tickDec(Tick& t, Tick dt) noexcept
+{
+  if (t == 0 || dt == 0)
+  {
     return false;
   }
-  if (dt >= t) {
+  if (dt >= t)
+  {
     t = 0;
     return true;
   }
-  t = static_cast<Tick>(t - dt);
+  t = t - dt;
   return t == 0;
 }
 
-void macTickPlcw(MacSession& m, Tick dt) noexcept {
-  if (m.mode == MacMode::inactive || m.mib.plcw_repeat_interval == 0) {
+void macTickPlcw(MacSession& m, Tick dt) noexcept
+{
+  if (m.mode == MacMode::inactive || m.mib.plcw_repeat_interval == 0)
+  {
     return;
   }
   // applyTable66 leaves plcw_left at 0, so the MIB interval never armed.
-  if (m.plcw_left == 0) {
+  if (m.plcw_left == 0)
+  {
     m.plcw_left = m.mib.plcw_repeat_interval;
     return;
   }
-  if (tickDec(m.plcw_left, dt)) {
+  if (tickDec(m.plcw_left, dt))
+  {
     m.need_plcw = true;
     m.plcw_left = m.mib.plcw_repeat_interval;
   }
 }
 
-bool macTickHail(MacSession& m, Tick now, Tick dt) noexcept {
-  if (m.hail_life_left != 0 && tickDec(m.hail_life_left, dt)) {
+bool macTickHail(MacSession& m, Tick now, Tick dt) noexcept
+{
+  if (m.hail_life_left != 0 && tickDec(m.hail_life_left, dt))
+  {
     notify(m, MacNotify::hail_fail);
     enterS1(m, now, true);
     return true;
@@ -259,41 +313,52 @@ bool macTickHail(MacSession& m, Tick now, Tick dt) noexcept {
   return false;
 }
 
-void macTickResync(MacSession& m, Tick dt) noexcept {
-  if (m.resync_life_left != 0 && tickDec(m.resync_life_left, dt)) {
+void macTickResync(MacSession& m, Tick dt) noexcept
+{
+  if (m.resync_life_left != 0 && tickDec(m.resync_life_left, dt))
+  {
     notify(m, MacNotify::resync_fail);
     m.persistence = false;
     m.mac_frame_pending = false;
-    if (m.copp != nullptr) {
+    if (m.copp != nullptr)
+    {
       m.copp->fop.resync = false;
       m.copp->fop.state = FopPState::s1_active;
     }
   }
   if (m.resync_wait_left != 0 && tickDec(m.resync_wait_left, dt) &&
-      m.copp != nullptr && m.copp->fop.resync) {
+      m.copp != nullptr && m.copp->fop.resync)
+  {
     queueSetVr(m);
     m.resync_wait_left = m.mib.resync_waiting_period;
   }
 }
 
-bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept {
-  if (m.carrier_loss_left == 0 || !tickDec(m.carrier_loss_left, dt)) {
+bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept
+{
+  if (m.carrier_loss_left == 0 || !tickDec(m.carrier_loss_left, dt))
+  {
     return false;
   }
-  if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
-    if (m.role == MacRole::caller) {  // E80
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40)
+  {
+    if (m.role == MacRole::caller)
+    {  // E80
       applyState(m, MacState::s80);
       loadWait(m, m.mib.drop_carrier_duration);
-    } else {  // E82
+    }
+    else
+    {  // E82
       applyState(m, MacState::s2);
     }
     m.transmit_on = false;
     return true;
   }
-  // 211.0 table 6-12 E85 is the *responder's* carrier-loss, S60→S2.
+  // 211.0 table 6-10 E85 is the *responder's* carrier-loss, S60->S2.
   // Caller in S60 must not become connecting-L (both listen, no hail).
   if (m.duplex == MacDuplex::half && m.state == MacState::s60 &&
-      m.role == MacRole::responder) {  // E85
+      m.role == MacRole::responder)
+  {  // E85
     applyState(m, MacState::s2);
     m.transmit_on = false;
     return true;
@@ -301,8 +366,10 @@ bool macTickCarrierLoss(MacSession& m, Tick dt) noexcept {
   return false;
 }
 
-void macWaitExpiredConnect(MacSession& m) noexcept {
-  switch (m.state) {
+void macWaitExpiredConnect(MacSession& m) noexcept
+{
+  switch (m.state)
+  {
     case MacState::s31:  // E4
       applyState(m, MacState::s32);
       m.modulation = true;
@@ -350,8 +417,10 @@ void macWaitExpiredConnect(MacSession& m) noexcept {
   }
 }
 
-void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
-  switch (m.state) {
+void macWaitExpiredFull(MacSession& m, Tick now) noexcept
+{
+  switch (m.state)
+  {
     case MacState::s41:  // E10
       applyState(m, MacState::s42);
       m.modulation = true;
@@ -361,9 +430,12 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
       applyState(m, MacState::s40);
       break;
     case MacState::s80:
-      if (m.duplex == MacDuplex::full) {  // E81
+      if (m.duplex == MacDuplex::full)
+      {  // E81
         applyState(m, MacState::s31);
-      } else {  // E84
+      }
+      else
+      {  // E84
         applyState(m, MacState::s11);
       }
       m.persistence = true;
@@ -376,9 +448,12 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
       enterS1(m, now, true);
       break;
     case MacState::s48:
-      if (m.y == 3) {  // E18
+      if (m.y == 3)
+      {  // E18
         m.y = 1;
-      } else if (m.y == 5) {  // E20
+      }
+      else if (m.y == kMacYActOnRccd)
+      {  // E20
         m.y = 0;
         m.persistence = false;
         m.need_plcw = true;
@@ -387,36 +462,174 @@ void macWaitExpiredFull(MacSession& m, Tick now) noexcept {
         loadWait(m, m.mib.carrier_only_duration);
         notify(m, MacNotify::comm_change_ok);
       }
+      else
+      {
+        /* no action: Y is not 3 and not 5, so wait expiry in S48 does nothing */
+      }
       break;
     default:
       break;
   }
 }
 
-void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
-  switch (m.state) {
+// 211.0 6.2.4.10.2: Comm_Change_Lifetime is "a maximum number of times this
+// activity is to be repeated before the activity is aborted". The first send
+// is not a repeat, so a repeat is left while sends <= lifetime.
+bool commChangeLifetimeLeft(MacSession const& m) noexcept
+{
+  return m.comm_change_sends <= m.mib.comm_change_lifetime;
+}
+
+// 211.0 4.2.2.5.4: no Comm_Change_Response within Comm_Change_Lifetime, so
+// the activity is aborted. 4.2.2.5.5: notify, then PERSISTENCE false.
+void abortCommChange(MacSession& m, MacNotify failure) noexcept
+{
+  m.y = 0;
+  m.pending_cv_valid = false;
+  m.persistence = false;
+  m.comm_change_sends = 0;
+  notify(m, failure);
+}
+
+// S61 and S62 share this miss. The Y!=3 notify is the only difference.
+void halfExpiredMiss(MacSession& m, MacNotify miss_notify) noexcept
+{
+  applyState(m, MacState::s51);
+  loadWait(m, m.mib.carrier_only_duration);
+  ++m.token_fail_n;
+  if (m.y == 3 && !commChangeLifetimeLeft(m))
+  {
+    abortCommChange(m, MacNotify::comm_change_revert);
+  }
+  else
+  {
+    // Y=3 with lifetime left: E50, then E64 in S52 sends the COMM_CHANGE
+    // again (211.0 table 6-11, 6.2.4.10.1).
+    notify(m, miss_notify);
+  }
+}
+
+void halfExpiredS50(MacSession& m) noexcept
+{
+  // E83 is the caller's reconnect hail (table 6-10). The responder goes to
+  // S2 here: project step, not E82/E85 (no CARRIER_LOSS_TIMER expiry).
+  if (m.mib.maximum_failed_token_passes != 0 &&
+      m.token_fail_n >= m.mib.maximum_failed_token_passes)
+  {
+    m.transmit_on = false;
+    if (m.role == MacRole::caller)
+    {
+      applyState(m, MacState::s80);
+      loadWait(m, m.mib.drop_carrier_duration);
+    }
+    else
+    {
+      applyState(m, MacState::s2);
+      m.need_plcw = true;
+      m.persistence = false;
+      m.token_fail_n = 0;
+    }
+    return;
+  }
+  // Table 6-10 E38 sets PERSISTENCE and does not reload Send_Duration.
+  // E39 still waits until NEED_PLCW is false. The PLCW is a MAC frame,
+  // so macFifoSource still offers it while persistence is set.
+  if (m.y == 0)
+  {
+    m.persistence = true;
+  }
+}
+
+void halfExpiredS52(MacSession& m) noexcept
+{
+  applyState(m, MacState::s50);
+  loadWait(m, m.mib.send_duration);
+  // Y=3 here: E49 took the token in S61 and no response came. Repeat only
+  // inside Comm_Change_Lifetime (211.0 6.2.4.10.1, 4.2.2.5.4). Project
+  // case, not a table 6-11 row: in the book any valid frame at Y=3 is E68.
+  // It happens because the Rocket Chip adapter echo gate blocks E68 for
+  // non-echo frames (CONFORMANCE.md "COMM_CHANGE echo").
+  if (m.y == 3 && !commChangeLifetimeLeft(m))
+  {
+    abortCommChange(m, MacNotify::comm_change_failed);
+  }
+  if (m.y == 1 || m.y == 3)
+  {  // E64
+    m.y = 2;
+    m.persistence = true;
+    notify(m, MacNotify::comm_change_apply_rx);
+  }
+  // Table 6-11 E65: NoFramesPending in S50 Y=2. Queue this contact
+  // rather than waiting out Send_Duration (E38 does not apply at Y=2).
+  if (m.y == 2)
+  {
+    applyState(m, MacState::s56);
+    queueCommChangeSpdus(m);
+  }
+}
+
+void halfExpiredS58(MacSession& m) noexcept
+{
+  if (m.y == 2)
+  {  // E67
+    m.y = 3;
+    if (commChangeLifetimeLeft(m))
+    {  // the count stops at the lifetime
+      ++m.comm_change_sends;
+    }
+    applyState(m, MacState::s62);
+    loadWait(m, m.mib.receive_duration);
+  }
+  else
+  {  // E43
+    applyState(m, MacState::s62);
+    m.persistence = false;
+    m.modulation = false;
+    loadWait(m, m.mib.receive_duration);
+  }
+}
+
+void halfExpiredS60(MacSession& m) noexcept
+{
+  if (m.carrier_acquired)
+  {  // E44
+    loadWait(m, m.mib.receive_duration);
+    notify(m, MacNotify::sender_overran);
+  }
+  else
+  {  // E48
+    applyState(m, MacState::s51);
+    loadWait(m, m.mib.carrier_only_duration);
+  }
+}
+
+void halfExpiredS61(MacSession& m) noexcept
+{
+  if (m.carrier_acquired)
+  {  // E45
+    loadWait(m, m.mib.receive_duration);
+    notify(m, MacNotify::no_data_this_contact);
+  }
+  else
+  {  // E50 (S62/S61). Annex C counts the S62->E50 cycle toward E83.
+    halfExpiredMiss(m, MacNotify::no_data_this_contact);
+  }
+}
+
+void halfExpiredS62(MacSession& m) noexcept
+{
+  if (!m.carrier_acquired)
+  {  // E50
+    halfExpiredMiss(m, MacNotify::no_carrier_this_contact);
+  }
+}
+
+void macWaitExpiredHalf(MacSession& m, Tick now) noexcept
+{
+  switch (m.state)
+  {
     case MacState::s50:  // E38 211.0 table 6-10 (from S50, Y=0)
-      // E83 is the caller's reconnect hail. Responder listens (E82/E85 → S2).
-      if (m.mib.maximum_failed_token_passes != 0 &&
-          m.token_fail_n >= m.mib.maximum_failed_token_passes) {
-        m.transmit_on = false;
-        if (m.role == MacRole::caller) {
-          applyState(m, MacState::s80);
-          loadWait(m, m.mib.drop_carrier_duration);
-        } else {
-          applyState(m, MacState::s2);
-          m.need_plcw = true;
-          m.persistence = false;
-          m.token_fail_n = 0;
-        }
-        break;
-      }
-      // Table 6-10 E38 sets PERSISTENCE and does not reload Send_Duration.
-      // E39 still waits until NEED_PLCW is false. The PLCW is a MAC frame,
-      // so macFifoSource still offers it while persistence is set.
-      if (m.y == 0) {
-        m.persistence = true;
-      }
+      halfExpiredS50(m);
       break;
     case MacState::s51:  // E40
       applyState(m, MacState::s52);
@@ -424,82 +637,32 @@ void macWaitExpiredHalf(MacSession& m, Tick now) noexcept {
       loadWait(m, m.mib.acquisition_idle_duration);
       break;
     case MacState::s52:  // E41
-      applyState(m, MacState::s50);
-      loadWait(m, m.mib.send_duration);
-      if (m.y == 1 || m.y == 3) {  // E64
-        m.y = 2;
-        m.persistence = true;
-        notify(m, MacNotify::comm_change_apply_rx);
-      }
-      // Table 6-11 E65: NoFramesPending in S50 Y=2. Queue this contact
-      // rather than waiting out Send_Duration (E38 does not apply at Y=2).
-      if (m.y == 2) {
-        applyState(m, MacState::s56);
-        queueCommChangeSpdus(m);
-      }
+      halfExpiredS52(m);
       break;
     case MacState::s58:
-      if (m.y == 2) {  // E67
-        m.y = 3;
-        applyState(m, MacState::s62);
-        loadWait(m, m.mib.receive_duration);
-      } else {  // E43
-        applyState(m, MacState::s62);
-        m.persistence = false;
-        m.modulation = false;
-        loadWait(m, m.mib.receive_duration);
-      }
+      halfExpiredS58(m);
       break;
     case MacState::s55:  // E57
       enterS1(m, now, true);
       break;
     case MacState::s60:
-      if (m.carrier_acquired) {  // E44
-        loadWait(m, m.mib.receive_duration);
-        notify(m, MacNotify::sender_overran);
-      } else {  // E48
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-      }
+      halfExpiredS60(m);
       break;
     case MacState::s61:
-      if (m.carrier_acquired) {  // E45
-        loadWait(m, m.mib.receive_duration);
-        notify(m, MacNotify::no_data_this_contact);
-      } else {  // E50. Annex C: one S62/S61 miss toward E83.
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-        ++m.token_fail_n;
-        if (m.y == 3) {
-          m.y = 0;
-          m.pending_cv_valid = false;
-          notify(m, MacNotify::comm_change_revert);
-        } else {
-          notify(m, MacNotify::no_data_this_contact);
-        }
-      }
+      halfExpiredS61(m);
       break;
     case MacState::s62:
-      if (!m.carrier_acquired) {  // E50
-        applyState(m, MacState::s51);
-        loadWait(m, m.mib.carrier_only_duration);
-        ++m.token_fail_n;
-        if (m.y == 3) {
-          m.y = 0;
-          m.pending_cv_valid = false;
-          notify(m, MacNotify::comm_change_revert);
-        } else {
-          notify(m, MacNotify::no_carrier_this_contact);
-        }
-      }
+      halfExpiredS62(m);
       break;
     default:
       break;
   }
 }
 
-void macOnWaitExpired(MacSession& m, Tick now) noexcept {
-  switch (m.state) {
+void macOnWaitExpired(MacSession& m, Tick now) noexcept
+{
+  switch (m.state)
+  {
     case MacState::s31:
     case MacState::s32:
     case MacState::s34:
@@ -523,10 +686,37 @@ void macOnWaitExpired(MacSession& m, Tick now) noexcept {
   }
 }
 
+void macOnValidS48(MacSession& m) noexcept
+{
+  // E17
+  m.y = 0;
+  m.z = 0;
+  m.persistence = false;
+  m.modulation = false;
+  applyState(m, MacState::s41);
+  loadWait(m, m.mib.carrier_only_duration);
+  notify(m, MacNotify::comm_change_ok);
+}
+
+void macOnValidCommChange(MacSession& m) noexcept
+{
+  // E68. S62 is the receive wait after E67.
+  m.y = 0;
+  m.persistence = false;
+  applyState(m, MacState::s60);
+  if (m.pending_cv_valid)
+  {
+    m.hail_cv = m.pending_cv;
+    m.pending_cv_valid = false;
+  }
+  notify(m, MacNotify::comm_change_ok);
+}
+
 }  // namespace
 
 void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
-              CoppEndpoint* copp) noexcept {
+              CoppEndpoint* copp) noexcept
+{
   m = MacSession{};
   m.mib = mib;
   m.duplex = duplex;
@@ -535,76 +725,104 @@ void macInit(MacSession& m, MacMib const& mib, MacDuplex duplex,
   applyState(m, MacState::s1);
 }
 
-void macSetInitializeMode(MacSession& m, Tick now) noexcept {
+void macSetInitializeMode(MacSession& m, Tick now) noexcept
+{
   enterS1(m, now, true);
 }
 
-void macSetDuplex(MacSession& m, MacDuplex duplex) noexcept {
-  if (m.state != MacState::s1) {
+void macSetDuplex(MacSession& m, MacDuplex duplex) noexcept
+{
+  if (m.state != MacState::s1)
+  {
     return;  // session duplex change is SET CONTROL PARAMETERS
   }
   m.duplex = duplex;
 }
 
-void macSetSduPending(MacSession& m, bool pending) noexcept {
+void macSetSduPending(MacSession& m, bool pending) noexcept
+{
   m.sdu_pending = pending;
 }
 
-void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept {
-  if (mode == MacMode::inactive) {
+void macSetMode(MacSession& m, MacMode mode, Tick now) noexcept
+{
+  if (mode == MacMode::inactive)
+  {
     enterS1(m, now, true);  // E28 / E61 / E73
     return;
   }
-  if (m.state != MacState::s1) {
+  if (m.state != MacState::s1)
+  {
     return;
   }
-  if (mode == MacMode::connecting_l) {
+  if (mode == MacMode::connecting_l)
+  {
     applyState(m, MacState::s2);  // E1 / E29
-    if (m.duplex == MacDuplex::half) {
+    if (m.duplex == MacDuplex::half)
+    {
       m.need_plcw = true;
     }
     m.role = MacRole::responder;
     return;
   }
-  if (mode == MacMode::connecting_t) {
+  if (mode == MacMode::connecting_t)
+  {
     m.role = MacRole::caller;
     m.persistence = true;
     startHailLife(m);
-    if (m.duplex == MacDuplex::full) {
+    if (m.duplex == MacDuplex::full)
+    {
       applyState(m, MacState::s31);  // E2
-    } else if (m.duplex == MacDuplex::half) {
+    }
+    else if (m.duplex == MacDuplex::half)
+    {
       applyState(m, MacState::s11);  // E31
-    } else {
+    }
+    else
+    {
       return;
     }
     loadWait(m, m.mib.carrier_only_duration);
     return;
   }
-  if (mode == MacMode::active) {
-    if (m.duplex == MacDuplex::simplex_transmit) {
+  if (mode == MacMode::active)
+  {
+    if (m.duplex == MacDuplex::simplex_transmit)
+    {
       applyState(m, MacState::s71);  // E71
       m.modulation = true;
-    } else if (m.duplex == MacDuplex::simplex_receive) {
+    }
+    else if (m.duplex == MacDuplex::simplex_receive)
+    {
       applyState(m, MacState::s72);  // E72
+    }
+    else
+    {
+      /* no action: duplex is full or half, so active mode does not enter S71 or S72 */
     }
   }
 }
 
-void macOnHailReceived(MacSession& m, Tick now) noexcept {
+void macOnHailReceived(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  // 211.0 table 6-12 E85/E82: responder returns to S2 on peer loss, then
-  // E30 (table 6-10) accepts hail. Station reboot re-hails with the same
-  // catalog while the vehicle is still S50–S62; that is a new hail, not
-  // E69 COMM_CHANGE (same SET TX/RX as the first hail).
+  // Project step, not E85 (table 6-10) or E82 (table 6-7): those need a
+  // CARRIER_LOSS_TIMER expiry. A hail heard by an active half-duplex
+  // responder outside S2 moves it to S2. Then E30 (table 6-10) accepts the
+  // hail. Station reboot re-hails with the same catalog while the vehicle
+  // is still S50-S62; that is a new hail, not E69 COMM_CHANGE (same SET
+  // TX/RX as the first hail).
   if (m.duplex == MacDuplex::half && m.role == MacRole::responder &&
-      m.mode == MacMode::active && m.state != MacState::s2) {
+      m.mode == MacMode::active && m.state != MacState::s2)
+  {
     applyState(m, MacState::s2);
     m.transmit_on = false;
     m.persistence = false;
     m.token_fail_n = 0;
     m.need_plcw = true;
   }
-  if (m.state == MacState::s2 && m.duplex == MacDuplex::full) {
+  if (m.state == MacState::s2 && m.duplex == MacDuplex::full)
+  {
     applyState(m, MacState::s41);  // E3
     m.need_plcw = true;
     m.transmit_on = true;
@@ -612,7 +830,8 @@ void macOnHailReceived(MacSession& m, Tick now) noexcept {
     notify(m, MacNotify::hail_ok);
     return;
   }
-  if (m.state == MacState::s2 && m.duplex == MacDuplex::half) {
+  if (m.state == MacState::s2 && m.duplex == MacDuplex::half)
+  {
     applyState(m, MacState::s51);  // E30
     m.transmit_on = true;
     clearMacQueue(m);
@@ -621,13 +840,16 @@ void macOnHailReceived(MacSession& m, Tick now) noexcept {
   }
 }
 
-void macOnValidFrame(MacSession& m, Tick now) noexcept {
+void macOnValidFrame(MacSession& m, Tick now) noexcept
+{
   (void)now;
   // Token pass succeeded if the peer radiated. E83 counts failures only.
-  if (m.mode == MacMode::active) {
+  if (m.mode == MacMode::active)
+  {
     m.token_fail_n = 0;
   }
-  if (m.state == MacState::s35) {  // E9
+  if (m.state == MacState::s35)
+  {  // E9
     applyState(m, MacState::s41);
     m.modulation = false;
     m.persistence = false;
@@ -635,7 +857,8 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     notify(m, MacNotify::hail_ok);
     return;
   }
-  if (m.state == MacState::s36) {  // E37
+  if (m.state == MacState::s36)
+  {  // E37
     applyState(m, MacState::s60);
     m.persistence = false;
     clearMacQueue(m);  // 6.3.2: hail SPDUs already left the FIFO (E34)
@@ -643,48 +866,43 @@ void macOnValidFrame(MacSession& m, Tick now) noexcept {
     notify(m, MacNotify::hail_ok);
     return;
   }
-  if (m.state == MacState::s48 && m.z == 1) {  // E17
-    m.y = 0;
-    m.z = 0;
-    m.persistence = false;
-    m.modulation = false;
-    applyState(m, MacState::s41);
-    loadWait(m, m.mib.carrier_only_duration);
-    notify(m, MacNotify::comm_change_ok);
+  if (m.state == MacState::s48 && m.z == 1)
+  {  // E17
+    macOnValidS48(m);
     return;
   }
-  if (m.state == MacState::s61 && m.y != 3) {  // E46
+  if (m.state == MacState::s61 && m.y != 3)
+  {  // E46
     applyState(m, MacState::s60);
     return;
   }
   if ((m.state == MacState::s61 || m.state == MacState::s62) &&
-      m.y == 3) {  // E68 — S62 is the receive wait after E67
-    m.y = 0;
-    m.persistence = false;
-    applyState(m, MacState::s60);
-    if (m.pending_cv_valid) {
-      m.hail_cv = m.pending_cv;
-      m.pending_cv_valid = false;
-    }
-    notify(m, MacNotify::comm_change_ok);
+      m.y == 3)
+  {  // E68
+    macOnValidCommChange(m);
     return;
   }
-  if (m.state == MacState::s62) {
+  if (m.state == MacState::s62)
+  {  // E47 followed by E46 (211.0 table 6-10): carrier lock S62 to S61,
+     // then a valid frame with Y!=3 S61 to S60.
     applyState(m, MacState::s60);
   }
 }
 
-void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
+void macOnFifoEmpty(MacSession& m, Tick now) noexcept
+{
   (void)now;
   m.fifo_empty = true;
-  if (m.state == MacState::s33) {  // E6
+  if (m.state == MacState::s33)
+  {  // E6
     clearMacQueue(m);
     applyState(m, MacState::s34);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s13) {  // E34
-    // 6.3.2.3: FIFO empty + hail SPDUs radiated. Leaving mac_frame_pending
+  if (m.state == MacState::s13)
+  {  // E34
+    // 6.3.2.2: FIFO empty + hail SPDUs radiated. Leaving mac_frame_pending
     // re-sends SET TX/RX/PL on the first data-services send contact, which
     // the peer (S60/S61) treats as E69 COMM_CHANGE (table 6-11).
     clearMacQueue(m);
@@ -692,15 +910,18 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s56) {
+  if (m.state == MacState::s56)
+  {
     m.mac_frame_pending = false;
     m.mac_queue_len = 0;
-    if (m.y == 2) {  // E66
+    if (m.y == 2)
+    {  // E66
       applyState(m, MacState::s58);
       loadWait(m, m.mib.tail_idle_duration);
       return;
     }
-    if (m.y == 0) {  // E42. Annex C counts the miss at E50, not here.
+    if (m.y == 0)
+    {  // E42. Annex C counts the miss at E50, not here.
       applyState(m, MacState::s58);
       loadWait(m, m.mib.tail_idle_duration);
       return;
@@ -708,117 +929,160 @@ void macOnFifoEmpty(MacSession& m, Tick now) noexcept {
   }
   // Echo queued while still in S50 (not S56): one-shot then receive, else
   // mac_frame_pending sticks and COMM_CHANGE repeats every drain.
-  if (m.state == MacState::s50 && m.y == 2) {
+  if (m.state == MacState::s50 && m.y == 2)
+  {
     m.mac_frame_pending = false;
     m.mac_queue_len = 0;
     applyState(m, MacState::s58);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s48 && m.y == 2) {  // E15
+  if (m.state == MacState::s48 && m.y == 2)
+  {  // E15
     m.y = 3;
     loadWait(m, m.mib.persistence_wait_time);
     return;
   }
-  if (m.state == MacState::s48 && m.y == 4) {  // E19
-    m.y = 5;
+  if (m.state == MacState::s48 && m.y == 4)
+  {  // E19
+    m.y = kMacYActOnRccd;
     loadWait(m, m.mib.tail_idle_duration);
   }
 }
 
-void macOnNoFramesPending(MacSession& m, Tick now) noexcept {
+void macOnNoFramesPending(MacSession& m, Tick now) noexcept
+{
   (void)now;
   m.no_frames_pending = true;
-  if (m.state == MacState::s40 && m.x == 5) {  // E25
+  if (m.state == MacState::s40 && m.x == kMacXNoMoreData)
+  {  // E25
     applyState(m, MacState::s45);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s48 && m.y == 1) {  // E14
+  if (m.state == MacState::s48 && m.y == 1)
+  {  // E14
     m.y = 2;
     m.mac_frame_pending = true;
     return;
   }
-  if (m.state == MacState::s50 && m.y == 0 && !m.need_plcw) {  // E39
+  if (m.state == MacState::s50 && m.y == 0 && !m.need_plcw)
+  {  // E39
     applyState(m, MacState::s56);
     queueControl(m, true, false);
     return;
   }
-  if (m.state == MacState::s56 && m.y == 0) {  // E42
+  if (m.state == MacState::s56 && m.y == 0)
+  {  // E42
     applyState(m, MacState::s58);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s50 && m.y == 2) {  // E65
+  if (m.state == MacState::s50 && m.y == 2)
+  {  // E65
     applyState(m, MacState::s56);
     queueCommChangeSpdus(m);
     return;
   }
-  if (m.state == MacState::s56 && m.y == 2) {  // E66
+  if (m.state == MacState::s56 && m.y == 2)
+  {  // E66
     applyState(m, MacState::s58);
     loadWait(m, m.mib.tail_idle_duration);
     return;
   }
-  if (m.state == MacState::s50 && m.x == 1) {  // E53
+  if (m.state == MacState::s50 && m.x == 1)
+  {  // E53
     m.x = 2;
     queueControl(m, false, true);
     return;
   }
-  if (m.state == MacState::s50 && m.x == 4) {  // E55
-    m.x = 5;
+  if (m.state == MacState::s50 && m.x == 4)
+  {  // E55
+    m.x = kMacXNoMoreData;
     applyState(m, MacState::s54);
     queueControl(m, false, true);
     return;
   }
-  if (m.state == MacState::s54 && m.x == 5) {  // E56
+  if (m.state == MacState::s54 && m.x == kMacXNoMoreData)
+  {  // E56
     m.x = 0;
     applyState(m, MacState::s55);
     loadWait(m, m.mib.tail_idle_duration);
   }
 }
 
-void macLocalNoMoreData(MacSession& m, Tick now) noexcept {
+void macLocalNoMoreData(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
-    if (m.x == 0) {  // E21
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40)
+  {
+    if (m.x == 0)
+    {  // E21
       m.x = 2;
       m.mac_frame_pending = true;
-    } else if (m.x == 4) {  // E24
-      m.x = 5;
+    }
+    else if (m.x == 4)
+    {  // E24
+      m.x = kMacXNoMoreData;
       m.mac_frame_pending = true;
+    }
+    else
+    {
+      /* no action: X is not 0 and not 4, so local no-more-data in full-duplex S40 does nothing */
     }
     return;
   }
-  if (m.duplex == MacDuplex::half) {
-    if (m.x == 0) {  // E51
+  if (m.duplex == MacDuplex::half)
+  {
+    if (m.x == 0)
+    {  // E51
       m.x = 1;
-    } else if (m.x == 3) {  // E52
+    }
+    else if (m.x == 3)
+    {  // E52
       m.x = 4;
+    }
+    else
+    {
+      /* no action: X is not 0 and not 3, so local no-more-data in half duplex does nothing */
     }
   }
 }
 
-void macOnRnmd(MacSession& m, Tick now) noexcept {
-  if (m.duplex == MacDuplex::full && m.state == MacState::s40) {
-    if (m.x == 0) {  // E22
+void macOnRnmd(MacSession& m, Tick now) noexcept
+{
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40)
+  {
+    if (m.x == 0)
+    {  // E22
       m.x = 4;
-    } else if (m.x == 2) {  // E23
-      m.x = 5;
+    }
+    else if (m.x == 2)
+    {  // E23
+      m.x = kMacXNoMoreData;
+    }
+    else
+    {
+      /* no action: X is not 0 and not 2, so remote no-more-data in full-duplex S40 does nothing */
     }
     return;
   }
-  if (m.duplex == MacDuplex::half) {
-    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 2) {
+  if (m.duplex == MacDuplex::half)
+  {
+    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 2)
+    {
       enterS1(m, now, true);  // E58
       return;
     }
-    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 0) {
+    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 0)
+    {
       m.x = 3;
       applyState(m, MacState::s51);
       loadWait(m, m.mib.carrier_only_duration);
       return;
     }
-    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 1) {
+    if ((m.state == MacState::s60 || m.state == MacState::s61) && m.x == 1)
+    {
       m.x = 4;
       applyState(m, MacState::s51);
       loadWait(m, m.mib.carrier_only_duration);
@@ -826,107 +1090,144 @@ void macOnRnmd(MacSession& m, Tick now) noexcept {
   }
 }
 
-void macLocalCommChange(MacSession& m, Tick now) noexcept {
+void macLocalCommChange(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0) {
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0)
+  {
     applyState(m, MacState::s48);  // E12
     m.y = 1;
     m.persistence = true;
     return;
   }
-  if (m.duplex == MacDuplex::half) {
-    if (m.state == MacState::s50) {  // E63
+  if (m.duplex == MacDuplex::half)
+  {
+    if (m.state == MacState::s50)
+    {  // E63
       m.y = 2;
+      m.comm_change_sends = 0;  // a new activity (Comm_Change_Lifetime)
       m.persistence = true;
       notify(m, MacNotify::comm_change_apply_rx);
-    } else if (m.y == 0) {  // E62
+    }
+    else if (m.y == 0)
+    {  // E62
       m.y = 1;
+      m.comm_change_sends = 0;
+    }
+    else
+    {
+      /* no action: state is not S50 and Y is not 0, so a local COMM_CHANGE in half duplex does nothing */
     }
   }
 }
 
-void macOnRemoteCommChange(MacSession& m, Tick now) noexcept {
+void macOnRemoteCommChange(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0) {
+  if (m.duplex == MacDuplex::full && m.state == MacState::s40 && m.y == 0)
+  {
     applyState(m, MacState::s48);  // E13
     m.y = 4;
     m.persistence = true;
     return;
   }
   if (m.duplex == MacDuplex::half &&
-      (m.state == MacState::s60 || m.state == MacState::s61)) {  // E69
+      (m.state == MacState::s60 || m.state == MacState::s61))
+  {  // E69
     applyState(m, MacState::s51);
+    // Project echo, not in the E69 row: Y=2 makes the responder send the
+    // COMM_CHANGE back (E65). See CONFORMANCE.md, "COMM_CHANGE echo".
     m.y = 2;
+    m.comm_change_sends = 0;
     m.persistence = true;
     m.need_plcw = true;
     loadWait(m, m.mib.carrier_only_duration);
   }
 }
 
-void macOnToken(MacSession& m, Tick now) noexcept {
+void macOnToken(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  if (m.state == MacState::s60 || m.state == MacState::s61) {  // E49
+  if (m.state == MacState::s60 || m.state == MacState::s61)
+  {  // E49
     applyState(m, MacState::s51);
     loadWait(m, m.mib.carrier_only_duration);
   }
 }
 
-void macSetCarrierAcquired(MacSession& m, bool acquired, Tick now) noexcept {
+void macSetCarrierAcquired(MacSession& m, bool acquired, Tick now) noexcept
+{
   const bool was = m.carrier_acquired;
   m.carrier_acquired = acquired;
-  if (acquired) {
+  if (acquired)
+  {
     m.carrier_loss_left = 0;
-    if (m.state == MacState::s62) {  // E47
+    if (m.state == MacState::s62)
+    {  // E47
       applyState(m, MacState::s61);
     }
     return;
   }
   if (was && !acquired && m.mode == MacMode::active &&
       (m.duplex == MacDuplex::full ||
-       (m.duplex == MacDuplex::half && !m.transmit_on))) {
+       (m.duplex == MacDuplex::half && !m.transmit_on)))
+  {
     m.carrier_loss_left = m.mib.carrier_loss_timer_duration;
     (void)now;
   }
 }
 
-void macSetSymbolInlock(MacSession& m, bool inlock, Tick now) noexcept {
+void macSetSymbolInlock(MacSession& m, bool inlock, Tick now) noexcept
+{
   m.symbol_inlock = inlock;
   if (!inlock && m.state == MacState::s48 &&
-      (m.y == 1 || m.y == 2 || m.y == 3)) {  // E16
+      (m.y == 1 || m.y == 2 || m.y == 3))
+  {  // E16
     m.z = 1;
   }
-  if (inlock && m.state == MacState::s35) {
+  if (inlock && m.state == MacState::s35)
+  {
     macOnValidFrame(m, now);  // Hail_Response option
   }
 }
 
-void macTick(MacSession& m, Tick now) noexcept {
+void macTick(MacSession& m, Tick now) noexcept
+{
   Tick dt = 0;
-  if (now > m.last_now) {
+  if (now > m.last_now)
+  {
     dt = now - m.last_now;
   }
   m.last_now = now;
-  if (m.copp != nullptr) {
+  if (m.copp != nullptr)
+  {
     coppTick(*m.copp, now);
     macDriveSetVr(m, now);
   }
   macTickPlcw(m, dt);
-  if (macTickHail(m, now, dt)) {
+  if (macTickHail(m, now, dt))
+  {
     return;
   }
   macTickResync(m, dt);
-  if (macTickCarrierLoss(m, dt)) {
+  if (macTickCarrierLoss(m, dt))
+  {
     return;  // one event; do not also expire Drop_Carrier_Duration this tick
   }
-  if (!m.wait_armed || m.wait_left == 0) {
+  if (!m.wait_armed || m.wait_left == 0)
+  {
     if (m.mib.maximum_failed_token_passes != 0 &&
         m.token_fail_n >= m.mib.maximum_failed_token_passes &&
-        m.state == MacState::s50) {  // E83 caller only
+        m.state == MacState::s50)
+    {  // E83 caller only
       m.transmit_on = false;
-      if (m.role == MacRole::caller) {
+      if (m.role == MacRole::caller)
+      {
         applyState(m, MacState::s80);
         loadWait(m, m.mib.drop_carrier_duration);
-      } else {
+      }
+      else
+      {
         applyState(m, MacState::s2);
         m.need_plcw = true;
         m.persistence = false;
@@ -935,27 +1236,29 @@ void macTick(MacSession& m, Tick now) noexcept {
     }
     return;
   }
-  if (!tickDec(m.wait_left, dt)) {
+  if (!tickDec(m.wait_left, dt))
+  {
     return;
   }
   m.wait_armed = false;
   macOnWaitExpired(m, now);
 }
 
-MacNotify macPollNotify(MacSession& m) noexcept {
+MacNotify macPollNotify(MacSession& m) noexcept
+{
   const MacNotify n = m.notify;
   m.notify = MacNotify::none;
   return n;
 }
 
-MacPhy macPhy(MacSession const& m) noexcept {
+MacPhy macPhy(MacSession const& m) noexcept
+{
   MacPhy p{};
   p.transmit = m.transmit_on;
   p.modulation = m.modulation && m.transmit_on;
-  switch (m.state) {
+  switch (m.state)
+  {
     case MacState::s1:
-      p.receive = false;
-      break;
     case MacState::s11:
     case MacState::s12:
     case MacState::s13:
@@ -977,46 +1280,59 @@ MacPhy macPhy(MacSession const& m) noexcept {
   return p;
 }
 
-MacFifoSource macFifoSource(MacSession const& m) noexcept {
-  if (!m.transmit_on || !m.modulation) {
-    if (m.ss == 1 && m.transmit_on) {
+MacFifoSource macFifoSource(MacSession const& m) noexcept
+{
+  if (!m.transmit_on || !m.modulation)
+  {
+    if (m.ss == kMacSs1 && m.transmit_on)
+    {
       return MacFifoSource::carrier_only;
     }
     return MacFifoSource::none;
   }
-  if (m.ss == 2 || m.ss == 4 || m.ss == 7) {
+  if (m.ss == kMacSs2 || m.ss == kMacSs4 || m.ss == kMacSs7)
+  {
     return MacFifoSource::idle;
   }
-  if (m.ss == 0 || m.ss == 3 || m.ss == 6) {
-    if (m.mac_frame_pending) {
+  if (m.ss == kMacSs0 || m.ss == kMacSs3 || m.ss == kMacSs6)
+  {
+    if (m.mac_frame_pending)
+    {
       return MacFifoSource::spdu;
     }
     // Table 6-10 E39 waits on NEED_PLCW. Persistence stops user data only.
-    if (m.need_plcw) {
+    if (m.need_plcw)
+    {
       return MacFifoSource::plcw;
     }
-    if (m.persistence) {
+    if (m.persistence)
+    {
       return MacFifoSource::idle;
     }
-    if (m.need_status_report) {
+    if (m.need_status_report)
+    {
       return MacFifoSource::plcw;
     }
-    if (m.sdu_pending) {
+    if (m.sdu_pending)
+    {
       return MacFifoSource::sdu;
     }
     return MacFifoSource::idle;
   }
-  if (m.ss == 1) {
+  if (m.ss == kMacSs1)
+  {
     return MacFifoSource::carrier_only;
   }
   return MacFifoSource::none;
 }
 
-Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
-                                  Pcid /*pcid*/) noexcept {
-  // B1.5: 16 bits. Bit 0–7 SEQ_CTRL_FSN, 8–12 spare 0, 13–15 type 011.
+[[nodiscard]] Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_fsn,
+                                  Pcid /*pcid*/) noexcept
+{
+  // B1.5: 16 bits. Bit 0-7 SEQ_CTRL_FSN, 8-12 spare 0, 13-15 type 011.
   // PCID is associated with the FOP-P on the MAC that queues this (7.2.3.2.2 b).
-  if (out.size() < 2) {
+  if (out.size() < 2)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
   out[0] = static_cast<std::byte>(seq_ctrl_fsn);
@@ -1024,47 +1340,59 @@ Result<std::size_t> encodeSetVr(std::span<std::byte> out, std::uint8_t seq_ctrl_
   return std::size_t{2};
 }
 
-Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets,
-                                   Pcid* /*pcid_out*/) noexcept {
-  if (octets.size() < 2) {
+[[nodiscard]] Result<std::uint8_t> decodeSetVr(std::span<const std::byte> octets,
+                                   Pcid* /*pcid_out*/) noexcept
+{
+  if (octets.size() < 2)
+  {
     return tl::unexpected(Error::truncated);
   }
   const auto b1 = static_cast<std::uint8_t>(octets[1]);
-  if ((b1 & 0x07u) != kSetVrDirectiveType || (b1 & 0xF8u) != 0) {
+  if ((b1 & kSpduTypeMask) != kSetVrDirectiveType || (b1 & kSetVrSpareMask) != 0)
+  {
     return tl::unexpected(Error::truncated);
   }
   return static_cast<std::uint8_t>(octets[0]);
 }
 
-void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept {
-  if (m.copp != nullptr) {
+void macOnSetVrDirective(MacSession& m, std::uint8_t seq_ctrl_fsn) noexcept
+{
+  if (m.copp != nullptr)
+  {
     farmPSetVr(m.copp->farm, seq_ctrl_fsn);  // RE2
   }
 }
 
-void macDriveSetVr(MacSession& m, Tick now) noexcept {
+void macDriveSetVr(MacSession& m, Tick now) noexcept
+{
   (void)now;
-  if (m.copp == nullptr || !m.copp->fop.resync) {
+  if (m.copp == nullptr || !m.copp->fop.resync)
+  {
     return;
   }
-  if (!m.mac_frame_pending) {
+  if (!m.mac_frame_pending)
+  {
     queueSetVr(m);
     m.resync_wait_left = m.mib.resync_waiting_period;
-    if (m.resync_life_left == 0) {
+    if (m.resync_life_left == 0)
+    {
       m.resync_life_left = m.mib.resync_lifetime;
     }
   }
 }
 
-void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept {
+void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcept
+{
   (void)now;
-  if (m.copp == nullptr) {
+  if (m.copp == nullptr)
+  {
     return;
   }
   const bool resyncing = m.copp->fop.resync;
   fopPOnPlcw(m.copp->fop, w, format_ok);
   // 7.2.3.2.1 c / FOP-P SE2 S2: only a *valid* PLCW is Resync_Response.
-  if (resyncing && !m.copp->fop.resync) {
+  if (resyncing && !m.copp->fop.resync)
+  {
     m.persistence = false;
     m.mac_frame_pending = false;
     m.mac_queue_len = 0;
@@ -1074,157 +1402,186 @@ void macOnPlcw(MacSession& m, Plcw16 const& w, bool format_ok, Tick now) noexcep
   }
 }
 
-void macLoadHailCommValue(MacSession& m, MacCommValue const& cv) noexcept {
+void macLoadHailCommValue(MacSession& m, MacCommValue const& cv) noexcept
+{
   m.hail_cv = cv;
 }
 
-void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept {
+void macLoadPendingCommValue(MacSession& m, MacCommValue const& cv) noexcept
+{
   m.pending_cv = cv;
   m.pending_cv_valid = true;
 }
 
-Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept {
-  if (m.mac_queue_len == 0) {
+[[nodiscard]] Result<std::size_t> macCopySpdu(MacSession const& m, std::span<std::byte> out) noexcept
+{
+  if (m.mac_queue_len == 0)
+  {
     return std::size_t{0};
   }
-  if (out.size() < m.mac_queue_len) {
+  if (out.size() < m.mac_queue_len)
+  {
     return tl::unexpected(Error::buffer_too_small);
   }
-  for (std::size_t i = 0; i < m.mac_queue_len; ++i) {
+  for (std::size_t i = 0; i < m.mac_queue_len; ++i)
+  {
     out[i] = m.mac_queue[i];
   }
   return m.mac_queue_len;
 }
 
-std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept {
-  if (octets.size() < 2) {
+std::uint8_t spduDirectiveType(std::span<const std::byte> octets) noexcept
+{
+  if (octets.size() < 2)
+  {
     return 0xFF;
   }
-  return static_cast<std::uint8_t>(std::to_integer<unsigned>(octets[1]) & 0x07u);
+  return static_cast<std::uint8_t>(std::to_integer<std::uint32_t>(octets[1]) & kSpduTypeMask);
 }
 
-Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
-                                  bool transmitter) noexcept {
+[[nodiscard]] Result<std::size_t> encodeSetPhy(std::span<std::byte> out, MacPhyParams const& p,
+                                  bool transmitter) noexcept
+{
   std::uint16_t book = 0;
-  book |= static_cast<std::uint16_t>(p.mode & 0x07u);
-  book |= static_cast<std::uint16_t>(p.data_rate & 0x0Fu) << 3;
-  book |= static_cast<std::uint16_t>(p.modulation & 0x01u) << 7;
-  book |= static_cast<std::uint16_t>(p.encoding & 0x03u) << 8;
-  book |= static_cast<std::uint16_t>(p.frequency & 0x07u) << 10;
-  if (!transmitter) {
-    book |= static_cast<std::uint16_t>(1u << 14);  // type 010, LSB at bit 15
+  book |= static_cast<std::uint16_t>(p.mode & kPhyModeMask);
+  book |= (p.data_rate & kPhyRateMask) << 3U;
+  book |= (p.modulation & 0x01U) << kPhyModBit;
+  book |= (p.encoding & 0x03U) << 8U;
+  book |= (p.frequency & kPhyFreqMask) << kPhyFreqShift;
+  if (!transmitter)
+  {
+    book |= static_cast<std::uint16_t>(1U << kDirTypeMid);  // type 010, LSB at bit 15
   }
   return writeBook16(out, book);
 }
 
-Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
-                                   bool* transmitter_out) noexcept {
+[[nodiscard]] Result<MacPhyParams> decodeSetPhy(std::span<const std::byte> octets,
+                                   bool* transmitter_out) noexcept
+{
   const auto book = readBook16(octets);
-  if (!book) {
+  if (!book)
+  {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
-  if (type != kSetTxDirectiveType && type != kSetRxDirectiveType) {
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
+  if (type != kSetTxDirectiveType && type != kSetRxDirectiveType)
+  {
     return tl::unexpected(Error::truncated);
   }
-  if (transmitter_out != nullptr) {
+  if (transmitter_out != nullptr)
+  {
     *transmitter_out = (type == kSetTxDirectiveType);
   }
   MacPhyParams p{};
-  p.mode = static_cast<std::uint8_t>(w & 0x07u);
-  p.data_rate = static_cast<std::uint8_t>((w >> 3) & 0x0Fu);
-  p.modulation = static_cast<std::uint8_t>((w >> 7) & 0x01u);
-  p.encoding = static_cast<std::uint8_t>((w >> 8) & 0x03u);
-  p.frequency = static_cast<std::uint8_t>((w >> 10) & 0x07u);
+  p.mode = static_cast<std::uint8_t>(w & kPhyModeMask);
+  p.data_rate = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 3U) & kPhyRateMask);
+  p.modulation = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPhyModBit) & 0x01U);
+  p.encoding = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 8U) & 0x03U);
+  p.frequency = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPhyFreqShift) & kPhyFreqMask);
   return p;
 }
 
-Result<std::size_t> encodeSetControl(std::span<std::byte> out,
-                                      MacControlParams const& p) noexcept {
+[[nodiscard]] Result<std::size_t> encodeSetControl(std::span<std::byte> out,
+                                      MacControlParams const& p) noexcept
+{
   std::uint16_t book = 0;
-  book |= static_cast<std::uint16_t>(p.time_sample & 0x3Fu);
-  book |= static_cast<std::uint16_t>(p.duplex & 0x07u) << 6;
-  if (p.rnmd) {
-    book |= static_cast<std::uint16_t>(1u << 11);
+  book |= static_cast<std::uint16_t>(p.time_sample & kCtrlTimeMask);
+  book |= (p.duplex & kCtrlDuplexMask) << kCtrlDuplexShift;
+  if (p.rnmd)
+  {
+    book |= static_cast<std::uint16_t>(1U << kCtrlRnmdBit);
   }
-  if (p.pass) {
-    book |= static_cast<std::uint16_t>(1u << 12);
+  if (p.pass)
+  {
+    book |= static_cast<std::uint16_t>(1U << kCtrlPassBit);
   }
-  book |= static_cast<std::uint16_t>(1u << 15);  // type 001
+  book |= static_cast<std::uint16_t>(1U << kDirTypeLsb);  // type 001
   return writeBook16(out, book);
 }
 
-Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<MacControlParams> decodeSetControl(std::span<const std::byte> octets) noexcept
+{
   const auto book = readBook16(octets);
-  if (!book) {
+  if (!book)
+  {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
-  if (type != kSetControlDirectiveType) {
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
+  if (type != kSetControlDirectiveType)
+  {
     return tl::unexpected(Error::truncated);
   }
   MacControlParams p{};
-  p.time_sample = static_cast<std::uint8_t>(w & 0x3Fu);
-  p.duplex = static_cast<std::uint8_t>((w >> 6) & 0x07u);
-  p.rnmd = ((w >> 11) & 1u) != 0;
-  p.pass = ((w >> 12) & 1u) != 0;
+  p.time_sample = static_cast<std::uint8_t>(w & kCtrlTimeMask);
+  p.duplex = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kCtrlDuplexShift) & kCtrlDuplexMask);
+  p.rnmd = ((static_cast<std::uint32_t>(w) >> kCtrlRnmdBit) & 1U) != 0;
+  p.pass = ((static_cast<std::uint32_t>(w) >> kCtrlPassBit) & 1U) != 0;
   return p;
 }
 
-Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept {
+[[nodiscard]] Result<std::size_t> encodeSetPlExt(std::span<std::byte> out, MacPlExt const& p) noexcept
+{
   std::uint16_t book = 0;
-  if (p.direction) {
-    book |= 1u;
+  if (p.direction)
+  {
+    book |= 1U;
   }
-  if (p.freq_table) {
-    book |= static_cast<std::uint16_t>(1u << 1);
+  if (p.freq_table)
+  {
+    book |= static_cast<std::uint16_t>(1U << 1U);
   }
-  if (p.rate_table) {
-    book |= static_cast<std::uint16_t>(1u << 2);
+  if (p.rate_table)
+  {
+    book |= static_cast<std::uint16_t>(1U << 2U);
   }
-  book |= static_cast<std::uint16_t>(p.carrier_mod & 0x03u) << 3;
-  book |= static_cast<std::uint16_t>(p.data_mod & 0x03u) << 5;
-  book |= static_cast<std::uint16_t>(p.mode_select & 0x03u) << 7;
-  book |= static_cast<std::uint16_t>(p.scrambler & 0x03u) << 9;
-  if (p.diff_mark) {
-    book |= static_cast<std::uint16_t>(1u << 11);
+  book |= (p.carrier_mod & 0x03U) << 3U;
+  book |= (p.data_mod & 0x03U) << kPlExtDataShift;
+  book |= (p.mode_select & 0x03U) << kPlExtModeShift;
+  book |= (p.scrambler & 0x03U) << kPlExtScramShift;
+  if (p.diff_mark)
+  {
+    book |= static_cast<std::uint16_t>(1U << kPlExtDiffBit);
   }
-  if (p.rs_code) {
-    book |= static_cast<std::uint16_t>(1u << 12);
+  if (p.rs_code)
+  {
+    book |= static_cast<std::uint16_t>(1U << kPlExtRsBit);
   }
-  book |= static_cast<std::uint16_t>(1u << 13);  // type 110: bit13=1, bit14=1, bit15=0
-  book |= static_cast<std::uint16_t>(1u << 14);
+  book |= static_cast<std::uint16_t>(1U << kDirTypeMsb);  // type 110: bit13=1, bit14=1, bit15=0
+  book |= static_cast<std::uint16_t>(1U << kDirTypeMid);
   return writeBook16(out, book);
 }
 
-Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept {
+[[nodiscard]] Result<MacPlExt> decodeSetPlExt(std::span<const std::byte> octets) noexcept
+{
   const auto book = readBook16(octets);
-  if (!book) {
+  if (!book)
+  {
     return tl::unexpected(book.error());
   }
   const std::uint16_t w = *book;
-  const unsigned type = static_cast<unsigned>((w >> 15) & 1u) |
-                        (static_cast<unsigned>((w >> 14) & 1u) << 1) |
-                        (static_cast<unsigned>((w >> 13) & 1u) << 2);
-  if (type != kSetPlExtDirectiveType) {
+  const std::uint32_t type = ((static_cast<std::uint32_t>(w) >> kDirTypeLsb) & 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMid) & 1U) << 1U) |
+                        (((static_cast<std::uint32_t>(w) >> kDirTypeMsb) & 1U) << 2U);
+  if (type != kSetPlExtDirectiveType)
+  {
     return tl::unexpected(Error::truncated);
   }
   MacPlExt p{};
-  p.direction = (w & 1u) != 0;
-  p.freq_table = ((w >> 1) & 1u) != 0;
-  p.rate_table = ((w >> 2) & 1u) != 0;
-  p.carrier_mod = static_cast<std::uint8_t>((w >> 3) & 0x03u);
-  p.data_mod = static_cast<std::uint8_t>((w >> 5) & 0x03u);
-  p.mode_select = static_cast<std::uint8_t>((w >> 7) & 0x03u);
-  p.scrambler = static_cast<std::uint8_t>((w >> 9) & 0x03u);
-  p.diff_mark = ((w >> 11) & 1u) != 0;
-  p.rs_code = ((w >> 12) & 1u) != 0;
+  p.direction = (w & 1U) != 0;
+  p.freq_table = ((static_cast<std::uint32_t>(w) >> 1U) & 1U) != 0;
+  p.rate_table = ((static_cast<std::uint32_t>(w) >> 2U) & 1U) != 0;
+  p.carrier_mod = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> 3U) & 0x03U);
+  p.data_mod = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtDataShift) & 0x03U);
+  p.mode_select = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtModeShift) & 0x03U);
+  p.scrambler = static_cast<std::uint8_t>((static_cast<std::uint32_t>(w) >> kPlExtScramShift) & 0x03U);
+  p.diff_mark = ((static_cast<std::uint32_t>(w) >> kPlExtDiffBit) & 1U) != 0;
+  p.rs_code = ((static_cast<std::uint32_t>(w) >> kPlExtRsBit) & 1U) != 0;
   return p;
 }
 

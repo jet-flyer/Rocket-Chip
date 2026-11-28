@@ -62,8 +62,9 @@ static uint8_t g_buffer[kGpsMaxRead + 1];
 static size_t g_lastReadLen = 0;
 static uint8_t g_raw[kGpsMaxRead];
 
-static int read_nmea_data(uint8_t* buffer, size_t max_len) {
-    int ret = i2c_master_read(kGpsPa1010dAddr, g_raw, max_len, kGpsReadTimeoutUs);
+static void update_from_lwgps();
+
+static int filter_nmea(int ret, uint8_t* buffer, size_t max_len) {
     if (ret <= 0) {
         return -1;
     }
@@ -75,7 +76,9 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
                 break;
             }
             if (b == kNmeaLf) {
-                if (out > 0 && buffer[static_cast<size_t>(out - 1)] == kNmeaCr) {
+                const bool have_cr = (out > 0) &&
+                    (buffer[static_cast<size_t>(out - 1)] == kNmeaCr);
+                if (have_cr) {
                     buffer[static_cast<size_t>(out)] = b;
                     out++;
                 }
@@ -87,6 +90,70 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     }
     g_lastReadLen = static_cast<size_t>(out);
     return out;
+}
+
+static int read_nmea_data(uint8_t* buffer, size_t max_len) {
+    const int ret = i2c_master_read(kGpsPa1010dAddr, g_raw, max_len,
+                                    kGpsReadTimeoutUs);
+    return filter_nmea(ret, buffer, max_len);
+}
+
+enum class GpsSvc : uint8_t { kIdle = 0, kXfer, kSettle };
+
+static GpsSvc g_svc = GpsSvc::kIdle;
+static absolute_time_t g_settleAt{};
+static int g_asyncCount = 0;
+static bool g_readFailed = false;
+
+static bool service_idle() {
+    const uint32_t now_us = time_us_32();
+    if ((now_us - g_lastPollUs) < kPollMinUs) {
+        return false;
+    }
+    g_lastPollUs = now_us;
+    if (!i2c_master_read_async_start(kGpsPa1010dAddr, g_raw, kGpsMaxRead,
+                                     kGpsReadTimeoutUs)) {
+        g_readFailed = true;
+        return true;
+    }
+    g_svc = GpsSvc::kXfer;
+    return false;
+}
+
+static bool service_xfer() {
+    int result = 0;
+    const int st = i2c_master_read_async_poll(&result);
+    if (st == 0) {
+        return false;
+    }
+    g_svc = GpsSvc::kIdle;
+    if (st < 0 || result < 0) {
+        g_readFailed = true;
+        return true;
+    }
+    g_asyncCount = result;
+    g_settleAt = make_timeout_time_us(kPostReadUs);
+    g_svc = GpsSvc::kSettle;
+    return false;
+}
+
+static bool service_settle() {
+    if (!time_reached(g_settleAt)) {
+        return false;
+    }
+    g_svc = GpsSvc::kIdle;
+    const int len = filter_nmea(g_asyncCount, g_buffer, kGpsMaxRead);
+    if (len < 0) {
+        g_readFailed = true;
+        return true;
+    }
+    g_readFailed = false;
+    if (len > 0) {
+        g_buffer[static_cast<size_t>(len)] = '\0';
+        lwgps_process(&g_gps, g_buffer, static_cast<size_t>(len));
+        update_from_lwgps();
+    }
+    return true;
 }
 
 static void update_from_lwgps() {
@@ -209,6 +276,25 @@ void gps_pa1010d_get_debug_status(char* buf, size_t len) {
 
 bool gps_pa1010d_ready() {
     return g_initialized;
+}
+
+bool gps_pa1010d_service() {
+    if (!g_initialized) {
+        return false;
+    }
+    if (g_svc == GpsSvc::kXfer) {
+        return service_xfer();
+    }
+    if (g_svc == GpsSvc::kSettle) {
+        return service_settle();
+    }
+    return service_idle();
+}
+
+bool gps_pa1010d_consume_read_ok() {
+    const bool ok = !g_readFailed;
+    g_readFailed = false;
+    return ok;
 }
 
 bool gps_pa1010d_update() {

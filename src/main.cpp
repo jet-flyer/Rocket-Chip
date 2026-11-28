@@ -15,6 +15,7 @@
 #include "pico/time.h"
 #include "hardware/gpio.h"
 #include "drivers/ws2812_status.h"
+#include "drivers/status_led.h"
 #include "drivers/i2c_master.h"
 #include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
@@ -29,6 +30,7 @@
 #include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
+#include "safety/crash_record.h"    // [RESET] boot line peeks the record
 #include "safety/pio_backup_timer.h"
 #include "safety/fault_protection.h"
 #include "safety/inject_arm_gate.h"    // R-25-exec inject-arm gate
@@ -39,6 +41,7 @@
 #include "drivers/spi_bus.h"
 #include "drivers/rfm95w.h"
 #include "logging/psram_init.h"
+#include "logging/flash_gate.h"  // FSK item 2: JEDEC ID at boot
 #include "logging/ring_buffer.h"
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
@@ -187,25 +190,34 @@ static void init_fault_recovery() {
 static void init_early_hw() {
     init_fault_recovery();
 
-    gpio_init(board::kLedPin);
-    gpio_set_dir(board::kLedPin, true);
+    // On a discrete-RGB pack the onboard LED is one RGB channel, which
+    // status_led_init() owns as PWM. Claiming it as SIO here would drive
+    // an active-low channel on until PWM takes over.
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        gpio_init(board::kLedPin);
+        gpio_set_dir(board::kLedPin, true);
+    }
 
     // Pack may release a shared peripheral RESET before I2C (no-op on Feather).
     board::board_release_peripheral_reset();
 
-    if (board::kNeoPixelCount == 0) {
-        g_neopixelInitialized = false;
-    } else {
-        g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
-                                                    board::kNeoPixelCount);
-    }
+    g_neopixelInitialized = status_led_init() && status_led_ws2812_ready();
     (void)rc::mcu_temp_init();  // always true; ADC enable has no fail return
 }
 
 static void init_peripherals() {
     // SPI bus + radio init (before USB per LL Entry 4/12)
-    // Optional peripheral: absent FeatherWing detected at init time
-    g_spiInitialized = spi_bus_init();
+    // Optional peripheral: absent FeatherWing detected at init time.
+    // Skip pin mux when the pack has no radio (local-logging tracker).
+#if defined(ROCKETCHIP_RADIO_OFF)
+    g_spiInitialized = false;  // bench build: radio off, AO_Radio stays idle
+#else
+    if constexpr (board::kRadioAvailable) {
+        g_spiInitialized = spi_bus_init();
+    } else {
+        g_spiInitialized = false;
+    }
+#endif
     // Radio hardware init moved to AO_Radio_start() — owns its own lifecycle.
 
     // Calibration storage init (before USB per LL Entry 4/12)
@@ -247,8 +259,9 @@ static void init_hardware() {
     // (e.g. previous boot within same powered session detected a critical
     // fault while ARMED). Power cycle clears the flag; see
     // docs/USER_GUIDE.md "Safety State Model".
-    if (rc::flight_director_launch_abort() && g_neopixelInitialized) {
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
+    if (rc::flight_director_launch_abort()) {
+        status_led_set_mode(WS2812_MODE_SOLID, kColorRed);
+        status_led_update();
     }
 
     // I2C bus init (before USB per LL Entry 4/12), then IMU/baro/GPS.
@@ -259,6 +272,17 @@ static void init_hardware() {
                    boot.had_por ? 1 : 0,
                    boot.had_any_non_por ? 1 : 0,
                    static_cast<unsigned long>(boot.powman_chip_reset));
+        // POWMAN HAD_POR stays set over an AIRCR (fault-handler) reset, so
+        // the line above does not show a crash reset. Also print the
+        // watchdog reason and the crash record (consumed later by health).
+        const volatile rc::CrashRecord& rec = rc::g_crash_record;
+        const bool has_rec = (rec.magic == rc::kCrashRecordMagic);
+        rc::rc_log("[RESET] wd_reason=0x%lx wd_caused=%d crash_rec=%d crash_reason=%lu aux=0x%08lx\n",
+                   static_cast<unsigned long>(watchdog_hw->reason),
+                   watchdog_caused_reboot() ? 1 : 0,
+                   has_rec ? 1 : 0,
+                   static_cast<unsigned long>(has_rec ? rec.reason : 0U),
+                   static_cast<unsigned long>(has_rec ? rec.reserved[0] : 0U));
     }
     g_i2cInitialized = i2c_master_init();
     if (g_i2cInitialized) {
@@ -288,10 +312,12 @@ static void init_pio_safety() {
     if (!rc::pio_watchdog_init()) {
         DBG_ERROR("PIO watchdog init failed — PIO2 SM unavailable");
     }
-    // Backup deployment timers (drogue=GPIO12, main=GPIO13)
-    // Bench test pins — not connected to pyro hardware yet
-    if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
-        DBG_ERROR("PIO backup timer init failed");
+    // Backup deployment timers. Claim pins only when the pack has pyro
+    // hardware (Feather bench channels today; Tiny/Jam/Pico 2 do not).
+    if constexpr (board::kPyroAvailable) {
+        if (!rc::pio_backup_timer_init(board::kPyroDroguePin, board::kPyroMainPin)) {
+            DBG_ERROR("PIO backup timer init failed");
+        }
     }
     // pyro_edge_logger_init() is WIP (WN-274 / rem WB R-14). Do not arm the
     // GPIO IRQ from flight boot until pyro HW is on these pins and a real
@@ -369,6 +395,14 @@ static void init_application() {
         rc::core1_i2c_resume();
     }
 
+    // FSK item 2: read the flash JEDEC ID one time (9Fh in
+    // flash_safe_execute). Same Core 1 I2C wrap as the PSRAM test.
+    rc::core1_i2c_pause();
+    rc::flash_gate_read_jedec();
+    i2c_master_abort_and_idle();
+    i2c_master_reattach();
+    rc::core1_i2c_resume();
+
     init_baro_auto_zero();
 
     eskf_runner_init(&rc::kDefaultRocketProfile);
@@ -416,10 +450,8 @@ extern "C" void qv_idle_bridge(void) {
         watchdog_kick_tick();
     }
 
-    if (gps_uart_take_reinit_request()) {
-        if (!gps_uart_reinit()) {
-            g_gpsInitialized.store(false, std::memory_order_release);
-        }
+    if (gps_uart_reinit_service() == GpsUartReinitStatus::kFailed) {
+        g_gpsInitialized.store(false, std::memory_order_release);
     }
 
     eskf_runner_tick();
@@ -488,7 +520,7 @@ static void start_active_objects() {
                         g_psramSelfTestPassed && g_psramFlashSafePassed);
     }
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
-        AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
+        AO_Telemetry_start(3U);      // 100Hz MAC poll (Vehicle + Station, not Relay)
     }
     // One chain writer. Station/relay patterns arrive as notify intents.
     AO_LedEngine_start(2U);

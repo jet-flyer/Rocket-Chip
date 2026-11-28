@@ -1,6 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-09-08 (RC_OS sittings 0–5 merged — see CHANGELOG `2026-09-08-001`)
+**Last Updated:** 2026-11-28 (wrap cleanup). The 11-25 through 11-27 range is on origin/main (12 split pushes; see CHANGELOG 2026-11-27-002).
+
+## Tiny 2350 Phase 1 CLOSED (2026-11-24)
+
+Tiny 2350 (PIM721) bring-up on the main codebase, with logging as-is (RAM ring, CLI flush only). Merged to `main` as `b4b3b40c` (2026-11-23) from `grok/tiny2350-main`. Plan: `docs/plans/TINY2350_AND_LOGGING_PLAN_2026-11-21.md` (Phase 1 is sections 1-9). Delivered: the Tiny board pack, status-LED backend, and radio/pyro capability gates (Phase A); no radio SPI access on radio-less boards; IMU full scale and a 2 ms IMU I2C budget from the board pack; IMU re-init only on stuck lines or 50 failed reads; PSRAM boot check only where the pack fits it; baro publishes only new DPS310 conversions. Gate bench on the merge push: vehicle 2/2, station 4/4 (firmware tree `dabb68457f10`).
+
+**Stage close (2026-11-24):** full-tree clang-tidy clean after removing dead `--wrap` reboot wrappers from the unbuilt `src/drivers/i2c_bus_legacy.cpp` (the link flags were removed 2026-09-03 in `6dcea56e`; LL Entry 50). Build-system audit P1-A..P6 clean. Dead-code inventory: `docs/audits/DEAD_CODE_INVENTORY_2026-11-24.md`. Dual-toolchain: the Windows path ran host ctest 1044/1044 and the gate benches; the WSL path has not run since the previous milestone and was not forced.
+
+**Next: Phase 2**, the flight-logging refactor for every board, ending with a Tiny re-verification on the new logs (plan sections 10-21). Starts from `main` when scheduled. The local worktree `Rocket-Chip-tiny-main` was removed 2026-11-28 (Phase 1 content is already on main). Not yet covered: I2C quiesce on SDK-initiated reboots (picotool reset interface, 1200-baud reset), which has been off since `6dcea56e`.
 
 ## RC_OS rework sittings 0–5 MERGED (2026-09-08)
 

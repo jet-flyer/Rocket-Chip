@@ -32,11 +32,18 @@
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"
+#include "logging/flash_job_plan.h"  // cal_ui_owns_keys
+#include "logging/flight_download.h"  // 'd' download job
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+#include "logging/flash_scratch.h"  // FSK item 2 test build: scratch loop
+#endif
 
 // Forward declarations for non-blocking erase/download completion
 // (actual implementations in rc_os_commands.cpp)
-void cli_do_erase_flights();
-void cli_do_download_flight(int flight_num);
+bool cli_do_erase_flights();
+bool cmd_erase_flights_step();
+bool cli_do_download_flight(int flight_num);
+bool cmd_flush_log_step();
 
 #include "rocketchip/rc_log.h"
 #include "pico/time.h"
@@ -104,6 +111,9 @@ enum class CalUiState : uint8_t {
     kResetConfirm,       // Reading "YES" + Enter for cal reset
     kEraseConfirm,       // Reading "yes" + Enter for flight erase
     kFlightNumInput,     // Reading flight number for download
+    kFlushLog,           // 'l' flush: one flash sector each tick
+    kEraseFlights,       // 'x' erase: one flash operation each tick
+    kDownloadFlight,     // 'd' download: one bounded USB step each tick
     // Wizard mode
     kWizardNext,         // Advance to next wizard step
 };
@@ -933,11 +943,12 @@ static void cal_ui_handle_erase_confirm(RcosAo* me) {
             me->confirm_buf[0] == 'y' &&
             me->confirm_buf[1] == 'e' &&
             me->confirm_buf[2] == 's') {
-            // Perform the erase — this calls flash_safe_execute internally
-            cli_do_erase_flights();
-        } else {
-            rc::rc_log("Erase cancelled.\n");
+            // Start the erase job: one flash operation each tick.
+            me->cal_ui_state = cli_do_erase_flights()
+                ? CalUiState::kEraseFlights : CalUiState::kIdle;
+            return;
         }
+        rc::rc_log("Erase cancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
@@ -971,18 +982,55 @@ static void cal_ui_handle_flight_num(RcosAo* me) {
                 num = num * 10 + (me->confirm_buf[i] - '0');
             }
         }
-        if (num > 0) {
-            cli_do_download_flight(num);
-        } else {
+        if (num <= 0) {
             rc::rc_log("Invalid flight number.\n");
         }
-        me->cal_ui_state = CalUiState::kIdle;
+        // A started download runs as a job: one step each tick.
+        me->cal_ui_state = (num > 0 && cli_do_download_flight(num))
+            ? CalUiState::kDownloadFlight : CalUiState::kIdle;
         return;
     }
     if (ch >= '0' && ch <= '9' && me->confirm_idx < 3) {
         me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
         rc::rc_log("%c", ch);
         }
+}
+
+// ---- Ring flush to flash (non-blocking, CLI 'l') ----
+// One sector (erase + program, 45-75 ms) each tick. That is longer than the
+// 50 ms tick period, so do not start a sector when an event is in the
+// queue: the queue gets time to empty (the same guard as flash_scratch).
+static void cal_ui_handle_flush_log(RcosAo* me) {
+    const QEvtPtr volatile* const front = &me->super.eQueue.frontEvt;
+    if (*front != nullptr) {
+        return;
+    }
+    if (cmd_flush_log_step()) {
+        me->cal_ui_state = CalUiState::kIdle;
+    }
+}
+
+// ---- Erase all flights (non-blocking, CLI 'x') ----
+// One flash operation (sector erase 45-75 ms, or the table save) each
+// tick, with the same queue guard as the flush: do not start an
+// operation when an event waits, so the queue gets time to empty.
+static void cal_ui_handle_erase_flights(RcosAo* me) {
+    const QEvtPtr volatile* const front = &me->super.eQueue.frontEvt;
+    if (*front != nullptr) {
+        return;
+    }
+    if (cmd_erase_flights_step()) {
+        me->cal_ui_state = CalUiState::kIdle;
+    }
+}
+
+// ---- Flight download (non-blocking, CLI 'd') ----
+// One bounded USB step each tick (logging/flight_download.h). No flash
+// operations, so no queue guard.
+static void cal_ui_handle_download(RcosAo* me) {
+    if (rc::download_job_step()) {
+        me->cal_ui_state = CalUiState::kIdle;
+    }
 }
 
 // ---- Cal UI dispatcher (20Hz) ----
@@ -1001,6 +1049,9 @@ static void cal_ui_tick(RcosAo* me) {
     case CalUiState::kResetConfirm:   cal_ui_handle_reset_confirm(me);    break;
     case CalUiState::kEraseConfirm:   cal_ui_handle_erase_confirm(me);    break;
     case CalUiState::kFlightNumInput: cal_ui_handle_flight_num(me);       break;
+    case CalUiState::kFlushLog:       cal_ui_handle_flush_log(me);        break;
+    case CalUiState::kEraseFlights:   cal_ui_handle_erase_flights(me);    break;
+    case CalUiState::kDownloadFlight: cal_ui_handle_download(me);         break;
     case CalUiState::kWizardNext:     cal_ui_handle_wizard_next(me);      break;
     }
 }
@@ -1044,6 +1095,10 @@ static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
 
         // Calibration UI state machine
         cal_ui_tick(me);
+#if defined(ROCKETCHIP_FLASH_STALL_SCRATCH)
+        // Test build only: one scratch flash op per tick (20 Hz).
+        rc::flash_scratch_tick();
+#endif
         return Q_HANDLED();
     }
 
@@ -1224,8 +1279,19 @@ bool AO_RCOS_cal_active() {
     return g_rcosAo.cal_ui_state != CalUiState::kIdle;
 }
 
+bool AO_RCOS_ui_owns_keys() {
+    const CalUiState s = g_rcosAo.cal_ui_state;
+    return rc::cal_ui_owns_keys(s != CalUiState::kIdle,
+                                s == CalUiState::kFlushLog ||
+                                    s == CalUiState::kEraseFlights ||
+                                    s == CalUiState::kDownloadFlight);
+}
+
 void AO_RCOS_start_erase_flights() {
-    if (AO_RCOS_cal_active()) { return; }
+    if (AO_RCOS_cal_active() || rc::flush_job_active() || rc::erase_job_active()) {
+        rc::rc_log("Busy. Try again.\n");
+        return;
+    }
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
     if (!ft->loaded) {
         rc::rc_log("Flight table not loaded.\n");
@@ -1244,8 +1310,15 @@ void AO_RCOS_start_erase_flights() {
     g_rcosAo.cal_ui_state = CalUiState::kEraseConfirm;
 }
 
+void AO_RCOS_start_flush_log() {
+    g_rcosAo.cal_ui_state = CalUiState::kFlushLog;
+}
+
 void AO_RCOS_start_download_flight() {
-    if (AO_RCOS_cal_active()) { return; }
+    if (AO_RCOS_cal_active()) {
+        rc::rc_log("Busy. Try again.\n");
+        return;
+    }
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     if (!ft->loaded) {
         rc::rc_log("Flight table not loaded.\n");

@@ -1,10 +1,15 @@
-// IVP increment 5 — host loopback, then generic radio port. Core stays sans-I/O.
+// Host checks for the frame slot.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
 
-#include "heap_trap.hpp"
-#include "starcom/adapters/loopback.hpp"
-#include "starcom/adapters/radio_port.hpp"
-#include "starcom/ccsds/cop1.hpp"
-#include "starcom/ccsds/space_packet.hpp"
+// IVP increment 5 - host loopback, then generic radio port. Core stays sans-I/O.
+
+#include "heap_trap.h"
+#include "starcom/adapters/loopback.h"
+#include "starcom/adapters/radio_port.h"
+#include "starcom/ccsds/cop1.h"
+#include "starcom/ccsds/space_packet.h"
 
 #include <array>
 #include <cstddef>
@@ -38,19 +43,24 @@ using starcom::ccsds::SpacePacketFields;
 using starcom::ccsds::UslpScid;
 using starcom::ccsds::Vcid;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
-void test_slot_full_and_empty() {
+void test_slot_full_and_empty()
+{
   starcom::adapters::FrameSlot s{};
   const std::array<std::byte, 3> a{std::byte{1}, std::byte{2}, std::byte{3}};
   CHECK(slotWrite(s, a).value() == 3u);
@@ -60,7 +70,8 @@ void test_slot_full_and_empty() {
   CHECK(slotRead(s, out).value() == 0u);
 }
 
-void test_cop1_over_loopback() {
+void test_cop1_over_loopback()
+{
   Cop1Mib mib{};
   mib.k = 4;
   mib.transmission_limit = 4;
@@ -105,7 +116,8 @@ void test_cop1_over_loopback() {
   CHECK(tx.fop.nn_r == 1);
 }
 
-void test_radio_port_cross() {
+void test_radio_port_cross()
+{
   RadioPort a{};
   RadioPort b{};
   const std::array<std::byte, 4> frame{std::byte{0xFA}, std::byte{0xF3},
@@ -123,7 +135,8 @@ void test_radio_port_cross() {
   CHECK(radioTakeTx(a, moved).value() == 0u);
 }
 
-void test_heap() {
+void test_heap()
+{
   starcom::adapters::FrameSlot s{};
   const std::array<std::byte, 1> one{std::byte{0x11}};
   std::array<std::byte, 4> out{};
@@ -137,7 +150,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_loopback_tests() {
+int run_loopback_tests()
+{
   test_slot_full_and_empty();
   test_cop1_over_loopback();
   test_radio_port_cross();

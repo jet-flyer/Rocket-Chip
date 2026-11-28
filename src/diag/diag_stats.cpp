@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Soak dump. t0_preconditions: identity + RegVersion (Frankenstein catch).
+// Soak dump. t0_preconditions: identity + RegVersion when a radio is fitted
+// (Frankenstein catch).
 // dump: read-only. msp_tick: writes MSP watermarks from QV idle.
 
 // -------------------------------------------------------------------
@@ -11,9 +12,8 @@
 #include "rocketchip/version.h"
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
-#include "drivers/rfm95w.h"
+#include "diag/diag_radio_precondition.h"
 #include "rocketchip/board.h"
-#include "hardware/gpio.h"
 #include "rocketchip/rc_log.h"
 #include <stdint.h>
 
@@ -29,17 +29,13 @@ void diag_stats_t0_preconditions() {
     rc::rc_log("  board=%s\n", board::kBoardName);
     rc::rc_log("  git=%s identity=%s\n", kGitHash, kBuildIdentity);
 
-    // Radio direct readback — catches original Frankenstein bug directly.
-    uint8_t radio_version = rfm95w_read_version(
-        board::kRadioCsPin);
-    rc::rc_log("[Radio]\n");
-    rc::rc_log("  RegVersion=0x%02x (expect 0x12)\n",
-           (unsigned)radio_version);
-
-    // Passive IRQ wiring evidence (NASA/JPL)
-    int irq_pin = board::kRadioIrqPin;
-    int irq_pin_state = gpio_get(irq_pin) ? 1 : 0;
-    rc::rc_log("  radio_irq_pin=%d state=%d\n", irq_pin, irq_pin_state);
+    // [Radio]: RegVersion + IRQ pin, or "not fitted" on a pack with no
+    // radio (no spi_bus_init() there, so no SPI read).
+#if defined(ROCKETCHIP_RADIO_OFF)
+    diag_log_radio_precondition(false);  // bench build: SPI never initialized
+#else
+    diag_log_radio_precondition(board::kRadioAvailable);
+#endif
     const volatile uint32_t* ispr =
         reinterpret_cast<const volatile uint32_t*>(0xE000E200);
     rc::rc_log("  NVIC_ISPR[0]=0x%08lx [1]=0x%08lx\n",
@@ -54,7 +50,7 @@ void diag_stats_t0_preconditions() {
 
 // -------------------------------------------------------------------
 // Full diag_stats_dump() for soak snapshots. Not a pure snapshot:
-// t0_preconditions issues a radio SPI RegVersion read.
+// t0_preconditions issues a radio SPI RegVersion read when a radio is fitted.
 // -------------------------------------------------------------------
 
 #include "diag/diag_stats.h"
@@ -70,6 +66,7 @@ void diag_stats_t0_preconditions() {
 #include "active_objects/ao_telemetry.h"
 #include "safety/health_monitor.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "core1/sensor_core1.h"
 #include "rocketchip/job.h"
 #include "pico/time.h"
 #include "hardware/structs/scb.h"
@@ -219,6 +216,7 @@ static void dump_sensors() {
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count);
+    rc::rc_log("  IMU reinits=%lu\n", (unsigned long)core1_imu_reinit_count());
     rc::rc_log("  core1 loops=%lu\n", (unsigned long)snap.core1_loop_count);
     // MCU die temp below kMcuTempAbsentBelowC (includes sentinel) is unset.
     if (snap.mcu_die_temp_c > rc::kMcuTempAbsentBelowC) {

@@ -30,7 +30,7 @@ While incubating in the monorepo, git tags for this library are `starcom-v*`. Af
 
 ## Supported API
 
-`include/starcom/` only (generated `version.hpp` included). Not `src/`, not `detail/`, not test helpers. Breaking a public header or `Starcom::starcom` / `Starcom::adapters_host` CMake alias is a MAJOR bump (or, while 0.x, a MINOR tick plus a migration note in `CHANGELOG.md`).
+`include/starcom/` only (generated `version.h` included). Not `src/`, not `detail/`, not test helpers. Breaking a public header or `Starcom::starcom` / `Starcom::adapters_host` CMake alias is a MAJOR bump (or, while 0.x, a MINOR tick plus a migration note in `CHANGELOG.md`).
 
 Adapters (`starcom::adapters`) are first-party ports, still under SemVer for this tree.
 
@@ -50,8 +50,8 @@ EXTRAVERSION =
 
 Never hand-edit:
 
-- `${CMAKE_BINARY_DIR}/generated/starcom/version.hpp` (generated)
-- A committed numeric `include/starcom/version.hpp` (there is none; the template is `version.hpp.in`)
+- `${CMAKE_BINARY_DIR}/generated/starcom/version.h` (generated)
+- A committed numeric `include/starcom/version.h` (there is none; the template is `version.h.in`)
 
 CMake (`cmake/starcom_version.cmake`) writes the generated header. Reconfigure when `STARCOM_VERSION`, git `HEAD`, or git `index` change. If git is missing, `kGitHash` / `kBuildIdentity` fall back to `"unknown"`.
 
@@ -61,7 +61,7 @@ Do **not** bump product numbers on ordinary codec commits. Git identity already 
 
 ## Public C++ names
 
-`#include "starcom/version.hpp"` (generated). Add the build `generated/` dir to the include path (`Starcom::starcom` does this).
+`#include "starcom/version.h"` (generated). Add the build `generated/` dir to the include path (`Starcom::starcom` does this).
 
 | Symbol | Value |
 |--------|--------|
@@ -72,7 +72,7 @@ Do **not** bump product numbers on ordinary codec commits. Git identity already 
 | `starcom::kBuildIdentity` | `git describe --abbrev=12 --always --dirty` |
 | `starcom::kBuildNumber` | Generated count; do not hand-edit |
 
-No product-version literals in `src/` or `include/` except `STARCOM_VERSION` and `version.hpp.in`.
+No product-version literals in `src/` or `include/` except `STARCOM_VERSION` and `version.h.in`.
 
 ---
 

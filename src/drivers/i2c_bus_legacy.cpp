@@ -14,8 +14,6 @@
 
 #include "i2c_bus_legacy.h"
 #include "hardware/gpio.h"
-#include "hardware/watchdog.h"
-#include "pico/bootrom.h"
 #include "pico/time.h"
 #include "rocketchip/rc_log.h"
 
@@ -622,29 +620,4 @@ void i2c_bus_quiesce(uint32_t via) {
         generate_stop_condition();
     }
     g_initialized = false;
-}
-
-extern "C" {
-
-void __real_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms);
-void __attribute__((noreturn))
-__real_rom_reset_usb_boot_extra(int usb_activity_gpio_pin,
-                                uint32_t disable_interface_mask,
-                                bool usb_activity_gpio_pin_active_low);
-
-void __wrap_watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
-    i2c_bus_quiesce(kI2cQuiesceViaWdog);
-    __real_watchdog_reboot(pc, sp, delay_ms);
-}
-
-void __attribute__((noreturn))
-__wrap_rom_reset_usb_boot_extra(int usb_activity_gpio_pin,
-                                uint32_t disable_interface_mask,
-                                bool usb_activity_gpio_pin_active_low) {
-    i2c_bus_quiesce(kI2cQuiesceViaBootSel);
-    __real_rom_reset_usb_boot_extra(usb_activity_gpio_pin,
-                                    disable_interface_mask,
-                                    usb_activity_gpio_pin_active_low);
-}
-
 }

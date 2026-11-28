@@ -10,13 +10,20 @@ Scope: verify the station CLI dispatch path + banner hygiene + live
 HealthMonitor output + absence of QP assertions over a short soak.
 Anything a future station SPIN model proves is NOT tested here.
 
-Three tests:
+Four tests:
   1. Boot + dashboard round-trip (main menu reachable, no QP markers).
-  2. Hardware Status positive controls ([N/A] for uninstalled sensors —
-     regression guard for IVP-142c presentation).
-  3. Health pipeline populated (diag_stats [Health] line shows non-zero
-     secondary byte + RegVersion=0x12 — regression guard for
-     AO_HealthMonitor-on-station starting under capability-masking).
+  2. Hardware Status against the expected hardware (--expect from the gate's
+     board profile; without it the legacy rule: IMU and baro shown [N/A],
+     the IVP-142c presentation guard). Unexpected parts are warnings only;
+     a [FAIL] fails whatever the part is expected to be.
+  3. Health pipeline populated (diag_stats [Health] line: secondary byte
+     non-zero, critical 0, regression guard for AO_HealthMonitor-on-station
+     under capability-masking).
+  4. Radio RegVersion=0x12 (SX1276 positive control), only when a radio is
+     expected or detected; otherwise N/A by name. A wrong chip (not 0x12,
+     0x00 or 0xFF) fails whatever the radio is expected to be.
+  N/A checks print as "hw_na: <check> (<part> not fitted)" and unexpected
+  hardware as "hw_warn: hw-unexpected:<role>:<part> ..." for the gate.
 
 Hardware target: REQUIRES STATION FIRMWARE — refuses to run on vehicle.
 The script auto-detects USB CDC ports by VID:PID 0x2E8A:0x0009 and
@@ -41,13 +48,14 @@ connection uses ``open_classified_port`` with ``auto_enter_cli_menu=False``
 because ``goto_main_from_anywhere`` performs dashboard→menu navigation.
 
 Exit codes:
-    0 = all 3 tests pass, no assertions
+    0 = every test that applies passes (N/A tests are named, not counted)
     1 = one or more test failures (regression — fix firmware/test)
     2 = no station present, tool self-check failed, or watchdog fired
         (the pre-push gate treats this as FAIL when the station is required)
 """
 
 import argparse
+import functools
 import os
 import re
 import serial
@@ -66,7 +74,21 @@ from _rc_test_common import (  # noqa: E402
     banner_matches_elf_error,
     classify_banner,
     ensure_station_in_dashboard_state,
-    find_target_port,
+    EXIT_UPTIME_NOT_RISING,
+    STATION_UPTIME_KEYS,
+    check_uptime,
+    uptime_gap_extra_s,
+    STATION_UPTIME_GAP_S,
+    EXIT_UPTIME_RESET,
+    PORT_LOST_MSG,
+    NO_DASH_UPTIME_MSG,
+    HOLD_EXPIRED_MSG,
+    board_config,
+    role_usb_serial,
+    TARGET_STATION_ANY,
+    make_reconnect,
+    report_usb_fault,
+    wait_for_target_port,
     open_classified_port,
     print_board_usb_serial,
     peek_banner,
@@ -89,6 +111,9 @@ RE_HEALTH_LINE = re.compile(
 # Firmware: diag_stats.cpp [Health] line. All 5 fields required.
 
 RE_REG_VERSION = re.compile(r'RegVersion=0x([0-9a-fA-F]+)')
+# No chip on the SPI bus reads back 0x00 or 0xFF (src/drivers/rfm95w.h:
+# "returns 0x00/0xFF when not present"). The firmware prints the line anyway.
+NO_RADIO_REG_VERSIONS = frozenset({'00', 'ff'})
 # Firmware: diag_stats_t0_preconditions() RegVersion readback.
 # JPL-required radio positive control — MUST be 0x12 for SX1276.
 
@@ -212,8 +237,69 @@ def test_boot_and_main_menu(port, state, verbose=False):
     return True, 'OK'
 
 
+# Hardware Status names per part (print_*_status in rc_os_commands.cpp).
+# Parts are generic (Nathan 2026-11-23: any IMU / any baro counts). Today the
+# firmware's status print only names the ICM-20948 and DPS310 drivers; when it
+# reports another IMU or baro, add the name the firmware prints here.
+HW_STATUS_NAMES = {'imu': 'ICM-20948', 'baro': 'DPS310', 'gps': 'GPS'}
+# Without --expect (a manual run): today's station rule, IMU and baro absent
+# and shown [N/A], radio fitted. GPS is not judged.
+LEGACY_EXPECT = None
+
+
+def judge_hw_status(out, expect):
+    """Hardware Status text -> (ok, detail, na, warns). Pure, host-tested.
+
+    expect None: legacy rule (IMU and baro must show [N/A]).
+    expect dict, per part. A part reads one of: [FAIL] <name> (failed),
+    [PASS]/[WARN] <name> (present), [N/A ] <name> not installed or no line
+    (absent). A failure fails in every state: an inhibit or an absent level
+    never hides one (Nathan 2026-11-23).
+      fitted:      present passes; absent fails.
+      optional:    present passes; absent is N/A by name.
+      not-fitted:  absent is N/A by name; present warns (unexpected) and passes.
+      absent:      absent passes; present warns and passes.
+    """
+    na_hits = RE_NA_SENSOR.findall(out)
+    if expect is None:
+        if 'ICM-20948' not in na_hits:
+            return False, f'IMU not shown as [N/A]: found {na_hits}', [], []
+        if 'DPS310' not in na_hits:
+            return False, f'Baro not shown as [N/A]: found {na_hits}', [], []
+        if re.search(r'\[FAIL\]\s*ICM-20948', out):
+            return False, '[FAIL] ICM-20948 seen — regression of N/A presentation', [], []
+        if re.search(r'\[FAIL\]\s*DPS310', out):
+            return False, '[FAIL] DPS310 seen — regression of N/A presentation', [], []
+        return True, f'OK ({len(na_hits)} N/A)', [], []
+    na, warns, bad = [], [], []
+    for part, name in HW_STATUS_NAMES.items():
+        state = expect[part]
+        n = re.escape(name)
+        failed = re.search(r'\[FAIL\]\s*' + n, out) is not None
+        present = re.search(r'\[(?:PASS|WARN)\s*\]\s*' + n, out) is not None
+        if failed:
+            bad.append(f'{name} shown [FAIL] ({part} {state})')
+        elif state == board_config.FITTED:
+            if not present:
+                bad.append(f'{name} expected but '
+                           + ('shown [N/A]' if name in na_hits else 'not shown'))
+        elif state == board_config.OPTIONAL:
+            if not present:
+                na.append(part)
+        elif present:  # not-fitted or absent, but it is there and healthy
+            warns.append((part, f'{name} detected but not expected on this board'
+                          + (' (marked not fitted)' if state == board_config.NOT_FITTED
+                             else '')))
+        elif state == board_config.NOT_FITTED:
+            na.append(part)
+    if bad:
+        return False, '; '.join(bad), na, warns
+    return True, f'OK ({len(na_hits)} N/A shown)', na, warns
+
+
 def test_hardware_status(port, state, verbose=False):
-    """Verify Hardware Status shows [N/A] for uninstalled sensors (IVP-142c).
+    """Hardware Status matches the expected hardware (IVP-142c presentation:
+    an uninstalled sensor renders [N/A], never [FAIL]).
 
     Path: from [main] → 'q' (debug menu) → 'b' (HW status print).
     Returns to main with Esc (NOT 'x' — 'x' from main is Erase-Flights).
@@ -224,56 +310,96 @@ def test_hardware_status(port, state, verbose=False):
     send_and_read(port, ESC, 1.0)            # → back to [main]
 
     state['hw'] = out
-    na_hits = RE_NA_SENSOR.findall(out)
-    if 'ICM-20948' not in na_hits:
-        return False, f'IMU not shown as [N/A]: found {na_hits}'
-    if 'DPS310' not in na_hits:
-        return False, f'Baro not shown as [N/A]: found {na_hits}'
-    if re.search(r'\[FAIL\]\s*ICM-20948', out):
-        return False, '[FAIL] ICM-20948 seen — regression of N/A presentation'
-    if re.search(r'\[FAIL\]\s*DPS310', out):
-        return False, '[FAIL] DPS310 seen — regression of N/A presentation'
-    return True, f'OK ({len(na_hits)} N/A)'
+    ok, detail, na, warns = judge_hw_status(out, state.get('expect'))
+    state.setdefault('hw_na', []).extend(('Hardware Status', p) for p in na)
+    state.setdefault('hw_warn', []).extend(warns)
+    return ok, detail
+
+
+def judge_health(out):
+    """diag_stats text -> (ok, detail, groups). Health pipeline only, every
+    station (secondary non-zero, critical 0). Pure, host-tested."""
+    m = RE_HEALTH_LINE.search(out)
+    if not m:
+        return False, '[Health] line not found in diag_stats output', None
+    prim, sec, crit, mcu, gng = m.groups()
+    if int(sec, 16) == 0:
+        return False, (f'secondary=0x{sec} — AO_HealthMonitor not running? '
+                       f'(expected non-zero with Flash+WDT+PIO bits)'), m.groups()
+    if int(crit, 16) != 0:
+        return False, f'critical=0x{crit} (expected 0x00 on healthy station)', m.groups()
+    return True, f'OK primary=0x{prim} secondary=0x{sec} mcu={mcu}', m.groups()
+
+
+def judge_radio_version(out, radio_state):
+    """(ok or None for N/A, detail, warns). RegVersion=0x12 is the SX1276
+    positive control (council, IVP-132a.4). Pure, host-tested.
+
+    A reading is the chip (0x12), no chip (no line, 0x00 or 0xFF: nothing on
+    the SPI bus) or a wrong chip (any other value). A wrong chip fails in
+    every state: an inhibit or an absent level never hides it (Nathan
+    2026-11-23). radio_state None: legacy, radio required.
+      fitted / None: 0x12 passes; no chip fails.
+      optional:      0x12 passes; no chip is N/A by name.
+      not-fitted:    no chip is N/A by name; 0x12 warns (unexpected), passes.
+      absent:        no chip passes; 0x12 warns and passes."""
+    rv = RE_REG_VERSION.search(out)
+    val = rv.group(1).lower() if rv else None
+    if val is not None and val != '12' and val not in NO_RADIO_REG_VERSIONS:
+        return False, f'RegVersion=0x{rv.group(1)} (expected 0x12): wrong chip', []
+    chip = val == '12'
+    if radio_state == board_config.NOT_FITTED:
+        if chip:
+            return True, 'radio marked not fitted', [(
+                'radio', 'SX1276 RegVersion=0x12 read but the radio is marked not fitted')]
+        return None, 'radio not fitted', []
+    if radio_state == board_config.ABSENT:
+        if chip:
+            return True, 'no radio expected', [('radio', 'SX1276 RegVersion=0x12 '
+                                                'read but no radio expected')]
+        return True, 'no radio expected', []
+    if chip:
+        return True, 'OK RegVersion=0x12', []
+    if radio_state == board_config.OPTIONAL:
+        return None, 'optional radio not detected', []
+    if not rv:
+        return False, 'RegVersion not found in T=0 preconditions', []
+    return False, f'RegVersion=0x{rv.group(1)} (expected 0x12): no chip', []
 
 
 def test_health_pipeline(port, state, verbose=False):
-    """Verify diag_stats [Health] line non-zero secondary + RegVersion=0x12.
+    """diag_stats [Health] line: secondary non-zero, critical 0.
 
     Path: from [main] → 'q' (debug, dev-only) → 'd' (diag_stats_dump).
-    Returns to main with Esc.
+    Returns to main with Esc. The radio check reads the same dump.
     """
     send_and_read(port, 'q', 1.5)            # → [debug]
     out = send_and_read(port, 'd', 5.0)      # diag_stats_dump
     send_and_read(port, ESC, 1.0)            # → back to [main]
 
     state['diag'] = out
+    ok, detail, groups = judge_health(out)
+    if groups:
+        state['health'] = groups
+    return ok, detail
 
-    m = RE_HEALTH_LINE.search(out)
-    if not m:
-        return False, '[Health] line not found in diag_stats output'
-    prim, sec, crit, mcu, gng = m.groups()
-    state['health'] = (prim, sec, crit, mcu, gng)
 
-    if int(sec, 16) == 0:
-        return False, (f'secondary=0x{sec} — AO_HealthMonitor not running? '
-                       f'(expected non-zero with Radio+Flash+WDT+PIO bits)')
-
-    rv = RE_REG_VERSION.search(out)
-    if not rv:
-        return False, 'RegVersion not found in T=0 preconditions'
-    if rv.group(1).lower() != '12':
-        return False, f'RegVersion=0x{rv.group(1)} (expected 0x12)'
-
-    if int(crit, 16) != 0:
-        return False, f'critical=0x{crit} (expected 0x00 on healthy station)'
-
-    return True, f'OK primary=0x{prim} secondary=0x{sec} mcu={mcu}'
+def test_radio_version(port, state, verbose=False):
+    """Radio positive control from the diag dump read by the health test."""
+    exp = state.get('expect')
+    ok, detail, warns = judge_radio_version(state.get('diag', ''),
+                                            exp['radio'] if exp else None)
+    state.setdefault('hw_warn', []).extend(warns)
+    if ok is None:
+        state.setdefault('hw_na', []).append(('Radio RegVersion', 'radio'))
+    return ok, detail
 
 
 TESTS = [
     ('Boot + main menu',          test_boot_and_main_menu),
-    ('Hardware Status [N/A]',     test_hardware_status),
+    ('Hardware Status',           test_hardware_status),
     ('Health pipeline populated', test_health_pipeline),
+    ('Radio RegVersion',          test_radio_version),
 ]
 
 
@@ -297,6 +423,33 @@ def _station_bench_run_inner(ser: serial.Serial,
     # change (2026-05-27).
     if meta.role == Role.STATION:
         ensure_station_in_dashboard_state(ser)
+        # Uptime check. A vanished port is waited for (RC_PORT_WAIT_S, USB
+        # serial first) and reopened: back lower = reset (4); never back =
+        # port lost (3). USB only, no probe.
+        verdict, ups, new_ser = check_uptime(
+            ser, STATION_UPTIME_KEYS,
+            reconnect=make_reconnect(TARGET_STATION_ANY, ser,
+                                     override=getattr(args, 'port', None),
+                                     prefer_serial=getattr(args, '_role_ser', None),
+                                     wait=functools.partial(
+                                         wait_for_target_port,
+                                         strict=getattr(args, '_strict', False))))
+        print(f'  uptime check (dashboard Up s over 3 polls): {ups}')
+        if verdict != 'ok':
+            last = next((u for u in reversed(ups) if u is not None), None)
+            if verdict == 'reset':
+                report_usb_fault('uptime dropped during the check (board reset)',
+                                 'station', appeared=True, seconds=None,
+                                 port=port_name, last_uptime=last)
+                sys.exit(EXIT_UPTIME_RESET)
+            report_usb_fault(verdict if verdict in (PORT_LOST_MSG, NO_DASH_UPTIME_MSG, HOLD_EXPIRED_MSG)
+                             else 'uptime not rising',
+                             'station', appeared=True, seconds=None,
+                             port=port_name, last_uptime=last)
+            sys.exit(EXIT_UPTIME_NOT_RISING)
+        if new_ser is not ser:      # port came back mid-check; keep using it
+            ser = new_ser
+            ensure_station_in_dashboard_state(ser)
 
     # Re-confirm we are still on station firmware after open() — defends
     # against the (rare) case where the user hot-swapped boards between
@@ -340,9 +493,10 @@ def _station_bench_run_inner(ser: serial.Serial,
     print(f'  Max runtime: {args.max_runtime:.0f}s (hard-killed by watchdog)')
     print()
 
-    state = {}
+    state = {'expect': getattr(args, '_expect', None)}
     passed = 0
     failed = 0
+    skipped = 0
     start = time.time()
     deadline = start + args.max_runtime
 
@@ -356,12 +510,14 @@ def _station_bench_run_inner(ser: serial.Serial,
             ok, detail = fn(ser, state, args.verbose)
         except serial.SerialException as e:
             ok, detail = False, f'Serial error: {e}'
-        status = 'PASS' if ok else 'FAIL'
-        if ok:
+        status = 'N/A ' if ok is None else ('PASS' if ok else 'FAIL')
+        if ok is None:
+            skipped += 1
+        elif ok:
             passed += 1
         else:
             failed += 1
-        suffix = f' -- {detail}' if (not ok or args.verbose) else ''
+        suffix = f' -- {detail}' if (ok is None or not ok or args.verbose) else ''
         print(f'  [{status}]  {i + 1}. {name}{suffix}')
 
     all_output = ''.join(state.get(k, '') for k in ('boot', 'hw', 'diag'))
@@ -372,9 +528,14 @@ def _station_bench_run_inner(ser: serial.Serial,
     else:
         print(f'  [PASS]  No QP/fault assertions across all tests')
 
+    for check, part in state.get('hw_na', []):
+        print(board_config.hw_na_line(check, part))
+    for part, what in state.get('hw_warn', []):
+        print(board_config.hw_warn_line('station', part, what))
     elapsed = time.time() - start
     total = passed + failed
-    print(f'\n  RESULT: {passed}/{total} PASS  ({elapsed:.1f}s)')
+    na = f', {skipped} N/A' if skipped else ''
+    print(f'\n  RESULT: {passed}/{total} PASS{na}  ({elapsed:.1f}s)')
     print('=' * 38)
 
     return 0 if failed == 0 else 1
@@ -383,7 +544,7 @@ def _station_bench_run_inner(ser: serial.Serial,
 @rc_test(target=TARGET_STATION_ANY)  # R-25-exec step 7: bench/flight collapsed
 def main():
     parser = argparse.ArgumentParser(
-        description='RocketChip Station Bench Sim (IVP-146, 3 tests)')
+        description='RocketChip Station Bench Sim (IVP-146, 4 tests)')
     parser.add_argument('--port', default=os.environ.get("USBDEV") or os.environ.get("STATION_USBDEV"),
                         help='Serial port (auto-detected via VID:PID + banner; honors $USBDEV or $STATION_USBDEV for stable /dev/serial/by-id/ in WSL)')
     parser.add_argument('--verbose', action='store_true',
@@ -395,21 +556,42 @@ def main():
     parser.add_argument('--commit', default=None,
                         help='Sha being pushed (pre-push gate). The ELF must be a '
                              'clean build of that firmware tree. Default: working tree.')
+    parser.add_argument('--expect', default=None,
+                        help='Expected hardware from the pre-push gate, e.g. '
+                             'imu=absent,baro=absent,radio=fitted,gps=absent. '
+                             'Default: the legacy station rule.')
     args = parser.parse_args()
+    try:
+        args._expect = board_config.parse_expect(args.expect)
+    except board_config.BoardConfigError as e:
+        print(f'ERROR: {e}')
+        sys.exit(2)
 
     # Wall-clock watchdog: hard kill after deadline, regardless of where
     # we are in the test (including stuck inside serial.Serial() C calls).
-    _start_watchdog(args.max_runtime)
+    # RC_UPTIME_GAP_S (test-only) widens the uptime check; the watchdog gets
+    # exactly that extra time (2 gaps + margin). Unset: --max-runtime as is.
+    _start_watchdog(args.max_runtime + uptime_gap_extra_s(STATION_UPTIME_GAP_S))
 
     if args.allow_non_station and args.port is not None:
         # Unsafe path: manual port without strict target match (debugging).
         port_name = args.port
         meta = peek_banner(port_name)
     else:
-        port_name, reason = find_target_port(
-            TARGET_STATION_ANY,
-            override=args.port, verbose=args.verbose)
+        try:
+            role_ser, strict = role_usb_serial('station')
+        except board_config.BoardConfigError as e:
+            print(f'ERROR: {e}')
+            sys.exit(2)
+        pw = wait_for_target_port(
+            TARGET_STATION_ANY, override=args.port, verbose=args.verbose,
+            prefer_serial=role_ser, strict=strict)
+        args._role_ser, args._strict = role_ser, strict
+        port_name, reason = pw.port, pw.meta
         if port_name is None:
+            report_usb_fault('port never appeared' if not pw.appeared else 'not this role',
+                             'station', appeared=pw.appeared, seconds=None,
+                             last_uptime=None)
             print(f'INFO: No station detected — {reason}.')
             print('  Skipping station_bench_sim (this is exit code 2 = '
                   '"no station to test", not a test failure).')

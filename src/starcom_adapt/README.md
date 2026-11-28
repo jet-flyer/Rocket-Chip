@@ -13,9 +13,14 @@ caller (`connecting-T`); vehicle is responder (`connecting-L`). Hail
 lifetime is 0 (no abort): station radio is up ~0.6 s, vehicle ~2.8 s.
 
 Plan (historical dual-build): `docs/plans/SC_DEV_RC_TEST_PREP.md`.
+Edits to this README do not change the firmware tree ID (`!**/*.md` in
+`scripts/ci/firmware_paths.txt`), so a docs-only push needs no bench.
 
-COMM_CHANGE (211.0 table 6-11): catalog index rides SET PL EXTENSIONS
-(`mode_select` + `scrambler`, not 211.1). SX1276 is one modem — stay on
+COMM_CHANGE (211.0 table 6-11): per REV2 D13 the rate rides the SET PL
+EXTENSIONS Data Rate field; Mode Select and Scrambler keep their 211.0-B-6
+§B1.7.7 / §B1.7.6 meanings, and Transmitter Mode = 001. (`byte_pump.cpp`
+still packs the catalog index into `mode_select` + `scrambler`; open on
+the starcom whiteboard.) SX1276 is one modem — stay on
 the old PHY until the remote has echoed COMM_CHANGE (initiator:
 `peer_comm_change`, not E69 on the echo after E68 moves S62→S60). The
 remote radiates that echo from S56 then applies on `macPhy` receive.
@@ -36,13 +41,23 @@ token (`starcom/docs/USER_GUIDE.md`, GLOSSARY). **N** and the wait-vs-RX
 table are this consumer. `flight_mac_mib()` in `byte_pump.cpp`: vehicle
 data-services send is `N × nav_ms`; station send is one nav PLTU ToA;
 each Receive_Duration covers the peer's S51–S58 turn: that
-Send_Duration, carrier plus acquisition plus tail, and the PLCW and
-pass token that leave after the send timer. Pad ARM/DISARM wait ≈
+Send_Duration, carrier plus acquisition plus tail, one frame still on
+air when the send timer ends, and the PLCW and pass token that leave
+after it. R-37: the frame and token airtimes are the slowest preset in
+the rate table, from the radio port query
+(`rocketchip/radio_config_airtime.h`, LoRa in
+`src/drivers/rfm95w_airtime.cpp`). The windows are session static
+(211.0-B-6 annex C) and do not change at a hop. Station receive is
+1801 ms, vehicle receive 318 ms. The station window also holds a vehicle
+timer contact after a lost station frame (vehicle receive, E48/E50, send,
+PLCW and token), so a COMM_CHANGE repeat follows the vehicle token (R-37
+hop 12). Comm_Change_Lifetime is 2 repeats (`kCommChangeLifetime`). Pad ARM/DISARM wait ≈
 vehicle send (FTS onboard). 5 Hz nav with the same 90% packing does
 **not** shorten wait. Later: user-facing preset/configurator.
 
 Boot 250 kHz / SF7 / 10 Hz. Vehicle listen is one station ToA, the
-30 ms open and tail, and those two short P-frames.
+30 ms open and tail, one frame on air, and those two short P-frames
+(the last three at the slowest preset).
 
 | N (nav slots) | Vehicle send | Worst pad-command wait | Station RX (approx) | Notes |
 |---|---|---|---|---|

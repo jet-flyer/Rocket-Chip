@@ -136,6 +136,14 @@ void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
     frame.crc16 = crc16_ccitt(&frame, kCrcLen);
 }
 
+void pcm_pack_event_slot(const PcmFrameEvent& event,
+                         uint8_t slot[kPcmFrameStandardSize]) {
+    static_assert(kPcmFrameEventSize <= kPcmFrameStandardSize,
+                  "event must fit in a standard ring slot");
+    std::memset(slot, 0, kPcmFrameStandardSize);
+    std::memcpy(slot, &event, kPcmFrameEventSize);
+}
+
 // ============================================================================
 // Flight log header population (target only — needs version.h and board.h)
 // ============================================================================

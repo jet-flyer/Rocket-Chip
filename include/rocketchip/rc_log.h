@@ -67,9 +67,16 @@ extern "C" void rc_log_drain_to_cdc(void);
 // mixed with log text. Logs stay in the ring (drop-oldest).
 extern "C" void rc_log_hold_cdc(int hold);
 
+// While true, drain_to_cdc is a no-op so the CLI 'd' download stream has
+// no log text in it (logging/flight_download.cpp). Separate from
+// rc_log_hold_cdc, which the station output mode owns.
+extern "C" void rc_log_hold_cdc_binary(int hold);
+
 // Ring health (HW_GATE Rule 1 / LL 36): dropped_bytes > 0 means output
 // was lost; high_water approaching rc::kRcLogRingBytes means the ring is tight.
 extern "C" uint32_t rc_log_dropped_bytes(void);
+// Bytes in the ring that drain_to_cdc has not sent yet (0 on host).
+extern "C" uint32_t rc_log_pending_bytes(void);
 extern "C" uint32_t rc_log_high_water(void);
 
 #endif  // ROCKETCHIP_RC_LOG_H

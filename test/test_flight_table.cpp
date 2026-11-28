@@ -15,12 +15,16 @@
  *   - Single-bit corruption detection
  *   - Table-level CRC
  *   - Flash layout constant validation
+ *   - Frame placement in a stored flight (flight_log_layout.h): writer and
+ *     USB download agree, every frame read back exactly once
  */
 
 #include <gtest/gtest.h>
 #include <cstring>
 #include "logging/flight_table.h"
+#include "logging/flight_log_layout.h"
 #include "logging/crc32.h"
+#include <vector>
 
 // ============================================================================
 // CRC-32 known test vectors
@@ -418,3 +422,126 @@ TEST(FlightTable, StructSizes) {
 // Actual throughput is limited by USB Full Speed at 12 Mbit/s.
 // Typical achievable: 200-500 KB/s with 4KB transfer chunks.
 // This is a documentation note, not a test — included here for traceability.
+
+// ============================================================================
+// Frame placement in a stored flight (flight_log_layout.h)
+// ============================================================================
+
+namespace {
+
+constexpr uint32_t kStdFrame = rc::kPcmFrameStandardSize;
+
+// Independent model of the original flush_sectors packing: header at the
+// start of sector 0, then frames back to back while a whole frame fits,
+// then the next sector. 0xFF elsewhere. Frame i is filled with a pattern
+// that names i, so a misaligned or repeated read is caught.
+std::vector<uint8_t> pack_like_flush(uint32_t frames, uint32_t frame_size) {
+    std::vector<uint8_t> image;
+    uint32_t idx = 0;
+    for (uint32_t s = 0; idx < frames || s == 0; ++s) {
+        std::vector<uint8_t> sector(rc::kFlashSectorSize, 0xFF);
+        uint32_t pos = 0;
+        if (s == 0) {
+            std::memset(sector.data(), 0xAB, rc::kFlightLogHeaderSize);
+            pos = rc::kFlightLogHeaderSize;
+        }
+        while (idx < frames && pos + frame_size <= rc::kFlashSectorSize) {
+            std::memcpy(&sector[pos], &idx, sizeof(idx));
+            std::memset(&sector[pos + sizeof(idx)], static_cast<int>(idx & 0x7FU),
+                        frame_size - sizeof(idx));
+            pos += frame_size;
+            ++idx;
+        }
+        image.insert(image.end(), sector.begin(), sector.end());
+    }
+    return image;
+}
+
+// The download loop in rc_os_commands.cpp stream_flight_binary().
+std::vector<uint8_t> read_like_download(const std::vector<uint8_t>& image,
+                                        uint32_t frames, uint32_t frame_size) {
+    std::vector<uint8_t> out;
+    uint32_t sent = 0;
+    while (sent < frames) {
+        const rc::FlightLogRun run = rc::flight_log_run_at(sent, frames, frame_size);
+        EXPECT_GT(run.frames, 0U);
+        if (run.frames == 0U) {
+            break;
+        }
+        const uint32_t sector = run.offset / rc::kFlashSectorSize;
+        const uint32_t end = run.offset + run.frames * frame_size;
+        EXPECT_LE(end, (sector + 1U) * rc::kFlashSectorSize) << "run crosses a sector";
+        if (sector == 0U) {
+            EXPECT_GE(run.offset, rc::kFlightLogHeaderSize) << "run reads the header";
+        }
+        out.insert(out.end(), image.begin() + run.offset, image.begin() + end);
+        sent += run.frames;
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST(FlightLogLayout, StandardFrameSectorCapacity) {
+    const uint32_t first = (rc::kFlashSectorSize - rc::kFlightLogHeaderSize) / kStdFrame;
+    const uint32_t rest = rc::kFlashSectorSize / kStdFrame;
+    EXPECT_EQ(first, 66U);
+    EXPECT_EQ(rest, 67U);
+    EXPECT_EQ(rc::flight_log_frames_in_sector(0, kStdFrame), first);
+    EXPECT_EQ(rc::flight_log_frames_in_sector(1, kStdFrame), rest);
+    EXPECT_EQ(rc::flight_log_frames_in_sector(7, kStdFrame), rest);
+}
+
+TEST(FlightLogLayout, FrameOffsetsSkipHeaderAndSectorTails) {
+    EXPECT_EQ(rc::flight_log_frame_offset(0, kStdFrame), rc::kFlightLogHeaderSize);
+    EXPECT_EQ(rc::flight_log_frame_offset(65, kStdFrame),
+              rc::kFlightLogHeaderSize + 65U * kStdFrame);
+    EXPECT_EQ(rc::flight_log_frame_offset(66, kStdFrame), rc::kFlashSectorSize);
+    EXPECT_EQ(rc::flight_log_frame_offset(66 + 66, kStdFrame),
+              rc::kFlashSectorSize + 66U * kStdFrame);
+    EXPECT_EQ(rc::flight_log_frame_offset(66 + 67, kStdFrame), 2U * rc::kFlashSectorSize);
+}
+
+TEST(FlightLogLayout, SectorsNeeded) {
+    EXPECT_EQ(rc::flight_log_sectors_needed(0, kStdFrame), 1U);
+    EXPECT_EQ(rc::flight_log_sectors_needed(1, kStdFrame), 1U);
+    EXPECT_EQ(rc::flight_log_sectors_needed(66, kStdFrame), 1U);
+    EXPECT_EQ(rc::flight_log_sectors_needed(67, kStdFrame), 2U);
+    EXPECT_EQ(rc::flight_log_sectors_needed(133, kStdFrame), 2U);
+    EXPECT_EQ(rc::flight_log_sectors_needed(134, kStdFrame), 3U);
+}
+
+TEST(FlightLogLayout, FrameSizeValidity) {
+    EXPECT_FALSE(rc::flight_log_frame_size_valid(0));
+    EXPECT_TRUE(rc::flight_log_frame_size_valid(kStdFrame));
+    EXPECT_TRUE(rc::flight_log_frame_size_valid(rc::kFlashSectorSize - rc::kFlightLogHeaderSize));
+    EXPECT_FALSE(rc::flight_log_frame_size_valid(rc::kFlashSectorSize - rc::kFlightLogHeaderSize + 1U));
+}
+
+TEST(FlightLogLayout, RunPastEndIsEmpty) {
+    const rc::FlightLogRun run = rc::flight_log_run_at(10, 10, kStdFrame);
+    EXPECT_EQ(run.frames, 0U);
+}
+
+// Regression: the download used to read sector 0 from byte 0 (header bytes
+// as frame data, every sector-0 frame shifted) and dropped the last frame.
+TEST(FlightLogLayout, DownloadReadsEveryFrameOnceInOrder) {
+    const uint32_t counts[] = {1U, 65U, 66U, 67U, 133U, 134U, 500U};
+    for (uint32_t frames : counts) {
+        SCOPED_TRACE(frames);
+        const std::vector<uint8_t> image = pack_like_flush(frames, kStdFrame);
+        EXPECT_EQ(image.size() / rc::kFlashSectorSize,
+                  rc::flight_log_sectors_needed(frames, kStdFrame));
+        const std::vector<uint8_t> out = read_like_download(image, frames, kStdFrame);
+        ASSERT_EQ(out.size(), static_cast<size_t>(frames) * kStdFrame);
+        for (uint32_t i = 0; i < frames; ++i) {
+            uint32_t idx = 0;
+            std::memcpy(&idx, &out[static_cast<size_t>(i) * kStdFrame], sizeof(idx));
+            ASSERT_EQ(idx, i) << "frame " << i;
+            for (uint32_t b = sizeof(idx); b < kStdFrame; ++b) {
+                ASSERT_EQ(out[static_cast<size_t>(i) * kStdFrame + b], i & 0x7FU)
+                    << "frame " << i << " byte " << b;
+            }
+        }
+    }
+}

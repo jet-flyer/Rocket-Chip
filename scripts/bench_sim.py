@@ -14,6 +14,12 @@ Two tests:
   1. Happy path: ARM -> launch -> boost -> apogee -> drogue -> main -> land
   2. Abort-with-pyro: ARM -> launch -> BOOST -> ABORT -> drogue fires
 
+With --expect (pre-push gate, board profile), the preflight is also judged
+against the expected hardware: a NO-GO with the IMU or baro fitted fails,
+and the T2 Radio HW line is judged against radio= (the VERDICT is Tier 1
+only, so it never covers the radio). N/A checks print as "hw_na: ..." and
+unexpected hardware as "hw_warn: hw-unexpected:vehicle:<part> ...".
+
 Port selection uses ``find_target_port`` (RocketChip VID:PID USB CDC only ---
 never picks a bare COM by string alone). Overrides with ``--port`` are still
 banner-classified; station firmware is rejected. Connection uses
@@ -31,6 +37,7 @@ Exit codes:
     2 = could not connect to target or tool self-check failed
 """
 
+import functools
 import argparse
 import os
 import re
@@ -46,12 +53,23 @@ if _SCRIPTS_DIR not in sys.path:
 from _rc_test_common import (  # noqa: E402
     Banner,
     banner_matches_elf_error,
-    find_target_port,
+    EXIT_UPTIME_NOT_RISING,
+    PORT_LOST_MSG,
+    NO_BANNER_MSG,
+    HOLD_EXPIRED_MSG,
+    board_config,
+    role_usb_serial,
+    EXIT_UPTIME_RESET,
+    vehicle_reopen_uptimes,
+    uptime_gap_extra_s,
+    VEHICLE_UPTIME_GAP_S,
     open_classified_port,
     print_board_usb_serial,
     rc_test,
     refuse_stale_tree_and_elf,
+    report_usb_fault,
     TARGET_VEHICLE_ANY,
+    wait_for_target_port,
 )
 
 
@@ -272,11 +290,25 @@ def main():
     parser.add_argument('--commit', default=None,
                         help='Sha being pushed (pre-push gate). The ELF must be a '
                              'clean build of that firmware tree. Default: working tree.')
+    parser.add_argument('--expect', default=None,
+                        help='Expected hardware from the pre-push gate, e.g. '
+                             'imu=fitted,baro=fitted,radio=optional,gps=optional. '
+                             'With IMU or baro fitted, a preflight NO-GO fails '
+                             'the bench; the T2 Radio HW line is judged against '
+                             'radio=. Default: NO-GO only warns and the radio '
+                             'is not judged (legacy).')
     args = parser.parse_args()
+    try:
+        args._expect = board_config.parse_expect(args.expect)
+    except board_config.BoardConfigError as e:
+        print(f'ERROR: {e}')
+        sys.exit(2)
 
     # Wall-clock watchdog: hard kill after deadline, even if stuck inside
     # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
-    _start_watchdog(args.max_runtime)
+    # RC_UPTIME_GAP_S (test-only) widens the uptime check; the watchdog gets
+    # exactly that extra time (2 gaps + margin). Unset: --max-runtime as is.
+    _start_watchdog(args.max_runtime + uptime_gap_extra_s(VEHICLE_UPTIME_GAP_S))
 
     repo = Path(_SCRIPTS_DIR).resolve().parent
     expected, ident_err = refuse_stale_tree_and_elf(repo, 'vehicle', commit=args.commit)
@@ -286,11 +318,21 @@ def main():
         sys.exit(1)
 
     # --- Port detection + connect ---
-    port_name, meta = find_target_port(
-        TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose)
+    try:
+        role_ser, strict = role_usb_serial('vehicle')
+    except board_config.BoardConfigError as e:
+        print(f'ERROR: {e}')
+        sys.exit(2)
+    pw = wait_for_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose,
+        prefer_serial=role_ser, strict=strict)
+    port_name, meta = pw.port, pw.meta
     if port_name is None:
         print('ERROR: No vehicle RocketChip USB CDC port found.')
         print(f'  {meta}')
+        report_usb_fault('port never appeared' if not pw.appeared else 'not this role',
+                         'vehicle', appeared=pw.appeared, seconds=None,
+                         last_uptime=None)
         print('  Plug the vehicle Feather, unplug station-only rigs, or set '
               '--port.')
         sys.exit(2)
@@ -309,6 +351,28 @@ def main():
     print_board_usb_serial(port_name)
     print(f'  image: flight-{expected.git_hash} sha256={expected.sha256[:12]}…')
 
+    # Uptime check: the connect banner prints 'Uptime: Ns' on every fresh open.
+    # Close/reopen 3 times; uptime must rise strictly. Nothing is sent.
+    # A vanished port is waited for (RC_PORT_WAIT_S, USB serial first):
+    # back lower = reset (4); never back = port lost (3). USB only, no probe.
+    verdict, ups, hb_port = vehicle_reopen_uptimes(
+        TARGET_VEHICLE_ANY, override=args.port,
+        prefer_serial=role_ser,
+        wait=functools.partial(wait_for_target_port, strict=strict))
+    print(f'  uptime check (banner Uptime s over 3 reopens): {ups}')
+    if verdict != 'ok':
+        last = next((u for u in reversed(ups) if u is not None), None)
+        if verdict == 'reset':
+            report_usb_fault('uptime dropped between reopens (board reset)',
+                             'vehicle', appeared=True, seconds=pw.seconds,
+                             port=hb_port, last_uptime=last)
+            sys.exit(EXIT_UPTIME_RESET)
+        report_usb_fault(verdict if verdict in (PORT_LOST_MSG, NO_BANNER_MSG, HOLD_EXPIRED_MSG)
+                         else 'uptime not rising', 'vehicle', appeared=True,
+                         seconds=pw.seconds, port=hb_port, last_uptime=last)
+        sys.exit(EXIT_UPTIME_NOT_RISING)
+    port_name = hb_port or port_name
+
     try:
         # find_target_port already classified. A second CDC open with the
         # default DTR pulse USB-resets into bootrom (FLASHING rule 5) so
@@ -321,6 +385,103 @@ def main():
         sys.exit(2)
 
 
+# Sensor parts whose health the preflight GO verdict covers.
+PREFLIGHT_PARTS = ('imu', 'baro')
+NOGO_FAIL_HINT = 'power-cycle the vehicle, then rerun'
+
+
+def preflight_nogo_message(expect):
+    """Preflight never reached GO. With IMU or baro expected fitted that is a
+    test fail (Nathan 2026-11-23); otherwise (manual run, or no sensors
+    expected) it stays the legacy warning. Pure, host-tested."""
+    fitted = [p for p in PREFLIGHT_PARTS
+              if expect and expect.get(p) == board_config.FITTED]
+    if fitted:
+        return (f'FAIL: preflight NO-GO after 15 s with {" and ".join(fitted)} '
+                f'expected fitted. A warm reboot can leave the sensors NO-GO: '
+                f'{NOGO_FAIL_HINT}.')
+    return 'WARNING: sensor health timeout — tests may fail due to NO-GO'
+
+
+
+# Preflight station lines: cli_print_preflight() prints every station as
+# "T%u %-10s %s" (tier, name, reason), e.g. "T2 Radio HW   GO" or
+# "T2 Radio HW   NO-GO NOT INIT" (src/cli/rc_os_commands.cpp, reasons in
+# src/flight_director/go_nogo_checks.cpp). Verified 2026-11-23.
+RE_PREFLIGHT_RADIO = re.compile(r'^T2 Radio HW\s+(GO|NO-GO)\b(.*?)\s*$', re.MULTILINE)
+PREFLIGHT_RADIO_CHECK = 'Radio HW (preflight)'
+PREFLIGHT_GPS_CHECK = 'GPS (preflight)'
+
+
+def judge_preflight_radio(out, radio_state):
+    """Preflight text -> (ok or None for N/A, detail, warns). Pure, host-tested.
+
+    The VERDICT is Tier 1 only, so a missing radio still reads GO; the bench
+    judges the T2 Radio HW line itself (Nathan 2026-11-23: radio code needs
+    the radio). Radio HW is SX1276 init / SPI reachable: GO means a chip
+    that passed its RegVersion check, NO-GO NOT INIT means no chip came up
+    (an unstacked FeatherWing reads 0x00/0xFF and never inits). The line
+    cannot tell "not there" from "there but init failed", so NO-GO is the
+    absent reading; a missing line is no reading at all.
+      fitted:      GO passes; NO-GO or no line fails.
+      optional:    GO passes; NO-GO or no line is N/A by name.
+      not-fitted:  NO-GO or no line is N/A; GO warns (unexpected) and passes.
+      absent:      NO-GO or no line passes; GO warns and passes.
+    None (no --expect): not judged, the legacy vehicle bench."""
+    if radio_state is None:
+        return True, 'not judged (no --expect)', []
+    m = RE_PREFLIGHT_RADIO.search(out or '')
+    go = m is not None and m.group(1) == 'GO'
+    seen = f'T2 Radio HW {m.group(1)}{m.group(2)}' if m else 'no T2 Radio HW line'
+    if radio_state == board_config.FITTED:
+        if go:
+            return True, 'OK T2 Radio HW GO', []
+        why = (f'{seen} (radio expected fitted; preflight VERDICT does not '
+               f'cover the radio)' if m else
+               f'{seen} in the preflight output (radio expected fitted)')
+        return False, why, []
+    if go:
+        if radio_state == board_config.OPTIONAL:
+            return True, 'OK T2 Radio HW GO', []
+        return True, 'radio not expected', [('radio', 'Radio HW GO (SX1276 came up) '
+                                             'but no radio expected')]
+    if radio_state == board_config.ABSENT:
+        return True, 'no radio expected', []
+    if radio_state == board_config.NOT_FITTED:
+        return None, f'radio not fitted ({seen})', []
+    return None, f'optional radio not detected ({seen})', []
+
+
+def judge_preflight_gps(gps_state):
+    """(ok or None, detail). The preflight GPS line is lock (fix >= 2D and
+    >= 4 sats, go_nogo_checks.h), not presence: a fitted GPS reads NO-GO NO
+    LOCK indoors. So the vehicle bench cannot confirm a GPS is fitted, and
+    an expected-fitted GPS fails rather than passing unchecked. Today both
+    profiles mark GPS optional, which the vehicle bench does not judge."""
+    if gps_state == board_config.FITTED:
+        return False, ('GPS expected fitted, but the vehicle bench cannot check '
+                       'GPS presence (the preflight GPS line is lock, not '
+                       'presence). Mark GPS optional in the profile or add a '
+                       'vehicle Hardware Status check.')
+    return None, 'not judged on the vehicle bench'
+
+
+def judge_preflight_hw(out, expect):
+    """(results, na, warns) for the Tier 2 parts in --expect. results:
+    [(check name, ok or None, detail)]; na: [(check, part)] for hw_na:;
+    warns: [(part, message)] for hw_warn:. No --expect: nothing judged."""
+    if not expect:
+        return [], [], []
+    results, na = [], []
+    ok, detail, warns = judge_preflight_radio(out, expect['radio'])
+    results.append((PREFLIGHT_RADIO_CHECK, ok, detail))
+    if ok is None:
+        na.append((PREFLIGHT_RADIO_CHECK, 'radio'))
+    ok, detail = judge_preflight_gps(expect['gps'])
+    if ok is not None:
+        results.append((PREFLIGHT_GPS_CHECK, ok, detail))
+    return results, na, warns
+
 def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     """Test body inside open_classified_port context."""
 
@@ -330,6 +491,7 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     # until VERDICT: GO or timeout.
     print('waiting for sensor health...')
     health_deadline = time.time() + 15.0
+    preflight_out = ''  # last full preflight print, for the Tier 2 judges
     while time.time() < health_deadline:
         send_key(ser, 'z', 1.0)  # ensure main menu
         time.sleep(0.3)
@@ -337,6 +499,8 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
         ser.write(b'p')
         time.sleep(1.0)
         health_out = ser.read(4096).decode('utf-8', errors='replace')
+        if 'VERDICT' in health_out:
+            preflight_out = health_out
         if 'VERDICT:  GO' in health_out:
             print('  sensors healthy — GO')
             break
@@ -346,7 +510,16 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
                 print(f'  {verdict_line[0].strip()}')
         time.sleep(1.0)
     else:
-        print('WARNING: sensor health timeout — tests may fail due to NO-GO')
+        msg = preflight_nogo_message(getattr(args, '_expect', None))
+        if msg.startswith('FAIL'):
+            print(msg)
+            return 1
+        print(msg)
+
+    # The VERDICT covers Tier 1 only; the radio and GPS are Tier 2 lines that
+    # never change it (go_nogo_checks.cpp). Judge them here against --expect.
+    hw_results, hw_na, hw_warn = judge_preflight_hw(
+        preflight_out, getattr(args, '_expect', None))
 
     # Inject keys are compile-time ROCKETCHIP_DEV_MODE + runtime toggle.
     # Toggle needs USB + IDLE (ABORT leftover from a prior run refuses).
@@ -377,6 +550,16 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
 
     passed = 0
     failed = 0
+    skipped = 0
+    for name, ok, detail in hw_results:
+        status = 'N/A ' if ok is None else ('PASS' if ok else 'FAIL')
+        if ok is None:
+            skipped += 1
+        elif ok:
+            passed += 1
+        else:
+            failed += 1
+        print(f'  [{status}]  {name} -- {detail}')
     start_time = time.time()
     deadline = start_time + args.max_runtime
 
@@ -402,9 +585,14 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
         suffix = '' if ok else f' -- {detail}'
         print(f'  [{status}]  {i + 1}. {tc.name}{suffix}')
 
+    for check, part in hw_na:
+        print(board_config.hw_na_line(check, part))
+    for part, what in hw_warn:
+        print(board_config.hw_warn_line('vehicle', part, what))
     elapsed = time.time() - start_time
     total = passed + failed
-    print(f'\n  RESULT: {passed}/{total} PASS  ({elapsed:.1f}s)')
+    na = f', {skipped} N/A' if skipped else ''
+    print(f'\n  RESULT: {passed}/{total} PASS{na}  ({elapsed:.1f}s)')
     print(f'={"=" * 30}')
 
     return 0 if failed == 0 else 1

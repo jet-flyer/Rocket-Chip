@@ -28,6 +28,7 @@
 #include "hardware/gpio.h"
 #include "hardware/flash.h"
 #include "pico/flash.h"
+#include "logging/flash_gate.h"  // FSK item 2: time each flash_safe_execute
 
 #include <cstring>
 
@@ -357,7 +358,9 @@ bool psram_flash_safe_test() {
         .offset = kFlashTestOffset,
         .len = FLASH_SECTOR_SIZE
     };
+    const uint64_t t0 = rc::flash_gate_begin();
     int result = flash_safe_execute(do_flash_erase, &params, kFlashSafeTimeoutMs);
+    rc::flash_gate_end(rc::FlashOpType::kErase, t0, result);
     if (result != PICO_OK) {
         return false;  // flash_safe_execute itself failed
     }

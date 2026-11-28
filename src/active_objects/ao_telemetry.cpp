@@ -49,6 +49,8 @@
 
 #include "rocketchip/rc_log.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
+#include "logging/flash_gate.h"  // FSK item 2: MAC poll-gap tracker
 #include <string.h>
 #include <span>
 
@@ -223,6 +225,8 @@ static void gcs_station_tick(TelemAo* me) {
 // Vehicle-side pending ACK (queued for next TX opportunity)
 static rc::ccsds::CommandAckPayload g_pendingAck = {};
 static bool g_pendingAckValid = false;
+// SET_RADIO_CONFIG deny reason. Copied into the ACK reserved byte.
+static uint8_t g_cmdRejectReason = 0;
 
 // Station-side pending command. p1..p5 replay SET_RADIO_CONFIG on retry.
 static struct {
@@ -319,7 +323,138 @@ static bool g_commChangeArmed = false;
 static bool g_remoteApplyOnReceive = false;
 static rc::RadioConfig g_commChangePending = rc::kDefaultRocketRadioConfig;
 
+// R-37: end a local hop that will not complete. Keep the old PHY.
+static void starcom_end_hop(starcom::ccsds::MacNotify n) {
+    // 211.0 4.2.2.5.4-4.2.2.5.5: no echo inside Comm_Change_Lifetime. The
+    // MAC aborted the activity. The station never left the old PHY.
+    if (n == starcom::ccsds::MacNotify::comm_change_failed) {
+        const auto idx = g_pump.pending_catalog_idx;
+        rc::starcom_adapt::pump_cancel_comm_change(g_pump);
+        g_commChangeArmed = false;
+        g_remoteApplyOnReceive = false;
+        rc::rc_log("[SC] COMM_CHANGE no echo, cancelled idx=%u\n",
+                   static_cast<unsigned>(idx));
+    }
+    // A new session (hail fail) ends the hop. Do not keep TX held.
+    if (g_commChangeArmed && !g_pump.local_comm_change) {
+        g_commChangeArmed = false;
+    }
+}
+
+static const char* starcom_turn_text(rc::starcom_adapt::TurnCause c) {
+    using rc::starcom_adapt::TurnCause;
+    switch (c) {
+    case TurnCause::token:
+        return "E49-token";
+    case TurnCause::timer_e48:
+        return "E48-timer";
+    case TurnCause::timer_e50:
+        return "E50-timer";
+    case TurnCause::hail:
+        return "E30-hail";
+    case TurnCause::remote_comm_change:
+        return "E69";
+    case TurnCause::none:
+        break;
+    }
+    return "none";
+}
+
+static uint32_t g_pumpEventsLostLogged = 0;
+
+static const char* starcom_spdu_text(uint8_t type) {
+    switch (type) {
+    case starcom::ccsds::kSetTxDirectiveType:
+        return "SET-TX";
+    case starcom::ccsds::kSetRxDirectiveType:
+        return "SET-RX";
+    case starcom::ccsds::kSetPlExtDirectiveType:
+        return "SET-PL";
+    case starcom::ccsds::kSetControlDirectiveType:
+        return "SET-CONTROL";
+    default:
+        break;
+    }
+    return "other";
+}
+
+static const char* starcom_turn_event_text(rc::starcom_adapt::TurnEvent t) {
+    using rc::starcom_adapt::TurnEvent;
+    switch (t) {
+    case TurnEvent::enter_s50:
+    case TurnEvent::enter_s60:
+    case TurnEvent::enter_s61:
+    case TurnEvent::enter_s62:
+        return "enter";
+    case TurnEvent::e44:
+        return "E44";
+    case TurnEvent::e45:
+        return "E45";
+    case TurnEvent::e48:
+        return "E48";
+    case TurnEvent::e49:
+        return "E49";
+    case TurnEvent::e50:
+        return "E50";
+    case TurnEvent::none:
+        break;
+    }
+    return "none";
+}
+
+// R-37 log of one pump event. t is the device time in ms (now_ms). A drop
+// is one line for each dropped SPDU; idx=255 means no SET PL in the frame.
+static void starcom_log_pump_event(rc::starcom_adapt::PumpEvent const& e) {
+    if (e.turn == rc::starcom_adapt::TurnEvent::none) {
+        const bool own = e.why == rc::starcom_adapt::CommChangeDrop::own_hop;
+        rc::rc_log("[SC] COMM_CHANGE dropped S%u why=%s n=%lu idx=%u "
+                   "cmd=%u/%u type=%s t=%lu\n",
+                   static_cast<unsigned>(e.state),
+                   own ? "own-hop" : "not-S60/S61",
+                   static_cast<unsigned long>(e.drop_n),
+                   static_cast<unsigned>(e.idx),
+                   static_cast<unsigned>(e.cmd_pos),
+                   static_cast<unsigned>(e.cmd_n),
+                   starcom_spdu_text(e.cmd_type),
+                   static_cast<unsigned long>(e.t));
+        return;
+    }
+    rc::rc_log("[SC] MAC %s S%u t=%lu\n", starcom_turn_event_text(e.turn),
+               static_cast<unsigned>(e.state),
+               static_cast<unsigned long>(e.t));
+}
+
+// R-37 logs: the COMM_CHANGE send (table 6-11 E65), each received
+// COMM_CHANGE SPDU that did not start E69, and the MAC turn events. The
+// pump keeps the events in a ring; this poll loop prints them.
+static void starcom_log_comm_change_air() {
+    if (g_pump.cc_sent_new) {
+        g_pump.cc_sent_new = false;
+        rc::rc_log("[SC] COMM_CHANGE sent idx=%u %s S%u turn=%s try=%u\n",
+                   static_cast<unsigned>(g_pump.pending_catalog_idx),
+                   g_pump.local_comm_change ? "request" : "echo",
+                   static_cast<unsigned>(g_pump.cc_sent_state),
+                   starcom_turn_text(g_pump.cc_sent_turn),
+                   static_cast<unsigned>(g_pump.cc_sent_n) + 1U);
+    }
+    g_pump.cc_drop_new = false;
+    rc::starcom_adapt::PumpEvent e{};
+    for (uint8_t i = 0; i < rc::starcom_adapt::kPumpEventCap; ++i) {
+        if (!rc::starcom_adapt::pump_take_event(g_pump, e)) {
+            break;
+        }
+        starcom_log_pump_event(e);
+    }
+    if (g_pump.ev_lost != g_pumpEventsLostLogged) {
+        g_pumpEventsLostLogged = g_pump.ev_lost;
+        rc::rc_log("[SC] MAC events lost n=%lu\n",
+                   static_cast<unsigned long>(g_pumpEventsLostLogged));
+    }
+}
+
 static void starcom_poll_mac_radio() {
+    rc::flash_gate_note_mac_poll();  // Measurement only (FSK item 2)
+    starcom_log_comm_change_air();
     const auto n = rc::starcom_adapt::pump_poll_mac_notify(g_pump);
     if (n == starcom::ccsds::MacNotify::comm_change_apply_rx &&
         g_pump.pending_catalog_valid) {
@@ -344,6 +479,7 @@ static void starcom_poll_mac_radio() {
         rc::starcom_adapt::pump_start_session(
             g_pump, kCaller, static_cast<starcom::ccsds::Tick>(now_ms()));
     }
+    starcom_end_hop(n);
     // E69: stay on the old PHY through the following send so the
     // initiator can hear a frame (E68) before anyone retunes.
     if (g_pump.remote_apply_now && g_pump.pending_catalog_valid) {
@@ -556,10 +692,26 @@ static void encode_and_send(TelemAo* me) {
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
+// Power gate. Does not write the config.
+static bool set_radio_power_ok(uint8_t new_pwr) {
+    const bool allow = AO_Radio_tx_high_power_enabled();
+    const rc::RadioPowerReject why = rc::radio_power_reject(new_pwr, allow);
+    if (why == rc::RadioPowerReject::kOk) {
+        g_cmdRejectReason = 0;
+        return true;
+    }
+    g_cmdRejectReason = static_cast<uint8_t>(why);
+    rc::rc_log("[CMD] SET denied — pwr=%u reason=%u %s\n",
+               static_cast<unsigned>(new_pwr),
+               static_cast<unsigned>(g_cmdRejectReason),
+               rc::radio_power_reject_text(why));
+    return false;
+}
+
 // SET_RADIO_CONFIG dispatcher. Returns ACK result.
-// 4 gates (flight-state, SX1276-legal, nav ToA fits Hz, ±6 dB power
-// delta) before queue.
+// Gates: flight-state, power, SX1276-legal, nav ToA fits Hz.
 static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
+    g_cmdRejectReason = 0;
     uint16_t new_bw  = static_cast<uint16_t>(lroundf(cmd.param1));
     uint8_t  new_nav = static_cast<uint8_t> (lroundf(cmd.param2));
     uint8_t  new_sf  = static_cast<uint8_t> (lroundf(cmd.param3));
@@ -568,6 +720,9 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
 
     if (!AO_FlightDirector_is_ground_state()) {
         rc::rc_log("[CMD] SET denied — not ground state\n");
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    if (!set_radio_power_ok(new_pwr)) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     // Presets are debug-menu defaults; advanced path accepts SX1276-legal
@@ -590,13 +745,6 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
-    int pwr_delta = static_cast<int>(new_pwr) - static_cast<int>(cur->power_dbm);
-    if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
-    if (pwr_delta > 6) {
-        rc::rc_log("[CMD] SET denied — power delta %d dB\n", pwr_delta);
-        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
-    }
-
     rc::RadioConfig new_cfg = *cur;  // inherit mode/protocol
     new_cfg.nav_rate_hz      = new_nav;
     new_cfg.power_dbm        = new_pwr;
@@ -703,7 +851,8 @@ static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result)
     g_pendingAck.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
     g_pendingAck.cmd_id  = cmd.command;
     g_pendingAck.result  = ack_result;
-    g_pendingAck.reserved = 0;
+    g_pendingAck.reserved = g_cmdRejectReason;
+    g_cmdRejectReason = 0;
     if (cmd.command == MAV_CMD_USER_3) {
         const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
         g_pendingAck.cfg_bw_khz = cur->bandwidth_khz;
@@ -864,6 +1013,21 @@ static void station_on_tminus_ack(const rc::ccsds::CommandAckPayload& ack) {
 }
 #endif
 
+static void log_cmd_ack_result(uint8_t seq, bool accepted, uint8_t reason) {
+    if (accepted) {
+        rc::rc_log("[CMD] ACK'd (seq=%u)\n", seq);
+        return;
+    }
+    if (reason == 0U) {
+        rc::rc_log("[CMD] DENIED (seq=%u)\n", seq);
+        return;
+    }
+    const auto why = static_cast<rc::RadioPowerReject>(reason);
+    rc::rc_log("[CMD] DENIED (seq=%u) reason=%u %s\n",
+               seq, static_cast<unsigned>(reason),
+               rc::radio_power_reject_text(why));
+}
+
 static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 #ifdef ROCKETCHIP_JOB_STATION
     // Inject ACK suppression (runtime-gated; 0 on production boots).
@@ -896,7 +1060,7 @@ static bool apply_cmd_ack_payload(const rc::ccsds::CommandAckPayload& ack) {
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
-    rc::rc_log("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
+    log_cmd_ack_result(ack.cmd_seq, accepted, ack.reserved);
 
     record_ack_outcome(matched_cmd, matched_p1, retries_left_at_ack,
                        rtt_ms, accepted);
@@ -954,9 +1118,7 @@ static bool starcom_handle_nav_sdu(TelemAo* me, std::span<const std::byte> data,
 }
 
 static bool starcom_handle_cmd_sdu(TelemAo* me, std::span<const std::byte> data) {
-    uint16_t cmd_id = 0;
-    uint8_t seq = 0;
-    float p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0;
+    rc::CmdSduFields fields{};
     uint8_t user[rc::kCmdSduUserBytes];
     if (data.size() != rc::kCmdSduUserBytes) {
         return false;
@@ -964,20 +1126,20 @@ static bool starcom_handle_cmd_sdu(TelemAo* me, std::span<const std::byte> data)
     for (std::size_t i = 0; i < rc::kCmdSduUserBytes; ++i) {
         user[i] = static_cast<uint8_t>(data[i]);
     }
-    if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, &cmd_id, &seq,
-                                 &p1, &p2, &p3, &p4, &p5)) {
+    if (!rc::unpack_cmd_sdu_user(user, rc::kCmdSduUserBytes, fields)) {
         return false;
     }
     mavlink_command_long_t cmd{};
-    cmd.command = cmd_id;
-    cmd.confirmation = seq;
-    cmd.param1 = p1;
-    cmd.param2 = p2;
-    cmd.param3 = p3;
-    cmd.param4 = p4;
-    cmd.param5 = p5;
+    cmd.command = fields.cmd_id;
+    cmd.confirmation = fields.seq;
+    cmd.param1 = fields.p[0];
+    cmd.param2 = fields.p[1];
+    cmd.param3 = fields.p[2];
+    cmd.param4 = fields.p[3];
+    cmd.param5 = fields.p[4];
     rc::rc_log("[SC] cmd SDU id=%u seq=%u\n",
-               static_cast<unsigned>(cmd_id), static_cast<unsigned>(seq));
+               static_cast<unsigned>(fields.cmd_id),
+               static_cast<unsigned>(fields.seq));
     const uint8_t ack_result = dispatch_command(me, cmd);
     stage_cmd_ack(cmd, ack_result);
     send_pending_ack_if_any();
@@ -992,6 +1154,8 @@ static bool starcom_handle_sdu(TelemAo* me, std::span<const std::byte> sdu) {
     // 133.0-B-2 §4.3.2: continuity is per APID on this end.
     rc::starcom_adapt::pump_note_rx_seq(
         g_pump, pkt->fields.apid, pkt->fields.seq_count);
+    link_baseline_note_seq(static_cast<uint16_t>(pkt->fields.apid),
+                           pkt->fields.seq_count);
     if (pkt->fields.apid == rc::starcom_adapt::kNavApid) {
         return starcom_handle_nav_sdu(me, pkt->data, pkt->fields.seq_count);
     }
@@ -1036,16 +1200,19 @@ static void note_seq_delivered() {
 #endif
 
 static bool note_starcom_pltu_crc(std::span<const std::byte> octets) {
-    if constexpr (!job::kRadioModeRx) {
-        return false;
-    }
     const auto pltu = starcom::ccsds::decodePltu(octets);
     if (pltu) {
-        radio_rate_inc_rx_crc_ok();
+        link_baseline_note_delivered();
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_rx_crc_ok();
+        }
         return true;
     }
     if (pltu.error() == starcom::ccsds::Error::bad_crc) {
-        radio_rate_inc_rx_crc_fail();
+        link_baseline_note_crc_fail();
+        if constexpr (job::kRadioModeRx) {
+            radio_rate_inc_rx_crc_fail();
+        }
     }
     return false;
 }
@@ -1136,6 +1303,7 @@ static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
 static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
+#if !defined(ROCKETCHIP_RADIO_OFF)  // bench build: no Starcom MAC pump
         rc::starcom_adapt::pump_tick(g_pump, static_cast<starcom::ccsds::Tick>(now_ms()));
 #ifndef ROCKETCHIP_HOST_TEST
         starcom_poll_mac_radio();
@@ -1144,6 +1312,9 @@ static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
         if constexpr (!job::kRadioModeRx) {
             encode_and_send(me);
         }
+#else
+        (void)encode_and_send;  // kept linked; unused in the radio-off build
+#endif
         gcs_station_tick(me);
         return Q_HANDLED();
     }
@@ -1260,6 +1431,11 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &g_telemAo.rx_snapshot;
 }
 
+// `t` calls this. g_pump stays in this file. Counts are read from p.copp.
+void link_baseline_dump(void) {
+    link_baseline_dump(g_pump);
+}
+
 StarcomLinkStatus AO_Telemetry_get_starcom_link() {
     StarcomLinkStatus s{};
     s.on = true;
@@ -1317,10 +1493,42 @@ static void populate_pending(uint16_t command, uint8_t seq,
 }
 #endif  // !ROCKETCHIP_HOST_TEST
 
+#ifndef ROCKETCHIP_HOST_TEST
+// Station check before a SET leaves the radio. A reject does not send
+// and does not change the local config.
+static bool station_set_presend_ok(uint16_t command, float p5) {
+    if (command != 31011U) {
+        return true;
+    }
+    const long rounded = lroundf(p5);
+    const uint8_t pwr = ((rounded < 0) || (rounded > 255))
+        ? static_cast<uint8_t>(0)
+        : static_cast<uint8_t>(rounded);
+    const bool allow = AO_Radio_tx_high_power_enabled();
+    const rc::RadioPowerReject why = rc::radio_power_reject(pwr, allow);
+    if (why == rc::RadioPowerReject::kOk) {
+        return true;
+    }
+    rc::rc_log("[CMD] SET rejected pre-send pwr=%u reason=%u %s\n",
+               static_cast<unsigned>(pwr),
+               static_cast<unsigned>(static_cast<uint8_t>(why)),
+               rc::radio_power_reject_text(why));
+    g_lastCmdResult.valid = true;
+    g_lastCmdResult.ok = false;
+    g_lastCmdResult.cmd_id = command;
+    g_lastCmdResult.rtt_ms = 0;
+    g_lastCmdResult.at_ms = to_ms_since_boot(get_absolute_time());
+    return false;
+}
+#endif
+
 void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
                                        float p2, float p3,
                                        float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
+    if (!station_set_presend_ok(command, p5)) {
+        return;
+    }
     // 211.0 7.2.3 SE1: resend the Sent-queue; do not mint a new N(S).
     if (g_pendingCmd.pending) {
         rc::rc_log("[CMD] skip submit, FOP resends pending %u\n",
@@ -1331,8 +1539,8 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     const MavCmdParams params{p1, p2, p3, p4, p5};
     populate_pending(command, seq, params);
     std::byte pkt[6u + rc::kCmdSduUserBytes];
-    const auto n = rc::starcom_adapt::pump_pack_cmd_packet(
-        g_pump, pkt, command, seq, p1, p2, p3, p4, p5);
+    const rc::CmdSduFields fields{command, seq, {p1, p2, p3, p4, p5}};
+    const auto n = rc::starcom_adapt::pump_pack_cmd_packet(g_pump, pkt, fields);
     if (n.has_value() && *n > 0) {
         const auto sub = rc::starcom_adapt::pump_submit_sdu(
             g_pump, std::span<const std::byte>(pkt, *n), false);

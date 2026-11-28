@@ -160,6 +160,10 @@ Integrated 5.8 GHz analog video transmitter (VTx) on the Telstar board.
 - RocketChip does not process video — just relays VTx configuration commands through the CRSF channel
 - This is analog FPV video, not digital (DJI O3/HDZero/Walksnail). Digital FPV systems are closed ecosystems with proprietary protocols. Analog remains the open, hackable, and most widely compatible option for custom builds.
 
+### 5.1 Differential analog video (pointer, 2026-10-13)
+
+Nathan, 2026-10-13. For the Telestar FPV board: send analog composite video as a differential signal over a twisted pair (like CCTV video baluns) to reject common-mode noise, with no added latency and no FPGA. Candidate parts: AD8132 driver + AD8130 receiver, both distributor-listed active (ADI pages not reachable; Octopart status ~4 yr old). Pointer only, nothing decided. Background: `starcom/spacewire/README.md`.
+
 ---
 
 ## 6. Interface to RocketChip

@@ -40,12 +40,14 @@
 - Never silently modify another agent's work.
 - Coding standards are mandatory — no deviations without explicit approval (see `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`).
 - **Prior art research required** before implementing hardware interfaces or novel functionality (see CODING_STANDARDS.md).
-- **CCSDS Blue Books first** for Starcom / MAC / COP-P / air: open the cited PDF in `standards/starcom/ccsds/` and `starcom/docs/COVERAGE.md` neighbors **before** writing a workaround. Do not invent a dwell, token substitute, or retry layer when the book names the event. Detail: `starcom/docs/WORKING_HERE.md`.
+- **CCSDS Blue Books first** for Starcom / MAC / COP-P / air: open the cited PDF in `starcom/standards/ccsds/` and `starcom/docs/COVERAGE.md` neighbors **before** writing a workaround. Do not invent a dwell, token substitute, or retry layer when the book names the event. Detail: `starcom/docs/WORKING_HERE.md`.
 - Repository files are authoritative. When a discrepancy between agent memory and repo content is flagged, the repository is almost always the correct, double check with user to update your memory.
 - Write in ASD-STE100 Simplified Technical English (the current issue, https://www.asd-ste100.org/). This covers chat replies, new commit messages, and new CHANGELOG entries. Use short sentences. Put one topic in each sentence. Keep technical names, book cites, and operational numbers. `starcom/docs/USER_GUIDE.md` is the wording example. It is not the limit of the rule.
 - Content rules for commit messages still apply (for example `standards/HW_GATE_DISCIPLINE.md` Rule 3).
 - Do not rewrite existing documents or old commits from this rule, aside from re-evaluation passes explicitly triggered by a human user.
 - Code, comments, and firmware log strings stay under `standards/CODING_STANDARDS.md`.
+- **Hardware-facing changes need a real-board check before merge to main.** Scope: `src/drivers/` (I2C, SPI, UART, GPS, IMU, baro, RFM95), `src/active_objects/ao_radio*`, `src/diag/radio_*`, `src/logging/radio_config_storage*`, `src/safety/` (boot, watchdog), `src/main.cpp`, `src/cli/` (CLI `k` restart path), `pio/*.pio`, and any ISR, boot or reset path. You can commit before the check. Until then the commit's `Verified:` line must say `UNBENCHED`. The check is a run on real boards by Buzz or Grok Build. It must cover warm restarts (CLI `k` and `picotool reboot`), a power-on boot, and a short soak with the radio link live. Hook and pre-push checks alone do not count. Why: `c4278fb3` (cloud agent, host-tested only) caused the station PA1010D warm-restart hang. Also in `.cursor/rules/hw-verify.mdc`.
+- The bench assumes the board console is USB serial (USB CDC); a board with a UART-only console needs a USB-UART adapter.
 
 ---
 

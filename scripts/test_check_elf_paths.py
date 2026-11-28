@@ -99,6 +99,17 @@ def part_a(td: Path) -> None:
     except cep.CheckError as exc:
         check('empty query fails closed', 'inputs' in str(exc), exc)
 
+    write(repo / 'src/note.md', '# note\n')
+    write(repo / 'scripts/ci/firmware_paths.txt',
+          '!**/*.md\n[elf]\nsrc/\n!**/*.md\ninclude/\nCMakeLists.txt\npico-sdk\n'
+          '[elf-exempt]\n.git/\n')
+    raw_md = dict(raw)
+    raw_md['deps'] = list(raw['deps']) + ['../src/note.md']
+    res = cep.check(repo, [bdir], query=lambda b: raw_md)
+    check('! line is not a path and does not error',
+          'src/note.md' in res.uncovered and 'tools/x.h' in res.uncovered,
+          res.uncovered)
+
 
 FIXTURE_CMAKE = '''cmake_minimum_required(VERSION 3.20)
 project(fx C)

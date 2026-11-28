@@ -1,0 +1,44 @@
+// One frame slot and its read and write calls. HostLoopback pairs two slots.
+// No state.
+// The caller owns FrameSlot.
+// Book: none.
+
+#ifndef STARCOM_ADAPTERS_LOOPBACK_H_
+#define STARCOM_ADAPTERS_LOOPBACK_H_
+
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/types.h"
+#include "starcom/result.h"
+
+#include <array>
+#include <cstddef>
+#include <span>
+
+namespace starcom::adapters
+{
+
+// One complete PLTU. Envelope sizes from 211.2 Fig 3-1 (ASM + max frame + CRC-32).
+inline constexpr std::size_t kAdapterFrameMax =
+    ccsds::kPltuAsmSize + ccsds::kTransferFrameMax + ccsds::kPltuCrcSize;
+
+// One outstanding unit. Extra buffering is the caller's (same idea as FOP-1 Wait_Queue).
+struct FrameSlot
+{
+  std::array<std::byte, kAdapterFrameMax> buf{};
+  std::size_t n = 0;
+};
+
+[[nodiscard]] ccsds::Result<std::size_t> slotWrite(FrameSlot& slot,
+                                      std::span<const std::byte> octets) noexcept;
+[[nodiscard]] ccsds::Result<std::size_t> slotRead(FrameSlot& slot, std::span<std::byte> out) noexcept;
+
+// Two simplex lanes. No sockets. Core still never sees this type.
+struct HostLoopback
+{
+  FrameSlot a_to_b{};
+  FrameSlot b_to_a{};
+};
+
+}  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_LOOPBACK_H_

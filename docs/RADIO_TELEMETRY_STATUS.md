@@ -2,7 +2,7 @@
 
 **Purpose:** Single tracking document for all radio, telemetry, and ground station work — done, planned, and deferred. Prevents decisions from being buried in council minutes.
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-10-21
 
 ---
 
@@ -33,6 +33,30 @@ Radio Driver (rfm95w)
 - TX-busy policy: drop and log. TX timeout → kRxWindow (prioritize RX).
 - Relay: link-layer only in AO_Radio (CRC check, no payload decode).
 - Radio init failure: probe-first, "no hardware" flag, Telem still encodes for USB MAVLink.
+
+### TX power (2026-10-21)
+
+The driver writes one PA setting in `rfm95w_set_tx_power()`.
+
+A request below +2 dBm is raised to +2 dBm. That raise is quiet. It is not a cap clamp.
+
+The continuous cap is +17 dBm. `RegPaDac` stays 0x84. A request above the cap is clamped. The driver logs `RADIO: TX power clamp <requested> -> <applied> dBm`.
+
++20 dBm uses `RegPaDac` 0x87 and `OutputPower` 15. Call `rfm95w_set_tx_high_power(dev, true)` before `rfm95w_set_tx_power`. Or build with `RC_RFM95_ALLOW_20DBM`. A value above +17 dBm does not by itself select +20 dBm.
+
+18 dBm and 19 dBm have no datasheet PA code. `SET_RADIO_CONFIG` rejects them. The reason code is 2. The config is not stored.
+
+`SET_RADIO_CONFIG` allows 2 dBm through 17 dBm. It allows 20 dBm only when the opt-in is on. Without the opt-in, a request above 17 dBm is rejected. The reason code is 3. A request below 2 dBm or above 20 dBm is rejected. The reason code is 1. The vehicle sends `CmdAckResult::kDenied`. The reason is `CommandAckPayload.reserved`. The station uses the same rule before it sends. A reject does not change the saved config or the station mirror.
+
+One SET may move power across that whole range. There is no per-command step limit.
+
+`rfm95w_set_tx_power()` returns the dBm it wrote. That value is stored in `RadioConfig.power_dbm`. CFG, the CLI, the dashboard, the saved config, and the station apply path use that stored value.
+
+`RegOcp` is not written. That write waits for a bench supply-current check. Rev. 4 §5.4.2 p.83 says to set OcpTrim for the highest power. The register table is p.109. The reset value is 0x2B (100 mA).
+
++20 dBm requires the caller to keep the duty cycle at or below 1% and the VSWR at or below 3:1 (SX1276 Rev. 4 §5.4.3 p.84 Table 35). The driver does not enforce either limit.
+
+The PDF in this repo is SX1276 Rev. 4, March 2015. Older comments named Rev. 6 and Rev. 7. Those names do not match the PDF.
 
 ### Device Roles (Three Jobs)
 
@@ -96,7 +120,7 @@ DeviceRole enum: kVehicle, kStation, kRelay. Compile-time default with flash-sto
 
 ### RadioConfig in `.cfg`
 
-User-facing: protocol (ccsds/mavlink), nav_rate_hz (2/5/10), power_dbm (2-20). Generator derives SF/BW/CR. Advanced overrides deferred to V2.
+User-facing: protocol (ccsds/mavlink), nav_rate_hz (2/5/10), power_dbm (2-17, or 20 with the opt-in). 18 and 19 are rejected. Generator derives SF/BW/CR. Advanced overrides deferred to V2.
 
 ### Station Enhancements
 

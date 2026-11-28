@@ -31,6 +31,8 @@ static GoNoGoInput all_go_input() {
     gng.gps_has_lock = true;
     gng.mag_calibrated = true;
     gng.radio_linked = true;
+    gng.radio_fitted = true;
+    gng.pyro_fitted = true;
     // Stage T Batch B IVP-T14: RF Link station added to tier 2.
     // GO requires anchor_valid + state==kTrack(2) + LQ >= 65%.
     gng.rf_anchor_valid = true;
@@ -55,8 +57,8 @@ TEST_F(GoNoGoTest, AllGoReturnsAllGo) {
     // Fault-recovery 2026-05-14 (commit b/3): added 2 Tier-1 stations
     // (PriorHF + PriorBOR) for the prior-fault latches.
     EXPECT_EQ(r.tier1_total, 8);
-    EXPECT_EQ(r.tier2_total, 5);  // RF Link, GPS, Mag, Radio, Battery
-    EXPECT_EQ(r.num_checks, 13);
+    EXPECT_EQ(r.tier2_total, 6);  // RF Link, GPS, Mag, Radio, Pyro, Battery
+    EXPECT_EQ(r.num_checks, 14);
 }
 
 TEST_F(GoNoGoTest, ImuNoGoBlocksArm) {
@@ -129,7 +131,7 @@ TEST_F(GoNoGoTest, GpsNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);  // Tier 2 doesn't block
-    EXPECT_EQ(r.tier2_go, 4);  // GPS failed, 4/5 pass
+    EXPECT_EQ(r.tier2_go, 5);  // GPS failed, 5/6 pass
 }
 
 TEST_F(GoNoGoTest, MagNoGoDoesNotBlockArm) {
@@ -138,7 +140,7 @@ TEST_F(GoNoGoTest, MagNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);
-    EXPECT_EQ(r.tier2_go, 4);
+    EXPECT_EQ(r.tier2_go, 5);
 }
 
 TEST_F(GoNoGoTest, RadioNoGoDoesNotBlockArm) {
@@ -147,7 +149,7 @@ TEST_F(GoNoGoTest, RadioNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);
-    EXPECT_EQ(r.tier2_go, 4);
+    EXPECT_EQ(r.tier2_go, 5);
 }
 
 TEST_F(GoNoGoTest, BatteryAlwaysGo) {
@@ -189,6 +191,99 @@ TEST_F(GoNoGoTest, PrintDoesNotCrash) {
     gng.gps_has_lock = false;
     r = go_nogo_evaluate(gng);
     go_nogo_print(r);  // Should print failures
+}
+
+TEST_F(GoNoGoTest, RadioNotFittedIsGoNotNoGo) {
+    GoNoGoInput gng = all_go_input();
+    gng.radio_fitted = false;
+    gng.radio_linked = false;
+    gng.rf_anchor_valid = false;
+    GoNoGoResult r = go_nogo_evaluate(gng);
+
+    EXPECT_TRUE(r.all_go);
+    EXPECT_EQ(r.tier2_go, r.tier2_total);
+    bool radio = false;
+    bool link = false;
+    for (uint8_t i = 0; i < r.num_checks; ++i) {
+        if (strcmp(r.checks[i].name, "Radio HW") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (not fitted)");
+            radio = true;
+        }
+        if (strcmp(r.checks[i].name, "RF Link") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (not fitted)");
+            link = true;
+        }
+    }
+    EXPECT_TRUE(radio);
+    EXPECT_TRUE(link);
+}
+
+TEST_F(GoNoGoTest, RadioDisabledByBuildIsLabeledNotSilentGoOrNoGo) {
+    // Fitted board, radio not up: without the flag this is T2 NO-GO NOT INIT.
+    // With radio_disabled, preflight must say disabled by build, not a
+    // silent radio GO and not a hardware failure.
+    GoNoGoInput gng = all_go_input();
+    gng.radio_fitted = true;
+    gng.radio_linked = false;
+    gng.rf_anchor_valid = false;
+    gng.radio_disabled = true;
+    GoNoGoResult r = go_nogo_evaluate(gng);
+
+    EXPECT_TRUE(r.all_go);
+    EXPECT_EQ(r.tier2_go, r.tier2_total);
+    bool radio = false;
+    bool link = false;
+    for (uint8_t i = 0; i < r.num_checks; ++i) {
+        if (strcmp(r.checks[i].name, "Radio HW") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (disabled by build)");
+            radio = true;
+        }
+        if (strcmp(r.checks[i].name, "RF Link") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (disabled by build)");
+            link = true;
+        }
+    }
+    EXPECT_TRUE(radio);
+    EXPECT_TRUE(link);
+}
+
+TEST_F(GoNoGoTest, PyroFittedIsReportedNotMonitored) {
+    GoNoGoResult r = go_nogo_evaluate(all_go_input());
+    bool found = false;
+    for (uint8_t i = 0; i < r.num_checks; ++i) {
+        if (strcmp(r.checks[i].name, "Pyro HW") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (not monitored)");
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(GoNoGoTest, PyroNotFittedIsGoAndDoesNotBlockArm) {
+    GoNoGoInput gng = all_go_input();
+    gng.pyro_fitted = false;
+    GoNoGoResult r = go_nogo_evaluate(gng);
+
+    EXPECT_TRUE(r.all_go);
+    EXPECT_EQ(r.tier2_go, r.tier2_total);
+    bool found = false;
+    for (uint8_t i = 0; i < r.num_checks; ++i) {
+        if (strcmp(r.checks[i].name, "Pyro HW") == 0) {
+            EXPECT_TRUE(r.checks[i].go);
+            EXPECT_STREQ(r.checks[i].reason, "GO (not fitted)");
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    CommandResult cmd = command_handler_validate(
+        CommandType::kArm, FlightPhase::kIdle, &gng);
+    EXPECT_TRUE(cmd.accepted);
 }
 
 // ============================================================================

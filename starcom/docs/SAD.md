@@ -43,7 +43,7 @@ Verb names are the sans-I/O handshake. Signatures land with the first codec; do 
 
 Left to right as the radio sees a PLTU. MVP path is Version-3 and one Space Packet. USLP is the same strip with a different middle. Lengths in octets, as the books do.
 
-From 211.2-B-3 Fig 3-1 (PLTU); 211.0-B-6 Fig 3-2 (V-3); 133.0-B-2 Fig 4-1 (Space Packet); 732.1-B-3 Fig 4-1 (USLP). CLCW: 232.0-B-4 §4.2.1. COP-1 procedures: 232.1-B-2. PDFs: `standards/starcom/ccsds/`.
+From 211.2-B-3 Fig 3-1 (PLTU); 211.0-B-6 Fig 3-2 (V-3); 133.0-B-2 Fig 4-1 (Space Packet); 732.1-B-3 Fig 4-1 (USLP). CLCW: 232.0-B-4 §4.2.1. COP-1 procedures: 232.1-B-2. PDFs: `starcom/standards/ccsds/`.
 
 ```
 first on air --->
@@ -198,7 +198,7 @@ Do **not** copy NASA Odyssey Annex F as the codec: that mission profile forced R
 
 ### CLCW (32-bit) — 232.0-B-4 §4.2.1, Fig 4-6
 
-Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book on shelf: `standards/starcom/ccsds/CCSDS-232.0-B-4-EC1-Cor1.pdf`.
+Pack/unpack only in increment 0+1. Lives in a USLP OCF later. Not a PLCW. Book on shelf: `starcom/standards/ccsds/CCSDS-232.0-B-4-EC1-Cor1.pdf`.
 
 | Bits | Width | Field | Value / meaning |
 |------|-------|-------|-----------------|
@@ -257,7 +257,7 @@ NASA cFS / Yamcs / `cop1.c` are worth pulling for **Space Packet and COP-1/CLCW*
 
 ## View 2 — Module (Pitchfork)
 
-Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.hpp` ↔ `src/ccsds/pltu.cpp`).
+Consumers get `include/` as their only header search path. `src/` is implementation and private headers. Paths should mirror (`include/starcom/ccsds/pltu.h` ↔ `src/ccsds/pltu.cpp`).
 
 **As-is:** codecs plus COP-P, COP-1, host loopback / `RadioPort` / UDP / file replay, and generic SPI/GPIO `BusOps` (`starcom::adapters`). PHY not present. Core never depends on adapter targets.
 

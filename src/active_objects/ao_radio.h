@@ -67,6 +67,16 @@ struct RadioAoState {
 
 const RadioAoState* AO_Radio_get_state();
 
+// Debug 'w': packet RSSI/SNR (count, min/mean/max) for chip-CRC-good and
+// PayloadCrcErr packets, software CRC-16 failures, carrier frequency.
+void AO_Radio_rx_quality_dump();
+
+#if defined(ROCKETCHIP_DEV_MODE)
+// Sleep, LoRa init, runtime config, DioMapping from that init, then RX.
+// The DIO bench calls this on both roles. Does not start Tx.
+bool AO_Radio_restore_lora_rx();
+#endif
+
 // True while a send is in flight. Telemetry must not drain a COP-P AD
 // that Radio would then be unable to start.
 bool AO_Radio_tx_active();
@@ -86,8 +96,10 @@ void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
 void AO_Radio_apply_config_now(const rc::RadioConfig& cfg);
 
 // Stage T IVP-T5.5: read-only access to the AO's current runtime config.
-// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
 const rc::RadioConfig* AO_Radio_get_runtime_config();
+
+// True when this radio may use the +20 dBm PA code.
+bool AO_Radio_tx_high_power_enabled();
 
 // Stage T IVP-T5.5 sub 2f: consume the "config just changed" flag.
 // Returns true ONCE after a ao_radio_commit_pending_config or

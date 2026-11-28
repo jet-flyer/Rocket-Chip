@@ -52,7 +52,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 ### Documentation
 
 - **Do** treat the CCSDS Blue Books (and other named primary sources) as the authority. SAD / ICD / DESIGN field tables are working copies. Open the cited book first; if they disagree, the book wins.
-- **Do** open the cited PDF under `standards/starcom/ccsds/` **before** writing a MAC / COP-P / C&S / PHY workaround. Walk [`COVERAGE.md`](COVERAGE.md) **Neighbors**. If table 6-12, 6-14, or §7 already names the event, implement that event — do not mint a dwell, a second retry layer, or a token substitute. Desk 2026-09-17: leftover hail FIFO and a sticky `Carrier_Loss_Timer` were invented; 211.0 E34 / 6.5.2 / E48 already specified the behavior.
+- **Do** open the cited PDF under `starcom/standards/ccsds/` **before** writing a MAC / COP-P / C&S / PHY workaround. Walk [`COVERAGE.md`](COVERAGE.md) **Neighbors**. If table 6-12, 6-14, or §7 already names the event, implement that event — do not mint a dwell, a second retry layer, or a token substitute. Desk 2026-09-17: leftover hail FIFO and a sticky `Carrier_Loss_Timer` were invented; 211.0 E34 / 6.5.2 / E48 already specified the behavior.
 - **Do** open [`COVERAGE.md`](COVERAGE.md) when implementing or changing a Blue Book clause: find the row, walk **Neighbors**, then the PDF. Update that row in the same commit as the TU. Full still needs a test pointer. CONFORMANCE is the published tick — do not retcon it from the matrix.
 - **Do** write public-facing Starcom docs as what the system **is**. Corrections for a hung-up mistake belong here or on [`../AGENT_WHITEBOARD.md`](../AGENT_WHITEBOARD.md), not as a “what this isn’t” banner on README / SAD / ICD.
 - **Do** treat files in `docs/research/`, `comparison.md`, and `design_record_claude.md` as **historical** — written before `starcom/` existed. They were relocated **without content edits**; internal links still cite `docs/research/STARCOM_*`. Use `docs/README.md` mapping; do not rewrite cross-references in those files.
@@ -69,7 +69,7 @@ Blue Book names. Picture: `SAD.md`. Full list with section cites: [`GLOSSARY.md`
 
 In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are in. Exceptions, RTTI, and heap-after-init are out (`-fno-exceptions -fno-rtti`; no `new` on codec paths). Tests of the core may use exceptions. Rocket-Chip [`standards/CODING_STANDARDS.md`](../../standards/CODING_STANDARDS.md) **applies** to Starcom the same as firmware. The language bar above is additional, not a substitute.
 
-**Identifiers:** public verbs are house camelBack (`decodePltu`) from IVP 23. The closed `Error` ICD (`uslp_truncated`, `bad_asm`, …) is **not** an accepted deviation: house naming (CODING_STANDARDS + `readability-identifier-naming`) covers functions, variables, `k` constants, and types. The gate does not set `EnumConstantCase`; the first Starcom tidy run reported 0 identifier-naming hits on those enumerators. JSF 51/52 (superseded) is functions/variables/constants, not `enum class` enumerators. cFS keeps existing common-use names; F´ house style applies when a type is born. New identifiers are house camelBack when written. Book field names live in comments / CONFORMANCE. JSF 151: use the `k*` that already names the field (`kTfvnV3`, `kFopPSentCap`, `kIdleApid`); do not add wrappers or a suffix sitting. `#pragma once` is the existing project-wide exception, not a Starcom row.
+**Identifiers:** public verbs are house camelBack (`decodePltu`) from IVP 23. The closed `Error` ICD (`uslp_truncated`, `bad_asm`, …) is **not** an accepted deviation: house naming (CODING_STANDARDS + `readability-identifier-naming`) covers functions, variables, `k` constants, and types. The gate does not set `EnumConstantCase`; the first Starcom tidy run reported 0 identifier-naming hits on those enumerators. JSF 51/52 (superseded) is functions/variables/constants, not `enum class` enumerators. cFS keeps existing common-use names; F´ house style applies when a type is born. New identifiers are house camelBack when written. Book field names live in comments / CONFORMANCE. JSF 151: use the `k*` that already names the field (`kTfvnV3`, `kFopPSentCap`, `kIdleApid`); do not add wrappers or a suffix sitting. Headers use include guards, not `#pragma once` (W1).
 
 - **Do** write host-side unit tests **before** hardware adapters. Procedure: [`TESTING.md`](TESTING.md). Golden vectors and table-driven state-machine tests are the first wins.
 - **Do** keep MCU automatic storage tiny. Pico Core 0 stack is 4 KiB. Do not value-init `CoppEndpoint` / `Cop1Endpoint` (`memset` in place). Sent copies are `kFopPSentCap` / `kFop1SentCap`, not a 256-FSN table. Do not put `kTransferFrameMax` (2048) arrays on the stack — caller span or file-scope scratch. GNU `-Wstack-usage=1024` is on the library (`cmake/CompilerWarnings.cmake`).
@@ -107,7 +107,7 @@ In the core: `std::span`, `expected`/`Result`, `enum class`, and `constexpr` are
 
 ### Documentation mistakes
 
-- **Don't** ingest Blue Book PDFs (`standards/starcom/ccsds/`) into graphify. Clause walk and neighbors live in [`COVERAGE.md`](COVERAGE.md); the PDF stays the authority.
+- **Don't** ingest Blue Book PDFs (`starcom/standards/ccsds/`) into graphify. Clause walk and neighbors live in [`COVERAGE.md`](COVERAGE.md); the PDF stays the authority.
 - **Don't** retcon a CONFORMANCE Level to Full because a `COVERAGE.md` row looks done. CONFORMANCE is the published tick; Full there still needs a test pointer.
 - **Don't** scatter new Starcom library docs under `docs/research/` at repo root — they belong in `starcom/docs/`.
 - **Don't** edit `DESIGN.md` substantively until the condensation session merges the six research artifacts into one canonical record.
@@ -132,9 +132,9 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | File | Purpose | Status |
 |---|---|---|
 | [`CHANGELOG.md`](../CHANGELOG.md) | Library-scoped changes. **Major pushes only** (see its scope note and `TESTING.md`). | Live |
-| [`VERSIONING.md`](../VERSIONING.md) | SemVer + `STARCOM_VERSION` SSOT. Generated `version.hpp`. | Live 2026-08-27 |
+| [`VERSIONING.md`](../VERSIONING.md) | SemVer + `STARCOM_VERSION` SSOT. Generated `version.h`. | Live 2026-08-27 |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to build/test, coding standard for core, DCO, PR expectations. | Interim rules are this file + SAD/ICD until Phase 0 |
-| [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
+| [`LICENSE`](../LICENSE) | Library license: GPL-3.0-or-later, same as Rocket Chip (root LICENSE). | Set (Nathan, 2026-11-25) |
 | [`docs/comparison.md`](comparison.md) | Historical cross-agent comparison log (D-1…D-5). Append Status lines; do not rewrite. Living locks are SAD / ICD / CONFORMANCE / COVERAGE / STATUS. | Historical |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Historical — DESIGN.md is the freeze |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
@@ -142,6 +142,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/ICD.md`](ICD.md) | Core handshake: principles, named verbs. Signatures land with the first codec. | Draft 2026-08-25 |
 | [`docs/CONFORMANCE.md`](CONFORMANCE.md) | In-scope / deferred / out-of-scope claim table (published PICS tick). | Draft 2026-08-25 |
 | [`docs/COVERAGE.md`](COVERAGE.md) | Clause walk: implemented vs unread, plus neighbors. Not a second PICS. | Living 2026-09-11 |
+| [`docs/PRIOR_ART.md`](PRIOR_ART.md) | Real implementations that Starcom compares against (RADAR, MRN/Electra, lunar, rate change, duplex). 211.0-B-6 governs where they disagree. | Living 2026-11-25 |
 | [`docs/IVP.md`](IVP.md) | Integration/verification plan (IEEE 1012 + ECSS methods). Closed log IDs when gates pass. | Living 2026-08-25 |
 | [`docs/GLOSSARY.md`](GLOSSARY.md) | Terms and Blue Book section cites. README holds the short list. | Living 2026-08-27 |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step. Lighter than RC `PROJECT_STATUS.md`. | Live sketch 2026-08-25 |

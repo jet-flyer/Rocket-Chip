@@ -1,0 +1,48 @@
+// One transmit slot and one receive slot for a radio mailbox.
+// No state.
+// The caller owns RadioPort.
+// Book: none.
+
+#ifndef STARCOM_ADAPTERS_RADIO_PORT_H_
+#define STARCOM_ADAPTERS_RADIO_PORT_H_
+
+#include "starcom/adapters/loopback.h"
+
+namespace starcom::adapters
+{
+
+// Generic radio mailbox. One TX slot, one RX slot. No SPI, GPIO, or Pico SDK.
+// A board driver would take_tx / offer_rx; the core still only sees bytes.
+struct RadioPort
+{
+  FrameSlot tx{};
+  FrameSlot rx{};
+};
+
+[[nodiscard]] inline ccsds::Result<std::size_t> radioBeginTx(
+    RadioPort& p, std::span<const std::byte> frame) noexcept
+{
+  return slotWrite(p.tx, frame);
+}
+
+[[nodiscard]] inline ccsds::Result<std::size_t> radioTakeTx(RadioPort& p,
+                                                std::span<std::byte> out) noexcept
+{
+  return slotRead(p.tx, out);
+}
+
+[[nodiscard]] inline ccsds::Result<std::size_t> radioOfferRx(
+    RadioPort& p, std::span<const std::byte> frame) noexcept
+{
+  return slotWrite(p.rx, frame);
+}
+
+[[nodiscard]] inline ccsds::Result<std::size_t> radioPollRx(RadioPort& p,
+                                                std::span<std::byte> out) noexcept
+{
+  return slotRead(p.rx, out);
+}
+
+}  // namespace starcom::adapters
+
+#endif  // STARCOM_ADAPTERS_RADIO_PORT_H_

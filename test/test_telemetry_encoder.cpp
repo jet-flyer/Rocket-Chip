@@ -13,10 +13,10 @@
 #include "crc16_ccitt.h"
 #include <cstring>
 #include <cmath>
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/space_packet.hpp"
-#include "starcom/ccsds/v3.hpp"
-#include "starcom/version.hpp"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/space_packet.h"
+#include "starcom/ccsds/v3.h"
+#include "starcom/version.h"
 #include "starcom_adapt/nav_sdu.h"
 #include <algorithm>
 #include <array>

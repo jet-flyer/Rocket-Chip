@@ -1,0 +1,45 @@
+// CLCW fields and the pack and unpack calls. COP-1 sends it in the USLP OCF.
+// No state.
+// Book: CCSDS 232.0-B-4 section 4.2.1.
+
+#ifndef STARCOM_CCSDS_CLCW_H_
+#define STARCOM_CCSDS_CLCW_H_
+
+#include "starcom/result.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+namespace starcom::ccsds
+{
+
+inline constexpr std::size_t kClcwSize = 4;
+
+// CCSDS 232.0-B-4 4.2.1.4. Status Field is bits 3-5.
+inline constexpr std::uint32_t kClcwStatusMask = 0x07U;
+// CCSDS 232.0-B-4 4.2.1.6. Virtual Channel Identifier is bits 8-13.
+inline constexpr std::uint32_t kClcwVcidMask = 0x3FU;
+
+// COP-1 CLCW. VCID here is the COP-1 virtual channel, not USLP MapId.
+struct Clcw32
+{
+  std::uint8_t status = 0;           // 3-bit, mission
+  std::uint8_t cop_in_effect = 0b01; // 2-bit; 01 = COP-1
+  std::uint8_t vcid = 0;             // 6-bit
+  bool no_rf_available = false;
+  bool no_bit_lock = false;
+  bool lockout = false;
+  bool wait = false;
+  bool retransmit = false;
+  std::uint8_t farm_b_counter = 0;  // 2-bit
+  std::uint8_t report_value = 0;    // N(R)
+};
+
+[[nodiscard]] Result<Clcw32> decodeClcw(std::span<const std::byte> octets) noexcept;
+[[nodiscard]] Result<std::size_t> encodeClcw(std::span<std::byte> out,
+                                Clcw32 const& fields) noexcept;
+
+}  // namespace starcom::ccsds
+
+#endif  // STARCOM_CCSDS_CLCW_H_

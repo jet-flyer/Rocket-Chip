@@ -1,0 +1,4 @@
+{
+  "_comment": "Per-branch gate inhibits (Nathan, 2026-11-23). An entry applies only to a push to its branch, so it ends when the branch merges; until (YYYY-MM-DD, optional) ends it sooner. kind warning: {branch, kind, id, reason[, until]} prints the warning as INHIBITED instead of WARNING. kind not-fitted: {branch, kind, role, part, reason[, until]} marks an expected part as not fitted for that work; its checks print as N/A by name. A failure can never be inhibited, and a required part cannot be marked not fitted. Keep this list empty on main.",
+  "inhibits": []
+}

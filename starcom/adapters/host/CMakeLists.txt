@@ -1,7 +1,14 @@
+if(WIN32)
+  set(_starcom_udp_os udp_win32.cpp)
+else()
+  set(_starcom_udp_os udp_posix.cpp)
+endif()
+
 add_library(starcom_adapters_host STATIC
   loopback.cpp
   file_replay.cpp
   udp.cpp
+  ${_starcom_udp_os}
 )
 add_library(Starcom::adapters_host ALIAS starcom_adapters_host)
 
@@ -9,7 +16,9 @@ target_link_libraries(starcom_adapters_host PUBLIC Starcom::starcom)
 if(WIN32)
   target_link_libraries(starcom_adapters_host PRIVATE ws2_32)
   # Clang/GNU-cmd uses the MSVC CRT; fopen is marked deprecated there.
-  target_compile_definitions(starcom_adapters_host PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(starcom_adapters_host PRIVATE
+    WIN32_LEAN_AND_MEAN
+    _CRT_SECURE_NO_WARNINGS)
 endif()
 starcom_set_core_flags(starcom_adapters_host)
 starcom_apply_sanitizer(starcom_adapters_host)

@@ -9,14 +9,19 @@
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 #include <atomic>
+#include <string.h>
 
 // SPI register address masks
 // Bit 7: 0 = read, 1 = write (SX1276 datasheet Section 4.2)
 static constexpr uint8_t kSpiReadMask  = 0x7FU;  // Clear bit 7 for read
 static constexpr uint8_t kSpiWriteFlag = 0x80U;   // Set bit 7 for write
 
-// Incremented only on a short SDK blocking return (those calls return len).
+// Incremented on a short SDK blocking return (those calls return len) and
+// on each register call refused before spi_bus_init().
 std::atomic<uint32_t> g_spi_error_count{0};
+
+// Set once at boot by spi_bus_init() (Core 0, before AOs start).
+static bool s_spiBusReady = false;
 
 bool spi_bus_init(void) {
     // spi_init returns the achieved baud; discarded — this function cannot fail-report.
@@ -30,7 +35,12 @@ bool spi_bus_init(void) {
     gpio_set_function(board::kSpiSckPin,  GPIO_FUNC_SPI);
     gpio_set_function(board::kSpiMosiPin, GPIO_FUNC_SPI);
 
+    s_spiBusReady = true;
     return true;
+}
+
+bool spi_bus_ready(void) {
+    return s_spiBusReady;
 }
 
 static inline void count_error_if(int rc, int expected) {
@@ -39,7 +49,16 @@ static inline void count_error_if(int rc, int expected) {
     }
 }
 
+// Refused pre-init call: count it; no GPIO or SPI access.
+static inline void count_not_ready() {
+    g_spi_error_count.fetch_add(1, std::memory_order_relaxed);
+}
+
 uint8_t spi_bus_read_reg(uint8_t cs_pin, uint8_t reg) {
+    if (!s_spiBusReady) {
+        count_not_ready();
+        return kSpiBusNotReadyValue;
+    }
     uint8_t tx[2] = { static_cast<uint8_t>(reg & kSpiReadMask), 0x00 };
     uint8_t rx[2] = { 0, 0 };
 
@@ -52,6 +71,10 @@ uint8_t spi_bus_read_reg(uint8_t cs_pin, uint8_t reg) {
 }
 
 void spi_bus_write_reg(uint8_t cs_pin, uint8_t reg, uint8_t val) {
+    if (!s_spiBusReady) {
+        count_not_ready();
+        return;
+    }
     uint8_t tx[2] = { static_cast<uint8_t>(reg | kSpiWriteFlag), val };
 
     gpio_put(cs_pin, 0);
@@ -61,6 +84,11 @@ void spi_bus_write_reg(uint8_t cs_pin, uint8_t reg, uint8_t val) {
 }
 
 void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len) {
+    if (!s_spiBusReady) {
+        count_not_ready();
+        memset(buf, 0, len);
+        return;
+    }
     uint8_t cmd = static_cast<uint8_t>(reg & kSpiReadMask);
 
     gpio_put(cs_pin, 0);
@@ -73,6 +101,10 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len) {
 
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len) {
+    if (!s_spiBusReady) {
+        count_not_ready();
+        return;
+    }
     uint8_t cmd = static_cast<uint8_t>(reg | kSpiWriteFlag);
 
     gpio_put(cs_pin, 0);

@@ -37,3 +37,14 @@ TEST(CliCatalog, V0RowsAndWriteClass) {
     EXPECT_TRUE(saw_power);
     EXPECT_TRUE(saw_usb);
 }
+
+TEST(CliCatalog, DioBenchRowsOnBothRoles) {
+    for (size_t i = 0; i < kCatalogCount; ++i) {
+        const auto& r = kCatalog[i];
+        if (r.id == CatalogId::kDioToggle || r.id == CatalogId::kFifoDepth) {
+            EXPECT_EQ(r.wr, WriteClass::kRead);
+            EXPECT_TRUE(r.vehicle);
+            EXPECT_TRUE(r.station);
+        }
+    }
+}

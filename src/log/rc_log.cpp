@@ -522,6 +522,10 @@ extern "C" __attribute__((used))
 uint32_t rc_log_high_water(void) {
     return target_sink::g_highWater;
 }
+extern "C" __attribute__((used))
+uint32_t rc_log_pending_bytes(void) {
+    return static_cast<uint32_t>(target_sink::ring_used());
+}
 #endif
 
 // Handle one % spec at *p (caller skipped the '%'). Advances *p past the
@@ -555,17 +559,24 @@ bool handle_percent_token(etl::istring& out, const char** p, va_list& args) {
 }
 
 // Shared parse+format loop for rc_log (CDC sink) and rc_snprintf (buf sink).
-void format_into(etl::istring& out, const char* fmt, va_list args) {
+// SysV x86-64 defines va_list as __va_list_tag[1]. A by-value parameter
+// decays to a pointer and cannot bind to va_list&. This parameter is a
+// reference so the caller's array binds. va_copy makes a real array
+// object for the helpers to advance. The caller's list stays for va_end.
+void format_into(etl::istring& out, const char* fmt, va_list& args) {
+    va_list local_args;
+    va_copy(local_args, args);
     const char* p = fmt;
     while (*p != '\0') {
         if (*p == '%' && *(p + 1) != '\0') {
             ++p;
-            if (handle_percent_token(out, &p, args)) { break; }
+            if (handle_percent_token(out, &p, local_args)) { break; }
         } else {
             if (buffer_append(out, p, 1U)) { break; }
             ++p;
         }
     }
+    va_end(local_args);
 }
 
 }  // namespace (anonymous)
@@ -654,14 +665,19 @@ void strbuf_printf(strbuf* sb, const char* fmt, ...) {
 // ===========================================================================
 #ifndef ROCKETCHIP_HOST_TEST
 static bool g_cdc_hold = false;
+static bool g_cdc_hold_binary = false;
 
 extern "C" void rc_log_hold_cdc(int hold) {
     g_cdc_hold = (hold != 0);
 }
 
+extern "C" void rc_log_hold_cdc_binary(int hold) {
+    g_cdc_hold_binary = (hold != 0);
+}
+
 extern "C" void rc_log_drain_to_cdc(void) {
     using namespace target_sink;
-    if (g_cdc_hold) {
+    if (g_cdc_hold || g_cdc_hold_binary) {
         return;
     }
     // Ring-empty fast path: when called from qv_idle_bridge every
@@ -730,5 +746,7 @@ extern "C" void host_capture_reset() { ::host_test::s_capture_len = 0; }
 // Host stubs for ring-health getters (no real ring on host).
 extern "C" uint32_t rc_log_dropped_bytes(void) { return 0U; }
 extern "C" uint32_t rc_log_high_water(void) { return 0U; }
+extern "C" uint32_t rc_log_pending_bytes(void) { return 0U; }
 extern "C" void rc_log_hold_cdc(int) {}
+extern "C" void rc_log_hold_cdc_binary(int) {}
 #endif

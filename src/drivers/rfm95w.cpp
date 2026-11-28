@@ -2,13 +2,16 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // RFM95W (SX1276) LoRa radio driver implementation
 // Prior Art:
-// - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
+// - SX1276 datasheet Rev. 4, March 2015
+//   (docs/hardware/datasheets/SX1276-datasheet.pdf).
+//   An older line named Semtech DS_SX1276-7-8-9_W_APP_V7.
 // - RadioHead RH_RF95 (airspayce.com)
 // - Adafruit CircuitPython adafruit_rfm9x
 
 #include "rfm95w.h"
 #include "spi_bus.h"
 #include "rocketchip/rc_debug.h"
+#include "rocketchip/rc_log.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -23,9 +26,18 @@ static constexpr uint32_t kResetPulseHighMs = 10;  // RST high settle
 // Mode transition settling time
 static constexpr uint32_t kModeSettleMs = 10;
 
-// Default 915 MHz / +20 dBm: operator/legal SSOT is standards/RF_COMPLIANCE.md
+// Default 915 MHz. Power default is kDefaultTxPowerDbm.
+// Operator/legal SSOT is standards/RF_COMPLIANCE.md
 // (FCC Part 15.247 US ISM). Not a compliance guarantee.
+// Bench override: CMake -DRC_RADIO_FREQ_HZ=<Hz> (CRC-burst channel A/B).
+// Limits keep a BW500 channel (+/-250 kHz) plus 50 kHz inside 902-928 MHz.
+#if defined(ROCKETCHIP_RADIO_FREQ_HZ)
+static constexpr uint32_t kDefaultFreqHz = ROCKETCHIP_RADIO_FREQ_HZ;
+#else
 static constexpr uint32_t kDefaultFreqHz = 915000000U;
+#endif
+static_assert((kDefaultFreqHz >= 902300000U) && (kDefaultFreqHz <= 927700000U),
+              "RC_RADIO_FREQ_HZ outside 902.3-927.7 MHz (902-928 MHz ISM, BW500 edge)");
 
 // SX1276 crystal oscillator frequency (datasheet Section 3)
 static constexpr uint64_t kFxoscHz = 32000000ULL;
@@ -48,29 +60,18 @@ static constexpr uint8_t kLnaDefault = 0x23;
 // BW>=125), AgcAutoOn[2]=1 (LNA gain set adaptively). SX1276 datasheet §5.4.3.
 static constexpr uint8_t kModemCfg3Default = 0x04;
 
-// Overridden by RadioConfig. Field default is module max; see RF_COMPLIANCE.md.
-static constexpr int8_t kDefaultTxPowerDbm = 20;
+// Init value is +15 dBm. That is at or below +17 dBm, so RegPaDac stays 0x84.
+// +20 dBm needs rfm95w_set_tx_high_power or RC_RFM95_ALLOW_20DBM.
+// A value above +17 dBm does not by itself select +20 dBm.
+// The caller keeps +20 dBm at <= 1% duty and VSWR <= 3:1 (Rev. 4 Table 35 p.84).
+// This driver does not enforce those limits.
+static constexpr int8_t kDefaultTxPowerDbm = 15;
 
 // Private sync word (SX1276 default LoRa sync)
 static constexpr uint8_t kSyncWordDefault = 0x12;
 
 // RSSI offset for HF port (868/915 MHz) per SX1276 datasheet Section 5.5.5
 static constexpr int16_t kRssiOffsetHf = -157;
-
-// PA_BOOST power configuration (SX1276 datasheet Section 5.4.3)
-static constexpr int8_t kPaBoostMinDbm     = 2;   // Minimum PA_BOOST output
-static constexpr int8_t kPaBoostMaxDbm     = 20;  // Maximum PA_BOOST output
-static constexpr int8_t kPaDacThreshDbm    = 17;  // Above this, use PA_DAC high-power mode
-static constexpr uint8_t kPaDacHighPower   = 0x87; // PA_DAC: +20 dBm mode
-static constexpr uint8_t kPaDacNormal      = 0x84; // PA_DAC: default (normal mode)
-static constexpr uint8_t kPaBoostBit       = 0x80; // PA_SELECT = PA_BOOST
-static constexpr uint8_t kMaxPowerBits     = 0x70; // MaxPower=7 (bits[6:4])
-static constexpr int8_t kPaOffsetHighPower = 5;    // OutputPower = dbm - 5 in high-power mode
-static constexpr int8_t kPaOffsetNormal    = 2;    // OutputPower = dbm - 2 in normal mode
-static_assert(kPaBoostBit == 0x80, "PA_BOOST bit");
-static_assert((kPaDacNormal & 0x07) == 0x04, "default PaDac field");
-static_assert((kPaDacHighPower & 0x07) == 0x07, "+20 PaDac field");
-static_assert(kPaOffsetNormal == 2, "default PaDac dBm offset");
 
 // Bandwidth register mask: lower nibble preserved (CR + header bits)
 static constexpr uint8_t kBwLowerNibbleMask = 0x0F;
@@ -110,7 +111,7 @@ static void init_gpio_and_reset(uint8_t cs, uint8_t rst, uint8_t irq) {
 }
 
 // Configure LoRa modem parameters: SF7, BW 125kHz, CR 4/5, CRC on,
-// preamble 8, sync word 0x12, +20 dBm PA_BOOST, 915 MHz.
+// preamble 8, sync word 0x12, kDefaultTxPowerDbm on PA_BOOST, 915 MHz.
 static void configure_modem(rfm95w_t* dev) {
     uint8_t cs = dev->cs_pin;
 
@@ -166,6 +167,10 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     dev->mode        = rfm95w::mode::kSleep;
     dev->last_rssi   = 0;
     dev->last_snr    = 0;
+    dev->last_crc_err = false;
+    dev->crc_err_rssi = 0;
+    dev->crc_err_snr  = 0;
+    dev->tx_power_allow_20 = kRfm95Allow20DbmDefault;
 #if defined(ROCKETCHIP_DEV_MODE)
     dev->force_tx_timeout = false;
 #endif
@@ -306,8 +311,16 @@ uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len) {
     // Clear all IRQ flags
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
 
-    // Check for CRC error
-    if (irq_flags & rfm95w::irq::kPayloadCrcErr) {
+    // Check for CRC error. The packet RSSI/SNR registers hold the values
+    // of this packet (SX1276 5.5.5); read them for the CRC-fail stats.
+    dev->last_crc_err = (irq_flags & rfm95w::irq::kPayloadCrcErr) != 0;
+    if (dev->last_crc_err) {
+        const uint8_t bad_rssi = spi_bus_read_reg(dev->cs_pin,
+                                                  rfm95w::reg::kPktRssiValue);
+        const int8_t bad_snr = static_cast<int8_t>(
+            spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPktSnrValue));
+        dev->crc_err_rssi = static_cast<int16_t>(kRssiOffsetHf + bad_rssi);
+        dev->crc_err_snr = static_cast<int8_t>(bad_snr / kSnrDivisor);
         return 0;
     }
 
@@ -370,30 +383,36 @@ void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
                       static_cast<uint8_t>(frf & 0xFF));
 }
 
-void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
-    // Clamp is PA_BOOST hardware, not a legal limit. RF_COMPLIANCE.md.
-    if (dbm < kPaBoostMinDbm) { dbm = kPaBoostMinDbm; }
-    if (dbm > kPaBoostMaxDbm) { dbm = kPaBoostMaxDbm; }
-
-    if (dbm > kPaDacThreshDbm) {
-        // High power mode: enable PA_DAC for +20 dBm
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacHighPower);
-        // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 5
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetHighPower)));
-    } else {
-        // Normal mode: disable PA_DAC
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacNormal);
-        // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 2
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetNormal)));
+int8_t rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
+    // Cap is +17 dBm unless the +20 dBm opt-in is on. RF_COMPLIANCE.md.
+    // A value above +17 dBm does not by itself select +20 dBm.
+    // TODO: RegOcp (0x0B) is not written. A bench supply-current check
+    // comes first. Rev. 4 §5.4.2 p.83: set OcpTrim for the highest power.
+    // Register table p.109. Reset value is 0x2B (100 mA).
+    const rfm95w_tx_power_prog prog =
+        rfm95w_plan_tx_power(dbm, dev->tx_power_allow_20);
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, prog.pa_dac);
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig, prog.pa_config);
+    if (prog.clamped) {
+        rc::rc_log("RADIO: TX power clamp %d -> %d dBm\n",
+                   static_cast<int>(prog.requested_dbm),
+                   static_cast<int>(prog.applied_dbm));
     }
+    return prog.applied_dbm;
+}
+
+void rfm95w_set_tx_high_power(rfm95w_t* dev, bool enable) {
+    dev->tx_power_allow_20 = enable;
 }
 
 int8_t rfm95w_read_tx_power_dbm(const rfm95w_t* dev) {
     const uint8_t pa_config = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaConfig);
     const uint8_t pa_dac = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPaDac);
     return rfm95w_decode_tx_power_dbm(pa_config, pa_dac);
+}
+
+uint32_t rfm95w_carrier_hz() {
+    return kDefaultFreqHz;
 }
 
 int16_t rfm95w_rssi(const rfm95w_t* dev) {
@@ -434,6 +453,24 @@ void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr) {
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
 }
 
+int8_t rfm95w_apply_modem_config(rfm95w_t* dev, uint8_t bw, uint8_t sf,
+                                 uint8_t cr, int8_t power_dbm) {
+    // R-35: no config write while in RX (SX1276 Rev. 4 p.38).
+    const bool resume_rx = dev->initialized &&
+                           (dev->mode == rfm95w::mode::kRxContinuous);
+    if (resume_rx) {
+        set_mode(dev, rfm95w::mode::kStandby);
+    }
+    rfm95w_set_bandwidth(dev, bw);
+    rfm95w_set_spreading_factor(dev, sf);
+    rfm95w_set_coding_rate(dev, cr);
+    const int8_t applied = rfm95w_set_tx_power(dev, power_dbm);
+    if (resume_rx) {
+        rfm95w_start_rx(dev);
+    }
+    return applied;
+}
+
 void rfm95w_start_rx(rfm95w_t* dev) {
     if (!dev->initialized) {
         return;
@@ -456,38 +493,4 @@ void rfm95w_set_tx_timeout_us(rfm95w_t* dev, uint32_t timeout_us) {
     // for airtime-aware sizing.
     if (timeout_us < 10000U) { timeout_us = 10000U; }
     dev->tx_timeout_us = timeout_us;
-}
-
-uint32_t rfm95w_airtime_us(uint8_t sf, uint16_t bw_khz, uint8_t payload_bytes) {
-    // SX1276 datasheet §4.1.1.6.
-    // Assumes: explicit header (IH=0), CRC on (CRC=1), preamble 8 symbols,
-    // low-data-rate-optimize OFF (valid for SF<=10 at BW>=125).
-    // T_symbol = 2^SF / BW  (in microseconds if BW is Hz; use ratio below).
-    // Keep integer math for host-test / deterministic build.
-    if (bw_khz == 0) { bw_khz = 125; }  // sanity
-    if (sf < 7)    { sf = 7; }
-    if (sf > 12)   { sf = 12; }
-
-    // T_symbol in microseconds = (1 << sf) * 1000 / bw_khz
-    uint32_t t_sym_us = (static_cast<uint32_t>(1U) << sf) * 1000U / bw_khz;
-
-    // Preamble: (n_preamble + 4.25) * T_sym ≈ 12.25 * T_sym for 8-symbol preamble.
-    // Scale by 4 to keep integer: 4 * 12.25 = 49.
-    uint32_t t_preamble_us = (t_sym_us * 49U) / 4U;
-
-    // Payload-symbol count formula (explicit header, CRC on, LDRO off):
-    //   n_payload = 8 + max(ceil((8*PL - 4*SF + 28 + 16*CRC - 20*IH) / (4*SF)) * (CR+4), 0)
-    // With CRC=1, IH=0, CR=5 (4/5) here:
-    //   n_payload = 8 + max(ceil((8*PL - 4*SF + 44) / (4*SF)) * 5, 0)
-    int32_t numerator = static_cast<int32_t>(8U * payload_bytes)
-                      - static_cast<int32_t>(4U * sf) + 44;
-    int32_t denominator = static_cast<int32_t>(4U * sf);
-    int32_t chunks = 0;
-    if (numerator > 0) {
-        chunks = (numerator + denominator - 1) / denominator;  // ceil
-    }
-    uint32_t n_payload_symbols = 8U + static_cast<uint32_t>(chunks) * 5U;
-
-    uint32_t t_payload_us = n_payload_symbols * t_sym_us;
-    return t_preamble_us + t_payload_us;
 }

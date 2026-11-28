@@ -6,8 +6,11 @@
 // Two tiers (NASA pad terminology):
 //   Tier 1 platform — IMU, baro, ESKF, flash, launch-abort, watchdog,
 //     prior hardfault, prior brownout. Any NO-GO blocks ARM.
-//   Tier 2 profile — GPS, mag cal, radio HW, RF link, battery stub.
-//     NO-GO warns; ARM still allowed.
+//   Tier 2 profile — GPS, mag cal, radio HW, RF link, pyro HW, battery stub.
+//     NO-GO warns; ARM still allowed. Absent radio/pyro hardware is
+//     GO (not fitted), not a failure. A ROCKETCHIP_RADIO_OFF bench
+//     build is GO (disabled by build), not a silent radio GO and not
+//     a hardware NO-GO.
 // CLI preflight must print this poll and use all_go as VERDICT — not a
 // parallel health-byte policy.
 
@@ -18,7 +21,7 @@
 
 namespace rc {
 
-// Room for 8 Tier-1 + 5 Tier-2 stations (see go_nogo_evaluate).
+// Room for 8 Tier-1 + 6 Tier-2 stations (see go_nogo_evaluate).
 static constexpr uint8_t kGoNoGoMaxChecks = 16;
 
 // Maximum reason string length (stack-allocated, no heap)
@@ -42,11 +45,14 @@ struct GoNoGoInput {
     bool gps_has_lock;          // fix_type >= 2 && satellites >= 4
     bool mag_calibrated;        // CAL_STATUS_MAG flag set
     bool radio_linked;          // Radio init OK (TX or RX)
+    bool radio_fitted;          // board::kRadioAvailable
+    bool radio_disabled;        // ROCKETCHIP_RADIO_OFF bench build
     // Learned RF link from AO_RfManager, not radio_linked (HW init).
     uint8_t rf_link_state;      // rc::LinkState cast to uint8_t
                                 //   0=kAcq, 1=kTentative, 2=kTrack, 3=kTrackDegraded
     uint8_t rf_lq_pct;          // 0-100, sliding-window link quality
     bool rf_anchor_valid;       // AO_RfManager has seen at least 1 valid RX
+    bool pyro_fitted;           // board::kPyroAvailable
     // Battery: no ADC hardware on Feather RP2350 HSTX — always passes
 };
 

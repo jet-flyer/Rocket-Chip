@@ -1,10 +1,15 @@
-// IVP increment 0+1 — Version-3 (docs/TESTING.md, docs/IVP.md)
+// Host checks for the Version-3 transfer frame.
+// This file owns the check-fail count.
+// No protocol state.
+// Book: none.
+
+// IVP increment 0+1 - Version-3 (docs/TESTING.md, docs/IVP.md)
 // Accept: v3-header-only field unpack; round-trip; PLTU composition
 // Reject: truncated, tfvn-unknown, v3-length-oob, buffer_too_small
 
-#include "heap_trap.hpp"
-#include "starcom/ccsds/pltu.hpp"
-#include "starcom/ccsds/v3.hpp"
+#include "heap_trap.h"
+#include "starcom/ccsds/pltu.h"
+#include "starcom/ccsds/v3.h"
 
 #include <algorithm>
 #include <array>
@@ -27,27 +32,33 @@ using starcom::ccsds::PortId;
 using starcom::ccsds::Scid;
 using starcom::ccsds::V3Fields;
 
-namespace {
+namespace
+{
 
 int g_fails = 0;
 
 #define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
+  do                                                                           \
+  {                                                                            \
+    if (!(cond))                                                               \
+    {                                                                          \
       std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
       ++g_fails;                                                               \
     }                                                                          \
-  } while (0)
+  }                                                                            \
+  while (0)
 
 constexpr std::array<std::byte, 5> kV3HeaderOnly{
     std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x04},
     std::byte{0x00}};
 
-std::span<const std::byte> asSpan(const auto& a) {
+std::span<const std::byte> asSpan(const auto& a)
+{
   return std::span<const std::byte>(a.data(), a.size());
 }
 
-void test_decode_header_only() {
+void test_decode_header_only()
+{
   // IVP v3-header-only
   const auto v = decodeV3(asSpan(kV3HeaderOnly));
   CHECK(v.has_value());
@@ -62,7 +73,8 @@ void test_decode_header_only() {
   CHECK(v->data.empty());
 }
 
-void test_roundtrip_populated() {
+void test_roundtrip_populated()
+{
   V3Fields f{};
   f.qos_expedited = true;
   f.p_frame = false;
@@ -92,7 +104,8 @@ void test_roundtrip_populated() {
   CHECK(v->data[1] == std::byte{0x22});
 }
 
-void test_encode_matches_golden() {
+void test_encode_matches_golden()
+{
   V3Fields f{};
   std::array<std::byte, 5> out{};
   const auto n = encodeV3(out, f, {});
@@ -101,7 +114,8 @@ void test_encode_matches_golden() {
   CHECK(std::equal(out.begin(), out.end(), kV3HeaderOnly.begin()));
 }
 
-void test_reject_truncated() {
+void test_reject_truncated()
+{
   // IVP truncated
   const auto empty = decodeV3({});
   CHECK(!empty.has_value());
@@ -122,7 +136,8 @@ void test_reject_truncated() {
   CHECK(cut.error() == Error::truncated);
 }
 
-void test_reject_tfvn_unknown() {
+void test_reject_tfvn_unknown()
+{
   // IVP tfvn-unknown
   auto frame = kV3HeaderOnly;
   frame[0] = std::byte{0x00};
@@ -131,7 +146,8 @@ void test_reject_tfvn_unknown() {
   CHECK(r.error() == Error::tfvn_unknown);
 }
 
-void test_reject_v3_length_oob() {
+void test_reject_v3_length_oob()
+{
   // IVP v3-length-oob
   std::array<std::byte, 5> too_small{
       std::byte{0x80}, std::byte{0x00}, std::byte{0x00}, std::byte{0x03},
@@ -141,7 +157,8 @@ void test_reject_v3_length_oob() {
   CHECK(r.error() == Error::v3_length_oob);
 }
 
-void test_encode_buffer_too_small() {
+void test_encode_buffer_too_small()
+{
   V3Fields f{};
   std::array<std::byte, 4> too_small{};
   const auto r = encodeV3(too_small, f, {});
@@ -149,7 +166,8 @@ void test_encode_buffer_too_small() {
   CHECK(r.error() == Error::buffer_too_small);
 }
 
-void test_pltu_composition() {
+void test_pltu_composition()
+{
   V3Fields f{};
   std::array<std::byte, 5> frame{};
   const auto n = encodeV3(frame, f, {});
@@ -165,7 +183,8 @@ void test_pltu_composition() {
   CHECK(v->data.empty());
 }
 
-void test_heap() {
+void test_heap()
+{
   V3Fields f{};
   std::array<std::byte, 8> out{};
   starcom::test::heapTrapReset();
@@ -178,7 +197,8 @@ void test_heap() {
 
 }  // namespace
 
-int run_v3_tests() {
+int run_v3_tests()
+{
   test_decode_header_only();
   test_roundtrip_populated();
   test_encode_matches_golden();

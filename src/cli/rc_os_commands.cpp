@@ -39,6 +39,7 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "diag/radio_rate_counters.h"
+#include "diag/link_baseline.h"
 #include "rocketchip/radio_config_table.h"
 
 // MAVLink command IDs (common.h values; avoid pulling mavlink.h here).
@@ -117,11 +118,14 @@ static void cmd_radio_config_cycle() {
 }
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
+#include "drivers/status_led.h"
+#include "rocketchip/psram_check_policy.h"
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_storage.h"
 #include "drivers/i2c_master.h"
 #include "rocketchip/i2c_strap.h"
 #include "drivers/icm20948.h"
+#include "drivers/icm20948_fs.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_uart.h"
 #include "drivers/gps_pa1010d.h"
@@ -129,7 +133,8 @@ static void cmd_radio_config_cycle() {
 #include "logging/ring_buffer.h"
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
-#include "logging/crc32.h"
+#include "logging/flight_log_layout.h"
+#include "logging/flight_download.h"  // 'd' download job
 #include "safety/pio_watchdog.h"
 #include "flight_director/flight_director.h"  // flight_director_launch_abort()
 #include "flight_director/flight_state.h"
@@ -152,7 +157,6 @@ static constexpr float kFullCircleDeg = 360.0F;
 static constexpr double kGpsCoordScale = 1e7;
 static constexpr float kGpsCountsToDegrees = 1.0F / static_cast<float>(kGpsCoordScale);
 // Erase/download input constants removed — blocking input now in AO_RCOS.
-static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
 
@@ -375,13 +379,14 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
     rc::rc_log("Reads: I=%lu M=%lu B=%lu G=%lu  "
-           "Errors: I=%lu Z=%lu B=%lu G=%lu\n",
+           "Errors: I=%lu Z=%lu R=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.mag_read_count,
            (unsigned long)snap.baro_read_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.imu_error_count,
            (unsigned long)core1_imu_zero_reject_count(),
+           (unsigned long)core1_imu_reinit_count(),
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
     if (AO_Logger_is_initialized()) {
@@ -630,8 +635,8 @@ static void print_imu_status() {
     if (g_imuInitialized) {
         rc::rc_log("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
         rc::rc_log("  IMU FS: accel=%ug gyro=%u dps\n",
-               2U << static_cast<unsigned>(g_imu.accel_fs),
-               250U << static_cast<unsigned>(g_imu.gyro_fs));
+               static_cast<unsigned>(icm20948_fs::accel_range_g(g_imu.accel_fs)),
+               static_cast<unsigned>(icm20948_fs::gyro_range_dps(g_imu.gyro_fs)));
         rc::rc_log("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");
@@ -698,7 +703,17 @@ static void hw_validate_sensors() {
     print_gps_status();
 }
 
+// Same predicate as the boot count (rc::psram_check).
+static rc::PsramCheck psram_boot_check() {
+    return rc::psram_check(board::kPsramAvailable, g_psramSize,
+                           g_psramSelfTestPassed, g_psramFlashSafePassed);
+}
+
 static void print_psram_status() {
+    if constexpr (!board::kPsramAvailable) {
+        rc::rc_log("[----] PSRAM: not fitted on this board\n");
+        return;
+    }
     if (g_psramSize > 0) {
         rc::rc_log("[%s] PSRAM: %luMB at 0x%08lX",
                g_psramSelfTestPassed ? "PASS" : "FAIL",
@@ -781,16 +796,40 @@ static void print_gps_status_boot() {
     }
 }
 
+// Status LED line: named for what the pack fits; nothing on a pack with no
+// status LED. The onboard LED line is skipped when it is an RGB channel.
+static void print_led_hw_status() {
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        rc::rc_log("[PASS] Onboard LED GPIO initialized (pin %d, %s)\n",
+               board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
+    }
+    if constexpr (kStatusLedKind == rc::StatusLedKind::kWs2812) {
+        rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
+               status_led_ready() ? "PASS" : "FAIL", board::kNeoPixelPin);
+    } else if constexpr (kStatusLedKind == rc::StatusLedKind::kDiscreteRgb) {
+        rc::rc_log("[%s] RGB status LED PWM initialized (R=%d G=%d B=%d, %s)\n",
+               status_led_ready() ? "PASS" : "FAIL",
+               board::kLedRedPin, board::kLedGreenPin, board::kLedBluePin,
+               board::kLedRgbActiveLow ? "active-low" : "active-high");
+    }
+}
+
+#if defined(ROCKETCHIP_RADIO_OFF)
+// Same line on the USB connect banner (cli_print_boot_summary),
+// debug `b` (this function), radio status `t`, and station status.
+// DBG_PRINT in AO_Radio_start is before CDC is up (ao_radio.cpp).
+static void print_radio_disabled_by_build() {
+    rc::rc_log("[OFF ] Radio: disabled by build (ROCKETCHIP_RADIO_OFF), no Starcom MAC\n");
+}
+#endif
+
 void cli_print_hw_status() {
     rc::rc_log("\n=== Hardware Status ===\n");
     rc::rc_log("  Build: %s %s %s (%s %s)\n",
            kVersionString, kBuildConfig, kBuildIdentity, __DATE__, __TIME__);
 
     rc::rc_log("[PASS] Build + boot (you're reading this)\n");
-    rc::rc_log("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
-           board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
-    rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
-           g_neopixelInitialized ? "PASS" : "FAIL", board::kNeoPixelPin);
+    print_led_hw_status();
     rc::rc_log("[PASS] USB CDC connected\n");
 
     uint32_t ts = time_us_32();
@@ -808,8 +847,12 @@ void cli_print_hw_status() {
     hw_validate_i2c_devices();
     hw_validate_sensors();
 
+#if defined(ROCKETCHIP_RADIO_OFF)
+    print_radio_disabled_by_build();
+#else
     if (AO_Radio_get_state()->initialized) {
-        rc::rc_log("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
+        rc::rc_log("[PASS] Radio: RFM95W LoRa %lu kHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
+               static_cast<unsigned long>(rfm95w_carrier_hz() / 1000U),
                board::kRadioCsPin, board::kRadioRstPin,
                board::kRadioIrqPin);
         if constexpr (job::kRadioModeRx) {
@@ -825,6 +868,7 @@ void cli_print_hw_status() {
     } else if (g_spiInitialized) {
         rc::rc_log("[----] Radio: not detected (module unpopulated?)\n");
     }
+#endif
 
     print_psram_status();
     print_logging_status();
@@ -844,8 +888,12 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     fail = 0;
     auto check = [&](bool ok) { if (ok) { ++pass; } else { ++fail; } };
     check(true);                                    // Build + boot
-    check(true);                                    // Red LED GPIO
-    check(g_neopixelInitialized);                   // NeoPixel
+    if constexpr (!kOnboardLedIsRgbChannel) {
+        check(true);                                // Onboard LED GPIO
+    }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        check(status_led_ready());                  // NeoPixel or RGB LED
+    }
     check(true);                                    // USB CDC
     check(time_us_32() > 0);                        // Debug macros
     check(g_i2cInitialized);                        // I2C bus
@@ -863,14 +911,22 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     if (g_spiInitialized) {
         check(AO_Radio_get_state()->initialized);
     }
-    check(true);                                    // PSRAM
+    // PSRAM: counted only when the pack fits it (rc::psram_check).
+    const rc::PsramCheck psram = psram_boot_check();
+    if (psram != rc::PsramCheck::kNotCounted) {
+        check(psram == rc::PsramCheck::kPass);
+    }
     check(true);                                    // Logging
     check(true);                                    // Flash
 }
 
 // FAIL only if init was attempted and failed. Uninstalled sensors: silent.
 static void print_hw_failures() {
-    if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
+    if constexpr (rc::status_led_counted(kStatusLedKind)) {
+        if (!status_led_ready()) {
+            rc::rc_log("  [FAIL] %s\n", rc::status_led_label(kStatusLedKind));
+        }
+    }
     if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
     if (g_imuInitAttempted  && !g_imuInitialized)  { rc::rc_log("  [FAIL] ICM-20948 IMU\n"); }
     if (g_baroInitAttempted &&
@@ -883,6 +939,9 @@ static void print_hw_failures() {
     }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
         rc::rc_log("  [FAIL] Radio\n");
+    }
+    if (psram_boot_check() == rc::PsramCheck::kFail) {
+        rc::rc_log("  [FAIL] PSRAM\n");
     }
 }
 
@@ -931,6 +990,9 @@ void cli_print_boot_summary() {
            rc::kDefaultRocketProfile.name,
            (unsigned long)(to_ms_since_boot(get_absolute_time()) / 1000));
     rc::rc_log("==============================================\n");
+#if defined(ROCKETCHIP_RADIO_OFF)
+    print_radio_disabled_by_build();
+#endif
 
     if (rc::flight_director_launch_abort()) {
         rc::rc_log("[WARN] LAUNCH ABORT — power cycle required to clear\n");
@@ -1065,7 +1127,11 @@ void cli_print_station_status() {
 
     rc::rc_log("\n=== RocketChip Station ===\n");
     if (!rs->initialized) {
+#if defined(ROCKETCHIP_RADIO_OFF)
+        print_radio_disabled_by_build();
+#else
         rc::rc_log("Radio: not initialized\n");
+#endif
         return;
     }
     {
@@ -1104,57 +1170,9 @@ void cli_print_station_status() {
 // Logging / Flight Commands
 // ============================================================================
 
-void cmd_flush_log() {
-    if (!AO_Logger_is_initialized()) {
-        rc::rc_log("Logging not initialized.\n");
-        return;
-    }
-    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    if (!ft->loaded) {
-        rc::rc_log("Flight table not loaded.\n");
-        return;
-    }
-
-    rc::RingBuffer* ring = AO_Logger_get_ring_mut();
-    uint32_t stored = rc::ring_stored_count(ring);
-    if (stored == 0) {
-        rc::rc_log("No frames in ring buffer.\n");
-        return;
-    }
-
-    bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
-                     g_psramFlashSafePassed);
-    uint8_t rate = is_psram ? 50U : 25U;
-
-    rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
-
-    rc::FlightMetadata meta = {};
-    rc::FlightSummary summ = {};
-    summ.frame_count = stored;
-
-    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flush op chain
-    // to prevent the LL-31 race. flush_ring_to_flash() invokes
-    // flash_safe_execute() many times; each invocation is a separate
-    // multicore_lockout window. Pausing Core 1 once around the whole flush
-    // is far cheaper than pausing per-invocation.
-    rc::core1_i2c_pause();
-
-    rc::FlushResult result = rc::flush_ring_to_flash(
-        ring, ft, &meta, &summ, rate);
-
-    // R-15 (2026-05-07 audit): flush_ring_to_flash() invokes flash_safe_execute()
-    // many times; per LL Entry 31, runtime flash_safe_execute() leaves the I2C
-    // peripheral in a corrupted state on RP2350 until a peripheral reset clears
-    // it. Apply the same reset pattern that ao_rcos.cpp cal_save_to_flash()
-    // uses (line 338). Run regardless of FlushResult — even a partial flush
-    // means flash_safe_execute() ran. R-17 added the pause BEFORE this point;
-    // the reset is still required as belt-and-suspenders against any in-flight
-    // transaction that didn't drain in time.
-    if (!i2c_master_reset()) {
-        rc::rc_log("[WARN] I2C master reset failed after flush\n");
-    }
-    rc::core1_i2c_resume();
-
+static void print_flush_result(rc::FlushResult result) {
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    const uint32_t stored = rc::flush_job_stored();
     switch (result) {
     case rc::FlushResult::kOk:
         rc::rc_log("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
@@ -1184,40 +1202,152 @@ void cmd_flush_log() {
     }
 }
 
-// Erase confirmation prompt + input now in AO_RCOS (non-blocking).
-// This function is the completion callback — does the actual erase.
-void cli_do_erase_flights() {
+// 'l': start the flush. AO_RCOS then calls cmd_flush_log_step one time
+// each 20 Hz tick, so one flash sector stalls Core 0 for one tick only.
+void cmd_flush_log() {
+    if (!AO_Logger_is_initialized()) {
+        rc::rc_log("Logging not initialized.\n");
+        return;
+    }
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    rc::rc_log("Erasing flight log sectors...\n");
-    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op chain
-    // to prevent the LL-31 race (in-flight I2C transactions corrupted by
-    // multicore_lockout). See R-11 SPIN model + ao_rcos.cpp cal_save_to_flash
-    // for the same pattern.
-    rc::core1_i2c_pause();
-    bool ok = true;
-    if (!rc::flight_log_erase_all(ft)) {
-        rc::rc_log("Flash erase error.\n");
-        ok = false;
-    } else if (!rc::flight_table_erase_flash()) {
-        rc::rc_log("Table erase error.\n");
-        ok = false;
-    } else {
-        rc::flight_table_erase_all(ft);
-        ft->loaded = true;
-        rc::flight_table_save(ft);
-        rc::rc_log("All flights erased.\n");
+    if (!ft->loaded) {
+        rc::rc_log("Flight table not loaded.\n");
+        return;
     }
 
-    // R-15 (2026-05-07 audit): per LL Entry 31, every runtime flash_safe_execute()
-    // must be followed by i2c_master_reset() — matches ao_rcos.cpp cal_save
-    // protocol. Even on partial failure above, flash_safe_execute() ran
-    // for some sectors before bailing, so the reset is required regardless of ok.
-    (void)ok;
+    rc::RingBuffer* ring = AO_Logger_get_ring_mut();
+    const uint32_t stored = rc::ring_stored_count(ring);
+    if (stored == 0) {
+        rc::rc_log("No frames in ring buffer.\n");
+        return;
+    }
+    if (AO_RCOS_cal_active() || rc::flush_job_active() || rc::erase_job_active()) {
+        rc::rc_log("Busy. Try again.\n");
+        return;
+    }
+
+    const bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed &&
+                           g_psramFlashSafePassed);
+    const uint8_t rate = is_psram ? 50U : 25U;
+
+    rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
+
+    const rc::FlightMetadata meta = {};
+    rc::FlightSummary summ = {};
+    summ.frame_count = stored;
+
+    // Stop ring pushes first, so the frame count and indexes stay fixed
+    // until the last sector is written.
+    AO_Logger_set_ring_hold(true);
+    const rc::FlushResult result = rc::flush_job_begin(ring, ft, &meta, &summ, rate);
+    if (result != rc::FlushResult::kOk) {
+        AO_Logger_set_ring_hold(false);
+        print_flush_result(result);
+        return;
+    }
+    AO_RCOS_start_flush_log();
+}
+
+// One flush step (one sector, or the table save at the end). AO_RCOS
+// calls it from its tick. Returns true when the job ended.
+bool cmd_flush_log_step() {
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op to
+    // prevent the LL-31 race. Each step is one or two flash_safe_execute
+    // calls (one multicore_lockout window each). The pause is for this
+    // step only, so Core 1 reads sensors between the steps.
+    rc::core1_i2c_pause();
+
+    const rc::FlushStep step = rc::flush_job_step();
+
+    // R-15 (2026-05-07 audit): per LL Entry 31, runtime flash_safe_execute()
+    // leaves the I2C peripheral in a corrupted state on RP2350 until a
+    // peripheral reset clears it. Apply the same reset pattern that
+    // ao_rcos.cpp cal_save_to_flash() uses, after each step and on each
+    // result. R-17 added the pause BEFORE this point; the reset is still
+    // required as belt-and-suspenders against any in-flight transaction
+    // that didn't drain in time.
+    if (!i2c_master_reset()) {
+        rc::rc_log("[WARN] I2C master reset failed after flush\n");
+    }
+    rc::core1_i2c_resume();
+
+    if (!step.done) {
+        return false;
+    }
+    AO_Logger_set_ring_hold(false);
+    print_flush_result(step.result);
+    return true;
+}
+
+// 'x' after the "yes" confirm (AO_RCOS kEraseConfirm). Starts the erase
+// job. AO_RCOS then calls cmd_erase_flights_step one time each tick, so
+// one sector erase (45-75 ms) stalls Core 0 for one tick only.
+// Returns true if the job started.
+bool cli_do_erase_flights() {
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    const rc::FlushResult r = rc::erase_job_begin(ft);
+    if (r == rc::FlushResult::kBusy) {
+        rc::rc_log("Busy. Try again.\n");
+        return false;
+    }
+    if (r != rc::FlushResult::kOk) {
+        rc::rc_log("Flight table not loaded.\n");
+        return false;
+    }
+    const rc::EraseProgress pr = rc::erase_job_progress();
+    rc::rc_log("Erasing flights: table + %lu log sectors, one each tick...\n",
+               (unsigned long)pr.log_sectors);
+    return true;
+}
+
+// One erase step (one flash operation). AO_RCOS calls it from its tick.
+// Returns true when the job ended.
+bool cmd_erase_flights_step() {
+    // Never erase while ARMED or in flight. The table goes first, so a
+    // stop here leaves a valid table (logging/flash_job_plan.h).
+    if (!AO_FlightDirector_is_ground_state()) {
+        rc::erase_job_abort();
+        rc::rc_log("Erase stopped: not ground state. Do 'x' again on the ground.\n");
+        return true;
+    }
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op to
+    // prevent the LL-31 race (in-flight I2C transactions corrupted by
+    // multicore_lockout). The pause is for this step only.
+    rc::core1_i2c_pause();
+
+    const rc::FlushStep step = rc::erase_job_step();
+
+    // R-15 (2026-05-07 audit): per LL Entry 31, every runtime
+    // flash_safe_execute() must be followed by i2c_master_reset(), on
+    // each result (same as cal_save_to_flash and cmd_flush_log_step).
     if (!i2c_master_reset()) {
         rc::rc_log("[WARN] I2C master reset failed after erase\n");
     }
     // R-17: resume Core 1 sensor reads.
     rc::core1_i2c_resume();
+
+    const rc::EraseProgress pr = rc::erase_job_progress();
+    if (!step.done) {
+        if (pr.report) {
+            rc::rc_log("Erase %lu/%lu\n", (unsigned long)pr.done,
+                       (unsigned long)pr.total);
+        }
+        return false;
+    }
+    switch (step.result) {
+    case rc::FlushResult::kOk:
+        rc::rc_log("All flights erased (%lu log sectors).\n",
+                   (unsigned long)pr.log_sectors);
+        break;
+    case rc::FlushResult::kTableSaveError:
+        rc::rc_log("Table erase error.\n");
+        break;
+    default:
+        rc::rc_log("Flash erase error (step %lu/%lu).\n",
+                   (unsigned long)(pr.done + 1U), (unsigned long)pr.total);
+        break;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -1257,80 +1387,59 @@ void cmd_list_flights() {
 // read_flight_number() removed — blocking input now in AO_RCOS (non-blocking).
 // Flight number input via AO_RCOS_start_download_flight() → cal_ui_handle_flight_num().
 
-// Block-with-watchdog-feed write — binary download path waits for CDC
-// backpressure rather than dropping. Operator wants complete data.
-static void cdc_write_blocking(const uint8_t* buf, uint32_t len) {
-    if (!tud_cdc_connected()) { return; }
-    uint32_t written = 0;
-    while (written < len) {
-        uint32_t avail = tud_cdc_write_available();
-        if (avail == 0) {
-            rc::pio_watchdog_feed();
-        } else {
-            uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
-            tud_cdc_write(buf + written, chunk);
-            written += chunk;
-        }
+// Entry fields come from the CRC-checked table, but a bad frame size would
+// divide by zero in the layout and a bad range would read outside the log
+// region, so check both before touching flash.
+static bool flight_entry_layout_ok(const rc::FlightLogEntry& entry) {
+    if (!rc::flight_log_frame_size_valid(entry.frame_size)) {
+        return false;
     }
+    const uint32_t first_log_sector = rc::kFlightLogStart / rc::kFlashSectorSize;
+    const uint32_t end_log_sector = rc::kFlightLogEnd / rc::kFlashSectorSize;
+    if (entry.start_sector < first_log_sector ||
+        entry.sector_count > end_log_sector - entry.start_sector) {
+        return false;
+    }
+    return rc::flight_log_sectors_needed(entry.frame_count, entry.frame_size) <=
+           entry.sector_count;
 }
 
-static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
-    uint32_t frame_size = entry.frame_size;
-    uint32_t frames_per_sector = rc::kFlashSectorSize / frame_size;
-    uint32_t flash_base = entry.start_sector * rc::kFlashSectorSize;
-    const uint8_t* xip_base = reinterpret_cast<const uint8_t*>(
-        XIP_BASE + flash_base);
-
-    uint32_t running_crc = kCrc32InitXor;
-    uint32_t frames_sent = 0;
-
-    while (frames_sent < entry.frame_count) {
-        uint32_t sector_idx = frames_sent / frames_per_sector;
-        uint32_t frame_in_sector = frames_sent % frames_per_sector;
-        uint32_t offset = sector_idx * rc::kFlashSectorSize +
-                          frame_in_sector * frame_size;
-
-        uint32_t remaining_in_sector = frames_per_sector - frame_in_sector;
-        uint32_t remaining_total = entry.frame_count - frames_sent;
-        uint32_t batch = (remaining_in_sector < remaining_total)
-                             ? remaining_in_sector : remaining_total;
-        uint32_t batch_bytes = batch * frame_size;
-
-        cdc_write_blocking(xip_base + offset, batch_bytes);
-
-        running_crc = rc::crc32_update(running_crc,
-                                       xip_base + offset, batch_bytes);
-        frames_sent += batch;
-        rc::pio_watchdog_feed();
-    }
-    return running_crc ^ kCrc32InitXor;
-}
-
-// Download prompt + flight number input now in AO_RCOS (non-blocking).
-// This function is the completion callback — does the actual download.
-void cli_do_download_flight(int num) {
+// Download prompt + flight number input are in AO_RCOS (non-blocking).
+// This starts the download job (logging/flight_download.h). AO_RCOS then
+// calls download_job_step one time each tick. Wire output: the RCBIN
+// line, the payload, then RCEND:<crc32>, or RCERR:<reason>:<frames_sent>
+// if the host disconnects or stops reading. Returns true if the job
+// started.
+bool cli_do_download_flight(int num) {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     uint32_t count = rc::flight_table_count(ft);
     if (num < 1 || static_cast<uint32_t>(num) > count) {
         rc::rc_log("Invalid flight number.\n");
-        return;
+        return false;
     }
 
     rc::FlightLogEntry entry = {};
     if (!rc::flight_table_get_entry(ft, static_cast<uint32_t>(num - 1),
                                      &entry)) {
         rc::rc_log("Failed to read flight entry.\n");
-        return;
+        return false;
+    }
+    if (!flight_entry_layout_ok(entry)) {
+        rc::rc_log("Flight entry has an invalid layout; not downloading.\n");
+        return false;
     }
 
-    rc::rc_log("RCBIN:%d:%lu:%u:%lu\n",
-           num,
-           (unsigned long)entry.frame_count,
-           (unsigned)entry.log_rate_hz,
-           (unsigned long)entry.frame_size);
-
-    uint32_t crc = stream_flight_binary(entry);
-    rc::rc_log("RCEND:%08lX\n", (unsigned long)crc);
+    const rc::DownloadBegin begin =
+        rc::download_job_begin(entry, static_cast<uint32_t>(num));
+    if (begin == rc::DownloadBegin::kBusy) {
+        rc::rc_log("Busy. Try again.\n");
+        return false;
+    }
+    if (begin != rc::DownloadBegin::kOk) {
+        rc::rc_log("Flight entry has an invalid layout; not downloading.\n");
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -1340,7 +1449,11 @@ void cli_do_download_flight(int num) {
 void cmd_radio_status() {
     const auto* rs = AO_Radio_get_state();
     if (!rs->initialized) {
+#if defined(ROCKETCHIP_RADIO_OFF)
+        print_radio_disabled_by_build();
+#else
         rc::rc_log("Radio not initialized.\n");
+#endif
         return;
     }
 
@@ -1417,6 +1530,7 @@ void cmd_radio_status() {
                a.modem_config3, cfg3_ok ? "OK" : "MISMATCH");
     }
     radio_rate_counters_dump();
+    link_baseline_dump();
 }
 
 // ============================================================================

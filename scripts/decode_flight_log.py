@@ -15,8 +15,14 @@ Usage:
     # Decode a previously captured binary file
     python decode_flight_log.py --decode raw.bin --output decoded.csv
 
-Frame format: 55 bytes (PCM Standard)
-    [sync 2B][MET 4B][type 1B][len 1B][TelemetryState 45B][CRC-16 2B]
+Frame format: 61-byte slots (include/rocketchip/pcm_frame.h)
+    Standard: [sync 2B][MET 4B][type=1][len=51][TelemetryState 51B][CRC-16 2B]
+    Event:    [sync 2B][MET 4B][type=3][len=5][event_id 1B][data 4B][CRC-16 2B]
+              (15 bytes, zero-padded to a 61-byte slot by pcm_pack_event_slot)
+
+Download protocol: "RCBIN:<n>:<frames>:<rate>:<frame_size>" line, the frames,
+then "RCEND:<crc32 hex>" on success or "RCERR:<reason>:<frames_sent>" if the
+device gave up (host stopped reading, or the port closed).
 """
 
 import argparse
@@ -76,18 +82,23 @@ def crc32(data: bytes) -> int:
 
 # ---------------------------------------------------------------------------
 # PCM frame constants (matching include/rocketchip/pcm_frame.h)
+# test_decode_flight_log.py checks these against the C++ headers.
 # ---------------------------------------------------------------------------
 
 SYNC_HIGH = 0xEB
 SYNC_LOW = 0x90
-FRAME_SIZE = 55
-HEADER_SIZE = 8
-PAYLOAD_SIZE = 45
-FRAME_TYPE_STANDARD = 1
+FRAME_SIZE = 61            # kPcmFrameStandardSize; every log slot is this size
+HEADER_SIZE = 8            # PcmFrameHeader
+CRC_SIZE = 2
+PAYLOAD_SIZE = 51          # kPcmStandardPayloadLen, sizeof(TelemetryState)
+FRAME_TYPE_STANDARD = 1    # kPcmFrameTypeStandard
+FRAME_TYPE_EVENT = 3       # kPcmFrameTypeEvent
+EVENT_PAYLOAD_SIZE = 5     # kPcmEventPayloadLen
+EVENT_FRAME_SIZE = 15      # kPcmFrameEventSize
 
-# TelemetryState struct layout (45 bytes, packed, little-endian)
-# Matches include/rocketchip/telemetry_state.h exactly
-TELEM_FORMAT = '<4h 3i 3h ih HBB Bb H I B'
+# TelemetryState struct layout (51 bytes, packed, little-endian).
+# Field order and types match include/rocketchip/telemetry_state.h.
+TELEM_FORMAT = '<4h 3i 3h ih H BBBb H I B 6B'
 TELEM_FIELDS = [
     'q_w', 'q_x', 'q_y', 'q_z',           # int16 x4: quaternion * 32767
     'lat_1e7', 'lon_1e7', 'alt_mm',         # int32 x3
@@ -95,46 +106,66 @@ TELEM_FIELDS = [
     'baro_alt_mm', 'baro_vvel_cms',         # int32 + int16: mm, cm/s
     'gps_speed_cms',                        # uint16: cm/s
     'gps_fix_sats', 'flight_state',         # uint8, uint8
-    'health', 'temperature_c',              # int8 (health=uint8 treated as signed ok)
+    'health', 'temperature_c',              # uint8, int8
     'battery_mv',                           # uint16
     'met_ms',                               # uint32
-    '_reserved',                            # uint8
+    'flags',                                # uint8
+    'utc_hour', 'utc_minute', 'utc_second',  # uint8 x6
+    'utc_day', 'utc_month', 'utc_year',
 ]
+
+EVENT_FORMAT = '<B4B'
+EVENT_NAMES = {   # LogEventId
+    1: 'pyro_fired_drogue',
+    2: 'pyro_fired_main',
+    3: 'abort_triggered',
+    4: 'safe_mode_entry',
+    5: 'safe_mode_exit',
+    6: 'phase_change',
+    7: 'confidence_lost',
+    8: 'confidence_recovered',
+}
+
+# flags byte (telemetry_state.h)
+FLAG_ZUPT_ACTIVE = 1 << 0
+FLAG_MET_MISSION = 1 << 1
+FLAG_UTC_VALID = 1 << 2
 
 assert struct.calcsize(TELEM_FORMAT) == PAYLOAD_SIZE, \
     f"TelemetryState size mismatch: {struct.calcsize(TELEM_FORMAT)} != {PAYLOAD_SIZE}"
+assert len(TELEM_FIELDS) == len(struct.unpack(TELEM_FORMAT, bytes(PAYLOAD_SIZE)))
+assert HEADER_SIZE + PAYLOAD_SIZE + CRC_SIZE == FRAME_SIZE
+assert HEADER_SIZE + EVENT_PAYLOAD_SIZE + CRC_SIZE == EVENT_FRAME_SIZE
+assert struct.calcsize(EVENT_FORMAT) == EVENT_PAYLOAD_SIZE
+
+
+def _frame_valid(frame_bytes: bytes, frame_type: int, payload_len: int) -> bool:
+    """Triple gate from pcm_frame.h: sync, type + length, CRC-16."""
+    total = HEADER_SIZE + payload_len + CRC_SIZE
+    if len(frame_bytes) < total:
+        return False
+    if frame_bytes[0] != SYNC_HIGH or frame_bytes[1] != SYNC_LOW:
+        return False
+    if frame_bytes[6] != frame_type or frame_bytes[7] != payload_len:
+        return False
+    crc_len = HEADER_SIZE + payload_len
+    crc_stored = struct.unpack_from('<H', frame_bytes, crc_len)[0]
+    return crc16_ccitt(frame_bytes[:crc_len]) == crc_stored
 
 
 def decode_frame(frame_bytes: bytes) -> dict | None:
-    """Decode a single 55-byte PCM frame. Returns dict or None if invalid."""
+    """Decode one 61-byte standard frame. Returns dict or None if invalid."""
     if len(frame_bytes) != FRAME_SIZE:
         return None
-
-    # Gate 1: sync word
-    if frame_bytes[0] != SYNC_HIGH or frame_bytes[1] != SYNC_LOW:
+    if not _frame_valid(frame_bytes, FRAME_TYPE_STANDARD, PAYLOAD_SIZE):
         return None
 
-    # Gate 2: frame type and payload length
-    frame_type = frame_bytes[6]
-    payload_len = frame_bytes[7]
-    if frame_type != FRAME_TYPE_STANDARD or payload_len != PAYLOAD_SIZE:
-        return None
-
-    # Gate 3: CRC-16 over bytes 0-52
-    crc_computed = crc16_ccitt(frame_bytes[:53])
-    crc_stored = struct.unpack_from('<H', frame_bytes, 53)[0]
-    if crc_computed != crc_stored:
-        return None
-
-    # Decode header
     met_ms = struct.unpack_from('<I', frame_bytes, 2)[0]
-
-    # Decode payload
     payload = frame_bytes[HEADER_SIZE:HEADER_SIZE + PAYLOAD_SIZE]
-    values = struct.unpack(TELEM_FORMAT, payload)
-    record = dict(zip(TELEM_FIELDS, values))
+    record = dict(zip(TELEM_FIELDS, struct.unpack(TELEM_FORMAT, payload)))
 
-    # Apply scaling to produce SI units
+    # Frame header MET is the stamp the logger used; the payload carries its own.
+    record['frame_met_ms'] = met_ms
     record['met_s'] = met_ms / 1000.0
     record['q_w_f'] = record['q_w'] / 32767.0
     record['q_x_f'] = record['q_x'] / 32767.0
@@ -151,12 +182,55 @@ def decode_frame(frame_bytes: bytes) -> dict | None:
     record['gps_speed_mps'] = record['gps_speed_cms'] / 100.0
     record['gps_fix'] = (record['gps_fix_sats'] >> 4) & 0x0F
     record['gps_sats'] = record['gps_fix_sats'] & 0x0F
-    record['eskf_healthy'] = bool(record['health'] & 0x01)
-    record['zupt_active'] = bool(record['health'] & 0x02)
+    # health: 4 subsystems x 2 bits, IMU[1:0] Baro[3:2] ESKF[5:4] GPS[7:6]
+    record['health_imu'] = record['health'] & 0x03
+    record['health_baro'] = (record['health'] >> 2) & 0x03
+    record['health_eskf'] = (record['health'] >> 4) & 0x03
+    record['health_gps'] = (record['health'] >> 6) & 0x03
+    record['zupt_active'] = bool(record['flags'] & FLAG_ZUPT_ACTIVE)
+    record['met_mission'] = bool(record['flags'] & FLAG_MET_MISSION)
+    record['utc_valid'] = bool(record['flags'] & FLAG_UTC_VALID)
     record['temp_c'] = record['temperature_c']
     record['battery_v'] = record['battery_mv'] / 1000.0
 
     return record
+
+
+def decode_event(frame_bytes: bytes) -> dict | None:
+    """Decode an event frame (15 bytes, or zero-padded in a 61-byte slot)."""
+    if len(frame_bytes) < EVENT_FRAME_SIZE:
+        return None
+    if not _frame_valid(frame_bytes, FRAME_TYPE_EVENT, EVENT_PAYLOAD_SIZE):
+        return None
+    met_ms = struct.unpack_from('<I', frame_bytes, 2)[0]
+    event_id, d0, d1, d2, d3 = struct.unpack_from(EVENT_FORMAT, frame_bytes,
+                                                 HEADER_SIZE)
+    return {
+        'met_ms': met_ms,
+        'met_s': met_ms / 1000.0,
+        'event_id': event_id,
+        'event': EVENT_NAMES.get(event_id, f'unknown_{event_id}'),
+        'data': (d0, d1, d2, d3),
+    }
+
+
+def decode_frames(data: bytes) -> tuple[list[dict], list[dict], int]:
+    """Split a download into 61-byte slots. Returns (records, events, corrupt)."""
+    records = []
+    events = []
+    corrupt = 0
+    for i in range(len(data) // FRAME_SIZE):
+        slot = data[i * FRAME_SIZE:(i + 1) * FRAME_SIZE]
+        record = decode_frame(slot)
+        if record is not None:
+            records.append(record)
+            continue
+        event = decode_event(slot)
+        if event is not None:
+            events.append(event)
+            continue
+        corrupt += 1
+    return records, events, corrupt
 
 
 # CSV column order (human-readable, SI units)
@@ -166,56 +240,93 @@ CSV_COLUMNS = [
     'vel_n_mps', 'vel_e_mps', 'vel_d_mps',
     'baro_alt_m', 'baro_vvel_mps',
     'gps_speed_mps', 'gps_fix', 'gps_sats',
-    'flight_state', 'eskf_healthy', 'zupt_active',
-    'temp_c', 'battery_mv',
+    'flight_state', 'health_imu', 'health_baro', 'health_eskf', 'health_gps',
+    'zupt_active', 'met_mission', 'temp_c', 'battery_mv',
+    'utc_valid', 'utc_year', 'utc_month', 'utc_day',
+    'utc_hour', 'utc_minute', 'utc_second',
 ]
+
+EVENT_CSV_COLUMNS = ['met_s', 'event_id', 'event', 'd0', 'd1', 'd2', 'd3']
+
+
+def _csv_cell(v) -> str:
+    if isinstance(v, bool):
+        return '1' if v else '0'
+    if isinstance(v, float):
+        return f'{v:.6f}'
+    return str(v)
+
+
+def events_path_for(output_path: str) -> str:
+    stem, ext = os.path.splitext(output_path)
+    return f'{stem}_events{ext or ".csv"}'
 
 
 def decode_binary(data: bytes, output_path: str | None = None) -> tuple[int, int]:
-    """Decode binary data into CSV. Returns (total_frames, corrupt_frames)."""
+    """Decode binary data into CSV. Returns (good_frames, corrupt_frames).
+
+    good_frames counts standard and event frames. Events go to
+    <output>_events.csv next to the main CSV.
+    """
     total = len(data) // FRAME_SIZE
     if total == 0:
         print("No complete frames in data.")
         return 0, 0
+    if len(data) % FRAME_SIZE:
+        print(f"Warning: {len(data) % FRAME_SIZE} trailing bytes "
+              f"(not a whole {FRAME_SIZE}-byte frame) ignored.")
 
-    good = 0
-    corrupt = 0
-    rows = []
-
-    for i in range(total):
-        frame_bytes = data[i * FRAME_SIZE:(i + 1) * FRAME_SIZE]
-        record = decode_frame(frame_bytes)
-        if record is None:
-            corrupt += 1
-            continue
-        good += 1
-        rows.append(record)
+    rows, events, corrupt = decode_frames(data)
 
     if output_path:
         with open(output_path, 'w') as f:
             f.write(','.join(CSV_COLUMNS) + '\n')
             for r in rows:
-                vals = []
-                for col in CSV_COLUMNS:
-                    v = r.get(col, '')
-                    if isinstance(v, float):
-                        vals.append(f'{v:.6f}')
-                    elif isinstance(v, bool):
-                        vals.append('1' if v else '0')
-                    else:
-                        vals.append(str(v))
-                f.write(','.join(vals) + '\n')
-        print(f"Wrote {good} frames to {output_path}")
+                f.write(','.join(_csv_cell(r.get(c, '')) for c in CSV_COLUMNS) + '\n')
+        print(f"Wrote {len(rows)} frames to {output_path}")
+        if events:
+            ev_path = events_path_for(output_path)
+            with open(ev_path, 'w') as f:
+                f.write(','.join(EVENT_CSV_COLUMNS) + '\n')
+                for e in events:
+                    vals = [e['met_s'], e['event_id'], e['event'], *e['data']]
+                    f.write(','.join(_csv_cell(v) for v in vals) + '\n')
+            print(f"Wrote {len(events)} events to {ev_path}")
 
-    # Summary
-    if total > 0 and good > 0:
+    print(f"Frames: {len(rows)} standard, {len(events)} event, "
+          f"{corrupt} corrupt, {total} total")
+    if rows:
         dt = rows[-1]['met_s'] - rows[0]['met_s']
-        print(f"Frames: {good} good, {corrupt} corrupt, {total} total")
         print(f"Duration: {dt:.1f}s ({rows[0]['met_s']:.1f}s - {rows[-1]['met_s']:.1f}s)")
-    else:
-        print(f"Frames: {good} good, {corrupt} corrupt, {total} total")
 
-    return good, corrupt
+    return len(rows) + len(events), corrupt
+
+
+def split_download(binary_data: bytes, total_bytes: int,
+                   frame_size: int) -> tuple[bytes, str, str]:
+    """Split what followed the RCBIN line into (frames, status, footer).
+
+    status is 'end' (RCEND footer right after total_bytes of frames),
+    'error' (device sent RCERR and stopped early), or 'missing'.
+    On 'error' only the frames_sent whole frames named in
+    RCERR:<reason>:<frames_sent> are kept; bytes of a run the device was
+    still writing, and the line break before RCERR, are dropped.
+    """
+    if binary_data[total_bytes:total_bytes + 6] == b'RCEND:':
+        footer = binary_data[total_bytes:].split(b'\n', 1)[0]
+        return bytes(binary_data[:total_bytes]), 'end', footer.decode('ascii', 'replace').strip()
+    err_idx = binary_data.find(b'\nRCERR:')
+    if err_idx >= 0:
+        footer = binary_data[err_idx + 1:].split(b'\n', 1)[0]
+        footer_text = footer.decode('ascii', 'replace').strip()
+        parts = footer_text.split(':')
+        try:
+            kept = int(parts[2]) * frame_size
+        except (IndexError, ValueError):
+            kept = (err_idx // frame_size) * frame_size
+        kept = min(kept, err_idx)
+        return bytes(binary_data[:kept]), 'error', footer_text
+    return bytes(binary_data[:total_bytes]), 'missing', ''
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +420,9 @@ def serial_download_flight(port, flight_num: int,
                 break
             continue
         binary_data.extend(chunk)
+        err_idx = binary_data.find(b'\nRCERR:')
+        if err_idx >= 0 and binary_data.find(b'\n', err_idx + 1) >= 0:
+            break  # device gave up; nothing more is coming
 
         # Progress
         pct = min(100, len(binary_data) * 100 // (total_bytes + 20))
@@ -316,27 +430,25 @@ def serial_download_flight(port, flight_num: int,
 
     print()  # newline after progress
 
-    # Find RCEND footer in the data
-    rcend_idx = binary_data.find(b'RCEND:')
-    if rcend_idx < 0:
+    raw_binary, status, footer = split_download(binary_data, total_bytes,
+                                                 frame_size)
+    if status == 'error':
+        print(f"Device aborted the download: {footer}. "
+              f"Got {len(raw_binary) // frame_size} whole frames; data is incomplete.")
+    elif status == 'missing':
         print("Warning: RCEND footer not found. Data may be incomplete.")
-        raw_binary = bytes(binary_data[:total_bytes])
     else:
-        raw_binary = bytes(binary_data[:rcend_idx])
-        # Parse CRC from footer
-        footer = binary_data[rcend_idx:].decode('utf-8', errors='replace').strip()
-        if ':' in footer:
-            expected_crc_str = footer.split(':')[1].strip()
-            try:
-                expected_crc = int(expected_crc_str, 16)
-                actual_crc = crc32(raw_binary)
-                if actual_crc == expected_crc:
-                    print(f"Transport CRC-32: OK ({expected_crc:#010x})")
-                else:
-                    print(f"Transport CRC-32: MISMATCH! "
-                          f"expected={expected_crc:#010x} got={actual_crc:#010x}")
-            except ValueError:
-                print(f"Could not parse CRC from footer: {footer}")
+        expected_crc_str = footer.split(':')[1].strip() if ':' in footer else ''
+        try:
+            expected_crc = int(expected_crc_str, 16)
+            actual_crc = crc32(raw_binary)
+            if actual_crc == expected_crc:
+                print(f"Transport CRC-32: OK ({expected_crc:#010x})")
+            else:
+                print(f"Transport CRC-32: MISMATCH! "
+                      f"expected={expected_crc:#010x} got={actual_crc:#010x}")
+        except ValueError:
+            print(f"Could not parse CRC from footer: {footer}")
 
     elapsed = time.time() - start_time
     speed = len(raw_binary) / elapsed if elapsed > 0 else 0

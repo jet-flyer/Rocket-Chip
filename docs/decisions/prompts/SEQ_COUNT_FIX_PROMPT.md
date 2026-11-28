@@ -1,10 +1,10 @@
 # Grok Build task: per-APID, per-direction sequence count (133.0-B-2)
 
-**Status: Not started.** After the change is built, mark this file "awaiting board verify"; it is done only after board verification. The Space Packet service-layer task (`docs/decisions/prompts/SPACE_PACKET_SERVICE_PROMPT.md`) waits for this one to be verified on the board.
+**Status: Done.** Landed in `1f23b35` (CHANGELOG 2026-10-01-003); board-verified 2026-10-20 on nav APID 0x001 (`docs/reports/2026-10-20_buzz_lora_baseline.md`, 2604 Seq steps, modulo 16384). APID 0x003 not checked separately. The Space Packet service-layer task (`docs/decisions/prompts/SPACE_PACKET_SERVICE_PROMPT.md`) waits for this one to be verified on the board.
 
 ## Context
 
-Every on-air packet carries Packet Sequence Count 0. `pump_pack_nav_packet`, `pump_pack_cmd_packet` and `pump_pack_ack_packet` in `src/starcom_adapt/byte_pump.cpp` set only the APID and the packet type. The walk-test CSV `seq` column is not useful until this is fixed. Starcom docs: `starcom/docs/CONFORMANCE.md` (Known gaps, APID allocation, Annex A).
+Historical (the pre-`1f23b359` state this prompt was written against): every on-air packet carried Packet Sequence Count 0. `pump_pack_nav_packet`, `pump_pack_cmd_packet` and `pump_pack_ack_packet` in `src/starcom_adapt/byte_pump.cpp` set only the APID and the packet type. The walk-test CSV `seq` column was not useful until this was fixed. Starcom docs: `starcom/docs/CONFORMANCE.md` (Known gaps, APID allocation, Annex A).
 
 Rules for the session: use the branch/worktree already set up. Do not touch the modified files from the other session (`src/flight_director/*`, `test/*`, `scripts/config_wizard/core/*`). No git push. Never use --no-verify. Do not edit `starcom/docs/CONFORMANCE.md`; Hamilton updates docs after review.
 

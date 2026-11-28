@@ -414,3 +414,14 @@ TEST(GcsMavlink, UsbDisconnectNullSinceDropsImmediately) {
     EXPECT_TRUE(gcs_usb_disconnect_expired(false, 0, nullptr));
     EXPECT_FALSE(gcs_usb_disconnect_expired(true, 0, nullptr));
 }
+
+// PR-41: station + kAnsi leaves the key for poll_dashboard_keys.
+// This checks only the decision table. rc_os.cpp is not in the host build,
+// so the board check (D on the station dashboard) proves the call site.
+TEST(GcsMavlink, DashboardOwnsUsbKeys) {
+    EXPECT_TRUE(dashboard_owns_usb_keys(true, StationOutputMode::kAnsi));
+    EXPECT_FALSE(dashboard_owns_usb_keys(true, StationOutputMode::kMenu));
+    EXPECT_FALSE(dashboard_owns_usb_keys(true, StationOutputMode::kCsv));
+    EXPECT_FALSE(dashboard_owns_usb_keys(true, StationOutputMode::kMavlink));
+    EXPECT_FALSE(dashboard_owns_usb_keys(false, StationOutputMode::kAnsi));
+}

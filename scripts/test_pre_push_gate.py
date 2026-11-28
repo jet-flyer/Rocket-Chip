@@ -28,6 +28,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+# Hermetic: a real scripts/ci/boards.local.json on this PC must not
+# change results. Tests that need a config pass one explicitly.
+os.environ['RC_BOARDS_CONFIG'] = os.path.join(tempfile.gettempdir(), 'rc-no-boards-config.json')
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -35,9 +38,13 @@ GATE = HERE / 'ci' / 'pre_push_gate.py'
 GATE_NO_OPENOCD = (
     'import os, sys; sys.path.insert(0, os.path.dirname(sys.argv[1])); '
     'import pre_push_gate as pg; pg.openocd_listening = lambda: False; '
+    'pg.prepare_worktree = lambda *a: (_ for _ in ()).throw('
+    'pg.GateFail("STUB: bench worktree reached")); '
+    'pg.early_board_check = lambda *a, **k: None; '
     'sys.exit(pg.main(sys.argv[1:]))')
 LIST = HERE / 'ci' / 'firmware_paths.txt'
 ZERO = '0' * 40
+STUB = 'STUB: bench worktree reached'
 FAILS = 0
 
 
@@ -67,9 +74,9 @@ def commit(repo: Path, path: str, text: str, msg: str) -> str:
 
 def gate(repo: Path, lines: list, **env_extra: str) -> tuple:
     env = dict(os.environ, PATH=os.environ.get('PATH', ''), **env_extra)
-    # Run the real gate with OpenOCD reported as down, so a bench PC with
-    # OpenOCD running gives the same result as a PC without it: the gate
-    # blocks before the bench worktree, the build and the flash step.
+    # Run the real gate with OpenOCD reported as down (the probe is optional,
+    # USB transport) and the bench worktree step stubbed to block, so the
+    # gate stops before the build and the flash step on any PC.
     r = subprocess.run([sys.executable, '-c', GATE_NO_OPENOCD, str(GATE), 'origin', 'file:///nowhere'],
                        cwd=str(repo), input='\n'.join(lines) + '\n',
                        capture_output=True, text=True, env=env)
@@ -184,8 +191,8 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {ZERO}'])
         check('2 new commits, 1 firmware, not the whole history',
               '2 commit(s), 1 firmware' in out, out)
-        check('bench needed -> blocks without OpenOCD (rc 1)',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('bench needed -> blocks at the bench step without OpenOCD (rc 1)',
+              rc == 1 and 'bench needed' in out and STUB in out, out)
 
         print('test_shape_warns_but_does_not_block')
         # six firmware commits, one of them an isolate class: warning only.
@@ -195,8 +202,8 @@ def main() -> int:
         tip = commit(repo, 'src/flight_director/guard_evaluator.cpp', '// g', 'guard change')
         rc, out = gate(repo, [f'refs/heads/feat {tip} refs/heads/feat {ZERO}'])
         check('shape warning printed', 'WARNING' in out, out)
-        check('shape does not block (still the OpenOCD block)',
-              rc == 1 and 'OpenOCD' in out and 'firmware commits in one push' in out, out)
+        check('shape does not block (still the bench block)',
+              rc == 1 and STUB in out and 'firmware commits in one push' in out, out)
 
         print('test_delete (local sha zeroes)')
         rc, out = gate(repo, [f'(delete) {ZERO} refs/heads/old {base}'])
@@ -256,8 +263,34 @@ def main() -> int:
         rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
         check('warns that the radio rule is not active',
               'NOT radio-benched' in out, out)
-        check('does not block on the missing script; fails closed at OpenOCD',
-              rc == 1 and 'OpenOCD' in out, out)
+        check('says plainly that the radio check is not done',
+              'radio check is NOT done' in out
+              and 'NOT verified on\nair' in out and 'open gap' in out, out)
+        check('does not call the gap acceptable',
+              'needs only what this' not in out
+              and 'not a\npush requirement' not in out
+              and 'soak by hand' not in out, out)
+        check('does not block on the missing script; fails closed at the bench',
+              rc == 1 and STUB in out, out)
+
+        print('test_radio_rule_keyed_to_the_gate_checkout')
+        # The pushed sha (rsha) has no script. The checkout that runs the
+        # gate has it at HEAD. The rule is on for every sha of a split push.
+        git(repo, 'checkout', '-q', '-b', 'radio-gate', rsha)
+        commit(repo, 'scripts/radio_link_bench.py', '# bench', 'add radio bench')
+        rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
+        check('older pushed sha, script at checkout HEAD -> no radio-gap warning',
+              'NOT radio-benched' not in out, out)
+        check('radio rule on: both roles benched, fails closed at the bench step',
+              rc == 1 and STUB in out and 'RADIO PUSH' in out, out)
+        script = repo / 'scripts' / 'radio_link_bench.py'
+        script.write_text('# changed after commit\n', encoding='utf-8')
+        rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
+        check('script changed in the checkout (not at HEAD) -> warning again',
+              'NOT radio-benched' in out, out)
+        git(repo, 'checkout', '-q', '--', 'scripts/radio_link_bench.py')
+        git(repo, 'checkout', '-q', 'radio')
+        git(repo, 'branch', '-q', '-D', 'radio-gate')
 
         print('test_existing_branch_update (remote..local)')
         git(repo, 'update-ref', 'refs/remotes/origin/feat', d)
@@ -266,6 +299,8 @@ def main() -> int:
 
         bench_key_v2_tests(repo, td, ft, pg, f, d, base,
                            gcc_a, gcc_b, pt_a, pt_b, tools, sdk)
+        hw_expect_tests(pg)
+        radio_bench_gate_tests(pg, td)
     finally:
         shutil.rmtree(td, ignore_errors=True)
     print('ALL CHECKS PASS' if FAILS == 0 else f'{FAILS} CHECK(S) FAILED')
@@ -476,11 +511,12 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     check('compiler update -> new key, old note not found',
           'would bench' in out and 'no note for key' in out, out)
     ok, why = pg.note_covers('result: PASS\nroles: vehicle station radio-link\n'
-                             'boards: vehicle=SER1', ['vehicle'], True, {'SER1'})
+                             'boards: vehicle=SER1\nradio_bench: b1', ['vehicle'], True,
+                             {'SER1'}, '', 'b1')
     check('radio push needs both board serials', not ok and 'station' in why, why)
     ok, _ = pg.note_covers('result: PASS\nroles: vehicle station radio-link\n'
-                           'boards: vehicle=SER1 station=SER2', ['vehicle'], True,
-                           {'SER1', 'SER2'})
+                           'boards: vehicle=SER1 station=SER2\nradio_bench: b1',
+                           ['vehicle'], True, {'SER1', 'SER2'}, '', 'b1')
     check('radio push with both boards attached -> reuse', ok)
 
     print('test_attached_serials_skip_the_debug_probe')
@@ -511,9 +547,9 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {d}'],
                    RC_BENCH_FRESH='1')
     check('real push in fresh mode: says so, ignores the note, benches '
-          '(fails closed at OpenOCD here)',
+          '(fails closed at the bench step here)',
           rc == 1 and 'FRESH MODE' in out and 'fresh mode: notes ignored' in out
-          and 'OpenOCD' in out, out)
+          and STUB in out, out)
 
     print('test_bench_output_board_serial_goes_to_note')
     wt = td / 'wt'
@@ -528,18 +564,57 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     out = captured(lambda: print(pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench')))
     check('no serial line -> unknown + warning',
           "'unknown'" in out and 'WARNING' in out, out)
+    fake.write_text("import sys; print('uptime not rising'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok3 = False
+    except pg.GateFail as e:
+        ok3 = ('exit 3' in str(e) and 'did not rise' in str(e)
+               and 'port lost mid-check' in str(e)
+               and 'no banner' in str(e) and 'after retries' in str(e))
+    check('bench exit 3 (uptime flat or port lost mid-check) -> own hard-fail message', ok3)
+    fake.write_text("import sys; print('ERROR: vehicle USB fault: port lost mid-check'); sys.exit(3)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok3b = False
+    except pg.GateFail as e:
+        ok3b = 'exit 3' in str(e) and 'not back' in str(e)
+    check('bench: vanished and never back -> exit 3 hard fail (not exit 2)', ok3b)
+    fake.write_text("import sys; sys.exit(2)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'station bench'))
+        ok2 = False
+    except pg.GateFail as e:
+        ok2 = 'exit 2' in str(e) and 'a skip is a fail' in str(e)
+    check('bench exit 2 (board absent at start) still a hard fail (unchanged)', ok2)
+    fake.write_text("import sys; sys.exit(4)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok4 = False
+    except pg.GateFail as e:
+        ok4 = 'exit 4' in str(e) and 'reset' in str(e)
+    check('bench exit 4 (vanished, back with lower uptime: reset) -> own hard-fail message', ok4)
+    fake.write_text("import sys; print('RESULT: PASS'); sys.exit(0)\n")
+    try:
+        captured(lambda: pg.run_bench(wt, 'fake_bench.py', f, 'vehicle bench'))
+        ok0 = True
+    except pg.GateFail as e:
+        ok0 = 'exit' not in str(e)
+    check('bench exit 0 (vanished, back with higher uptime) -> no exit-code hard fail', ok0)
 
     print('test_pass_note_format (bench steps faked, no board)')
     saved = {n: getattr(pg, n) for n in ('openocd_listening', 'prepare_worktree',
-                                          'build_role', 'flash_recorded', 'run_bench')}
+                                          'build_role', 'flash_recorded', 'run_bench',
+                                          'early_board_check')}
     saved_tree = ft.elf_tree_id
     try:
         pg.openocd_listening = lambda: True
-        pg.prepare_worktree = lambda *a: None
+        pg.early_board_check = lambda *a, **k: None
+        pg.prepare_worktree = lambda *a, **k: None
         ft.elf_tree_id = lambda *a, **k: 'feedface' * 5
         pg.build_role = lambda wt, r, want, keyed: (wt / 'rocketchip.elf', 'abc123')
         pg.flash_recorded = lambda elf: True
-        pg.run_bench = lambda wt, script, sha, label: (
+        pg.run_bench = lambda wt, script, sha, label, **k: (
             '2/2 PASS', 'SER1' if label.startswith('vehicle') else 'SER2')
         with env_set(RC_BENCH_FRESH='1'):
             out = captured(pg.handle_branch, repo, 'origin', 'refs/heads/feat',
@@ -559,6 +634,8 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     check('note has the v2 lines', all(ln in body.splitlines() for ln in want_lines),
           body + '\n---\n' + out)
     check('citation line printed', 'Verified at push:' in out, out)
+    check('flash transport printed for each role',
+          'vehicle flash transport:' in out and 'station flash transport:' in out, out)
     out = plan({'SER1', 'SER2'})
     check('the new note is reused with the same boards', 'skip flash and bench' in out, out)
 
@@ -578,6 +655,134 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         check(f'{r}: instructions name the role', txt.lstrip().startswith(r), txt)
     check('station-only push needs no OpenOCD', not pg.needs_openocd(['station']))
     check('vehicle + station push needs OpenOCD', pg.needs_openocd(['vehicle', 'station']))
+    for r, v in pg.ROLES.items():
+        txt = pg.flash_instructions(td, td / 'wt', r, td / 'x.elf', 'PT', False)
+        check(f'{r}: no OpenOCD -> USB path only, same record + LED + CDC steps',
+              'PT load' in txt and '--record-only' in txt and 'LED + CDC' in txt
+              and 'Path 2' not in txt, txt)
+        check(f'{r}: no OpenOCD -> transport is USB',
+              pg.flash_transport(r, None).startswith('USB'))
+
+    print('test_probe_target_identified_by_chip_id (OpenOCD Tcl mocked)')
+    # OTP CHIPID rows 0..3 = 2E2F 1B4A 4C31 E661 -> USB serial E6614C311B4A2E2F.
+    def tcl_ok(cmd):
+        if cmd.startswith(f'read_memory {pg.OTP_DATA_BASE:#x}'):
+            return '0x1b4a2e2f 0xe6614c31'
+        return '0x00002e2f 0x00001b4a 0x00004c31 0x0000e661'
+    ids = pg.probe_target_ids(tcl_ok)
+    check('chip ID formatted as the USB serial', ids == {'E6614C311B4A2E2F'}, str(ids))
+    # Bench 2026-10-19 (Buzz, Fruit Jam station): read_memory 0x40130000 32 2
+    # -> 0xdc6aebd1 0xbec71b8e; station USB serial BEC71B8EDC6AEBD1.
+    def tcl_fj(cmd):
+        return '0xdc6aebd1 0xbec71b8e' if cmd.startswith(
+            f'read_memory {pg.OTP_DATA_BASE:#x}') else None
+    check('regression: Fruit Jam OTP words -> its USB serial (word[1] then word[0])',
+          pg.probe_target_ids(tcl_fj) == {'BEC71B8EDC6AEBD1'},
+          str(pg.probe_target_ids(tcl_fj)))
+    check('OpenOCD down -> no ID', pg.probe_target_ids(lambda c: None) == set())
+    check('error text -> no ID',
+          pg.probe_target_ids(lambda c: 'invalid command name') == set())
+    sent = []
+    pg.probe_target_ids(lambda c: sent.append(c) or None)
+    check('identification is read_memory only (no halt, reset, resume)',
+          sent and all(c.startswith('read_memory ') for c in sent), str(sent))
+    ports = lambda: {'E6614C311B4A2E2F': 'COM9', 'AAAA000011112222': 'COM7'}
+    roles = {'COM9': 'station', 'COM7': 'vehicle'}
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get)
+    check('probe on the station board -> station (not the SWD-tagged vehicle)',
+          got == 'station', str(got))
+    check('no ID -> unknown', pg.identify_probe_role(lambda: set(), ports, roles.get) is None)
+    check('ID matches no attached board -> unknown',
+          pg.identify_probe_role(lambda: {'1234567812345678'}, ports, roles.get) is None)
+    check('role banner unknown -> unknown',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, lambda p: None) is None)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', False)
+    check('vehicle without the probe -> no SWD path', 'Path 2' not in txt, txt)
+    txt = pg.flash_instructions(td, td / 'wt', 'vehicle', td / 'x.elf', 'PT', True)
+    check('stale "serves only the OpenOCD check" text is gone',
+          'serves only' not in txt and 'Path 2' in txt, txt)
+    check('probe present, target unknown -> USB only text',
+          'probe present, target unknown: USB only' in pg.flash_transport('vehicle', None, True))
+    check('probe on station -> vehicle transport is USB',
+          pg.flash_transport('vehicle', 'station', True).startswith('USB'))
+
+    print('test_early_board_check (before the build)')
+    try:
+        pg.early_board_check(['station', 'vehicle'], {'S1'})
+        ok = False
+    except pg.GateFail as e:
+        ok = 'board missing' in str(e)
+    check('1 board for a 2-role push -> hard fail before build', ok)
+    pg.early_board_check(['station', 'vehicle'], {'S1', 'S2'})
+    pg.early_board_check(['station'], None)
+    check('enough boards / no pyserial -> no early block', True)
+
+    print('test_board_config (boards.local.json roles, probe flag)')
+    import board_config as bc
+    cfgp = td / 'boards.local.json'
+    cfgp.write_text('{"boards": ['
+                    '{"serial": "aaaa000011112222", "role": "vehicle", "probe": false},'
+                    '{"serial": "E6614C311B4A2E2F", "role": "station", "probe": true}]}')
+    cfg = bc.load(cfgp)
+    check('config maps roles (serial upper-cased)',
+          bc.role_of('AAAA000011112222', cfg) == 'vehicle'
+          and bc.role_serial('station', cfg, {})[:2] == ('E6614C311B4A2E2F', 'boards.local.json'))
+    check('missing file -> None, falls back to RC_*_USB_SERIAL then banner peek',
+          bc.load(td / 'nope.json') is None
+          and bc.role_serial('vehicle', None, {'RC_VEHICLE_USB_SERIAL': 'abc'}) == ('ABC', 'RC_VEHICLE_USB_SERIAL', False)
+          and bc.role_serial('vehicle', None, {}) == (None, 'banner peek', False))
+    check('unknown serial is reported, not given a role',
+          bc.unknown_serials({'AAAA000011112222', 'beef0000beef0000'}, cfg) == ['BEEF0000BEEF0000']
+          and bc.role_of('BEEF0000BEEF0000', cfg) is None
+          and 'not used for any role' in bc.unknown_message('BEEF0000BEEF0000'))
+    for bad, why in (('{"boards": [{"serial": "A", "role": "rover"}]}', 'role'),
+                     ('{"boards": [{"serial": "A", "role": "vehicle"},'
+                      '{"serial": "B", "role": "vehicle"}]}', 'one board per role'),
+                     ('not json', 'JSON')):
+        cfgb = td / 'bad.json'; cfgb.write_text(bad)
+        try:
+            bc.load(cfgb); okb = False
+        except bc.BoardConfigError as e:
+            okb = why in str(e)
+        check(f'malformed config is an error, never ignored ({why})', okb)
+    noban = lambda p: (_ for _ in ()).throw(AssertionError('banner peek used'))
+    got = pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, noban, cfg_fn=lambda: cfg)
+    check('probe flag true + chip ID match -> role from config, no banner peek',
+          got == 'station', str(got))
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'AAAA000011112222'}, ports, noban, cfg_fn=lambda: cfg)))
+    check('probe flag false -> USB only even when the chip ID matches',
+          out.strip().endswith('None') and '"probe": false' in out, out)
+    out = captured(lambda: print(pg.identify_probe_role(
+        lambda: {'1234567812345678'}, lambda: {'1234567812345678': 'COM4'}, noban,
+        cfg_fn=lambda: cfg)))
+    check('probe on an unlisted serial -> reported, USB only, not guessed',
+          out.strip().endswith('None') and 'not in boards.local.json' in out, out)
+    check('chip ID still decides: flagged board but no ID match -> unknown',
+          pg.identify_probe_role(lambda: {'0000111122223333'}, ports, noban,
+                                 cfg_fn=lambda: cfg) is None)
+    check('no config -> probe role by banner peek (unchanged)',
+          pg.identify_probe_role(lambda: {'E6614C311B4A2E2F'}, ports, roles.get,
+                                 cfg_fn=lambda: None) == 'station')
+    out = captured(lambda: pg.early_board_check(
+        ['station', 'vehicle'], {'AAAA000011112222', 'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+        cfg_fn=lambda: cfg))
+    check('early check with config: listed boards attached pass, extra serial reported',
+          'BEEF0000BEEF0000' in out and 'not in boards.local.json' in out, out)
+    try:
+        captured(lambda: pg.early_board_check(['station', 'vehicle'],
+                                              {'E6614C311B4A2E2F', 'BEEF0000BEEF0000'},
+                                              cfg_fn=lambda: cfg))
+        okm = False
+    except pg.GateFail as e:
+        okm = 'vehicle board AAAA000011112222' in str(e)
+    check('early check with config: listed vehicle missing -> hard fail (unlisted board not used)', okm)
+    import json as _json
+    ex = _json.loads((Path(__file__).resolve().parent / 'ci' / 'boards.example.json').read_text())
+    exf = td / 'ex.json'; exf.write_text(_json.dumps(ex))
+    check('boards.example.json loads cleanly', len(bc.load(exf)) == 2)
+    gi = (Path(__file__).resolve().parents[1] / '.gitignore').read_text()
+    check('boards.local.json is gitignored', 'scripts/ci/boards.local.json' in gi)
 
     print('test_main_worktree_lookup (git worktree list, first line)')
     from types import SimpleNamespace
@@ -682,6 +887,506 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
         (bdir / 'build.ninja').unlink()
     else:
         print('  [SKIP] pioasm_DIR check needs a real pioasm.exe on Windows')
+
+
+def hw_expect_tests(pg) -> None:
+    """Expected hardware: profiles, inhibits, bench judging, notes (Nathan
+    2026-11-23). Pure functions, no board."""
+    import datetime as _dt
+    import json as _json
+    import board_config as bc
+    sys.path.insert(0, str(HERE / 'ci'))
+    print('test_board_profiles (tracked board_profiles.json)')
+    profiles = bc.parse_profiles((HERE / 'ci' / bc.PROFILES_FILE).read_text(encoding='utf-8'))
+    fe = profiles['feather_rp2350']
+    fj = profiles['fruit_jam']
+    check('tracked profiles load', fe.role == 'vehicle' and fj.role == 'station')
+    check('vehicle: IMU and baro required, radio and GPS optional',
+          fe.parts == {'imu': 'required', 'baro': 'required',
+                       'radio': 'optional', 'gps': 'optional'}, str(fe.parts))
+    check('station: radio and GPS optional, no IMU or baro expected',
+          fj.parts == {'imu': 'absent', 'baro': 'absent',
+                       'radio': 'optional', 'gps': 'optional'}, str(fj.parts))
+
+    def bad_profile(obj) -> bool:
+        try:
+            bc.parse_profiles(_json.dumps(obj))
+        except bc.BoardConfigError:
+            return True
+        return False
+    ok_parts = {'imu': 'required', 'baro': 'required', 'radio': 'optional', 'gps': 'optional'}
+    check('profile missing a part -> error',
+          bad_profile({'profiles': {'x': {'role': 'vehicle', 'parts': {'imu': 'required'}}}}))
+    check('unknown level -> error', bad_profile({'profiles': {'x': {
+        'role': 'vehicle', 'parts': dict(ok_parts, gps='maybe')}}}))
+    check('unknown role -> error', bad_profile({'profiles': {'x': {
+        'role': 'rover', 'parts': ok_parts}}}))
+
+    print('test_gate_inhibits (per branch, expire on merge or date)')
+    rows = bc.parse_inhibits((HERE / 'ci' / bc.INHIBITS_FILE).read_text(encoding='utf-8'))
+    check('tracked inhibit list is empty on main', rows == [], str(rows))
+    text = _json.dumps({'inhibits': [
+        {'branch': 'grok/x', 'kind': 'warning', 'id': 'radio-gap', 'reason': 'known'},
+        {'branch': 'grok/x', 'kind': 'not-fitted', 'role': 'station', 'part': 'gps',
+         'reason': 'GPS on the vehicle this week', 'until': '2026-11-30'},
+        {'branch': 'grok/x', 'kind': 'warning', 'id': 'shape-isolate', 'reason': 'old',
+         'until': '2026-11-01'},
+        {'branch': 'grok/other', 'kind': 'warning', 'id': 'unknown-serial', 'reason': 'n/a'},
+    ]})
+    rows = bc.parse_inhibits(text)
+    act, exp = bc.active_inhibits(rows, 'grok/x', _dt.date(2026, 11, 23))
+    check('entries for the pushed branch apply, others ignored',
+          sorted(x.target for x in act) == ['radio-gap', 'station:gps'],
+          str([x.target for x in act]))
+    check('dated entry past its date -> expired, not applied',
+          [x.target for x in exp] == ['shape-isolate'], str([x.target for x in exp]))
+    act_main, _ = bc.active_inhibits(rows, 'main', _dt.date(2026, 11, 23))
+    check('after merge (push to main) -> nothing applies', act_main == [])
+    check('branch from hook ref and from --plan upstream',
+          bc.branch_of('refs/heads/grok/x') == 'grok/x'
+          and bc.branch_of('refs/remotes/origin/grok/x') == 'grok/x')
+
+    def bad_inhibit(entry) -> bool:
+        try:
+            bc.parse_inhibits(_json.dumps({'inhibits': [entry]}))
+        except bc.BoardConfigError:
+            return True
+        return False
+    check('inhibit without a reason -> error',
+          bad_inhibit({'branch': 'b', 'kind': 'warning', 'id': 'radio-gap'}))
+    check('bad until date -> error', bad_inhibit(
+        {'branch': 'b', 'kind': 'warning', 'id': 'radio-gap', 'reason': 'r', 'until': 'soon'}))
+    check('unknown kind (no failure inhibits) -> error', bad_inhibit(
+        {'branch': 'b', 'kind': 'fail', 'id': 'x', 'reason': 'r'}))
+
+    print('test_expectations (profile + not-fitted entries)')
+    e = bc.expectations(fj, 'station', act)
+    check('station: GPS not fitted by entry, radio optional, IMU absent',
+          e == {'imu': 'absent', 'baro': 'absent', 'radio': 'optional',
+                'gps': 'not-fitted'}, str(e))
+    check('expect round-trips through --expect',
+          bc.parse_expect(bc.format_expect(e)) == e)
+    req = bc.parse_inhibits(_json.dumps({'inhibits': [
+        {'branch': 'b', 'kind': 'not-fitted', 'role': 'vehicle', 'part': 'baro', 'reason': 'r'}]}))
+    try:
+        bc.expectations(fe, 'vehicle', req)
+        blocked = False
+    except bc.BoardConfigError:
+        blocked = True
+    check('required part (baro) cannot be marked not fitted', blocked)
+    try:
+        bc.expectations(fj, 'vehicle', [])
+        blocked = False
+    except bc.BoardConfigError:
+        blocked = True
+    check('profile role does not match the board role -> error', blocked)
+
+    print('test_warn_inhibit (shown, never silent)')
+    pg.WARN_INHIBITS.clear()
+    pg.WARN_INHIBITS['radio-gap'] = 'known on this branch'
+    out = captured(pg.warn, 'radio not benched', 'radio-gap')
+    check('inhibited warning prints as INHIBITED with its reason',
+          'INHIBITED [radio-gap] (known on this branch)' in out, out)
+    out = captured(pg.warn, 'other', 'shape-isolate')
+    check('other warning still prints as WARNING with its id',
+          'WARNING [shape-isolate]' in out, out)
+    pg.WARN_INHIBITS.clear()
+
+    print('test_radio_code_needs_radio')
+    opt = {'imu': 'absent', 'baro': 'absent', 'radio': 'optional', 'gps': 'optional'}
+    up = captured(lambda: print(pg.radio_needs_radio({'station': opt, 'vehicle': None})))
+    check('optional radio -> required (fitted) for a radio-code push',
+          "'radio': 'fitted'" in up, up)
+    try:
+        pg.radio_needs_radio({'station': dict(opt, radio='not-fitted')})
+        blocked = False
+    except pg.GateFail as exc:
+        blocked = 'needs a radio' in str(exc)
+    check('radio-code push with the radio not fitted -> blocked with the reason', blocked)
+
+    print('test_note_expect_line (note reused only for the same hardware)')
+    line = pg.note_expect_line({'station': opt, 'vehicle': None})
+    check('expect line lists only roles with a profile',
+          line == 'expect: station=' + bc.format_expect(opt), line)
+    check('no profiles -> no expect line (legacy note)',
+          pg.note_expect_line({'station': None}) == '')
+    note = 'result: PASS\nroles: station\nboards: station=SER2\n' + line + '\n'
+    ok, _ = pg.note_covers(note, ['station'], False, {'SER2'}, line)
+    check('same expected hardware -> reused', ok)
+    other = pg.note_expect_line({'station': dict(opt, gps='not-fitted')})
+    ok, why = pg.note_covers(note, ['station'], False, {'SER2'}, other)
+    check('different expected hardware -> not reused', not ok and 'differs' in why, why)
+    ok, _ = pg.note_covers('result: PASS\nroles: station\nboards: station=SER2\n',
+                           ['station'], False, {'SER2'}, '')
+    check('legacy note, legacy push -> reused as before', ok)
+
+    print('test_split_push (EVALUATION script, push-shape grouping)')
+    import split_push as sp
+    cs = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    fw = {c: True for c in cs}
+    g = sp.split(cs, fw, {}, 5)
+    check('8 firmware commits, max 5 -> 5 then 3', [len(x) for x in g] == [5, 3], str(g))
+    g = sp.split(['d1', 'f1', 'iso', 'd2', 'f2'],
+                 {'f1': True, 'iso': True, 'f2': True}, {'iso': True}, 5)
+    check('isolate commit alone among firmware; docs ride along',
+          g == [['d1', 'f1'], ['iso', 'd2'], ['f2']], str(g))
+    g = sp.split(['d1', 'd2'], {}, {}, 5)
+    check('docs only -> one push', g == [['d1', 'd2']], str(g))
+
+    print('test_station_bench_judging (--expect)')
+    try:
+        import station_bench_sim as sb
+    except ImportError as exc:
+        print(f'  [SKIP] station_bench_sim needs pyserial ({exc})')
+        return
+    na = lambda n: f'[N/A ] {n} not installed\n'
+    base_out = na('ICM-20948') + na('DPS310')
+    ok, _, nas, warns = sb.judge_hw_status(base_out + na('GPS'), opt)
+    check('optional GPS missing -> pass, N/A by name, no warning',
+          ok and nas == ['gps'] and warns == [], f'{nas} {warns}')
+    ok, _, nas, _ = sb.judge_hw_status(base_out + '[PASS] GPS init (I2C at 0x10)\n', opt)
+    check('optional GPS present -> pass, not N/A', ok and nas == [])
+    ok, detail, _, _ = sb.judge_hw_status(base_out + '[FAIL] GPS init failed\n', opt)
+    check('optional GPS present but [FAIL] -> fail', not ok, detail)
+    ok, _, _, warns = sb.judge_hw_status(
+        '[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n' + na('DPS310') + na('GPS'), opt)
+    check('unexpected IMU on the station -> warning only',
+          ok and [w[0] for w in warns] == ['imu'], str(warns))
+    veh = {'imu': 'fitted', 'baro': 'fitted', 'radio': 'optional', 'gps': 'optional'}
+    ok, detail, _, _ = sb.judge_hw_status(na('ICM-20948') + '[PASS] DPS310 init OK\n', veh)
+    check('required IMU missing -> fail', not ok and 'ICM-20948' in detail, detail)
+    ok, _, _, _ = sb.judge_hw_status(base_out, None)
+    check('no --expect -> legacy rule unchanged (IMU and baro [N/A])', ok)
+    rv, _, _ = sb.judge_radio_version('no radio line', 'optional')
+    check('optional radio not detected -> N/A', rv is None)
+    for nothing in ('00', 'ff', 'FF'):
+        rv, _, _ = sb.judge_radio_version(f'  RegVersion=0x{nothing} (expect 0x12)', 'optional')
+        check(f'optional radio reads 0x{nothing} (no chip) -> N/A', rv is None)
+        rv, _, _ = sb.judge_radio_version(f'  RegVersion=0x{nothing} (expect 0x12)', 'fitted')
+        check(f'required radio reads 0x{nothing} (no chip) -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('  RegVersion=0x22 (expect 0x12)', 'optional')
+    check('optional radio, wrong chip 0x22 -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('  RegVersion=0x12 (expect 0x12)', 'optional')
+    check('optional radio 0x12 -> pass', rv is True)
+    # Every combination of expected state x RegVersion reading against the
+    # rule (Nathan 2026-11-23): a wrong chip fails in every state (failures
+    # are never inhibited); required -> only 0x12 passes; optional -> no chip
+    # (missing/0x00/0xFF) is N/A; not-fitted -> no chip is N/A, 0x12 warns
+    # and passes; absent -> no chip passes, 0x12 warns and passes.
+    readings = {'missing': 'no radio line', '00': '  RegVersion=0x00', 'ff': '  RegVersion=0xff',
+                '12': '  RegVersion=0x12', '22': '  RegVersion=0x22'}
+    def intended(state, r):
+        if r == '22': return False, False
+        chip = r == '12'
+        if state == 'fitted': return chip, False
+        if state == 'optional': return (True if chip else None), False
+        if state == 'not-fitted': return (True if chip else None), chip
+        return True, chip  # absent
+    for state in ('fitted', 'optional', 'absent', 'not-fitted', None):
+        for r, text in readings.items():
+            got, detail, warns = sb.judge_radio_version(text, state)
+            want, warn_want = intended(state or 'fitted', r)
+            check(f'radio table: {state} x {r} -> {want}'
+                  + (' + warning' if warn_want else ''),
+                  got is want and bool(warns) == warn_want, f'{got} {detail} {warns}')
+    rv, _, _ = sb.judge_radio_version('no radio line', 'fitted')
+    check('radio required (radio-code push) but no RegVersion -> fail', rv is False)
+    rv, _, _ = sb.judge_radio_version('no radio line', None)
+    check('no --expect -> radio still required (legacy)', rv is False)
+    hw_status_table(sb)
+    try:
+        import bench_sim as vb
+    except ImportError as exc:
+        print(f'  [SKIP] bench_sim needs pyserial ({exc})')
+        return
+    vehicle_radio_table(vb)
+    statechart_replay(pg, bc, sb, vb)
+
+
+def hw_status_table(sb) -> None:
+    """Every expected state x Hardware Status reading for each part."""
+    print('test_hw_status_table (expect state x reading, every part)')
+    reads = {
+        'imu': {'fail': '[FAIL] ICM-20948 init failed', 'na': '[N/A ] ICM-20948 not installed',
+                'pass': '[PASS] ICM-20948 init (WHO_AM_I=0xEA)'},
+        'baro': {'fail': '[FAIL] DPS310 init failed', 'na': '[N/A ] DPS310 not installed',
+                 'pass': '[PASS] DPS310 init OK, continuous mode active',
+                 'warn': '[WARN] DPS310 init OK, continuous mode failed'},
+        'gps': {'fail': '[FAIL] GPS init failed', 'na': '[N/A ] GPS not installed',
+                'pass': '[PASS] GPS init (I2C at 0x10, 500us settling delay)'},
+    }
+    quiet = {'imu': 'absent', 'baro': 'absent', 'radio': 'optional', 'gps': 'absent'}
+    for part, rs in reads.items():
+        rs = dict(rs, missing='')
+        others = ''.join(reads[o]['na'] + '\n' for o in reads if o != part)
+        for state in ('fitted', 'optional', 'not-fitted', 'absent'):
+            for r, line in rs.items():
+                ok, detail, na, warns = sb.judge_hw_status(
+                    others + line + '\n', dict(quiet, **{part: state}))
+                present = r in ('pass', 'warn')
+                if r == 'fail':
+                    want = (False, False, False)
+                elif state == 'fitted':
+                    want = (present, False, False)
+                elif state == 'optional':
+                    want = (True, not present, False)
+                elif state == 'not-fitted':
+                    want = (True, not present, present)
+                else:
+                    want = (True, False, present)
+                got = (ok, part in na, part in [w[0] for w in warns])
+                check(f'hw table: {part} {state} x {r} -> ok={want[0]} '
+                      f'na={want[1]} warn={want[2]}', got == want, f'{got} {detail}')
+
+
+def preflight_text(radio: str, verdict: str = 'GO') -> str:
+    """A vehicle preflight print (cli_print_preflight, "T%u %-10s %s")."""
+    rows = [(1, 'IMU', 'GO'), (1, 'Baro', 'GO'), (1, 'ESKF', 'GO'),
+            (2, 'GPS', 'NO-GO NO LOCK'), (2, 'Mag Cal', 'NO-GO NOT CALIBRATED')]
+    if radio:
+        rows.append((2, 'Radio HW', radio))
+    rows += [(2, 'RF Link', 'NO-GO NO RX YET'), (2, 'Battery', 'GO (not monitored)')]
+    body = ''.join(f'T{t} {n:<10} {r}\r\n' for t, n, r in rows)
+    return (f'\r\n=== PREFLIGHT ===\r\n{body}MCU temp: GO  31.0C\r\n'
+            f'----------------\r\nVERDICT:  {verdict}\r\n')
+
+
+def vehicle_radio_table(vb) -> None:
+    """Every expected radio state x T2 Radio HW reading (bug 1)."""
+    print('test_vehicle_radio_table (expect state x T2 Radio HW reading)')
+    check('preflight row format matches the firmware ("T%u %-10s %s")',
+          'T2 Radio HW   NO-GO NOT INIT' in preflight_text('NO-GO NOT INIT'))
+    reads = {'missing': preflight_text(''), 'go': preflight_text('GO'),
+             'nogo': preflight_text('NO-GO NOT INIT'), 'no output': ''}
+    def intended(state, r):
+        go = r == 'go'
+        if state is None: return True, False
+        if state == 'fitted': return go, False
+        if state == 'optional': return (True if go else None), False
+        if state == 'not-fitted': return (True if go else None), go
+        return True, go  # absent
+    for state in ('fitted', 'optional', 'not-fitted', 'absent', None):
+        for r, text in reads.items():
+            got, detail, warns = vb.judge_preflight_radio(text, state)
+            want, warn_want = intended(state, r)
+            check(f'vehicle radio table: {state} x {r} -> {want}'
+                  + (' + warning' if warn_want else ''),
+                  got is want and bool(warns) == warn_want, f'{got} {detail} {warns}')
+    veh = {'imu': 'fitted', 'baro': 'fitted', 'radio': 'optional', 'gps': 'optional'}
+    res, na, _ = vb.judge_preflight_hw(preflight_text('NO-GO NOT INIT'), veh)
+    check('optional radio NO-GO -> N/A by name, GPS optional not judged',
+          [(n, ok) for n, ok, _ in res] == [(vb.PREFLIGHT_RADIO_CHECK, None)]
+          and na == [(vb.PREFLIGHT_RADIO_CHECK, 'radio')], f'{res} {na}')
+    res, _, _ = vb.judge_preflight_hw(preflight_text('GO'), dict(veh, gps='fitted'))
+    check('GPS expected fitted on the vehicle -> fail (preflight GPS is lock, '
+          'not presence)', (vb.PREFLIGHT_GPS_CHECK, False) in
+          [(n, ok) for n, ok, _ in res], str(res))
+    check('no --expect -> vehicle Tier 2 not judged (legacy)',
+          vb.judge_preflight_hw(preflight_text('NO-GO NOT INIT'), None) == ([], [], []))
+
+
+class FakeVehicle:
+    """Serial stand-in for _bench_sim_run_inner: answers each key once."""
+    def __init__(self, preflight: str):
+        self.preflight, self.pending = preflight, ''
+    def write(self, b: bytes) -> None:
+        k = b.decode()
+        self.pending = {'p': self.preflight, 'v': 'DEV_MODE on\r\n[main] ',
+                        's': '  Phase:       IDLE\r\n[flight] '}.get(k, '[main] ')
+    def read(self, n: int) -> bytes:
+        out, self.pending = self.pending, ''
+        return out.encode()
+
+
+def run_vehicle_bench(vb, preflight: str, expect) -> tuple:
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    args = SimpleNamespace(_expect=expect, verbose=False, max_runtime=60.0)
+    meta = SimpleNamespace(short_summary=lambda: 'fake vehicle')
+    buf = io.StringIO()
+    with patch.object(vb.time, 'sleep', lambda s: None), contextlib.redirect_stdout(buf):
+        rc = vb._bench_sim_run_inner(FakeVehicle(preflight), 'FAKE', meta, args)
+    return rc, buf.getvalue()
+
+
+def statechart_replay(pg, bc, sb, vb) -> None:
+    """The statechart bug paths (GatePush.tla, 2026-11-23) replayed against
+    the real gate and bench code. Bug paths: R2 (radio-code push, vehicle
+    radio missing, preflight still GO) and R6 (a not-fitted inhibit turned a
+    failed reading into N/A). The rest are the rules the model says hold."""
+    import datetime as _dt
+    import json as _json
+    import hashlib as _hl
+    print('test_statechart_replay (GatePush.tla paths on the real code)')
+    prof = bc.parse_profiles((HERE / 'ci' / 'board_profiles.json').read_text(encoding='utf-8'))
+    today = _dt.date(2026, 11, 23)
+    exp = pg.radio_needs_radio({
+        'vehicle': bc.expectations(prof['feather_rp2350'], 'vehicle', []),
+        'station': bc.expectations(prof['fruit_jam'], 'station', [])})
+    check('R2: radio-code push makes the vehicle radio fitted',
+          exp['vehicle']['radio'] == bc.FITTED, str(exp['vehicle']))
+    bare = preflight_text('NO-GO NOT INIT', verdict='GO')
+    rc, out = run_vehicle_bench(vb, bare, exp['vehicle'])
+    check('R2: vehicle with no radio, preflight VERDICT GO, radio required -> '
+          'bench fails', rc == 1 and '[FAIL]  Radio HW (preflight)' in out, out[-600:])
+    rc, out = run_vehicle_bench(vb, preflight_text('GO'), exp['vehicle'])
+    check('R2: same push, radio fitted (T2 Radio HW GO) -> radio check passes',
+          '[PASS]  Radio HW (preflight)' in out, out[-600:])
+    vexp = bc.expectations(prof['feather_rp2350'], 'vehicle', [])
+    rc, out = run_vehicle_bench(vb, bare, vexp)
+    check('R4: non-radio push, optional vehicle radio missing -> N/A by name '
+          '(hw_na line for the gate)', '[N/A ]  Radio HW (preflight)' in out
+          and bc.hw_na_line(vb.PREFLIGHT_RADIO_CHECK, 'radio') in out
+          and ', 1 N/A' in out, out[-600:])
+
+    inh = bc.parse_inhibits(_json.dumps({'inhibits': [{
+        'branch': 'grok/x', 'kind': 'not-fitted', 'role': 'station',
+        'part': 'radio', 'reason': 'replay'}]}))
+    act, _ = bc.active_inhibits(inh, 'grok/x', today)
+    sexp = bc.expectations(prof['fruit_jam'], 'station', act)
+    check('R6: not-fitted inhibit accepted on the optional station radio',
+          sexp['radio'] == bc.NOT_FITTED, str(sexp))
+    rv, d, _ = sb.judge_radio_version('  RegVersion=0x22 (expect 0x12)\n', sexp['radio'])
+    check('R6: wrong chip 0x22 under a not-fitted inhibit still fails', rv is False, d)
+    rv, d, _ = sb.judge_radio_version('  RegVersion=0xff (expect 0x12)\n', sexp['radio'])
+    check('R6: no chip under a not-fitted inhibit -> N/A', rv is None, d)
+    ok, d, na, _ = sb.judge_hw_status(
+        '[N/A ] ICM-20948 not installed\n[N/A ] DPS310 not installed\n'
+        '[FAIL] GPS init failed\n', dict(sexp, gps=bc.NOT_FITTED))
+    check('R6: [FAIL] GPS under a not-fitted GPS inhibit still fails',
+          ok is False and 'gps' not in na, f'{ok} {d} {na}')
+    ok, _, _, _ = sb.judge_hw_status(
+        '[N/A ] ICM-20948 not installed\n[N/A ] DPS310 not installed\n'
+        '[FAIL] GPS init failed\n', dict(sexp, gps=bc.OPTIONAL))
+    check('R6: the same reading fails without the inhibit', ok is False)
+    vni = dict(vexp, radio=bc.NOT_FITTED)
+    rv, d, w = vb.judge_preflight_radio(preflight_text('GO'), vni['radio'])
+    check('R6 (vehicle): radio marked not fitted but GO -> pass with a warning',
+          rv is True and w, f'{rv} {d} {w}')
+
+    sopt = bc.expectations(prof['fruit_jam'], 'station', [])
+    rv, d, _ = sb.judge_radio_version('RegVersion=0xff\n', 'optional')
+    check('R4: optional station radio reading 0xff -> N/A, not a fail', rv is None, d)
+    rv, d, _ = sb.judge_radio_version('RegVersion=0xff\n', exp['station']['radio'])
+    check('R2: radio push, station radio 0xff -> fail', rv is False, d)
+    try:
+        pg.radio_needs_radio({'station': dict(sopt, radio=bc.NOT_FITTED)})
+        blk = False
+    except pg.GateFail:
+        blk = True
+    check('R2: radio push + not-fitted inhibit -> blocked before the bench', blk)
+    try:
+        bc.expectations(prof['feather_rp2350'], 'vehicle', bc.active_inhibits(
+            bc.parse_inhibits(_json.dumps({'inhibits': [{
+                'branch': 'b', 'kind': 'not-fitted', 'role': 'vehicle',
+                'part': 'imu', 'reason': 'r'}]})), 'b', today)[0])
+        req = False
+    except bc.BoardConfigError:
+        req = True
+    check('R3/R6: a required IMU cannot be marked not fitted', req)
+    check('R3/R9: vehicle NO-GO with IMU and baro required -> FAIL',
+          vb.preflight_nogo_message(vexp).startswith('FAIL'))
+    lines = {'station': sopt, 'vehicle': vexp}
+    na_note = ('result: PASS\nroles: vehicle station\nboards: station=S vehicle=V\n'
+               + pg.note_expect_line(lines)
+               + '\nna: station bench: Radio RegVersion (radio not fitted)\n')
+    ok, why = pg.note_covers(na_note, ['vehicle', 'station'], False, {'S', 'V'},
+                             pg.note_expect_line(pg.radio_needs_radio(lines)))
+    check('R7: an N/A-radio note is not reused for a radio-code push', not ok, why)
+    ok, why = pg.note_covers(na_note, ['vehicle', 'station'], False, {'S'},
+                             pg.note_expect_line(lines))
+    check('R1: a note is not reused when a noted board is not attached', not ok, why)
+    ok, _ = pg.note_covers(na_note, ['vehicle', 'station'], False, None, '')
+    check('R1: a note is not reused when serials cannot be read', not ok)
+    with tempfile.TemporaryDirectory() as t:
+        elf = Path(t) / 'rocketchip.elf'
+        elf.write_bytes(b'new build')
+        (Path(t) / 'rocketchip.elf.flashed.json').write_text(
+            _json.dumps({'sha256': _hl.sha256(b'old build').hexdigest()}))
+        check('R8: a flash record for an older ELF -> not recorded',
+              pg.flash_recorded(elf) is False)
+    pg.WARN_INHIBITS.clear()
+    pg.WARN_INHIBITS['unknown-serial'] = 'r'
+    out = captured(lambda: (pg.warn('x', 'unknown-serial'),
+                            pg.warn('y', 'hw-unexpected:station:radio')))
+    check('R5: warnings (inhibited or not) print and never raise',
+          'INHIBITED' in out and 'WARNING' in out, out)
+    pg.WARN_INHIBITS.clear()
+
+
+def radio_bench_gate_tests(pg, td: Path) -> None:
+    """The radio bench is host tooling run from the gate's own checkout:
+    its blob id keys note reuse, and the gate passes the role serials."""
+    print('test_radio_bench_blob (gate checkout, HEAD, clean)')
+    r = td / 'rbrepo'
+    r.mkdir()
+    git(r, 'init', '-q', '-b', 'main')
+    git(r, 'config', 'user.name', 'test')
+    git(r, 'config', 'user.email', 'test@example.invalid')
+    commit(r, 'README', 'x', 'first')
+    check('no script -> None, rule off', pg.radio_bench_blob(r) is None
+          and not pg.radio_rule_active(r))
+    (r / 'scripts').mkdir()
+    (r / 'scripts' / 'radio_link_bench.py').write_text('# v1\n', encoding='utf-8')
+    check('untracked script -> None', pg.radio_bench_blob(r) is None)
+    git(r, 'add', 'scripts/radio_link_bench.py')
+    check('staged, not committed -> None', pg.radio_bench_blob(r) is None)
+    git(r, 'commit', '-q', '-m', 'script')
+    blob = pg.radio_bench_blob(r)
+    check('committed and clean -> blob id of HEAD:scripts/radio_link_bench.py',
+          blob == git(r, 'rev-parse', 'HEAD:scripts/radio_link_bench.py')
+          and pg.radio_rule_active(r), str(blob))
+    (r / 'scripts' / 'radio_link_bench.py').write_text('# v2\n', encoding='utf-8')
+    check('changed after commit -> None, rule off',
+          pg.radio_bench_blob(r) is None and not pg.radio_rule_active(r))
+    git(r, 'checkout', '-q', '--', 'scripts/radio_link_bench.py')
+    check('restored -> blob again', pg.radio_bench_blob(r) == blob)
+
+    print('test_note_reuse_needs_the_same_radio_bench')
+    note = ('result: PASS\nroles: vehicle station radio-link\n'
+            'boards: vehicle=SER1 station=SER2\nradio_bench: ' + blob + '\n')
+    ser = {'SER1', 'SER2'}
+    ok, _ = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', blob)
+    check('same script blob -> reuse', ok)
+    ok, why = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', 'f' * 40)
+    check('other script blob -> not reused', not ok and 'radio bench script' in why, why)
+    old = note.replace('radio_bench: ' + blob + '\n', '')
+    ok, why = pg.note_covers(old, ['vehicle', 'station'], True, ser, '', blob)
+    check('note with no radio_bench line -> not reused',
+          not ok and 'no radio_bench line' in why, why)
+    ok, why = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', '')
+    check('no script in the checkout -> not reused', not ok, why)
+    plain = 'result: PASS\nroles: vehicle station\nboards: vehicle=SER1 station=SER2\n'
+    ok, _ = pg.note_covers(plain, ['vehicle', 'station'], False, ser, '', '')
+    check('a push with no radio path ignores radio_bench', ok)
+
+    print('test_run_bench_runs_the_script_from_the_given_folder')
+    seen: dict = {}
+
+    class FakeProc:
+        def __init__(self, cmd, **kw):
+            seen['cmd'], seen['cwd'] = cmd, kw.get('cwd')
+            self.stdout = iter(['board_usb_serial: VSER\n', 'RESULT: 7/7 PASS\n'])
+
+        def wait(self):
+            return 0
+
+    real = pg.subprocess.Popen
+    pg.subprocess.Popen = FakeProc
+    try:
+        res = captured(lambda: seen.update(
+            out=pg.run_bench(r, 'radio_link_bench.py', 'abc123', 'radio link',
+                             extra=['--vehicle-serial', 'V1', '--station-serial', 'S1'])))
+    finally:
+        pg.subprocess.Popen = real
+    cmd = seen.get('cmd', [])
+    check('script path is <folder>/scripts/radio_link_bench.py',
+          any(str(c).endswith(str(Path('scripts') / 'radio_link_bench.py')) for c in cmd)
+          and Path(seen.get('cwd', '')) == r, str(cmd))
+    check('passes --commit and the role serials',
+          '--commit' in cmd and cmd[cmd.index('--commit') + 1] == 'abc123'
+          and cmd[-4:] == ['--vehicle-serial', 'V1', '--station-serial', 'S1'], str(cmd))
+    check('reads RESULT: n/m PASS', seen.get('out', ('',))[0] == '7/7 PASS', res)
 
 
 if __name__ == '__main__':
