@@ -42,7 +42,7 @@ Source: `docs/reports/2026-10-11_goddard_ao_qep_audit.md`. Suggestions only; Nat
 
 **Refactor planning inputs (items 3+4, Nathan 2026-11-27).**
 
-- **STARS.** STARS (JPL, Apache-2.0, https://github.com/JPLOpenSource/STARS) takes PlantUML statecharts as input and generates C++ and Quantum Framework (QP/QF) code. So the planned PlantUML chart for the driver/QEP states can be the generating source, not only a diagram checked by a test. Starcom core state machines stay plain table-driven C++ with no QP dependency (`starcom/docs/WORKING_HERE.md`), so STARS QF output can drive only the Rocket Chip AO side; STARS C++ output is a candidate for Starcom. Evaluate in the refactor planning pass (moved from after-pivot). Earlier record: `docs/decisions/QP_C_VS_QP_CPP_2026-09-07.md` (2026-10-11 re-evaluation ask).
+- **STARS.** STARS (JPL origin, now https://github.com/fprime-community/STARS, Apache-2.0) is a Python tool that takes PlantUML statecharts as input and generates C, Quantum Framework QF (C, not C++), C++, or F' code. So the planned PlantUML chart for the driver/QEP states can be the generating source, not only a diagram checked by a test. Starcom core state machines stay plain table-driven C++ with no QP dependency (`starcom/docs/WORKING_HERE.md`), so STARS QF output can drive only the Rocket Chip AO side; STARS C++ output is a candidate for Starcom. Current STARS has no Promela or Python-simulator output. Evaluate in the refactor planning pass (moved from after-pivot). Earlier record: `docs/decisions/QP_C_VS_QP_CPP_2026-09-07.md` (2026-10-11 re-evaluation ask).
 - **EDS chosen as the path (Nathan 2026-11-27).** CCSDS Electronic Data Sheets (876.0-B-1, current) is the single source for packet and interface definitions. XTCE (660.0-B-2) for the ground (Yamcs/oMCT) is generated from it. 870.0-G-1 (Green Book, Mar 2024, current per Duke) is informational, not binding; the binding standard is 876.0-B-1. 870.0-G-1 itself describes EDS transformed into XTCE at the ground link (Duke). The planning pass confirms EDS beats the current hand-written packet definitions before adoption is final (Duke). EdsLib (nasa/EdsLib, Apache-2.0) implements a subset of 876.0, with no PICS and no XSD validation (Duke/Goddard). CCDD's EDS/XTCE import/export carries only structure and command tables and reliably reads only CCDD-exported files (CCDD issue #94), so the EDS-to-XTCE step would be our own generator, likely one more Lua script in EdsLib's generator chain (Goddard). Open: EdsLib's one malloc versus the no-heap rule, C++20 fit, and that generator.
 
 ### Needs rework: legacy modules to rewrite (Nathan, 2026-10-21)
@@ -117,7 +117,7 @@ Plan: scratch `git worktree add` at HEAD in a temp folder, configure the build d
 
 `soak_two_board.py` run window (2026-10-30, Goddard): `delta_window_s` starts after the vehicle answers the start `t` and stops after the end key sequence, so it is about 1 s shorter than the span the counts cover. Take both marks at the same point (key sent, or answer seen).
 
-`scripts/radio_link_bench.py` exists. The first version is on the local branch `buzz/radio-link-bench` (94f8413f). The rewrite is staged on main and not committed yet. The FSK plan cites it (GI8, FC-I5).
+`scripts/radio_link_bench.py` is on main (`1cca9e46`). The FSK plan cites it (GI8, FC-I5).
 
 ### Bench power and the RSSI LED (Nathan, 2026-10-31)
 
@@ -138,6 +138,8 @@ Order (Nathan, 2026-10-26; plan decision 1): no breadboard first. Station DIO1/D
   - Before soldering, Buzz reads the Pico 2 W chip revision with picotool. A4 has no E9 (plan §7.2: A2 by ship date, not measured).
   - Repo docs give no wiring for a second SWD probe. The current probe is the Adafruit #5699 (`docs/hardware/HARDWARE.md`); the Feather has SWD and the Fruit Jam has no SWD (`docs/FLASHING.md`).
 
+- **`j`/`n` DIO debug commands:** firmware is on local `grok/station-dio-tests-rebased` (`9bcc87d5`), not on main. Commands, catalog, keymap and ActionIds are gated under `ROCKETCHIP_DEV_MODE`. Host ctest 1252/1252 PASS. Waiting for a two-board Buzz bench before push. The original tip `62054213` remains on local `grok/station-dio-tests`.
+
 Checks that do not need the DIO wires (station): SWD (OpenOCD chip ID, plus a memory read while the firmware runs); RFM95 SPI/CS (RegVersion = 0x12; Standby write and read-back of a config register); GPS I2C (`g` reads climbing, no errors). Link-quality checks (RSSI, CRC rate, soak) still need the vehicle.
 
 ### Station pad: link numbers from Starcom state, not raw radio counters (2026-10-19)
@@ -146,15 +148,15 @@ Checks that do not need the DIO wires (station): SWD (OpenOCD chip ID, plus a me
 
 Lock freshness: Open, COP-P open checks item 4.
 
-### Opening-shock detector parked on `wip/opening-shock` (2026-10-19)
+### Opening-shock detector parked on `wip/opening-shock-rebased` (2026-10-19; rebased 2026-11-28)
 
-Committed as WIP `3cd5dbd3` on `wip/opening-shock` (kept local on purpose, not on origin: the pre-push gate requires a bench for any firmware push and this WIP is not benched; off-machine copy is a git bundle, Nathan 2026-10-19). The 12 dirty `flight_director` / `config_wizard` / test files are no longer in the main checkout. Host-tested only. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), open time is USB-only (needs a `LogEventId`), and the branch base `1c71ce7b` needs a rebase onto `main` and review. Room-test procedure: subsection below.
+Rebased onto current main as `wip/opening-shock-rebased` (`5e8f6e86`). Host ctest 1252/1252 PASS in the `rc-wip-os` worktree. Not flashed or benched, not on origin. Nathan on 2026-10-19 chose to keep this work local because the pre-push gate requires a bench for any firmware push (off-machine copy is a git bundle). That choice still holds until Buzz benches it. The original tip `3cd5dbd3` remains on local `wip/opening-shock`. Held up by: never flashed or benched, thresholds are a first cut (not from a flight), and open time is USB-only (needs a `LogEventId`). Room-test procedure: subsection below.
 
 #### Room test: launch, apogee, landing (not yet run; 2026-09-24)
 
 Untethered vehicle on battery. Live view is the station pad phase. Afterward, plug the vehicle and download the flight log (`g` list, `d` download). Do not USB-tether the toss. Do not open the station COM port if QGC has it.
 
-**Image:** the opening-shock detector is not on `main` (WIP `3cd5dbd3`, local `wip/opening-shock`).
+**Image:** the opening-shock detector is not on `main` (rebased tip `5e8f6e86`, local `wip/opening-shock-rebased`).
 
 **Arm:** station pad `a`, type `ARM`, Enter. Wait for ACK and `State: ARMED`. Disarm is pad `D`. ARM starts the backup timers: drogue pin can go high at 15 s if apogee has not cancelled it, main pin at 45 s. No ematch on those pins. Disarm before 15 s if the pad has not shown apogee, and disarm again at the end.
 
@@ -166,9 +168,13 @@ Untethered vehicle on battery. Live view is the station pad phase. Afterward, pl
 
 **Log after:** phase changes and pyro-fired events are in the flight log. The opening-shock time is not. It is a USB line only (`drogue_open_ms` / `main_open_ms` in `FlightMarkers`, printed as response time). Add a `LogEventId` before any untethered pass that needs that interval on disk. oMCT `chute_detected` is still synthetic.
 
-**Opening-shock code (not on `main`, backup on local `wip/opening-shock`, host-tested, not flashed):** every profile, coast through main. Specific force at or above 19.62 m/s² (2 g, above a settled canopy) and 2 m/s of descent-speed lost, held 20 ms. Does not move the phase and does not treat apogee as an opening. Pyro command stamps moved onto the fire transition (`kTransitionFireDrogue` / `kTransitionFireMain`). Response time is command timestamp to shock timestamp. Thresholds are a first cut, not from a flight.
+**Opening-shock code (not on `main`, local `wip/opening-shock-rebased` `5e8f6e86`, host-tested, not flashed):** every profile, coast through main. Specific force at or above 19.62 m/s² (2 g, above a settled canopy) and 2 m/s of descent-speed lost, held 20 ms. Does not move the phase and does not treat apogee as an opening. Pyro command stamps moved onto the fire transition (`kTransitionFireDrogue` / `kTransitionFireMain`). Response time is command timestamp to shock timestamp. Thresholds are a first cut, not from a flight.
 
-**Verified 2026-09-24:** host `FlightDirectorTest` opening-shock / apogee-crossing / second-opening, guard tests, action-list tests, `scripts_generated_profiles`. Not on a board. Feather was not on the bus (only Bluetooth COM3).
+**Verified 2026-09-24:** host `FlightDirectorTest` opening-shock / apogee-crossing / second-opening, guard tests, action-list tests, `scripts_generated_profiles`. Not on a board. Feather was not on the bus (only Bluetooth COM3). **Rebase host ctest 2026-11-28:** 1252/1252 PASS on `wip/opening-shock-rebased` (`5e8f6e86`). Still not on a board.
+
+### Tiny 2350 bring-up parked on `grok/tiny2350-bringup`
+
+Keep the branch and worktree `C:\Users\pow-w\Documents\Rocket-Chip-tiny2350` (`08992eb4`). Long off main. Unfinished logger v2 / ICM-20948+DPS310 config API / `decode_log.py`. One commit is marked not for main. Do not merge, archive, or remove.
 
 ### GCS standalone app (2026-10-01)
 
@@ -198,7 +204,7 @@ Does not reopen sitting 11. Does not strip on `main` until that sitting.
 
 ### Per-board folder in the hardware section (TODO) (Nathan, 2026-11-21)
 
-Board-specific files are spread out today: board packs in `include/rocketchip/` (`board.h` selects `board_feather_rp2350.h`, `board_fruit_jam.h`, `board_pico2.h`, and on `grok/tiny2350-main` `board_tiny_2350.h`), `PICO_BOARD` defaults in `CMakeLists.txt` (~227-239), presets in `CMakePresets.json` (`vehicle-tiny`), board docs in `docs/hardware/` (`HARDWARE.md` sections, `BOARD_COMPARISON.md`, carrier and booster-pack files), and CI board setup in `scripts/ci/board_config.py` + `boards.example.json`. To do: one hardware folder with a sub-folder per board, holding that board's config header, pinout and notes, plus anything else that applies only to that board. Open: exact path and how CMake finds the header (include path per `PICO_BOARD`). Shared code stays out of these folders.
+Board-specific files are spread out today: board packs in `include/rocketchip/` (`board.h` selects `board_feather_rp2350.h`, `board_fruit_jam.h`, `board_pico2.h`, and `board_tiny_2350.h` (on main since the Phase 1 merge)), `PICO_BOARD` defaults in `CMakeLists.txt` (~227-239), presets in `CMakePresets.json` (`vehicle-tiny`), board docs in `docs/hardware/` (`HARDWARE.md` sections, `BOARD_COMPARISON.md`, carrier and booster-pack files), and CI board setup in `scripts/ci/board_config.py` + `boards.example.json`. To do: one hardware folder with a sub-folder per board, holding that board's config header, pinout and notes, plus anything else that applies only to that board. Open: exact path and how CMake finds the header (include path per `PICO_BOARD`). Shared code stays out of these folders.
 
 ### Possible nasa/CF closure-flag bug (look into later) (Nathan, 2026-11-21)
 

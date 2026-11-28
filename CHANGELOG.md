@@ -47,6 +47,10 @@ A note on reliability: brand and model are almost always in your context, but th
 
 <!-- ADD NEW ENTRIES BELOW THIS LINE - newest first, directly under this marker. -->
 
+### 2026-11-27-004 | Grok Hamilton (Grok Bot) | documentation
+
+**Wrap docs and worktree cleanup.** Whiteboard and status docs now match the post-wrap tree: `scripts/radio_link_bench.py` is on main as `1cca9e46`; STARS facts (current URL, Python tool, backends `c` / `qf` (C) / `c++` / `fprime`, no Promela or Python-simulator output) are corrected in the whiteboard, `docs/IVP.md` IVP-67, and a dated note in `docs/decisions/flight_director/council_state_machine_formalism.md` (Decision 5 unchanged). Local worktrees and branches `grok/tiny2350-main`, `grok/r35-standby`, and `buzz/radio-link-bench` were removed (content already on main; `origin/grok/tiny2350-main` left in place). `wip/opening-shock-rebased` (`5e8f6e86`) and `grok/station-dio-tests-rebased` (`9bcc87d5`) are rebased onto main, host ctest 1252/1252, unpushed pending a Buzz bench. `grok/tiny2350-bringup` and `grok/sc-dev` worktrees are kept. `docs/PROBLEM_REPORTS.md` R-35 no longer says the fix is unbenched on `grok/r35-standby`.
+
 ### 2026-11-27-003 | Grok Hamilton (Grok Bot) | documentation
 
 **Stale R-35 whiteboard row removed.** The Open row "R-35 Standby-before-write parked on `grok/r35-standby`" is gone. R-35 is on main in `4780ecbb` and was benched 12/12 in the 11-27 push run (see `2026-11-27-002`). The local branch `grok/r35-standby` (`93e1fe62`) was left in place: it is not an ancestor of main, because the fix was folded rather than merged by SHA.

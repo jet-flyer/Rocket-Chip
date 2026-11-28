@@ -21,6 +21,7 @@
 - Research findings: NASA JPL Perseverance uses UML statecharts via QEP (~40 HSMs in surface component). JPL uses QEP only, not full QP framework.
 - QP/C framework (QEP event processor, QF active object framework, QV cooperative kernel, QS tracing)
 - JPL STARS autocoder (open source, generates C++/Promela/Python from QM statechart models)
+  *(2026-11-28 fact check: current STARS is a Python tool at https://github.com/fprime-community/STARS. Backends are `c`, `qf` (C, not C++), `c++`, and `fprime`. It does not generate Promela or Python-simulator output. This does not change Decision 5.)*
 - Existing FLIGHT_DIRECTOR_DESIGN.md (preliminary placeholder, not authoritative)
 - RocketChip's existing bare-metal Pico SDK dual-core AMP architecture
 
@@ -217,7 +218,7 @@ Exact IVP numbers to be finalized when IVP.md is updated.
 
 - Samek, M. *Practical UML Statecharts in C/C++*, 2nd ed. CRC Press, 2008.
 - QP/C: `github.com/QuantumLeaps/qpc`
-- JPL STARS: `github.com/JPLOpenSource/STARS`
+- JPL STARS: `github.com/JPLOpenSource/STARS` *(2026-11-28: the current repo is `github.com/fprime-community/STARS`.)*
 - JPL SCA: `github.com/JPLOpenSource/SCA`
 - QM: `state-machine.com`
 - SPIN: `spinroot.com`

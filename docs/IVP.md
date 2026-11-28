@@ -2070,26 +2070,26 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 3. **QM installation.** Install QM (Quantum Modeler) on development machine. Open, create trivial 3-state model matching the test above.
 
-4. **STARS autocoder.** Clone `github.com/JPLOpenSource/STARS`. Run STARS JAR against the QM model. Verify it generates: C++ (QEP state handlers). *(2026-10-11: this step first also expected Promela (SPIN model) and Python (interactive simulator) output. Neither is confirmed in the current STARS README, which lists C, C++, F' and Quantum Framework (QP) back ends; the README also shows STARS as a Python tool (`Stars.py`), not a JAR. Source: https://github.com/JPLOpenSource/STARS.)*
+4. **STARS autocoder.** Clone `github.com/fprime-community/STARS` (formerly `JPLOpenSource/STARS`). Run the Python tool (`Stars.py`) against the model. Verify it generates C++ (QEP state handlers), or another listed backend. *(2026-11-28: STARS is a Python tool, not a JAR. Current backends are `c`, `qf` (C, not C++), `c++`, and `fprime`. It does not generate Promela or Python-simulator output. Source: https://github.com/fprime-community/STARS.)*
 
-5. **SPIN verification.** Install SPIN. Write one trivial LTL safety property (`[] !(state == IDLE && action_fired)`). Verify against generated Promela model.
+5. **SPIN verification.** Install SPIN. Write one trivial LTL safety property (`[] !(state == IDLE && action_fired)`). Verify against generated Promela model. *(2026-11-28: current STARS backends do not generate Promela, so this step is not supported by the current tool.)*
 
 6. **Generated code integration.** Compile STARS-generated C++ against Pico SDK. Link and flash. Verify behavior matches hand-written test from step 2.
 
-7. **Python simulator.** Run STARS-generated Python simulator. Send events, observe state transitions.
+7. **Python simulator.** Run STARS-generated Python simulator. Send events, observe state transitions. *(2026-11-28: current STARS backends do not generate a Python simulator.)*
 
 **[GATE]:**
 - QEP compiles and links against Pico SDK ARM Cortex-M33 target
 - Trivial HSM runs on RP2350 hardware with correct state transitions
 - QM installs and opens on development machine
-- STARS generates C++ from QM model (Promela and Python output not confirmed in the current STARS README; see step 4)
+- STARS generates C++ from the model (2026-11-28: backends are `c`, `qf` (C), `c++`, `fprime`; no Promela or Python-simulator output; see step 4)
 - Generated C++ compiles and links against Pico SDK
-- SPIN verifies trivial safety property against generated Promela
-- Python simulator responds to simulated events
+- SPIN verifies trivial safety property against generated Promela *(2026-11-28: not supported by current STARS backends; see step 5)*
+- Python simulator responds to simulated events *(2026-11-28: not supported by current STARS backends; see step 7)*
 
-**Gate decision:** All checks pass in one session → STARS is primary authoring tool for IVP-68+. Java version conflicts, SPIN issues, or generated code incompatibilities → fall back to hand-authored QEP, revisit STARS later. Document decision in `AGENT_WHITEBOARD.md`.
+**Gate decision:** All checks pass in one session → STARS is primary authoring tool for IVP-68+. Python environment issues, SPIN issues, or generated code incompatibilities → fall back to hand-authored QEP, revisit STARS later. Document decision in `AGENT_WHITEBOARD.md`.
 
-**[DIAG]:** QEP won't compile = missing port header or C/C++ linkage mismatch (QEP is C99, project is C++20 — use `extern "C"`). STARS JAR fails = Java version requirement. Generated code won't link = STARS output assumptions don't match Pico SDK build. SPIN install fails = platform issue, try pre-built binary.
+**[DIAG]:** QEP won't compile = missing port header or C/C++ linkage mismatch (QEP is C99, project is C++20 — use `extern "C"`). STARS fails = Python environment issue (2026-11-28: STARS is a Python tool, not a JAR). Generated code won't link = STARS output assumptions don't match Pico SDK build. SPIN install fails = platform issue, try pre-built binary.
 
 ---
 
