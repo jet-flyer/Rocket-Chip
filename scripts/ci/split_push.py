@@ -23,7 +23,10 @@ import sys
 from pathlib import Path
 from typing import List, Mapping, Sequence
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# firmware_tree.py is in scripts/, the other modules are in scripts/ci/.
+for _p in (Path(__file__).resolve().parents[1], Path(__file__).resolve().parent):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 import firmware_tree as ft  # noqa: E402
 import pre_commit_matrix as matrix  # noqa: E402
 import pre_push_gate as pg  # noqa: E402

@@ -132,7 +132,7 @@ Plan: scratch `git worktree add` at HEAD in a temp folder, configure the build d
 
 `soak_two_board.py` run window (2026-10-30, Goddard): `delta_window_s` starts after the vehicle answers the start `t` and stops after the end key sequence, so it is about 1 s shorter than the span the counts cover. Take both marks at the same point (key sent, or answer seen).
 
-`scripts/radio_link_bench.py` is gone (never committed; not on disk). The FSK plan still cites it (GI8, FC-I5). Nathan decides whether to restore the script or drop that intent.
+`scripts/radio_link_bench.py` exists. The first version is on the local branch `buzz/radio-link-bench` (94f8413f). The rewrite is staged on main and not committed yet. The FSK plan cites it (GI8, FC-I5).
 
 ### Bench power and the RSSI LED (Nathan, 2026-10-31)
 
@@ -247,6 +247,24 @@ Design and ground-path options (Yamcs, network forwarding, SLE, XTCE): `starcom/
 ### Full-duplex by split band (LATER) (Nathan, 2026-11-27)
 
 **Full-duplex by split band (LATER, not scheduled; Nathan 2026-11-27).** Consider a second SX127x-family radio on a different band, one band per direction, each with its own filter. A same-band pair in 902-928 MHz is not a route: SX1276 blocking immunity is 76 dB at +/-2 MHz (Goddard, datasheet BI_HF; self-deafening is an estimate, not a measured number). Prox-1 full duplex is separate forward and return frequencies at the same time (Duke; 211.1-B-4 DUPLEX control). HopeRF sells band-specific modules (RFM95W-868S2 and RFM95W-915S2, datasheet ordering info; same SX1276, module built for one band). Adafruit sells one "900 MHz" version (Goddard). An 868 MHz module still does not give useful duplex: about 34 MHz below our band, same high-band front end, and not legal for unlicensed use in the US. 868 MHz is dropped as a candidate. The split-band candidate is a 433 MHz part (RFM96W or RFM98W). The Adafruit RFM96W (product 3073) is listed as the same SX1276, so the current driver is likely to carry over with band settings only, not a new driver (unverified on a board). Adafruit lists 433 MHz in the US as "ITU American amateur with limitations", so ongoing telemetry on 433 MHz needs an amateur radio license. Open: (a) confirm driver carry-over on a board; (b) 433 MHz needs an amateur license in the US; 868 MHz is dropped; (c) antenna and filter isolation on one board. Owner: research (Goddard) when scheduled.
+
+### Field build never built for boards or benched (LATER) (Nathan, 2026-11-27)
+
+**Field build never built for boards or benched (LATER, Nathan 2026-11-27).** `ROCKETCHIP_DEV_MODE` defaults to ON (`CMakeLists.txt:14`), and no preset sets it to OFF. Since the Aug 27 split, the hook cross-compile, every gate bench and every board image are dev builds. The host test `test_cli_engine_field` (`test/CMakeLists.txt:534-539`) covers the field console logic only.
+
+- A field build removes: the main-menu `v` DEV MODE toggle, the cal menu `r` (reset cal), the five flight-menu injects (LAUNCH, BURNOUT, APOGEE, MAIN, LANDING), and the debug `o` forced TX timeout. The `radio_tx_force` latch in `ao_radio.cpp` and the driver forced-timeout flag in `rfm95w.cpp` (`force_tx_timeout`) are also compiled out.
+- In a field build, every TX timeout counts toward the consecutive-failure limit (`ao_radio.cpp:289-291`). In a dev build, a forced timeout does not count.
+- A field build adds: the USB ARM refusal when `kDefaultRocketProfile.usb_arm_inhibit` is set (`cli_actions.cpp:77-85`), and the preflight line `USB_ARM_INH ON (USB ARM refused)` (`rc_os_commands.cpp:1742`). This code has never run on hardware.
+- A dev build does not refuse USB ARM. It only logs `USB_ARM_INH ON (field image only; DEV_MODE desk allows USB ARM)` (`rc_os_commands.cpp:1745`).
+- Not gated by `ROCKETCHIP_DEV_MODE`: sensors, flight logic, telemetry and Starcom.
+- Compile risk: none known. The dev-only symbols are used only inside matching `#if` blocks, and the action IDs stay in the enum with empty cases (`cli_actions.cpp:260-263`). But a field image was never built for a board.
+- Menu size (host test, `test/test_cli_engine.cpp:166,181`): the vehicle menu has 61 items in a dev build and 53 in a field build. The station menu has no dev-only keys.
+- The cal-reset function body (`AO_RCOS_start_cal_reset`, `ao_rcos.cpp:1339`) is not inside `#if`. A field build removes only its key.
+- Station: a dev image compiles the driver forced-timeout path but has no key to start it. A station field image omits that path.
+- The gate vehicle flight-sim needs the DEV_MODE inject, so it cannot bench a field image.
+- `o` does not use the runtime `v` toggle (it has no `inject_allowed()` check), unlike inject and cal reset.
+- Later: (1) add a `ROCKETCHIP_DEV_MODE=OFF` cross-compile for both roles; (2) Buzz does a one-off bench of a field image: boot, preflight, radio link, and USB ARM refused.
+- Proposed milestone check: `docs/agents/SESSION_CHECKLIST.md` item 18, "Field-image check" (Session End: Milestone). Build both roles with `-DROCKETCHIP_DEV_MODE=OFF`, flash, Buzz checks boot, preflight, radio link and the USB ARM refusal, flash the dev images back, record it in the CHANGELOG. The item is proposed in `rc-stash-archive/session_checklist_6a.patch`; it is not in the checklist yet.
 
 ### Analog FPV OSD for the Telestar expansion (Nathan, 2026-11-23)
 

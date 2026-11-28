@@ -79,6 +79,8 @@ scripts/bench_sim.py
 scripts/station_bench_sim.py
 scripts/_rc_test_common.py
 scripts/flash_elf_halt_write.py
+# The two-board radio bench. The gate runs it on a [radio] push.
+scripts/radio_link_bench.py
 
 [station-only]
 # Role rule (Nathan, 2026-10-08): a firmware ([elf]) change benches BOTH

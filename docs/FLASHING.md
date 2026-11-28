@@ -260,8 +260,10 @@ carry, not a fixed list.
   the radio fitted and passing on every benched board that has a profile. If
   one is absent or marked not fitted, the push is blocked with the reason
   before any bench runs. If the radio is missing on the bench, that bench
-  fails. This is separate from the two-board radio-link bench, which stays a
-  warning until `scripts/radio_link_bench.py` exists.
+  fails. This is separate from the two-board radio-link bench
+  (`scripts/radio_link_bench.py`). The gate runs that bench on a radio push
+  when its own checkout has the script committed and unchanged at HEAD. If it
+  does not, the gate prints `WARNING [radio-gap]`.
 - How each bench reads the radio. Station: `RegVersion=0x12` in the diag dump
   is the chip; no line, `0x00` or `0xFF` is no chip; any other value is a
   wrong chip. Vehicle: the preflight `T2 Radio HW` line, `GO` (SX1276 came

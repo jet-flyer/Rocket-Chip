@@ -35,6 +35,8 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     when ALL of these are true:
       - it says "result: PASS";
       - its roles: line covers the roles this push needs (+ radio-link);
+      - for a radio push, its radio_bench: line names the same blob of
+        RADIO_LINK_BENCH as the gate's own checkout;
       - its boards: line names a USB serial for each needed board, and
         each of those serials is attached now (USB enumeration only; no
         port is opened). A swapped MCU board gives no match;
@@ -58,12 +60,17 @@ Per pushed ref (stdin: <local-ref> <local-sha> <remote-ref> <remote-sha>):
     optional, so a board with no debug port benches the same way),
     then run bench_sim / station_bench_sim
     with --commit <sha>.
- 5. Radio push ([radio] path changed). The radio rule is ACTIVE only
-    when the pushed commit contains RADIO_LINK_BENCH. Then BOTH boards are
-    benched and the two-board round trip must pass. Until that script
-    lands, the gate only WARNS and benches the roles the matrix names
-    (both roles, because a [radio] path is a firmware path). The
-    script and the blocking rule land in the same commit (DRAFT.md).
+ 5. Radio push ([radio] path changed). The radio rule is ACTIVE when the
+    gate's own checkout has RADIO_LINK_BENCH committed at HEAD and
+    unchanged (radio_bench_blob). It does not look at the pushed commit,
+    so it covers every sha of a split push. The script is host tooling:
+    the gate runs the checkout's copy (not the bench worktree's) with
+    --vehicle-serial and --station-serial of the two boards the role
+    benches used. BOTH boards are benched and the two-board radio check
+    must pass: 2 dBm readback on both, a forced TX timeout on the vehicle,
+    a round trip, and one preset hop and back. Without the script in the
+    checkout, the gate only WARNS and benches the roles the matrix names
+    (both roles, because a [radio] path is a firmware path).
  5b. Expected hardware (Nathan, 2026-11-23; docs/FLASHING.md, "Expected
     hardware"). A board in boards.local.json that names a "board" profile
     (board_profiles.json, read from the pushed commit) is benched against
@@ -128,7 +135,7 @@ MAX_FIRMWARE_COMMITS = 5
 # standards/VERSIONING.md: annotated vMAJOR.MINOR.PATCH on the release commit.
 # Anchored and exact, so starcom-v0.2.25 and v1-scratch do not match.
 RELEASE_TAG = re.compile(r'^refs/tags/v\d+\.\d+\.\d+$')
-RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'   # GAP: not built yet
+RADIO_LINK_BENCH = 'scripts/radio_link_bench.py'
 
 # Flash paths (docs/FLASHING.md). FLASH_SWD: the debug probe is on this
 # board, so the flash script (OpenOCD) is path 2 and picotool is path 1.
@@ -345,9 +352,11 @@ def note_expect_line(expects: Mapping[str, Optional[Dict[str, str]]]) -> str:
 
 def note_covers(note: str, roles: List[str], radio: bool,
                 attached: Optional[Set[str]],
-                expect_line: str = '') -> Tuple[bool, str]:
+                expect_line: str = '',
+                radio_bench: str = '') -> Tuple[bool, str]:
     """(reuse?, reason). See the module docstring, step 3. A note is reused
-    only for the same expected hardware (its expect: line)."""
+    only for the same expected hardware (its expect: line) and, for a radio
+    push, the same radio bench script (its radio_bench: line)."""
     if 'result: PASS' not in note:
         return False, 'note is not a PASS'
     m = re.search(r'^expect: .*$', note, re.MULTILINE)
@@ -360,6 +369,13 @@ def note_covers(note: str, roles: List[str], radio: bool,
     need = set(roles) | ({'radio-link'} if radio else set())
     if not need <= have:
         return False, f'note covers {sorted(have)}, push needs {sorted(need)}'
+    if radio:
+        m = re.search(r'^radio_bench: (\S+)$', note, re.MULTILINE)
+        noted = m.group(1) if m else ''
+        if not radio_bench or noted != radio_bench:
+            return False, ('radio bench script differs from the note '
+                           f'({noted or "no radio_bench line"} vs '
+                           f'{radio_bench or "none"})')
     boards = set(roles) | (set(ROLES) if radio else set())
     recorded = note_boards(note)
     if attached is None:
@@ -726,13 +742,17 @@ def openocd_listening() -> bool:
 
 def run_bench(wt: Path, script: str, sha: str, label: str,
               expect: Optional[Dict[str, str]] = None,
-              na_out: Optional[List[str]] = None) -> Tuple[str, str]:
+              na_out: Optional[List[str]] = None,
+              extra: Optional[List[str]] = None) -> Tuple[str, str]:
     """(result text, USB serial of the benched board or UNKNOWN_SERIAL).
     expect: the board's expected hardware (--expect); None = legacy rules.
-    na_out: collects the bench's N/A checks by name (hw_na: lines)."""
+    na_out: collects the bench's N/A checks by name (hw_na: lines).
+    extra: more arguments for the bench script. wt is the directory whose
+    scripts/ folder holds the script and the working directory of the run."""
     cmd = [sys.executable, '-u', str(wt / 'scripts' / script), '--commit', sha]
     if expect is not None:
         cmd += ['--expect', board_config.format_expect(expect)]
+    cmd += list(extra or [])
     say(f'{label}: $ ' + ' '.join(cmd))
     # Stream the child live (each line echoed and flushed as it arrives) so
     # long runs such as RC_UPTIME_HOLD_S show progress; the text is still
@@ -779,16 +799,36 @@ def run_bench(wt: Path, script: str, sha: str, label: str,
 RADIO_GAP = (
     'RADIO PUSH: this push changes radio/link code ([radio] in\n'
     'scripts/ci/firmware_paths.txt). The two-board radio check is NOT done:\n'
-    f'{RADIO_LINK_BENCH} is not in this commit.\n'
+    f'{RADIO_LINK_BENCH} is not committed and unchanged at HEAD of the\n'
+    'checkout that runs this gate.\n'
     'This push is NOT radio-benched. The radio change is NOT verified on\n'
     'air. This is an open gap. Report it in the push report and in the\n'
     'bench citation (SESSION_CHECKLIST 6a).')
 
 
-def radio_rule_active(repo: Path, sha: str) -> bool:
-    """The blocking radio rule lands with the round-trip bench, not before."""
-    return subprocess.run(['git', 'cat-file', '-e', f'{sha}:{RADIO_LINK_BENCH}'],
-                          cwd=str(repo), capture_output=True).returncode == 0
+def radio_bench_blob(repo: Path) -> Optional[str]:
+    """Blob id of RADIO_LINK_BENCH at HEAD of the gate's own checkout, or
+    None when it is not committed there or the working copy differs from
+    HEAD (changed, staged or untracked). The gate runs this copy, so the
+    blob id says which script produced a bench PASS."""
+    r = subprocess.run(['git', 'rev-parse', '--verify', '--quiet',
+                        f'HEAD:{RADIO_LINK_BENCH}'], cwd=str(repo),
+                       capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    st = subprocess.run(['git', 'status', '--porcelain', '--', RADIO_LINK_BENCH],
+                        cwd=str(repo), capture_output=True, text=True)
+    if st.returncode != 0 or st.stdout.strip():
+        return None
+    return r.stdout.strip()
+
+
+def radio_rule_active(repo: Path) -> bool:
+    """The blocking radio rule is on when the gate's own checkout has the
+    two-board radio bench (radio_bench_blob). It does not depend on the
+    pushed sha: the script is host tooling, so a push of an older sha of a
+    split push is checked too."""
+    return radio_bench_blob(repo) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -929,7 +969,7 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
         f'{", isolate=" + str(plan.isolate) if plan.isolate else ""}')
     check_shape(repo, plan)
     radio_paths = plan.radio
-    if plan.radio and not radio_rule_active(repo, local_sha):
+    if plan.radio and not radio_rule_active(repo):
         warn(RADIO_GAP, 'radio-gap')
         plan.radio = False
     if not plan.roles:
@@ -951,7 +991,7 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
         why = f'no note for key {key[:12]}'
     else:
         ok, why = note_covers(note, plan.roles, plan.radio, attached_board_serials(),
-                              expect_line)
+                              expect_line, radio_bench_blob(repo) or '')
         if ok:
             say(f'bench note {key[:12]} covers this firmware tree, tools and '
                 f'{why}: skip flash and bench.')
@@ -1004,8 +1044,18 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
         results[r], boards[r] = run_bench(wt, ROLES[r][2], local_sha, f'{r} bench',
                                           expect=expects.get(r), na_out=na)
     if plan.radio:
-        results['radio-link'], _ = run_bench(wt, Path(RADIO_LINK_BENCH).name,
-                                             local_sha, 'radio link')
+        # The radio bench is host tooling: run the gate checkout's copy (the
+        # bench worktree has the pushed sha, which may be older than the
+        # script). Same boards as the role benches.
+        radio_blob = radio_bench_blob(repo) or ''
+        say(f'radio link bench: {RADIO_LINK_BENCH} blob {radio_blob[:12]} '
+            f'from the gate checkout {repo}')
+        same = [a for r, f in (('vehicle', '--vehicle-serial'),
+                               ('station', '--station-serial'))
+                for a in ((f, boards[r]) if boards.get(r, UNKNOWN_SERIAL)
+                          != UNKNOWN_SERIAL else ())]
+        results['radio-link'], _ = run_bench(repo, Path(RADIO_LINK_BENCH).name,
+                                             local_sha, 'radio link', extra=same)
 
     stamp = datetime.datetime.now().astimezone().isoformat(timespec='seconds')
     rng = f'{plan.commits[0][:12]}..{plan.commits[-1][:12]}' if plan.commits else '-'
@@ -1014,6 +1064,8 @@ def handle_branch(repo: Path, remote: str, local_ref: str, local_sha: str,
              f'range: {rng} ({len(plan.commits)} commits)',
              f'roles: {" ".join(results)}',
              'boards: ' + ' '.join(f'{r}={s}' for r, s in boards.items())]
+    if plan.radio:
+        lines.append(f'radio_bench: {radio_blob}')
     if expect_line:
         lines.append(expect_line)
     lines += [f'na: {x}' for x in na]

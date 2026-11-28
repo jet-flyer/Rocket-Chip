@@ -273,6 +273,25 @@ def main() -> int:
         check('does not block on the missing script; fails closed at the bench',
               rc == 1 and STUB in out, out)
 
+        print('test_radio_rule_keyed_to_the_gate_checkout')
+        # The pushed sha (rsha) has no script. The checkout that runs the
+        # gate has it at HEAD. The rule is on for every sha of a split push.
+        git(repo, 'checkout', '-q', '-b', 'radio-gate', rsha)
+        commit(repo, 'scripts/radio_link_bench.py', '# bench', 'add radio bench')
+        rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
+        check('older pushed sha, script at checkout HEAD -> no radio-gap warning',
+              'NOT radio-benched' not in out, out)
+        check('radio rule on: both roles benched, fails closed at the bench step',
+              rc == 1 and STUB in out and 'RADIO PUSH' in out, out)
+        script = repo / 'scripts' / 'radio_link_bench.py'
+        script.write_text('# changed after commit\n', encoding='utf-8')
+        rc, out = gate(repo, [f'refs/heads/radio {rsha} refs/heads/radio {ZERO}'])
+        check('script changed in the checkout (not at HEAD) -> warning again',
+              'NOT radio-benched' in out, out)
+        git(repo, 'checkout', '-q', '--', 'scripts/radio_link_bench.py')
+        git(repo, 'checkout', '-q', 'radio')
+        git(repo, 'branch', '-q', '-D', 'radio-gate')
+
         print('test_existing_branch_update (remote..local)')
         git(repo, 'update-ref', 'refs/remotes/origin/feat', d)
         rc, out = gate(repo, [f'refs/heads/feat {f} refs/heads/feat {d}'])
@@ -281,6 +300,7 @@ def main() -> int:
         bench_key_v2_tests(repo, td, ft, pg, f, d, base,
                            gcc_a, gcc_b, pt_a, pt_b, tools, sdk)
         hw_expect_tests(pg)
+        radio_bench_gate_tests(pg, td)
     finally:
         shutil.rmtree(td, ignore_errors=True)
     print('ALL CHECKS PASS' if FAILS == 0 else f'{FAILS} CHECK(S) FAILED')
@@ -491,11 +511,12 @@ def bench_key_v2_tests(repo, td, ft, pg, f, d, base,
     check('compiler update -> new key, old note not found',
           'would bench' in out and 'no note for key' in out, out)
     ok, why = pg.note_covers('result: PASS\nroles: vehicle station radio-link\n'
-                             'boards: vehicle=SER1', ['vehicle'], True, {'SER1'})
+                             'boards: vehicle=SER1\nradio_bench: b1', ['vehicle'], True,
+                             {'SER1'}, '', 'b1')
     check('radio push needs both board serials', not ok and 'station' in why, why)
     ok, _ = pg.note_covers('result: PASS\nroles: vehicle station radio-link\n'
-                           'boards: vehicle=SER1 station=SER2', ['vehicle'], True,
-                           {'SER1', 'SER2'})
+                           'boards: vehicle=SER1 station=SER2\nradio_bench: b1',
+                           ['vehicle'], True, {'SER1', 'SER2'}, '', 'b1')
     check('radio push with both boards attached -> reuse', ok)
 
     print('test_attached_serials_skip_the_debug_probe')
@@ -1291,6 +1312,81 @@ def statechart_replay(pg, bc, sb, vb) -> None:
     check('R5: warnings (inhibited or not) print and never raise',
           'INHIBITED' in out and 'WARNING' in out, out)
     pg.WARN_INHIBITS.clear()
+
+
+def radio_bench_gate_tests(pg, td: Path) -> None:
+    """The radio bench is host tooling run from the gate's own checkout:
+    its blob id keys note reuse, and the gate passes the role serials."""
+    print('test_radio_bench_blob (gate checkout, HEAD, clean)')
+    r = td / 'rbrepo'
+    r.mkdir()
+    git(r, 'init', '-q', '-b', 'main')
+    git(r, 'config', 'user.name', 'test')
+    git(r, 'config', 'user.email', 'test@example.invalid')
+    commit(r, 'README', 'x', 'first')
+    check('no script -> None, rule off', pg.radio_bench_blob(r) is None
+          and not pg.radio_rule_active(r))
+    (r / 'scripts').mkdir()
+    (r / 'scripts' / 'radio_link_bench.py').write_text('# v1\n', encoding='utf-8')
+    check('untracked script -> None', pg.radio_bench_blob(r) is None)
+    git(r, 'add', 'scripts/radio_link_bench.py')
+    check('staged, not committed -> None', pg.radio_bench_blob(r) is None)
+    git(r, 'commit', '-q', '-m', 'script')
+    blob = pg.radio_bench_blob(r)
+    check('committed and clean -> blob id of HEAD:scripts/radio_link_bench.py',
+          blob == git(r, 'rev-parse', 'HEAD:scripts/radio_link_bench.py')
+          and pg.radio_rule_active(r), str(blob))
+    (r / 'scripts' / 'radio_link_bench.py').write_text('# v2\n', encoding='utf-8')
+    check('changed after commit -> None, rule off',
+          pg.radio_bench_blob(r) is None and not pg.radio_rule_active(r))
+    git(r, 'checkout', '-q', '--', 'scripts/radio_link_bench.py')
+    check('restored -> blob again', pg.radio_bench_blob(r) == blob)
+
+    print('test_note_reuse_needs_the_same_radio_bench')
+    note = ('result: PASS\nroles: vehicle station radio-link\n'
+            'boards: vehicle=SER1 station=SER2\nradio_bench: ' + blob + '\n')
+    ser = {'SER1', 'SER2'}
+    ok, _ = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', blob)
+    check('same script blob -> reuse', ok)
+    ok, why = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', 'f' * 40)
+    check('other script blob -> not reused', not ok and 'radio bench script' in why, why)
+    old = note.replace('radio_bench: ' + blob + '\n', '')
+    ok, why = pg.note_covers(old, ['vehicle', 'station'], True, ser, '', blob)
+    check('note with no radio_bench line -> not reused',
+          not ok and 'no radio_bench line' in why, why)
+    ok, why = pg.note_covers(note, ['vehicle', 'station'], True, ser, '', '')
+    check('no script in the checkout -> not reused', not ok, why)
+    plain = 'result: PASS\nroles: vehicle station\nboards: vehicle=SER1 station=SER2\n'
+    ok, _ = pg.note_covers(plain, ['vehicle', 'station'], False, ser, '', '')
+    check('a push with no radio path ignores radio_bench', ok)
+
+    print('test_run_bench_runs_the_script_from_the_given_folder')
+    seen: dict = {}
+
+    class FakeProc:
+        def __init__(self, cmd, **kw):
+            seen['cmd'], seen['cwd'] = cmd, kw.get('cwd')
+            self.stdout = iter(['board_usb_serial: VSER\n', 'RESULT: 7/7 PASS\n'])
+
+        def wait(self):
+            return 0
+
+    real = pg.subprocess.Popen
+    pg.subprocess.Popen = FakeProc
+    try:
+        res = captured(lambda: seen.update(
+            out=pg.run_bench(r, 'radio_link_bench.py', 'abc123', 'radio link',
+                             extra=['--vehicle-serial', 'V1', '--station-serial', 'S1'])))
+    finally:
+        pg.subprocess.Popen = real
+    cmd = seen.get('cmd', [])
+    check('script path is <folder>/scripts/radio_link_bench.py',
+          any(str(c).endswith(str(Path('scripts') / 'radio_link_bench.py')) for c in cmd)
+          and Path(seen.get('cwd', '')) == r, str(cmd))
+    check('passes --commit and the role serials',
+          '--commit' in cmd and cmd[cmd.index('--commit') + 1] == 'abc123'
+          and cmd[-4:] == ['--vehicle-serial', 'V1', '--station-serial', 'S1'], str(cmd))
+    check('reads RESULT: n/m PASS', seen.get('out', ('',))[0] == '7/7 PASS', res)
 
 
 if __name__ == '__main__':
